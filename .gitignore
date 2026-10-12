@@ -11,3 +11,6 @@ dist/
 .github/hooks/impeccable.json
 .impeccable/config.local.json
 .impeccable/synced
+
+.impeccable/mocks/
+.impeccable/review/
