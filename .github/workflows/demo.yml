@@ -1,0 +1,111 @@
+name: Demo-Pipeline
+
+# Tut nichts außer zu warten: eine mehrstufige Pipeline, um den Netzplan in RunClub anzusehen.
+# Start von Hand:  gh workflow run demo.yml   (mit Fehler:  gh workflow run demo.yml -f fehler=true)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fehler:
+        description: Den Job „Unit-Tests“ scheitern lassen, damit rote und ausgesetzte Jobs zu sehen sind
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  vorbereiten:
+    name: Vorbereiten
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Umgebung prüfen
+        run: sleep 8
+
+  bauen:
+    name: Bauen
+    needs: vorbereiten
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Abhängigkeiten laden
+        run: sleep 10
+      - name: Übersetzen
+        run: sleep 25
+      - name: Artefakte ablegen
+        run: sleep 5
+
+  lint:
+    name: Lint
+    needs: vorbereiten
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Stil prüfen
+        run: sleep 18
+
+  unit:
+    name: Unit-Tests
+    needs: vorbereiten
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Tests vorbereiten
+        run: sleep 6
+      - name: Tests ausführen
+        run: |
+          sleep 20
+          if [ "${{ inputs.fehler }}" = "true" ]; then echo "absichtlich gescheitert"; exit 1; fi
+
+  integration:
+    name: Integrationstests
+    needs: [bauen, unit]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Dienste starten
+        run: sleep 10
+      - name: Tests ausführen
+        run: sleep 25
+
+  paket:
+    name: Paket schnüren
+    needs: bauen
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Packen
+        run: sleep 15
+
+  doku:
+    name: Doku bauen
+    needs: lint
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Seiten erzeugen
+        run: sleep 14
+
+  smoke:
+    name: Smoke-Test
+    needs:
+      - integration
+      - paket
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Paket starten
+        run: sleep 8
+      - name: Erreichbarkeit prüfen
+        run: sleep 12
+
+  veroeffentlichen:
+    name: Veröffentlichen
+    needs: [smoke, doku]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Freigabe abwarten
+        run: sleep 6
+      - name: Hochladen
+        run: sleep 8
