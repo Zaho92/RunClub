@@ -1,0 +1,16 @@
+{
+  "name": "runclub",
+  "productName": "RunClub",
+  "version": "0.1.0",
+  "description": "Eigene GitHub-Actions-Runner auf diesem Rechner: frisch je Job, mit Reserve und Caches.",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "backend": "node src/backend.js",
+    "icon": "electron scripts/make-icon.js"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0"
+  }
+}

@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunClub</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1c1f24; --muted:#6b7280; --line:#e3e6ea; --bar:#e9ecf0; --soft:#f1f3f6;
+          --ok:#1f9d55; --busy:#c77700; --off:#8a9099; --bad:#c0392b; --fill:#3b6fd4; --accent:#2f5fc4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#15171b; --card:#1e2126; --text:#e8eaed; --muted:#9aa1ab; --line:#2c3037; --bar:#2a2e35; --soft:#252930;
+            --ok:#3ecf7c; --busy:#f0a43a; --off:#737a85; --bad:#ff6b5e; --fill:#6f9bf0; --accent:#8fb2f5; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 16px 48px; background:var(--bg); color:var(--text); font:15px/1.45 "Segoe UI", system-ui, sans-serif; }
+  main { max-width:860px; margin:0 auto; }
+  header { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  h1 { font-size:20px; margin:0; }
+  .sub { color:var(--muted); font-size:13px; }
+  .spacer { flex:1; }
+  h2 { font-size:16px; margin:0; }
+  .repo { margin-top:28px; }
+  .repohead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .name { font-weight:600; }
+  .tag { font-size:12px; border:1px solid var(--line); border-radius:5px; padding:1px 7px; color:var(--muted); white-space:nowrap; }
+  .tag.warn { color:var(--busy); border-color:var(--busy); }
+  .state { margin-left:auto; display:flex; align-items:center; gap:7px; font-weight:600; color:var(--off); }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--off); flex:none; }
+  .s-bereit .dot { background:var(--ok); } .s-bereit .state { color:var(--ok); }
+  .s-arbeitet .dot { background:var(--busy); animation:pulse 1.2s infinite; } .s-arbeitet .state { color:var(--busy); }
+  .s-unterwegs .dot { background:var(--busy); }
+  .s-gestoert .dot { background:var(--bad); } .s-gestoert .state { color:var(--bad); }
+  @keyframes pulse { 50% { opacity:.35; } }
+  @media (prefers-reduced-motion: reduce) { .s-arbeitet .dot { animation:none; } .bar i { transition:none; } }
+  .job { margin-top:8px; font-size:14px; }
+  a { color:var(--accent); }
+  .meters { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px; }
+  @media (max-width:560px) { .meters { grid-template-columns:1fr; } .state { margin-left:0; width:100%; } }
+  .label { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .label b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .bar { height:8px; background:var(--bar); border-radius:4px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--fill); border-radius:4px; transition:width .6s; }
+  .small { margin-top:8px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+  .warn { color:var(--busy); } .bad { color:var(--bad); }
+  button { font:inherit; font-size:13px; padding:5px 11px; border-radius:7px; border:1px solid var(--line); background:var(--soft); color:var(--text); cursor:pointer; }
+  button:hover { border-color:var(--muted); }
+  button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button.danger { color:var(--bad); }
+  button.step { width:30px; padding:5px 0; }
+  button:disabled { opacity:.5; cursor:default; }
+  input { font:inherit; padding:6px 10px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--text); min-width:0; }
+  details { margin-top:10px; }
+  summary { cursor:pointer; font-size:13px; color:var(--muted); }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:8px; }
+  td { padding:5px 8px 5px 0; border-top:1px solid var(--line); vertical-align:middle; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  td.act { text-align:right; white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+  pre { font:12px/1.5 Consolas, monospace; white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0 0; color:var(--muted); }
+  code { font:13px Consolas, monospace; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:9px 16px; border-radius:8px; font-size:14px; max-width:90vw; display:none; }
+  .add { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .add input { flex:1 1 220px; }
+  .check { display:flex; align-items:center; gap:6px; align-self:center; cursor:pointer; }
+  .picks { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .picks:empty { display:none; }
+  .pipe .eta { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .pipe .bar { margin-top:10px; }
+  .pipe .title { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:0 1 auto; }
+  .jobs td { padding:6px 8px 6px 0; }
+  .jobs td.mark { width:22px; text-align:center; font-weight:700; color:var(--off); }
+  .jobs td.jbar { width:22%; min-width:70px; padding-right:0; }
+  .jobs .j-ok .mark { color:var(--ok); } .jobs .j-bad .mark { color:var(--bad); }
+  .jobs .j-run .mark { color:var(--busy); animation:pulse 1.2s infinite; }
+  .jobs .j-wait, .jobs .j-skip { color:var(--muted); } .jobs .j-wait a, .jobs .j-skip a { color:var(--muted); }
+  .jobs .j-ok .bar i { background:var(--ok); } .jobs .over .bar i { background:var(--busy); }
+  @media (prefers-reduced-motion: reduce) { .jobs .j-run .mark { animation:none; } }
+  @media (max-width:560px) { .jobs td.jbar { display:none; } }
+</style></head><body><main>
+<header>
+  <div><h1>RunClub</h1><div class="sub" id="sub">lädt …</div></div>
+  <span class="spacer"></span>
+  <label class="sub check" id="autostart" hidden title="Startet RunClub beim Anmelden im Infobereich, ohne Fenster"><input type="checkbox" id="autostartBox"> Mit Windows starten</label>
+  <button data-do="shutdown" class="danger" title="Beendet alle Runner und dieses Programm">Alles beenden</button>
+</header>
+<div id="machine"></div>
+<div id="repos"></div>
+
+<div class="repo">
+  <div class="repohead"><h2>Linux-Runner für ein weiteres Repo</h2></div>
+  <div class="card">
+    <form class="add" id="add">
+      <input id="addRepo" list="repoList" placeholder="Repo suchen oder besitzer/name" aria-label="Repo" autocomplete="off" spellcheck="false">
+      <datalist id="repoList"></datalist>
+      <button type="submit">Pool anlegen</button>
+    </form>
+    <div class="picks" id="picks"></div>
+    <div class="small">Die Jobs des Repos brauchen <code>runs-on: [self-hosted, Linux]</code>. Je Job entsteht ein frischer Container mit eigenem Docker-Daemon.</div>
+  </div>
+</div>
+
+<details id="logbox"><summary>Protokoll</summary><pre id="log"></pre></details>
+</main>
+<div id="toast" role="status"></div>
+<script>
+const TOKEN = '__TOKEN__';
+const gb = (b) => (b / 1073741824).toFixed(1).replace('.', ',') + ' GB';
+const mb = (b) => b >= 1073741824 ? gb(b) : Math.round(b / 1048576) + ' MB';
+const pct = (n) => n.toFixed(n < 10 ? 1 : 0).replace('.', ',') + ' %';
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+const since = (iso) => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 60 ? s + ' s' : s < 3600 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : Math.floor(s / 3600) + ' h ' + Math.floor(s % 3600 / 60) + ' min'; };
+const ago = (iso) => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 90 ? 'gerade eben' : s < 3600 ? 'vor ' + Math.round(s / 60) + ' min' : s < 86400 ? 'vor ' + Math.round(s / 3600) + ' h' : 'vor ' + Math.round(s / 86400) + ' Tagen'; };
+const clock = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const elapsed = (iso) => Math.max(0, (Date.now() - new Date(iso)) / 1000);
+const left = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? 'gleich fertig' : 'noch ≈ ' + (s < 90 ? '1 min' : Math.round(s / 60) + ' min'); };
+const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
+const stepText = (step) => step ? 'Schritt ' + step.number + '/' + step.total + ': ' + step.name : '';
+const meter = (label, value, share) => '<div><div class="label"><span>' + label + '</span><b>' + value + '</b></div><div class="bar"><i style="width:' + Math.min(100, share).toFixed(1) + '%"></i></div></div>';
+const stateClass = (state) => state.startsWith('bereit') ? 's-bereit' : state.startsWith('arbeitet') ? 's-arbeitet' : state.startsWith('gestört') ? 's-gestoert' : /^(startet|räumt|wartet)/.test(state) ? 's-unterwegs' : '';
+const attrs = (o) => Object.entries(o).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('');
+const button = (text, o, cls, title) => '<button' + attrs(o) + (cls ? ' class="' + cls + '"' : '') + (title ? ' title="' + esc(title) + '"' : '') + '>' + text + '</button>';
+
+let toastTimer;
+function toast(text) {
+  const el = document.getElementById('toast');
+  el.textContent = text; el.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+async function call(action, body) {
+  try {
+    const response = await fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-rc-token': TOKEN }, body: JSON.stringify(body ?? {}) });
+    const data = await response.json();
+    if (!response.ok) { toast(data.error || 'Das hat nicht geklappt.'); return false; }
+    refresh(); return true;
+  } catch { toast('Der Dienst antwortet nicht.'); return false; }
+}
+
+function runnerCard(repo, r, index, memoryTotal) {
+  const j = r.job;
+  const job = j ? '<div class="job">Job <b>' + esc([j.workflow, j.job].filter(Boolean).join(' / ')) + '</b>' + (j.branch ? ' auf <code>' + esc(j.branch) + '</code>' : '') + (j.startedAt ? ', ' + clock(elapsed(j.startedAt)) + (j.estimate ? ' von üblich ' + clock(j.estimate) : '') : '') + (j.step ? ' · ' + esc(stepText(j.step)) : '') + ' · <a href="' + esc(j.url) + '" target="_blank" rel="noopener">bei GitHub</a></div>' : '';
+  let controls = '';
+  if (!r.state.startsWith('arbeitet') && !r.state.includes('läuft aus')) controls = button('Neu aufbauen', { do: 'slot/restart', repo, index }, '', 'Verwirft dieses Paar und stellt ein frisches bereit');
+  return '<div class="card ' + stateClass(r.state) + '"><div class="row"><span class="name">' + esc(r.name) + '</span><span class="tag">' + r.kind + '</span>' + controls +
+    '<span class="state"><span class="dot"></span>' + esc(r.state) + '</span></div>' + job +
+    '<div class="meters">' + meter('CPU (' + esc(r.cpuBase) + ' = 100 %)', pct(r.cpu), r.cpu) + meter('Arbeitsspeicher', mb(r.memory), r.memory / memoryTotal * 100) + '</div>' +
+    '<div class="small">' + esc(r.note) + '</div></div>';
+}
+
+function jobRow(j) {
+  let cls, mark, detail, time, share = 0;
+  if (j.status === 'completed') {
+    const ok = j.conclusion === 'success';
+    const skipped = j.conclusion === 'skipped';
+    cls = ok ? 'j-ok' : skipped ? 'j-skip' : 'j-bad';
+    mark = ok ? '✓' : skipped ? '–' : '✕';
+    detail = ok ? shortRunner(j.runner) : ({ skipped: 'übersprungen', cancelled: 'abgebrochen', failure: 'fehlgeschlagen' }[j.conclusion] || j.conclusion || '');
+    const slow = ok && j.estimate && j.duration > j.estimate * 1.25 && j.duration - j.estimate > 10;
+    time = j.duration == null || skipped ? '' : clock(j.duration) + (ok && j.estimate ? ' <span class="sub' + (slow ? ' warn' : '') + '">sonst ' + clock(j.estimate) + '</span>' : '');
+    share = skipped ? 0 : 100;
+  } else if (j.status === 'in_progress') {
+    const run = elapsed(j.startedAt);
+    const over = j.estimate && run > j.estimate * 1.25 && run - j.estimate > 10;
+    cls = 'j-run' + (over ? ' over' : '');
+    mark = '●';
+    detail = [shortRunner(j.runner), stepText(j.step)].filter(Boolean).join(' · ');
+    time = clock(run) + (j.estimate ? ' <span class="sub' + (over ? ' warn' : '') + '">von ' + clock(j.estimate) + '</span>' : '');
+    share = j.estimate ? Math.min(100, run / j.estimate * 100) : 0;
+  } else {
+    cls = 'j-wait';
+    mark = '○';
+    detail = j.status === 'pending' ? 'steht noch aus' : 'wartet auf einen Runner';
+    time = j.estimate ? '<span class="sub">≈ ' + clock(j.estimate) + '</span>' : '';
+  }
+  return '<tr class="' + cls + '"><td class="mark">' + mark + '</td><td><a href="' + esc(j.url) + '" target="_blank" rel="noopener">' + esc(j.name) + '</a><div class="sub">' + esc(detail) + '</div></td>' +
+    '<td class="num">' + time + '</td><td class="jbar"><div class="bar"><i style="width:' + share.toFixed(1) + '%"></i></div></td></tr>';
+}
+
+function pipelineCard(p) {
+  const open = p.jobs.filter((j) => j.status !== 'completed').length;
+  const eta = p.finishAt ? left(p.finishAt) : 'wartet auf einen Runner';
+  return '<div class="card pipe"><div class="row"><a class="name" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.workflow) + '</a>' +
+    '<span class="tag">' + esc(p.branch || p.event) + '</span><span class="title">' + esc(p.title || '') + '</span>' +
+    '<span class="eta' + (p.finishAt ? '' : ' warn') + '"' + (p.rough ? ' title="Für einige Jobs gibt es noch keine Erfahrungswerte – grob geschätzt"' : '') + '>' + eta + (p.rough && p.finishAt ? ' ?' : '') + '</span></div>' +
+    '<div class="bar"><i style="width:' + (p.progress * 100).toFixed(1) + '%"></i></div>' +
+    '<div class="small">' + (p.jobs.length - open) + ' von ' + p.jobs.length + ' Jobs fertig · läuft seit ' + since(p.startedAt) + '</div>' +
+    '<div class="scroll"><table class="jobs">' + p.jobs.map(jobRow).join('') + '</table></div></div>';
+}
+
+function poolCard(repo, p) {
+  const s = p.sizes;
+  const size = (key) => s ? mb(s[key]) : '…';
+  const clear = (what, text) => button(text, { do: 'pool/clear', repo, what, confirm: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.' });
+  const rows = p.cache
+    ? '<tr><td>Pakete (NuGet, npm)</td><td class="num">' + size('packages') + '</td><td class="act">' + clear('packages', 'Leeren') + '</td></tr>' +
+      '<tr><td>Build-Layer von <code>docker build</code>' + (p.buildService ? ' · Dienst ' + mb(p.buildService.memory) : '') + '</td><td class="num">' + size('build') + '</td><td class="act">' + clear('build', 'Leeren') + '</td></tr>'
+    : '<tr><td colspan="3">Paket- und Build-Cache sind aus: Jeder Job lädt Pakete und baut Layer neu.</td></tr>';
+  return '<div class="card"><div class="row"><span class="name">Pool</span>' +
+    (p.paused ? '<span class="tag warn">pausiert</span>' : '') + (p.busy ? '<span class="tag warn">wird umgebaut</span>' : '') +
+    '<span class="tag" title="Fertig vorbereitete Paare; ein frei gewordener Platz ist damit in Sekunden wieder bereit">Reserve ' + p.reserve + ' von ' + p.reserveWanted + '</span>' +
+    '<span class="spacer" style="flex:1"></span><span class="sub">Plätze</span>' +
+    button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step', 'Ein Platz weniger') + '<b>' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step', 'Ein Platz mehr') +
+    button(p.paused ? 'Fortsetzen' : 'Pausieren', { do: 'pool/set', repo, paused: p.paused ? '' : '1' }, '', p.paused ? '' : 'Freie Runner werden beendet, laufende Jobs laufen zu Ende') +
+    '</div>' +
+    '<details data-keep="cache-' + esc(repo) + '"><summary>Was zwischen den Jobs bleibt</summary><div class="scroll"><table>' + rows +
+    '<tr><td>Abbilder in der Vorlage (' + p.images.length + ', gelernt aus den Jobs)</td><td class="num">' + size('images') + '</td><td class="act">' + clear('images', 'Vergessen') + '</td></tr></table></div>' +
+    (p.images.length ? '<div class="small">' + p.images.map(esc).join(' · ') + '</div>' : '') +
+    '<div class="row" style="margin-top:10px">' + clear('all', 'Alles leeren und neu lernen') +
+    button(p.cache ? 'Paket- und Build-Cache abschalten' : 'Paket- und Build-Cache einschalten', { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
+    button('Pool entfernen', { do: 'pool/remove', repo, confirm: 'Pool für ' + repo + ' mit allen Caches entfernen? Jobs dieses Repos warten danach.' }, 'danger') + '</div></details></div>';
+}
+
+function runsBox(repo, runs) {
+  if (!runs.length) return '';
+  const word = (r) => r.status !== 'completed' ? '<span class="warn">' + ({ queued: 'wartet', in_progress: 'läuft' }[r.status] || esc(r.status)) + '</span>'
+    : r.conclusion === 'success' ? 'grün' : r.conclusion === 'failure' ? '<span class="bad">rot</span>' : esc({ cancelled: 'abgebrochen', skipped: 'übersprungen' }[r.conclusion] || r.conclusion);
+  return '<details data-keep="runs-' + esc(repo) + '"><summary>Letzte Läufe</summary><div class="scroll"><table>' + runs.map((r) =>
+    '<tr><td><a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.name) + '</a> · ' + esc(r.title || '') + '<div class="sub"><code>' + esc(r.branch) + '</code> · ' + ago(r.at) + '</div></td><td>' + word(r) + '</td><td class="act">' +
+    (r.status === 'completed' ? (r.conclusion === 'failure' ? button('Rote Jobs erneut', { do: 'run/rerun', repo, id: r.id, failedOnly: '1' }) + ' ' : '') + button('Erneut', { do: 'run/rerun', repo, id: r.id }) : '') + '</td></tr>').join('') + '</table></div></details>';
+}
+
+async function refresh() {
+  let data;
+  try { data = await (await fetch('/api/status')).json(); }
+  catch { document.getElementById('sub').innerHTML = '<span class="warn">Der Dienst läuft nicht. Starte RunClub neu.</span>'; return; }
+  const m = data.machine;
+  const used = m.memoryTotal - m.memoryFree;
+  const all = data.repos.flatMap((r) => r.runners);
+  const runnerMemory = all.reduce((a, r) => a + r.memory, 0);
+  document.getElementById('sub').textContent = 'Stand ' + new Date(data.at).toLocaleTimeString('de-DE') + ' · ' + m.cores + ' Kerne, davon ' + m.dockerCpus + ' für Docker · ' + gb(m.memoryTotal) + ' Arbeitsspeicher';
+  document.getElementById('machine').innerHTML = '<div class="card"><div class="row"><span class="name">Rechner</span>' +
+    (m.docker === 'bereit' ? '' : '<span class="tag warn">Docker: ' + esc(m.docker) + '</span>') +
+    '<span class="state" style="color:var(--muted);font-weight:400">' + all.filter((r) => r.state.startsWith('arbeitet')).length + ' arbeiten · ' + all.filter((r) => r.state.startsWith('bereit')).length + ' bereit</span></div><div class="meters">' +
+    meter('Arbeitsspeicher belegt', gb(used) + ' von ' + gb(m.memoryTotal), used / m.memoryTotal * 100) + meter('davon Runner', mb(runnerMemory), runnerMemory / m.memoryTotal * 100) + '</div></div>';
+
+  const open = new Set([...document.querySelectorAll('details[data-keep][open]')].map((d) => d.dataset.keep));
+  document.getElementById('repos').innerHTML = data.repos.map((entry) => {
+    let linux = 0;
+    return '<div class="repo"><div class="repohead"><h2>' + esc(entry.repo) + '</h2>' +
+      (entry.waiting ? '<span class="tag warn">' + entry.waiting + ' Job' + (entry.waiting > 1 ? 's warten' : ' wartet') + '</span>' : '') +
+      (entry.error ? '<span class="tag warn">GitHub: ' + esc(entry.error) + '</span>' : '') + '</div>' +
+      (entry.pipelines || []).map(pipelineCard).join('') +
+      (entry.pool ? poolCard(entry.repo, entry.pool) : '') +
+      entry.runners.map((r) => runnerCard(entry.repo, r, r.kind === 'Linux' ? linux++ : 0, m.memoryTotal)).join('') +
+      runsBox(entry.repo, entry.runs) + '</div>';
+  }).join('') || '<div class="card">Noch kein Runner eingerichtet.</div>';
+  if (data.app) { document.getElementById('autostart').hidden = false; document.getElementById('autostartBox').checked = data.app.autostart; }
+  document.querySelectorAll('details[data-keep]').forEach((d) => { if (open.has(d.dataset.keep)) d.open = true; });
+  document.getElementById('log').textContent = data.log.join('\n');
+}
+
+document.addEventListener('click', async (event) => {
+  const el = event.target.closest('button[data-do]');
+  if (!el) return;
+  const { do: action, confirm: question, ...body } = el.dataset;
+  if (action === 'shutdown') {
+    if (!confirm('Alle Runner und dieses Programm beenden? Jobs warten, bis es wieder läuft.')) return;
+    if (await call('shutdown')) toast('Wird beendet …');
+    return;
+  }
+  if (question && !confirm(question)) return;
+  for (const key of ['paused', 'cache', 'failedOnly']) if (key in body) body[key] = body[key] === '1';
+  for (const key of ['parallel', 'index']) if (key in body) body[key] = Number(body[key]);
+  el.disabled = true;
+  await call(action, body);
+});
+
+async function addPool(repo) {
+  if (!await call('pool/add', { repo, parallel: 1 })) return false;
+  toast('Pool angelegt. Die Runner stehen in etwa einer Minute bereit.');
+  loadRepos();
+  return true;
+}
+
+document.getElementById('add').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const input = document.getElementById('addRepo');
+  if (await addPool(input.value.trim())) input.value = '';
+});
+
+// Repos aus dem GitHub-Konto: alle als Vorschlag beim Tippen, die zuletzt bewegten ohne Pool als Knöpfe.
+async function loadRepos() {
+  let repos;
+  try { const response = await fetch('/api/repos'); repos = await response.json(); if (!response.ok) return; } catch { return; }
+  const free = repos.filter((r) => !r.pool);
+  document.getElementById('repoList').innerHTML = free.map((r) => '<option value="' + esc(r.repo) + '">').join('');
+  document.getElementById('picks').innerHTML = free.slice(0, 6).map((r) => '<button data-pick="' + esc(r.repo) + '" title="zuletzt bewegt ' + ago(r.pushedAt) + '">+ ' + esc(r.repo) + '</button>').join('');
+}
+
+document.getElementById('picks').addEventListener('click', (event) => {
+  const el = event.target.closest('button[data-pick]');
+  if (el) { el.disabled = true; addPool(el.dataset.pick); }
+});
+
+document.getElementById('autostartBox').addEventListener('change', (event) => call('app/autostart', { on: event.target.checked }));
+
+loadRepos();
+
+refresh(); setInterval(refresh, 3000);
+</script></body></html>
