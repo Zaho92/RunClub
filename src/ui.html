@@ -144,6 +144,7 @@
   input[type=text]::placeholder { color: var(--muted); }
   label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
   input[type=checkbox] { accent-color: var(--chart); width: 15px; height: 15px; }
+  code { font: 12px Consolas, monospace; color: var(--text); overflow-wrap: anywhere; }
   pre { font: 12px/1.5 Consolas, monospace; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
   .empty { max-width: 52ch; }
 
@@ -165,6 +166,8 @@ const TOKEN = '__TOKEN__';
 const TEXT = {
   de: {
     late: 'länger als üblich ({0})', approx: 'ca. {0}', started: 'Lauf gestartet', idleAll: 'Gerade läuft nichts.', fewer: 'Ein Platz weniger', more: 'Ein Platz mehr', seatN: 'Platz {0}', railLabel: 'Projekte',
+    routeOn: 'Die Jobs dieses Repos laufen auf deinen Runnern (CI_RUNNER ist gesetzt).', routeOff: 'CI_RUNNER ist nicht gesetzt: Die Jobs dieses Repos gehen an GitHubs Runner.', routeFixed: 'Die Workflows verlangen fest eigene Runner. Eine Variable ist nicht nötig.',
+    routeNone: 'Die Workflows dieses Repos lesen CI_RUNNER nicht. Solange das so ist, gehen die Jobs an GitHubs Runner. In den Workflows gehört in runs-on:', routeTo: 'Auf eigene Runner umschalten', routeBack: 'Zurück zu GitHubs Runnern', confirmBack: 'CI_RUNNER für {0} entfernen? Die Jobs gehen dann an GitHubs Runner.',
     all: 'Alle Projekte', usage: 'Verbrauch', settings: 'Einstellungen', working: '{0} arbeiten · {1} bereit', ready: 'bereit', paused: 'pausiert',
     running: 'läuft', left: 'noch ca. {0} min', soon: 'gleich fertig', noRunner: 'wartet auf einen Runner', failed: 'Fehler', failedN: '{0} Fehler', finished: 'fertig', cancelled: 'abgebrochen',
     untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
@@ -178,13 +181,15 @@ const TEXT = {
     limits: 'Erlaubt je Job: {0}. Bei {1} Plätzen zusammen bis zu {2}, die Docker-VM hat {3}.', limitsOver: 'Die Limits schützen so nicht vor einer vollen VM.', day: 'Die letzten 24 Stunden',
     projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', keeps: 'Was zwischen den Jobs bleibt', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', forget: 'Vergessen', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
-    confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? Jobs dieses Repos warten danach.', confirmQuit: 'Alle Runner und RunClub beenden? Jobs warten, bis es wieder läuft.',
+    confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? CI_RUNNER wird dabei entfernt, die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner und RunClub beenden? Jobs warten, bis es wieder läuft.',
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
     app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'Alles beenden', log: 'Protokoll',
     firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
   en: {
     late: 'longer than usual ({0})', approx: 'about {0}', started: 'run started', idleAll: 'Nothing is running right now.', fewer: 'One slot fewer', more: 'One more slot', seatN: 'Slot {0}', railLabel: 'Projects',
+    routeOn: 'This repo\'s jobs run on your runners (CI_RUNNER is set).', routeOff: 'CI_RUNNER is not set: this repo\'s jobs go to GitHub\'s runners.', routeFixed: 'The workflows always ask for self-hosted runners. No variable needed.',
+    routeNone: 'This repo\'s workflows do not read CI_RUNNER. Until they do, jobs go to GitHub\'s runners. In the workflows, runs-on should be:', routeTo: 'Switch to my runners', routeBack: 'Back to GitHub\'s runners', confirmBack: 'Remove CI_RUNNER for {0}? Jobs will then go to GitHub\'s runners.',
     all: 'All projects', usage: 'Usage', settings: 'Settings', working: '{0} working · {1} ready', ready: 'ready', paused: 'paused',
     running: 'running', left: 'about {0} min left', soon: 'almost done', noRunner: 'waiting for a runner', failed: 'failed', failedN: '{0} failed', finished: 'done', cancelled: 'cancelled',
     untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
@@ -198,7 +203,7 @@ const TEXT = {
     limits: 'Allowed per job: {0}. With {1} slots up to {2} in total, the Docker VM has {3}.', limitsOver: 'These limits do not protect against a full VM.', day: 'The last 24 hours',
     projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', keeps: 'What stays between jobs', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', forget: 'Forget', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
-    confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? Jobs of this repo will wait.', confirmQuit: 'Stop all runners and quit RunClub? Jobs wait until it runs again.',
+    confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'Stop all runners and quit RunClub? Jobs wait until it runs again.',
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
     app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit everything', log: 'Log',
     firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
@@ -530,9 +535,14 @@ function renderSettings() {
     const repo = entry.repo;
     const size = (key) => (p.sizes ? mb(p.sizes[key]) : '…');
     const clear = (what, text) => button(text, { do: 'pool/clear', repo, what, confirm: t('confirmClear') });
+    const r = p.routing;
+    const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
+    const route = !r ? '' : '<div class="row"><span class="grow note' + (!r.here && r.uses !== 'fixed' ? ' c-fail' : '') + '">' +
+      (r.error ? esc(r.error) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
+      (r.uses === 'fixed' ? '' : r.here ? button(t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button(t('routeTo'), { do: 'pool/routing', repo, on: '1' })) + '</div>';
     return '<div class="stack" style="gap:8px"><div class="row"><b class="grow" style="font-weight:400;color:var(--ink)">' + esc(repo) + (p.paused ? ' <span class="tag">' + t('paused') + '</span>' : '') + (p.busy ? ' <span class="tag">' + t('rebuilding') + '</span>' : '') + '</b>' +
       '<span class="dim">' + t('slots') + '</span>' + button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step', t('fewer'), p.parallel <= 1) + '<b style="font-weight:400">' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step', t('more'), p.parallel >= 4) +
-      button(p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) + '</div>' +
+      button(p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) + '</div>' + route +
       '<table class="set">' + (p.cache ? '<tr><td>' + t('packages') + '</td><td class="r">' + size('packages') + '</td><td class="r">' + clear('packages', t('clear')) + '</td></tr><tr><td>' + t('layers') + '</td><td class="r">' + size('build') + '</td><td class="r">' + clear('build', t('clear')) + '</td></tr>' : '<tr><td colspan="3" class="dim">' + t('cacheIsOff') + '</td></tr>') +
       '<tr><td>' + t('images', p.images.length) + (p.images.length ? '<div class="dim" style="font-size:12px">' + p.images.map(esc).join(' · ') + '</div>' : '') + '</td><td class="r">' + size('images') + '</td><td class="r">' + clear('images', t('forget')) + '</td></tr></table>' +
       '<div class="row">' + clear('all', t('clearAll')) + button(p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) + '<span class="grow"></span>' + button(t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, 'danger') + '</div></div>';
@@ -609,7 +619,7 @@ document.addEventListener('click', async (event) => {
   if (!el) return;
   const { do: action, confirm: question, ...body } = el.dataset;
   if (question && !confirm(question)) return;
-  for (const key of ['paused', 'cache']) if (key in body) body[key] = body[key] === '1';
+  for (const key of ['paused', 'cache', 'on']) if (key in body) body[key] = body[key] === '1';
   if ('parallel' in body) body.parallel = Number(body.parallel);
   el.disabled = true;
   if (await call(action, body) && action === 'shutdown') toast(t('quitting'));

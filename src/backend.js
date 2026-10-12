@@ -22,6 +22,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
+const { createRouting, VARIABLE } = require('./routing');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -538,6 +539,7 @@ async function linuxLoop() {
 
 const github = new Map(); // Repo -> { runners, jobs, runs, error }
 const pipelines = createPipelines({ gh, dataDir: DATA_DIR });
+const routing = createRouting({ gh }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
 
 // --- Messung: Rechner, Docker-VM und der Verbrauch je Job ---
 
@@ -641,6 +643,7 @@ function status() {
       parallel: settings.parallel, paused: settings.paused, cache: settings.cache, busy: Boolean(pool?.hold),
       reserve: (pool?.reserve ?? []).filter((entry) => entry.ready).length, reserveWanted: pool ? reserveSize(pool) : 0,
       sizes: pool?.sizes ?? null,
+      routing: routing.of(settings.repo),
       images: [...(pool?.seeded ?? [])].sort(),
       preload: settings.preload,
       buildService: service ? { cpu: service.cpu, memory: service.memory } : null,
@@ -685,6 +688,11 @@ const actions = {
     log(`${info.full_name}: Pool angelegt`);
     startPool(info.full_name);
     refreshGitHub();
+    // Die Jobs des Repos auf die eigenen Runner leiten, wenn seine Workflows die Variable lesen.
+    routing.check(info.full_name).then(async (found) => {
+      if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(`${info.full_name}: ${VARIABLE} gesetzt – die Jobs laufen jetzt auf den eigenen Runnern`); }
+      else if (found.uses === 'none') log(`${info.full_name}: Die Workflows lesen ${VARIABLE} nicht – die Jobs gehen weiter an GitHubs Runner`);
+    }).catch((error) => log(`${info.full_name}: ${VARIABLE} – ${error.message}`));
   },
   async 'pool/set'({ repo, parallel, paused, cache }) {
     const settings = settingsOf(repo);
@@ -713,6 +721,9 @@ const actions = {
       await quiesce(pool);
       await docker(['rm', '-f', buildService(repo)]);
       await docker(['volume', 'rm', '-f', cacheVolume(repo), seedVolume(repo), buildVolume(repo)]);
+      // Ohne Pool würden die Jobs ewig auf einen Runner warten: zurück zu GitHubs Runnern.
+      try { if (routing.of(repo)?.here) { await routing.set(repo, false); log(`${repo}: ${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`); } } catch (error) { log(`${repo}: ${VARIABLE} – ${error.message}`); }
+      routing.forget(repo);
       await removeRegistrations(repo);
       delete state.learned[repo];
       delete state.rejected[repo];
@@ -743,6 +754,11 @@ const actions = {
       await measureSizes(pool);
       log(`${repo}: geleert; der nächste Lauf füllt wieder auf`);
     }).catch((error) => log(`${repo}: ${error.message}`));
+  },
+  async 'pool/routing'({ repo, on }) {
+    if (!settingsOf(repo)) throw new Error('Diesen Pool gibt es nicht.');
+    await routing.set(repo, Boolean(on));
+    log(`${repo}: ${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen an GitHubs Runner'}`);
   },
   async 'slot/restart'({ repo, index }) {
     const slot = pools.get(repo)?.slots[Number(index)];
@@ -821,7 +837,7 @@ setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
 setInterval(measure, MEASURE_INTERVAL_MS);
 setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 
-for (const settings of config.pools) startPool(settings.repo);
+for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
 linuxLoop();
 
 module.exports = { PORT, DATA_DIR, hooks, status, shutdown, log };
