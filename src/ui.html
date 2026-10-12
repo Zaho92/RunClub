@@ -60,8 +60,9 @@
   .plan.tracing path { opacity: .3; }
   .plan.tracing path.on { opacity: 1; stroke: var(--ink); }
   .col { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; flex: 1 1 0; min-width: 180px; max-width: 280px; }
-  .pill { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; width: 100%; padding: 8px 16px 8px 9px; border-radius: 21px; background: var(--surface); border: 1px solid var(--edge); position: relative; overflow: hidden; transition: background .18s var(--ease), border-color .18s var(--ease); }
-  .pill:hover, .pill:focus-visible { background: var(--raised); border-color: var(--track); }
+  .pill { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; width: 100%; padding: 8px 16px 8px 9px; border-radius: 21px; background: var(--surface); border: 1px solid var(--edge); position: relative; transition: background .18s var(--ease), border-color .18s var(--ease), border-radius .18s var(--ease); }
+  .pill:hover, .pill:focus-visible { background: var(--raised); border-color: var(--track); z-index: 3; }
+  .pill:not(.lined):hover, .pill:not(.lined):focus-visible { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   .ic { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--wait); display: grid; place-items: center; color: var(--ground); }
   .ic svg { position: static; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .s-run .ic { background: var(--run); border-color: var(--run); } .s-done .ic { background: var(--done); border-color: var(--done); }
@@ -70,14 +71,16 @@
   .pill .n { color: var(--ink); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pill .tm { color: var(--text); }
   .pill .tm.over { color: var(--run); }
-  .pill .more { grid-column: 2 / 4; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s var(--ease); }
-  .pill .more > div { overflow: hidden; font-size: 12px; color: var(--muted); }
-  .pill .more p { margin: 0; padding-top: 2px; overflow-wrap: anywhere; }
+  .pill .line { grid-column: 2 / 4; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 2px; }
+  .pill .more { position: absolute; left: -1px; right: -1px; top: 100%; display: grid; grid-template-rows: 0fr; opacity: 0; pointer-events: none; background: var(--raised); border: 1px solid var(--track); border-top: 0; border-radius: 0 0 16px 16px; box-shadow: 0 14px 24px -12px rgba(3, 8, 24, .8); transition: grid-template-rows .2s var(--ease), opacity .12s; }
+  .pill.lined .more { top: 33px; }
+  .pill .more > div { overflow: hidden; font-size: 12px; color: var(--muted); padding: 0 16px 0 41px; }
+  .pill .more p { margin: 0; padding: 2px 0 0; overflow-wrap: anywhere; }
+  .pill .more p:last-child { padding-bottom: 9px; }
   .pill .more .bit { white-space: nowrap; }
-  .pill:hover .more, .pill:focus-visible .more, .detail .pill .more, .s-fail .more { grid-template-rows: 1fr; }
-  .pill:hover .more, .pill:focus-visible .more { transition-delay: .12s; }
-  .pill .pg { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--run); transition: width 1s linear; }
-  .s-fail.pill { border-color: #7a2f38; } .s-fail .more > div { color: var(--fail-text); }
+  .pill:hover .more, .pill:focus-visible .more { grid-template-rows: 1fr; opacity: 1; transition-delay: .12s; }
+  .pill .pg { position: absolute; left: 18px; bottom: -1px; height: 2px; max-width: calc(100% - 36px); background: var(--run); transition: width 1s linear; }
+  .s-fail.pill { border-color: #7a2f38; } .s-fail .line, .s-fail .more > div { color: var(--fail-text); }
   .s-wait.pill, .s-skip.pill { background: transparent; border-style: dashed; }
   .s-wait .n, .s-skip .n { color: var(--muted); }
   .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
@@ -85,7 +88,9 @@
   .legend .ic { width: 18px; height: 18px; } .legend .ic svg { width: 11px; height: 11px; }
 
   /* Auslastung */
-  .band { border-top: 1px solid var(--rule); padding-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 34px; }
+  .band { position: sticky; top: -26px; z-index: 4; background: var(--ground); margin-top: -26px; padding: 26px 0 16px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 34px; }
+  .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; }
+  .seats { max-height: 132px; overflow-y: auto; padding-right: 6px; }
   .k { font-size: 12px; font-weight: 400; color: var(--muted); }
   .v { font-size: 26px; line-height: 1.25; color: var(--ink); }
   .v small { font-size: 13px; color: var(--muted); }
@@ -141,7 +146,7 @@
   #toast { left: 50%; bottom: 22px; transform: translateX(-50%); padding: 9px 16px; max-width: 90vw; }
 
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
-  @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; } #main { padding: 22px 24px 32px; } }
+  @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
   @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav span { display: none; } .band { grid-template-columns: 1fr; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
   @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .pg, .btn { transition: none; } }
 </style></head>
@@ -168,7 +173,7 @@ const TEXT = {
     clear: 'Leeren', forget: 'Vergessen', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
     confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? Jobs dieses Repos warten danach.', confirmQuit: 'Alle Runner und RunClub beenden? Jobs warten, bis es wieder läuft.',
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
-    app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Kompakt zeigt Details erst beim Überfahren eines Jobs.', language: 'Sprache', quit: 'Alles beenden', log: 'Protokoll',
+    app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'Alles beenden', log: 'Protokoll',
     firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
   en: {
@@ -188,7 +193,7 @@ const TEXT = {
     clear: 'Clear', forget: 'Forget', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
     confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? Jobs of this repo will wait.', confirmQuit: 'Stop all runners and quit RunClub? Jobs wait until it runs again.',
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
-    app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Compact shows details only when you hover a job.', language: 'Language', quit: 'Quit everything', log: 'Log',
+    app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit everything', log: 'Log',
     firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
   },
 };
@@ -310,8 +315,10 @@ function pill(j) {
     time = j.duration != null && state !== 'skip' ? '<span class="tm">' + clock(j.duration) + '</span>' : '';
     lines.push(state === 'fail' && step ? esc(step) : state === 'done' && usual ? bit(usual) : bit(t('s_' + state)));
   }
-  return '<a class="pill s-' + state + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
-    '<span class="n">' + esc(j.name) + '</span>' + time + '<div class="more"><div>' + lines.filter(Boolean).map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
+  const full = lines.filter(Boolean);
+  const lined = Boolean(full.length) && (mode === 'detail' || state === 'fail');
+  return '<a class="pill s-' + state + (lined ? ' lined' : '') + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
+    '<span class="n">' + esc(j.name) + '</span>' + time + (lined ? '<span class="line">' + full[0] + '</span>' : '') + '<div class="more"><div>' + full.map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
     (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
 }
 
@@ -356,9 +363,6 @@ const observer = new ResizeObserver((entries) => { for (const plan of new Set(en
 function watchPlans(root) {
   observer.disconnect();
   for (const plan of root.querySelectorAll('.plan')) {
-    // Platz für eine aufgeklappte Pill vorhalten: Sonst springt beim Überfahren alles darunter.
-    plan.style.minHeight = '';
-    if (!plan.classList.contains('detail')) plan.style.minHeight = Math.max(...[...plan.querySelectorAll('.col')].map((col) => col.offsetHeight)) + 44 + 'px';
     drawLinks(plan);
     for (const el of plan.querySelectorAll('.pill')) observer.observe(el);
   }
@@ -428,8 +432,8 @@ function seats(entries) {
   }
   const reserve = entries.reduce((sum, e) => sum + (e.pool?.reserve ?? 0), 0);
   const wanted = entries.reduce((sum, e) => sum + (e.pool?.reserveWanted ?? 0), 0);
-  return '<div class="label">' + t('seats') + '</div>' + (rows.length ? '<table><tr><th>' + t('seat') + '</th><th>' + t('job') + '</th><th class="r">' + t('ram') + '</th><th class="r">' + t('coresShort') + '</th></tr>' + rows.join('') + '</table>' : '') +
-    idle.map((line) => '<div class="note" style="padding:6px 0;border-bottom:1px solid var(--rule)">' + esc(line) + '</div>').join('') + '<div class="note" style="padding-top:6px">' + t('reserve', reserve, wanted) + '</div>';
+  return '<div class="label">' + t('seats') + '</div><div class="seats">' + (rows.length ? '<table><tr><th>' + t('seat') + '</th><th>' + t('job') + '</th><th class="r">' + t('ram') + '</th><th class="r">' + t('coresShort') + '</th></tr>' + rows.join('') + '</table>' : '') +
+    idle.map((line) => '<div class="note" style="padding:6px 0;border-bottom:1px solid var(--rule)">' + esc(line) + '</div>').join('') + '<div class="note" style="padding-top:6px">' + t('reserve', reserve, wanted) + '</div></div>';
 }
 
 // --- Ansichten ---
@@ -457,7 +461,7 @@ function projectBlocks(entry, withRepo) {
 
 function renderOverview(entries, single) {
   const main = document.getElementById('main');
-  if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div><div id="legend"></div><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div></div>'; }
+  if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div></div>'; }
   put(document.getElementById('warn'), warnings(entries));
   const busy = entries.filter((entry) => entry.pipelines.length);
   const idleHead = '<div class="head"><div><h1>' + t('all') + '</h1><div class="sub">' + t('idleAll') + '</div></div></div>';
@@ -500,7 +504,7 @@ function renderUsage() {
       notes.map((note) => '<div class="note">' + note + '</div>').join('') + '</section>';
   }).join('');
   put(main, '<div class="stack"><div class="head"><div><h1>' + t('usage') + '</h1><div class="sub">' + t('limits', gb(perJob), slots, gb(perJob * slots), gb(m.dockerMemory)) + (over ? ' <span class="c-fail">' + t('limitsOver') + '</span>' : '') + '</div></div></div>' +
-    '<section class="stack" style="gap:12px"><h2>' + t('day') + '</h2><div class="band" style="border:0;padding:0;grid-template-columns:repeat(3,minmax(0,1fr))">' +
+    '<section class="stack" style="gap:12px"><h2>' + t('day') + '</h2><div class="trio">' +
     chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div></section>' + tables + '</div>');
 }
 
