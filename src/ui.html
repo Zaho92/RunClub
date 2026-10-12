@@ -27,7 +27,7 @@
   .nav:hover { background: #0f1b44; }
   .nav[aria-current="true"] { background: var(--surface); }
   .nav b { display: block; font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav > span { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav > span:not(.ic) { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav .ic { position: absolute; left: 11px; top: 10px; width: 16px; height: 16px; }
   .nav .ic svg { width: 10px; height: 10px; }
   .nav.plain { padding-left: 12px; }
@@ -53,18 +53,18 @@
   /* Netzplan */
   .planwrap { overflow-x: auto; padding: 4px 0; }
   .plan { position: relative; display: flex; align-items: center; gap: clamp(40px, 6vw, 96px); width: 100%; }
-  .plan svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-  .plan path { fill: none; stroke: var(--track); stroke-width: 2.5; stroke-linecap: round; }
-  .plan path { transition: opacity .15s, stroke .15s; }
-  .plan path.open { stroke: var(--track-open); stroke-dasharray: 2 7; }
-  .plan.tracing path { opacity: .3; }
-  .plan.tracing path.on { opacity: 1; stroke: var(--ink); }
+  .plan > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .plan > svg path { fill: none; stroke: var(--track); stroke-width: 2.5; stroke-linecap: round; }
+  .plan > svg path { transition: opacity .15s, stroke .15s; }
+  .plan > svg path.open { stroke: var(--track-open); stroke-dasharray: 2 7; }
+  .plan.tracing > svg path { opacity: .3; }
+  .plan.tracing > svg path.on { opacity: 1; stroke: var(--ink); }
   .col { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; flex: 1 1 0; min-width: 180px; max-width: 280px; }
   .pill { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; width: 100%; padding: 8px 16px 8px 9px; border-radius: 21px; background: var(--surface); border: 1px solid var(--edge); position: relative; transition: background .18s var(--ease), border-color .18s var(--ease), border-radius .18s var(--ease); }
   .pill:hover, .pill:focus-visible { background: var(--raised); border-color: var(--track); z-index: 3; }
   .pill:not(.lined):hover, .pill:not(.lined):focus-visible { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   .ic { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--wait); display: grid; place-items: center; color: var(--ground); }
-  .ic svg { position: static; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .ic svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .s-run .ic { background: var(--run); border-color: var(--run); } .s-done .ic { background: var(--done); border-color: var(--done); }
   .s-fail .ic { background: var(--fail); border-color: var(--fail); } .s-cancel .ic { background: var(--cancel); border-color: var(--cancel); }
   .s-skip .ic { border-color: var(--skip); color: var(--skip); } .s-wait .ic { color: var(--wait); }
@@ -147,7 +147,7 @@
 
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
-  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav span { display: none; } .band { grid-template-columns: 1fr; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
+  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
   @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .pg, .btn { transition: none; } }
 </style></head>
 <body>
@@ -274,6 +274,7 @@ function renderRail() {
   const count = (state) => runners.filter((r) => r.state.startsWith(state)).length;
   const item = (key, title, sub, dot, plain) => '<button class="nav' + (plain ? ' plain' : '') + (dot ? ' s-' + dot : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (dot ? icon(dot) : '') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
   document.getElementById('rail').setAttribute('aria-label', t('railLabel'));
+  if (window.innerWidth < 760) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, entry.repo.split('/')[1], state.text, state.dot); }).join('') +
     '<div class="railfoot">' + item('usage', t('usage'), '', '', true) + item('settings', t('settings'), '', '', true) + '</div>');
@@ -353,11 +354,13 @@ function drawLinks(plan) {
       const parent = pills.get(name);
       if (!parent) continue;
       const from = parent.getBoundingClientRect();
-      const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top, x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top, bend = Math.max(30, (x2 - x1) * 0.55);
-      paths += '<path data-from="' + esc(name) + '" data-to="' + esc(el.dataset.job) + '"' + (/s-(wait|skip)/.test(el.className) ? ' class="open"' : '') + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' C' + (x1 + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (x2 - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"/>';
+      const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top, x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top, split = x1 + (x2 - x1) * 0.3, bend = Math.max(20, (x2 - split) * 0.55);
+      const on = traced && plan.contains(traced) && (name === traced.dataset.job || el.dataset.job === traced.dataset.job);
+      paths += '<path data-from="' + esc(name) + '" data-to="' + esc(el.dataset.job) + '" class="' + (/s-(wait|skip)/.test(el.className) ? 'open' : '') + (on ? ' on' : '') + '"' + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' H' + split.toFixed(1) + ' C' + (split + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (x2 - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"/>';
     }
   }
   plan.querySelector('svg').innerHTML = paths;
+  plan.classList.toggle('tracing', Boolean(traced && plan.contains(traced)));
 }
 const observer = new ResizeObserver((entries) => { for (const plan of new Set(entries.map((entry) => entry.target.closest('.plan')).filter(Boolean))) drawLinks(plan); });
 function watchPlans(root) {
@@ -368,9 +371,11 @@ function watchPlans(root) {
   }
 }
 // Beim Überfahren einer Pill ihre Strecken hervorheben, die übrigen zurücknehmen.
+let traced = null;
 function trace(event) {
   const pill = event.target.closest ? event.target.closest('.pill') : null;
   const active = pill && (event.type === 'mouseover' || event.type === 'focusin');
+  traced = active ? pill : null;
   for (const plan of document.querySelectorAll('.plan')) {
     const here = active && plan.contains(pill);
     plan.classList.toggle('tracing', Boolean(here));
