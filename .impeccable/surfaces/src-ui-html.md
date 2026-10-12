@@ -21,8 +21,8 @@ THESIS: Ein Lauf ist ein Liniennetz. Jobs sind Stationen, Abhängigkeiten sind d
 was wartet, ohne eine Zeile Text. Verweigert wird die Jobliste mit Statuspunkten in einem Karten-Dashboard.
 
 OWN-WORLD: Mitternachtsblaues Emailleschild. Grund #0c1838, Leiste dunkler, Flächen eine Stufe heller, Strecken in gedämpftem
-Stahlblau, Text in Porzellan-Blaugrau, nie Weiß. Sechs Zustandsfarben gleicher Helligkeit, jede mit eigenem gezeichnetem
-Symbol. Overpass in leichten Schnitten. Stationen sind Pills, Strecken laufen an ihren Enden ein und aus.
+Stahlblau, Text in Porzellan-Blaugrau, nie Weiß. Sechs aufeinander abgestimmte Zustandsfarben, jede mit eigenem gezeichnetem
+Symbol; die Helligkeit folgt der Dringlichkeit (läuft am hellsten, wartet am dunkelsten). Overpass in leichten Schnitten. Stationen sind Pills, Strecken laufen an ihren Enden ein und aus.
 
 STORY: Der Nutzer sieht links, welches Projekt läuft oder rot ist; rechts, wie weit der Lauf ist und wie lange noch; darunter,
 ob der Rechner die Last trägt – nicht als Momentwert, sondern als Verlauf.

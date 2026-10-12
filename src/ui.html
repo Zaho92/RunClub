@@ -5,7 +5,7 @@
   @font-face { font-family: Overpass; src: url(/fonts/overpass-latin.woff2) format("woff2"); font-weight: 100 900; font-display: swap; unicode-range: U+0000-00B6, U+00B8-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
   :root {
     color-scheme: dark;
-    --ground:#0c1838; --rail:#091230; --surface:#14224f; --raised:#1a2b60; --edge:#26366e; --rule:#1f2d62; --track:#4a5b94; --track-open:#33427a;
+    --ground:#0c1838; --rail:#091230; --surface:#14224f; --raised:#1a2b60; --edge:#26366e; --rule:#1f2d62; --track:#6a7bb5; --track-open:#5b6a94; --cap:#33427a;
     --ink:#dfe5f5; --text:#c9d2ea; --muted:#8793b8; --chart:#8fa4e0;
     --run:#ffc53d; --done:#3fcf8e; --fail:#f0524a; --fail-text:#f58a8f; --cancel:#c084fc; --skip:#7a85a3; --wait:#5b6a94;
     --ease: cubic-bezier(.16, 1, .3, 1);
@@ -28,10 +28,8 @@
   .nav[aria-current="true"] { background: var(--surface); }
   .nav b { display: block; font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav > span { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav i { position: absolute; left: 13px; top: 13px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--wait); }
-  .nav .d-run { border-color: var(--run); background: var(--run); }
-  .nav .d-fail { border-color: var(--fail); background: var(--fail); }
-  .nav .d-done { border-color: var(--done); background: var(--done); }
+  .nav .ic { position: absolute; left: 11px; top: 10px; width: 16px; height: 16px; }
+  .nav .ic svg { width: 10px; height: 10px; }
   .nav.plain { padding-left: 12px; }
   .railfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 16px; }
 
@@ -42,7 +40,7 @@
   .head > div:first-child { min-width: 0; }
   h1 { font-weight: 400; font-size: 26px; line-height: 1.2; color: var(--ink); margin: 0 0 2px; text-wrap: balance; overflow-wrap: anywhere; }
   h2 { font-weight: 400; font-size: 18px; color: var(--ink); margin: 0; }
-  .sub { font-size: 13px; color: var(--muted); }
+  .sub { font-size: 13px; font-weight: 400; color: var(--muted); }
   .sub a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
   .eta { margin-left: auto; text-align: right; white-space: nowrap; }
   .eta b { display: block; font-weight: 200; font-size: 56px; line-height: 1; color: var(--ink); }
@@ -54,25 +52,30 @@
 
   /* Netzplan */
   .planwrap { overflow-x: auto; padding: 4px 0; }
-  .plan { position: relative; display: flex; align-items: center; gap: 96px; width: max-content; min-width: 100%; }
+  .plan { position: relative; display: flex; align-items: center; gap: clamp(40px, 6vw, 96px); width: 100%; }
   .plan svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
   .plan path { fill: none; stroke: var(--track); stroke-width: 2.5; stroke-linecap: round; }
+  .plan path { transition: opacity .15s, stroke .15s; }
   .plan path.open { stroke: var(--track-open); stroke-dasharray: 2 7; }
-  .col { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
-  .pill { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; width: 280px; padding: 8px 16px 8px 9px; border-radius: 21px; background: var(--surface); border: 1px solid var(--edge); position: relative; overflow: hidden; transition: background .18s var(--ease), border-color .18s var(--ease); }
+  .plan.tracing path { opacity: .3; }
+  .plan.tracing path.on { opacity: 1; stroke: var(--ink); }
+  .col { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; flex: 1 1 0; min-width: 180px; max-width: 280px; }
+  .pill { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; width: 100%; padding: 8px 16px 8px 9px; border-radius: 21px; background: var(--surface); border: 1px solid var(--edge); position: relative; overflow: hidden; transition: background .18s var(--ease), border-color .18s var(--ease); }
   .pill:hover, .pill:focus-visible { background: var(--raised); border-color: var(--track); }
   .ic { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--wait); display: grid; place-items: center; color: var(--ground); }
   .ic svg { position: static; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .s-run .ic { background: var(--run); border-color: var(--run); } .s-done .ic { background: var(--done); border-color: var(--done); }
   .s-fail .ic { background: var(--fail); border-color: var(--fail); } .s-cancel .ic { background: var(--cancel); border-color: var(--cancel); }
-  .s-skip .ic { border-color: var(--skip); color: var(--skip); }
+  .s-skip .ic { border-color: var(--skip); color: var(--skip); } .s-wait .ic { color: var(--wait); }
   .pill .n { color: var(--ink); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pill .tm { color: var(--text); }
   .pill .tm.over { color: var(--run); }
   .pill .more { grid-column: 2 / 4; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s var(--ease); }
   .pill .more > div { overflow: hidden; font-size: 12px; color: var(--muted); }
-  .pill .more span { display: block; padding-top: 2px; overflow-wrap: anywhere; }
-  .pill:hover .more, .pill:focus-visible .more, .detail .pill .more { grid-template-rows: 1fr; }
+  .pill .more p { margin: 0; padding-top: 2px; overflow-wrap: anywhere; }
+  .pill .more .bit { white-space: nowrap; }
+  .pill:hover .more, .pill:focus-visible .more, .detail .pill .more, .s-fail .more { grid-template-rows: 1fr; }
+  .pill:hover .more, .pill:focus-visible .more { transition-delay: .12s; }
   .pill .pg { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--run); transition: width 1s linear; }
   .s-fail.pill { border-color: #7a2f38; } .s-fail .more > div { color: var(--fail-text); }
   .s-wait.pill, .s-skip.pill { background: transparent; border-style: dashed; }
@@ -83,7 +86,7 @@
 
   /* Auslastung */
   .band { border-top: 1px solid var(--rule); padding-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 34px; }
-  .k { font-size: 12px; color: var(--muted); }
+  .k { font-size: 12px; font-weight: 400; color: var(--muted); }
   .v { font-size: 26px; line-height: 1.25; color: var(--ink); }
   .v small { font-size: 13px; color: var(--muted); }
   .chart { display: block; width: 100%; height: 74px; margin-top: 6px; cursor: crosshair; }
@@ -91,18 +94,26 @@
   .chart polygon { fill: var(--chart); opacity: .16; }
   .chart.warn polyline { stroke: var(--fail); } .chart.warn polygon { fill: var(--fail); }
   .chart line { vector-effect: non-scaling-stroke; stroke-width: 1; }
-  .chart .cap { stroke: var(--track-open); } .chart .mid { stroke: var(--rule); } .chart .mark { stroke: var(--wait); stroke-dasharray: 2 3; }
+  .chart .cap { stroke: var(--cap); } .chart .mid { stroke: var(--rule); } .chart .mark { stroke: var(--wait); stroke-dasharray: 2 3; }
   .chart .peak { stroke: var(--chart); stroke-dasharray: 1 4; opacity: .7; } .chart.warn .peak { stroke: var(--fail); } .chart .cross { stroke: var(--ink); }
-  .ax { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin: 3px 0 4px; }
-  .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .ax { display: flex; justify-content: space-between; font-size: 11px; font-weight: 400; color: var(--muted); margin: 3px 0 4px; }
+  .label { font-size: 12px; font-weight: 400; color: var(--muted); margin-bottom: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
   td, th { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
-  th { font-weight: 300; color: var(--muted); }
+  th { font-weight: 400; color: var(--muted); }
+  table.fixed { table-layout: fixed; max-width: 760px; } table.fixed th.r { width: 104px; }
+  table.set td { vertical-align: middle; } table.set td.r { width: 96px; }
+  td.cut { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0; width: 60%; }
   td.r, th.r { text-align: right; padding: 6px 0 6px 12px; white-space: nowrap; }
   .dim { color: var(--muted); }
   .scroll { overflow-x: auto; }
-  .quiet td { padding-top: 9px; padding-bottom: 9px; }
+  .quiet { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; column-gap: 20px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--rule); }
   .quiet a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+  .quiet .who { background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 9px; color: var(--ink); font-weight: 400; min-width: 0; }
+  .quiet .who:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .quiet .ic, .mini .ic { width: 16px; height: 16px; flex: none; } .quiet .ic svg, .mini .ic svg { width: 10px; height: 10px; }
+  .mini { display: inline-flex; align-items: center; margin-right: 12px; vertical-align: -3px; } .mini i { width: 9px; height: 2px; background: var(--track); }
+  .quiet .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* Einstellungen */
   section + section { border-top: 1px solid var(--rule); padding-top: 22px; }
@@ -124,21 +135,24 @@
   pre { font: 12px/1.5 Consolas, monospace; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
   .empty { max-width: 52ch; }
 
-  #tip, #toast { position: fixed; z-index: 5; background: var(--ink); color: var(--ground); border-radius: 6px; font-weight: 400; display: none; }
+  #tip, #toast { position: fixed; z-index: 5; background: var(--raised); color: var(--ink); border: 1px solid var(--track); border-radius: 6px; font-weight: 400; display: none; }
+  input { caret-color: var(--chart); }
   #tip { pointer-events: none; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
   #toast { left: 50%; bottom: 22px; transform: translateX(-50%); padding: 9px 16px; max-width: 90vw; }
 
+  @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; } #main { padding: 22px 24px 32px; } }
-  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: wrap; padding: 10px; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav span { display: none; } .band { grid-template-columns: 1fr; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
+  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav span { display: none; } .band { grid-template-columns: 1fr; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
   @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .pg, .btn { transition: none; } }
 </style></head>
 <body>
-<div id="app"><nav id="rail" aria-label="Projekte"></nav><main id="main"></main></div>
+<div id="app"><nav id="rail"></nav><main id="main"></main></div>
 <div id="tip"></div><div id="toast" role="status"></div>
 <script>
 const TOKEN = '__TOKEN__';
 const TEXT = {
   de: {
+    late: 'länger als üblich ({0})', approx: 'ca. {0}', started: 'Lauf gestartet', idleAll: 'Gerade läuft nichts.', fewer: 'Ein Platz weniger', more: 'Ein Platz mehr', seatN: 'Platz {0}', railLabel: 'Projekte',
     all: 'Alle Projekte', usage: 'Verbrauch', settings: 'Einstellungen', working: '{0} arbeiten · {1} bereit', ready: 'bereit', paused: 'pausiert',
     running: 'läuft', left: 'noch ca. {0} min', soon: 'gleich fertig', noRunner: 'wartet auf einen Runner', failed: 'Fehler', failedN: '{0} Fehler', finished: 'fertig', cancelled: 'abgebrochen',
     untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
@@ -158,6 +172,7 @@ const TEXT = {
     firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
   en: {
+    late: 'longer than usual ({0})', approx: 'about {0}', started: 'run started', idleAll: 'Nothing is running right now.', fewer: 'One slot fewer', more: 'One more slot', seatN: 'Slot {0}', railLabel: 'Projects',
     all: 'All projects', usage: 'Usage', settings: 'Settings', working: '{0} working · {1} ready', ready: 'ready', paused: 'paused',
     running: 'running', left: 'about {0} min left', soon: 'almost done', noRunner: 'waiting for a runner', failed: 'failed', failedN: '{0} failed', finished: 'done', cancelled: 'cancelled',
     untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
@@ -185,6 +200,7 @@ let view = store.get('view', 'all');
 let data = null;
 let repoList = null;
 let dayData = null;
+let seatOf = new Map(); // Name eines Runners -> sein Platz im Pool
 const charts = {}; // Kennung -> { at, values, span, format } für die Anzeige unter dem Mauszeiger
 
 const t = (key, ...args) => (TEXT[lang][key] ?? key).replace(/\{(\d)\}/g, (_, i) => args[i]);
@@ -200,11 +216,26 @@ const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; retur
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
 const stateText = (state) => (lang === 'de' ? state : state.split(', ').map((part) => STATES_EN[part] ?? part).join(', '));
-const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '' };
+const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
 const icon = (state) => '<span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[state] + '</svg></span>';
 const jobState = (j) => j.status === 'in_progress' ? 'run' : j.status !== 'completed' ? 'wait' : ({ success: 'done', failure: 'fail', timed_out: 'fail', cancelled: 'cancel', skipped: 'skip' })[j.conclusion] ?? 'done';
 // Setzt den Inhalt nur, wenn er sich geändert hat – so bleiben Mauszeiger-Zustand und Übergänge erhalten.
-const put = (el, html) => { if (el && el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; return true; } return false; };
+function morph(from, to) {
+  if (from.nodeType !== to.nodeType || from.nodeName !== to.nodeName) { from.replaceWith(to.cloneNode(true)); return; }
+  if (from.nodeType === 3) { if (from.data !== to.data) from.data = to.data; return; }
+  if (from.nodeType !== 1) return;
+  for (const { name, value } of to.attributes) if (from.getAttribute(name) !== value) from.setAttribute(name, value);
+  for (const { name } of [...from.attributes]) if (name !== 'style' && !to.hasAttribute(name)) from.removeAttribute(name);
+  if (from.childNodes.length !== to.childNodes.length) { from.innerHTML = to.innerHTML; return; }
+  from.childNodes.forEach((child, index) => morph(child, to.childNodes[index]));
+}
+function put(el, html) {
+  if (!el || el.dataset.html === html) return false;
+  if (el.dataset.html) { const next = document.createElement(el.tagName); next.innerHTML = html; if (next.childNodes.length === el.childNodes.length) el.childNodes.forEach((child, index) => morph(child, next.childNodes[index])); else el.innerHTML = html; }
+  else el.innerHTML = html;
+  el.dataset.html = html;
+  return true;
+}
 
 let toastTimer;
 function toast(text) { const el = document.getElementById('toast'); el.textContent = text; el.style.display = 'block'; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000); }
@@ -224,19 +255,20 @@ function projectState(entry) {
   const failed = jobs.filter((j) => jobState(j) === 'fail').length;
   if (entry.pipelines.length) {
     const finish = entry.pipelines.map((p) => p.finishAt).filter(Boolean).sort().pop();
-    return { dot: failed ? 'fail' : 'run', text: [t('running'), finish ? '<span data-finish="' + esc(finish) + '"></span>' : t('noRunner'), failed ? t('failedN', failed) : ''].filter(Boolean).join(' · ') };
+    return { dot: failed ? 'fail' : 'run', text: [failed ? t('failedN', failed) : '', finish ? '<span data-finish="' + esc(finish) + '"></span>' : t('noRunner')].filter(Boolean).join(' · ') };
   }
-  if (entry.pool?.paused) return { dot: '', text: t('paused') };
+  if (entry.pool?.paused) return { dot: 'idle', text: t('paused') };
   const last = entry.lastRun;
   if (last?.conclusion === 'failure') return { dot: 'fail', text: t('failed') + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' };
   if (last && secondsSince(last.updatedAt) < 1800) return { dot: 'done', text: t('finished') + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' };
-  return { dot: '', text: t('ready') };
+  return { dot: 'idle', text: t('ready') };
 }
 
 function renderRail() {
   const runners = data.repos.flatMap((r) => r.runners);
   const count = (state) => runners.filter((r) => r.state.startsWith(state)).length;
-  const item = (key, title, sub, dot, plain) => '<button class="nav' + (plain ? ' plain' : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (plain ? '' : '<i class="' + (dot ? 'd-' + dot : '') + '"></i>') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
+  const item = (key, title, sub, dot, plain) => '<button class="nav' + (plain ? ' plain' : '') + (dot ? ' s-' + dot : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (dot ? icon(dot) : '') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
+  document.getElementById('rail').setAttribute('aria-label', t('railLabel'));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, entry.repo.split('/')[1], state.text, state.dot); }).join('') +
     '<div class="railfoot">' + item('usage', t('usage'), '', '', true) + item('settings', t('settings'), '', '', true) + '</div>');
@@ -262,22 +294,24 @@ function columnsOf(pipeline) {
 
 function pill(j) {
   const state = jobState(j);
+  const bit = (text) => (text ? '<span class="bit">' + esc(text) + '</span>' : '');
+  const lines = [];
   let time = '';
-  let more = '';
   const usual = j.estimate ? t('usual', clock(j.estimate)) : '';
   const step = j.step ? t('step', j.step.number, j.step.total, j.step.name) : '';
   if (state === 'run') {
     time = '<span class="tm" data-since="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></span>';
-    more = [shortRunner(j.runner), step, usual].filter(Boolean).map(esc).join(' · ') + '<b data-over="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></b>';
+    if (step) lines.push(esc(step));
+    lines.push([bit(seatOf.get(j.runner) ? t('seatN', seatOf.get(j.runner)) : ''), j.estimate ? '<span class="bit" data-usual="' + esc(j.startedAt) + '" data-est="' + j.estimate + '"></span>' : ''].filter(Boolean).join(' · '));
   } else if (state === 'wait') {
-    time = j.estimate ? '<span class="tm dim">ca. ' + clock(j.estimate) + '</span>' : '';
-    more = esc([j.status === 'pending' ? t('notYet') : '', j.needs.length ? t('waitsFor', j.needs.join(', ')) : t('waitsRunner')].filter(Boolean).join(' · '));
+    time = j.estimate ? '<span class="tm dim">' + t('approx', clock(j.estimate)) + '</span>' : '';
+    lines.push([bit(j.status === 'pending' ? t('notYet') : ''), esc(j.needs.length ? t('waitsFor', j.needs.join(', ')) : t('waitsRunner'))].filter(Boolean).join(' · '));
   } else {
     time = j.duration != null && state !== 'skip' ? '<span class="tm">' + clock(j.duration) + '</span>' : '';
-    more = esc([t('s_' + state), state === 'fail' ? step : shortRunner(j.runner), state === 'done' ? usual : ''].filter(Boolean).join(' · '));
+    lines.push(state === 'fail' && step ? esc(step) : state === 'done' && usual ? bit(usual) : bit(t('s_' + state)));
   }
   return '<a class="pill s-' + state + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
-    '<span class="n">' + esc(j.name) + '</span>' + time + '<div class="more"><div><span>' + more + '</span></div></div>' +
+    '<span class="n">' + esc(j.name) + '</span>' + time + '<div class="more"><div>' + lines.filter(Boolean).map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
     (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
 }
 
@@ -313,13 +347,33 @@ function drawLinks(plan) {
       if (!parent) continue;
       const from = parent.getBoundingClientRect();
       const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top, x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top, bend = Math.max(30, (x2 - x1) * 0.55);
-      paths += '<path' + (/s-(wait|skip)/.test(el.className) ? ' class="open"' : '') + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' C' + (x1 + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (x2 - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"/>';
+      paths += '<path data-from="' + esc(name) + '" data-to="' + esc(el.dataset.job) + '"' + (/s-(wait|skip)/.test(el.className) ? ' class="open"' : '') + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' C' + (x1 + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (x2 - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"/>';
     }
   }
   plan.querySelector('svg').innerHTML = paths;
 }
 const observer = new ResizeObserver((entries) => { for (const plan of new Set(entries.map((entry) => entry.target.closest('.plan')).filter(Boolean))) drawLinks(plan); });
-function watchPlans(root) { observer.disconnect(); for (const plan of root.querySelectorAll('.plan')) { drawLinks(plan); for (const el of plan.querySelectorAll('.pill')) observer.observe(el); } }
+function watchPlans(root) {
+  observer.disconnect();
+  for (const plan of root.querySelectorAll('.plan')) {
+    // Platz für eine aufgeklappte Pill vorhalten: Sonst springt beim Überfahren alles darunter.
+    plan.style.minHeight = '';
+    if (!plan.classList.contains('detail')) plan.style.minHeight = Math.max(...[...plan.querySelectorAll('.col')].map((col) => col.offsetHeight)) + 44 + 'px';
+    drawLinks(plan);
+    for (const el of plan.querySelectorAll('.pill')) observer.observe(el);
+  }
+}
+// Beim Überfahren einer Pill ihre Strecken hervorheben, die übrigen zurücknehmen.
+function trace(event) {
+  const pill = event.target.closest ? event.target.closest('.pill') : null;
+  const active = pill && (event.type === 'mouseover' || event.type === 'focusin');
+  for (const plan of document.querySelectorAll('.plan')) {
+    const here = active && plan.contains(pill);
+    plan.classList.toggle('tracing', Boolean(here));
+    for (const path of plan.querySelectorAll('path')) path.classList.toggle('on', Boolean(here) && (path.dataset.from === pill.dataset.job || path.dataset.to === pill.dataset.job));
+  }
+}
+for (const type of ['mouseover', 'mouseout', 'focusin', 'focusout']) document.addEventListener(type, trace);
 
 const legend = () => '<div class="legend">' + ['run', 'done', 'fail', 'cancel', 'skip', 'wait'].map((state) => '<span class="s-' + state + '">' + icon(state) + t('s_' + state) + '</span>').join('') + '</div>';
 
@@ -330,8 +384,8 @@ function chart(id, label, value, of, source, max, format, warn, marks, note) {
   const values = source.values || [];
   const span = source.span;
   charts[id] = { at, values, span, format };
-  const headline = '<div class="k">' + label + '</div><div class="v' + (warn ? ' c-fail' : '') + '">' + value + ' <small>' + of + '</small></div>';
-  if (values.length < 2) return '<div>' + headline + '<div class="chart"></div><div class="ax"><span>' + t('follows') + '</span></div></div>';
+  const headline = '<div class="k">' + label + '</div>' + (value ? '<div class="v' + (warn ? ' c-fail' : '') + '">' + value + ' <small>' + of + '</small></div>' : '');
+  if (values.length < 2) return '<div>' + headline + '<div class="ax"><span>' + t('follows') + '</span></div></div>';
   const end = Date.now();
   const x = (time) => ((1 - (end - time) / span) * 300);
   const y = (v) => 70 - Math.min(1, v / max) * 62;
@@ -340,10 +394,11 @@ function chart(id, label, value, of, source, max, format, warn, marks, note) {
   const peak = Math.max(...values.slice(first));
   const peakAt = at[first + values.slice(first).indexOf(peak)];
   const lastX = points[points.length - 1].split(',');
+  const shown = marks.filter((time) => end - time < span);
   return '<div>' + headline + '<svg class="chart' + (warn ? ' warn' : '') + '" data-chart="' + id + '" viewBox="0 0 300 74" preserveAspectRatio="none" role="img" aria-label="' + esc(label) + '">' +
-    '<line class="cap" x1="0" x2="300" y1="8" y2="8"/><line class="mid" x1="0" x2="300" y1="39" y2="39"/>' + marks.filter((time) => end - time < span).map((time) => '<line class="mark" x1="' + x(time).toFixed(1) + '" x2="' + x(time).toFixed(1) + '" y1="0" y2="74"/>').join('') +
+    '<line class="cap" x1="0" x2="300" y1="8" y2="8"/><line class="mid" x1="0" x2="300" y1="39" y2="39"/>' + shown.map((time) => '<line class="mark" x1="' + x(time).toFixed(1) + '" x2="' + x(time).toFixed(1) + '" y1="0" y2="74"/>').join('') +
     '<polygon points="' + points[0].split(',')[0] + ',74 ' + points.join(' ') + ' ' + lastX[0] + ',74"/><polyline points="' + points.join(' ') + '"/><line class="peak" x1="0" x2="300" y1="' + y(peak).toFixed(1) + '" y2="' + y(peak).toFixed(1) + '"/></svg>' +
-    '<div class="ax"><span>' + (span > 3600000 ? t('before24') : t('before30')) + '</span><span>' + t('now') + '</span></div><div class="k' + (warn ? ' c-fail' : '') + '">' + (note ? note + ' · ' : '') + t('peak', format(peak), ago(new Date(peakAt).toISOString())) + '</div></div>';
+    '<div class="ax"><span>' + (span > 3600000 ? t('before24') : t('before30')) + '</span>' + (shown.length ? '<span>' + t('started') + '</span>' : '') + '<span>' + t('now') + '</span></div><div class="k' + (warn ? ' c-fail' : '') + '">' + (note ? note + ' · ' : '') + t('peak', format(peak), ago(new Date(peakAt).toISOString())) + '</div></div>';
 }
 
 function bandCharts(marks) {
@@ -359,23 +414,22 @@ function bandCharts(marks) {
 
 function seats(entries) {
   const many = entries.length > 1;
-  const rows = entries.flatMap((entry) => entry.runners.map((r, index) => {
-    const working = r.state.startsWith('arbeitet');
-    if (many && !working) return '';
-    return '<tr>' + (many ? '<td class="dim">' + esc(entry.repo.split('/')[1]) + '</td>' : '') + '<td>' + (index + 1) + '</td><td' + (working ? '' : ' class="dim"') + '>' + esc(working ? (r.job?.job ?? '') : stateText(r.state)) + '</td>' +
-      '<td class="r">' + (working ? mb(r.memory) : '–') + '</td><td class="r">' + (working ? num(r.cores ?? 0) : '–') + '</td></tr>';
-  }));
-  if (many) {
-    for (const entry of entries) {
-      const idle = entry.runners.filter((r) => !r.state.startsWith('arbeitet'));
-      const states = [...new Set(idle.map((r) => r.state))].map((state) => idle.filter((r) => r.state === state).length + ' ' + stateText(state)).join(', ');
-      if (idle.length) rows.push('<tr><td class="dim">' + esc(entry.repo.split('/')[1]) + '</td><td colspan="4" class="dim">' + esc(states) + '</td></tr>');
-    }
+  const rows = [];
+  const idle = [];
+  for (const entry of entries) {
+    const short = entry.repo.split('/')[1];
+    entry.runners.forEach((r, index) => {
+      if (!r.state.startsWith('arbeitet')) return;
+      rows.push('<tr><td style="white-space:nowrap">' + esc(many ? short + ' ' + (index + 1) : index + 1) + '</td><td class="cut" title="' + esc(r.job?.job ?? '') + '">' + esc(r.job?.job ?? '') + '</td><td class="r">' + mb(r.memory) + '</td><td class="r">' + num(r.cores ?? 0) + '</td></tr>');
+    });
+    const rest = entry.runners.filter((r) => !r.state.startsWith('arbeitet'));
+    const states = [...new Set(rest.map((r) => r.state))].map((state) => rest.filter((r) => r.state === state).length + ' ' + stateText(state)).join(', ');
+    if (rest.length) idle.push((many ? short + ': ' : '') + states);
   }
   const reserve = entries.reduce((sum, e) => sum + (e.pool?.reserve ?? 0), 0);
   const wanted = entries.reduce((sum, e) => sum + (e.pool?.reserveWanted ?? 0), 0);
-  return '<div class="label">' + t('seats') + '</div><table><tr>' + (many ? '<th>' + t('project') + '</th>' : '') + '<th>' + t('seat') + '</th><th>' + t('job') + '</th><th class="r">' + t('ram') + '</th><th class="r">' + t('coresShort') + '</th></tr>' + rows.join('') +
-    '<tr><td colspan="' + (many ? 5 : 4) + '" class="dim">' + t('reserve', reserve, wanted) + '</td></tr></table>';
+  return '<div class="label">' + t('seats') + '</div>' + (rows.length ? '<table><tr><th>' + t('seat') + '</th><th>' + t('job') + '</th><th class="r">' + t('ram') + '</th><th class="r">' + t('coresShort') + '</th></tr>' + rows.join('') + '</table>' : '') +
+    idle.map((line) => '<div class="note" style="padding:6px 0;border-bottom:1px solid var(--rule)">' + esc(line) + '</div>').join('') + '<div class="note" style="padding-top:6px">' + t('reserve', reserve, wanted) + '</div>';
 }
 
 // --- Ansichten ---
@@ -384,14 +438,15 @@ const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker
 
 // „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
 function quietRows(entries) {
-  if (!entries.length) return '';
-  const word = { success: ['finished', 'c-done'], failure: ['failed', 'c-fail'], cancelled: ['cancelled', ''] };
-  return '<div class="scroll"><table class="quiet">' + entries.map((entry) => {
+  return entries.map((entry) => {
     const last = entry.lastRun;
-    const result = last ? word[last.conclusion] ?? ['finished', ''] : null;
-    return '<tr><td><button class="btn" data-view="' + esc(entry.repo) + '">' + esc(entry.repo.split('/')[1]) + '</button></td><td>' + (last ? '<a href="' + esc(last.url) + '" target="_blank" rel="noopener">' + esc(last.title || last.workflow) + '</a><div class="dim" style="font-size:12px">' + esc(last.workflow) + ' · ' + esc(last.branch || last.event) + '</div>' : '<span class="dim">' + t('nothing') + '</span>') + '</td>' +
-      '<td class="r">' + (last ? '<span class="' + result[1] + '">' + t(result[0]) + '</span><div class="dim" style="font-size:12px" data-ago="' + esc(last.updatedAt) + '"></div>' : '') + '</td></tr>';
-  }).join('') + '</table></div>';
+    const state = entry.pool?.paused ? 'idle' : last ? jobState({ status: 'completed', conclusion: last.conclusion }) : 'idle';
+    const jobs = last ? [...last.jobs].sort((a, b) => a.stage - b.stage) : [];
+    const mini = jobs.length > 1 ? '<span class="mini">' + jobs.slice(0, 14).map((j) => '<span class="s-' + jobState(j) + '" title="' + esc(j.name) + '">' + icon(jobState(j)) + '</span>').join('<i></i>') + '</span>' : '';
+    return '<div class="quiet"><button class="who s-' + state + '" data-view="' + esc(entry.repo) + '">' + icon(state) + esc(entry.repo.split('/')[1]) + '</button>' +
+      '<div class="what">' + (last ? mini + '<a href="' + esc(last.url) + '" target="_blank" rel="noopener">' + esc(last.title || last.workflow) + '</a>' : '<span class="dim">' + t('nothing') + '</span>') + '</div>' +
+      '<div class="sub">' + (entry.pool?.paused ? t('paused') : last ? t('s_' + state) + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' : '') + '</div></div>';
+  }).join('');
 }
 
 function projectBlocks(entry, withRepo) {
@@ -405,9 +460,13 @@ function renderOverview(entries, single) {
   if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div><div id="legend"></div><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div></div>'; }
   put(document.getElementById('warn'), warnings(entries));
   const busy = entries.filter((entry) => entry.pipelines.length);
-  const blocks = single ? projectBlocks(entries[0]) : busy.map((entry) => projectBlocks(entry, true)).join('') + quietRows(entries.filter((entry) => !entry.pipelines.length));
-  if (put(document.getElementById('runs'), blocks)) watchPlans(main);
-  put(document.getElementById('legend'), single || busy.length ? legend() : '');
+  const idleHead = '<div class="head"><div><h1>' + t('all') + '</h1><div class="sub">' + t('idleAll') + '</div></div></div>';
+  const blocks = single ? projectBlocks(entries[0]) + legend() : (busy.length ? busy.map((entry) => projectBlocks(entry, true)).join('') + legend() : idleHead) + '<div>' + quietRows(entries.filter((entry) => !entry.pipelines.length)) + '</div>';
+  if (put(document.getElementById('runs'), blocks)) {
+    watchPlans(main);
+    // Schmale Fenster: die Spalte mit dem ersten laufenden oder roten Job in den Blick holen.
+    if (window.innerWidth < 760) main.querySelector('.pill.s-fail, .pill.s-run')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
   put(document.getElementById('charts'), bandCharts(entries.flatMap((entry) => entry.pipelines.map((p) => new Date(p.startedAt).getTime()))));
   put(document.getElementById('seats'), seats(entries));
 }
@@ -432,15 +491,15 @@ function renderUsage() {
       const room = (bytes) => Math.max(1, Math.ceil(bytes * 1.5 / 1073741824 * 2) / 2);
       const allowRunner = limitBytes(m.limits.runnerMemory);
       const allowDocker = limitBytes(m.limits.dockerMemory);
-      let note = t('peakNote', mb(peakRunner), mb(peakDocker), esc(m.limits.runnerMemory), esc(m.limits.dockerMemory));
+      let note = t('peakNote', mb(peakRunner), mb(peakDocker), gb(allowRunner), gb(allowDocker));
       if (peakRunner > allowRunner * 0.85 || peakDocker > allowDocker * 0.85) note += ' <span class="c-fail">' + t('hitsLimit') + '</span>';
       else if (u.jobs.reduce((sum, j) => sum + j.runs, 0) >= 5 && (room(peakRunner) * 1073741824 < allowRunner || room(peakDocker) * 1073741824 < allowDocker)) note += ' ' + t('couldBe', num(room(peakRunner)), num(room(peakDocker)));
       notes.push(note);
     }
-    return '<section class="stack" style="gap:10px"><h2>' + esc(entry.repo) + '</h2>' + (rows ? '<div class="scroll"><table><tr><th>' + t('job') + '</th><th class="r">' + t('runs') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('ramPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('cpuPeak') + '</th></tr>' + rows + '</table></div>' : '<div class="note">' + t('noUsage') + '</div>') +
+    return '<section class="stack" style="gap:10px"><h2>' + esc(entry.repo) + '</h2>' + (rows ? '<div class="scroll"><table class="fixed"><tr><th>' + t('job') + '</th><th class="r">' + t('runs') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('ramPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('cpuPeak') + '</th></tr>' + rows + '</table></div>' : '<div class="note">' + t('noUsage') + '</div>') +
       notes.map((note) => '<div class="note">' + note + '</div>').join('') + '</section>';
   }).join('');
-  put(main, '<div class="stack"><div class="head"><div><h1>' + t('usage') + '</h1><div class="sub' + (over ? ' c-fail' : '') + '">' + t('limits', gb(perJob), slots, gb(perJob * slots), gb(m.dockerMemory)) + (over ? ' ' + t('limitsOver') : '') + '</div></div></div>' +
+  put(main, '<div class="stack"><div class="head"><div><h1>' + t('usage') + '</h1><div class="sub">' + t('limits', gb(perJob), slots, gb(perJob * slots), gb(m.dockerMemory)) + (over ? ' <span class="c-fail">' + t('limitsOver') + '</span>' : '') + '</div></div></div>' +
     '<section class="stack" style="gap:12px"><h2>' + t('day') + '</h2><div class="band" style="border:0;padding:0;grid-template-columns:repeat(3,minmax(0,1fr))">' +
     chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div></section>' + tables + '</div>');
 }
@@ -448,7 +507,7 @@ function renderUsage() {
 function renderSettings() {
   const main = document.getElementById('main');
   main.dataset.shape = 'settings';
-  const button = (text, attrs, cls) => '<button class="btn' + (cls ? ' ' + cls : '') + '"' + Object.entries(attrs).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('') + '>' + text + '</button>';
+  const button = (text, attrs, cls, label, off) => '<button class="btn' + (cls ? ' ' + cls : '') + '"' + (label ? ' aria-label="' + esc(label) + '" title="' + esc(label) + '"' : '') + (off ? ' disabled' : '') + Object.entries(attrs).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('') + '>' + text + '</button>';
   const seg = (name, options, current) => '<span class="seg">' + options.map(([value, text]) => '<button data-set="' + name + '" data-value="' + value + '" aria-pressed="' + (current === value) + '">' + text + '</button>').join('') + '</span>';
   const pools = data.repos.filter((entry) => entry.pool).map((entry) => {
     const p = entry.pool;
@@ -456,11 +515,11 @@ function renderSettings() {
     const size = (key) => (p.sizes ? mb(p.sizes[key]) : '…');
     const clear = (what, text) => button(text, { do: 'pool/clear', repo, what, confirm: t('confirmClear') });
     return '<div class="stack" style="gap:8px"><div class="row"><b class="grow" style="font-weight:400;color:var(--ink)">' + esc(repo) + (p.paused ? ' <span class="tag">' + t('paused') + '</span>' : '') + (p.busy ? ' <span class="tag">' + t('rebuilding') + '</span>' : '') + '</b>' +
-      '<span class="dim">' + t('slots') + '</span>' + button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step') + '<b style="font-weight:400">' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step') +
+      '<span class="dim">' + t('slots') + '</span>' + button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step', t('fewer'), p.parallel <= 1) + '<b style="font-weight:400">' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step', t('more'), p.parallel >= 4) +
       button(p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) + '</div>' +
-      '<table>' + (p.cache ? '<tr><td>' + t('packages') + '</td><td class="r">' + size('packages') + '</td><td class="r">' + clear('packages', t('clear')) + '</td></tr><tr><td>' + t('layers') + '</td><td class="r">' + size('build') + '</td><td class="r">' + clear('build', t('clear')) + '</td></tr>' : '<tr><td colspan="3" class="dim">' + t('cacheIsOff') + '</td></tr>') +
+      '<table class="set">' + (p.cache ? '<tr><td>' + t('packages') + '</td><td class="r">' + size('packages') + '</td><td class="r">' + clear('packages', t('clear')) + '</td></tr><tr><td>' + t('layers') + '</td><td class="r">' + size('build') + '</td><td class="r">' + clear('build', t('clear')) + '</td></tr>' : '<tr><td colspan="3" class="dim">' + t('cacheIsOff') + '</td></tr>') +
       '<tr><td>' + t('images', p.images.length) + (p.images.length ? '<div class="dim" style="font-size:12px">' + p.images.map(esc).join(' · ') + '</div>' : '') + '</td><td class="r">' + size('images') + '</td><td class="r">' + clear('images', t('forget')) + '</td></tr></table>' +
-      '<div class="row">' + clear('all', t('clearAll')) + button(p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) + button(t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, 'danger') + '</div></div>';
+      '<div class="row">' + clear('all', t('clearAll')) + button(p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) + '<span class="grow"></span>' + button(t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, 'danger') + '</div></div>';
   }).join('');
   const free = (repoList ?? []).filter((r) => !r.pool);
   const html = '<div class="stack" style="max-width:860px"><div class="head"><div><h1>' + t('settings') + '</h1></div></div>' +
@@ -487,6 +546,7 @@ function renderEmpty() {
 function render() {
   if (!data) return;
   document.documentElement.lang = lang;
+  seatOf = new Map(data.repos.flatMap((entry) => entry.runners.map((r, index) => [r.name, index + 1])));
   renderRail();
   const entry = data.repos.find((r) => r.repo === view);
   if (view !== 'usage' && view !== 'settings' && !data.repos.length) renderEmpty();
@@ -505,7 +565,7 @@ function tick() {
     el.textContent = clock(s);
     el.classList.toggle('over', Boolean(est) && s > est * 1.15 && s - est > 10);
   }
-  for (const el of document.querySelectorAll('[data-over]')) { const over = secondsSince(el.dataset.over) - Number(el.dataset.est); el.textContent = Number(el.dataset.est) && over > 10 ? ' · +' + clock(over) : ''; }
+  for (const el of document.querySelectorAll('[data-usual]')) { const est = Number(el.dataset.est); const s = secondsSince(el.dataset.usual); el.textContent = s > est * 1.15 && s - est > 10 ? t('late', clock(est)) : t('usual', clock(est)); }
   for (const el of document.querySelectorAll('[data-progress]')) { const est = Number(el.dataset.est); el.style.width = (est ? Math.min(100, secondsSince(el.dataset.progress) / est * 100) : 0) + '%'; }
   for (const el of document.querySelectorAll('[data-finish]')) el.textContent = el.dataset.short ? leftText(el.dataset.finish).replace(/^noch |\s*left$/g, '') : leftText(el.dataset.finish);
   for (const el of document.querySelectorAll('[data-ago]')) el.textContent = ago(el.dataset.ago);

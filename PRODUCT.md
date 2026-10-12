@@ -41,7 +41,7 @@ Vorhanden:
 
 - Pool je Repo mit einstellbarer Zahl von Plätzen, Pause, Reserve, Caches zum Leeren.
 - Repo-Auswahl aus dem GitHub-Konto.
-- Laufende Läufe mit allen Jobs, aktuellem Schritt, üblicher Dauer und grober Restzeit.
+- Laufende Läufe als Netzplan: alle Jobs mit ihren Abhängigkeiten (aus `needs` der Workflow-Datei), aktuellem Schritt, üblicher Dauer und grober Restzeit.
 - Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job (Dauer, Spitzen-RAM, CPU), Wartezeit auf einen Runner.
 - Start mit Windows, Symbol im Infobereich.
 
@@ -55,7 +55,6 @@ Grenzen:
 
 Offen:
 
-- Abhängigkeiten zwischen Jobs (`needs`) werden noch nicht ausgewertet.
 - `CI_RUNNER` wird noch nicht von der App gesetzt.
 - Limits je Job sind noch nicht in der Oberfläche einstellbar.
 - Ob und unter welcher Lizenz RunClub veröffentlicht wird.

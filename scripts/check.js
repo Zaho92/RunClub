@@ -12,4 +12,8 @@ const extracted = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-')), 
 fs.writeFileSync(extracted, inline);
 
 for (const file of [...files, extracted]) execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
+// Was im Runner-Container läuft, darf kein CRLF tragen.
+for (const name of fs.readdirSync(path.join(root, 'linux'))) {
+  if (fs.readFileSync(path.join(root, 'linux', name), 'utf8').includes('\r')) { console.error(`linux/${name} enthält CRLF`); process.exit(1); }
+}
 console.log(`${files.length + 1} Skripte in Ordnung`);

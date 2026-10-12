@@ -32,5 +32,7 @@ ENV DOCKER_HOST=unix:///sock/docker.sock
 
 # `docker build` nutzt den Build-Dienst des Repos, wenn es einen gibt (siehe docker-shim.sh).
 COPY --chmod=755 docker-shim.sh /usr/local/bin/docker
+# Unter Windows ausgecheckt kann das Skript CRLF tragen; damit findet der Kernel die Shell nicht.
+RUN sed -i 's/\r$//' /usr/local/bin/docker
 
 USER runner
