@@ -7,13 +7,13 @@
     color-scheme: dark;
     --ground:#0c1838; --rail:#091230; --surface:#14224f; --raised:#1a2b60; --edge:#26366e; --rule:#1f2d62; --track:#6a7bb5; --track-open:#5b6a94; --cap:#33427a;
     --ink:#dfe5f5; --text:#c9d2ea; --muted:#8793b8; --chart:#8fa4e0;
-    --run:#ffc53d; --done:#3fcf8e; --fail:#f0524a; --fail-text:#f58a8f; --cancel:#c084fc; --skip:#7a85a3; --wait:#5b6a94;
+    --run:#ffc53d; --done:#3fcf8e; --fail:#f0524a; --fail-text:#f58a8f; --cancel:#c084fc; --skip:#7a85a3; --wait:#5b6a94; --fail-edge:#7a2f38; --rail-hover:#0f1b44; --select:#2c4391;
     --ease: cubic-bezier(.16, 1, .3, 1);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body { margin: 0; background: var(--ground); color: var(--text); font: 300 14px/1.45 Overpass, "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden; }
-  ::selection { background: #2c4391; color: var(--ink); }
+  ::selection { background: var(--select); color: var(--ink); }
   * { scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
   :focus-visible { outline: 2px solid var(--chart); outline-offset: 2px; }
   a { color: inherit; text-decoration: none; }
@@ -24,7 +24,7 @@
   #rail { background: var(--rail); padding: 22px 14px 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
   .brand { font-weight: 600; font-size: 22px; color: var(--ink); padding: 0 12px 14px; }
   .nav { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 12px 8px 36px; position: relative; cursor: pointer; }
-  .nav:hover { background: #0f1b44; }
+  .nav:hover { background: var(--rail-hover); }
   .nav[aria-current="true"] { background: var(--surface); }
   .nav b { display: block; font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav > span:not(.ic) { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -48,10 +48,10 @@
   .c-fail { color: var(--fail-text) !important; } .c-done { color: var(--done) !important; } .c-run { color: var(--run) !important; }
   .note { font-size: 13px; color: var(--muted); }
   .tag { display: inline-block; font-size: 12px; border: 1px solid var(--edge); border-radius: 999px; padding: 1px 10px; color: var(--muted); }
-  .tag.c-fail { border-color: #7a2f38; }
+  .tag.c-fail { border-color: var(--fail-edge); }
 
   /* Netzplan */
-  .planwrap { overflow-x: auto; padding: 4px 0; }
+  .planwrap { overflow-x: auto; padding: 4px 0 72px; margin-bottom: -72px; }
   .plan { position: relative; display: flex; align-items: center; gap: clamp(40px, 6vw, 96px); width: 100%; }
   .plan > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
   .plan > svg path { fill: none; stroke: var(--track); stroke-width: 2.5; stroke-linecap: round; }
@@ -72,7 +72,8 @@
   .pill .tm { color: var(--text); }
   .pill .tm.over { color: var(--run); }
   .pill .line { grid-column: 2 / 4; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 2px; }
-  .pill .more { position: absolute; left: -1px; right: -1px; top: 100%; display: grid; grid-template-rows: 0fr; opacity: 0; pointer-events: none; background: var(--raised); border: 1px solid var(--track); border-top: 0; border-radius: 0 0 16px 16px; box-shadow: 0 14px 24px -12px rgba(3, 8, 24, .8); transition: grid-template-rows .2s var(--ease), opacity .12s; }
+  .pill .more { position: absolute; left: -1px; right: -1px; top: 100%; display: grid; grid-template-rows: 0fr; opacity: 0; pointer-events: none; background: var(--raised); border: 1px solid var(--track); border-top: 0; border-radius: 0 0 16px 16px; transition: grid-template-rows .2s var(--ease), opacity .12s; }
+  .pill:not(.lined) .more { min-height: 56px; }
   .pill.lined .more { top: 33px; }
   .pill .more > div { overflow: hidden; font-size: 12px; color: var(--muted); padding: 0 16px 0 41px; }
   .pill .more p { margin: 0; padding: 2px 0 0; overflow-wrap: anywhere; }
@@ -80,7 +81,7 @@
   .pill .more .bit { white-space: nowrap; }
   .pill:hover .more, .pill:focus-visible .more { grid-template-rows: 1fr; opacity: 1; transition-delay: .12s; }
   .pill .pg { position: absolute; left: 18px; bottom: -1px; height: 2px; max-width: calc(100% - 36px); background: var(--run); transition: width 1s linear; }
-  .s-fail.pill { border-color: #7a2f38; } .s-fail .line, .s-fail .more > div { color: var(--fail-text); }
+  .s-fail.pill { border-color: var(--fail-edge); } .s-fail .line, .s-fail .more > div { color: var(--fail-text); }
   .s-wait.pill, .s-skip.pill { background: transparent; border-style: dashed; }
   .s-wait .n, .s-skip .n { color: var(--muted); }
   .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
@@ -128,7 +129,7 @@
   .btn:hover { background: var(--raised); border-color: var(--track); }
   .btn:active { background: var(--edge); }
   .btn:disabled { opacity: .5; cursor: default; }
-  .btn.danger { color: var(--fail-text); border-color: #7a2f38; }
+  .btn.danger { color: var(--fail-text); border-color: var(--fail-edge); }
   .btn.step { width: 30px; padding: 5px 0; text-align: center; }
   .seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
   .seg button { background: none; border: 0; padding: 5px 14px; cursor: pointer; font-size: 13px; color: var(--muted); }
@@ -147,8 +148,8 @@
 
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
-  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
-  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .pg, .btn { transition: none; } }
+  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .ax .wide { display: none; } #seats { grid-column: 1 / -1; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
+  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .pg, .btn, .plan > svg path { transition: none; } }
 </style></head>
 <body>
 <div id="app"><nav id="rail"></nav><main id="main"></main></div>
@@ -354,9 +355,9 @@ function drawLinks(plan) {
       const parent = pills.get(name);
       if (!parent) continue;
       const from = parent.getBoundingClientRect();
-      const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top, x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top, split = x1 + (x2 - x1) * 0.3, bend = Math.max(20, (x2 - split) * 0.55);
+      const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top, x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top, split = x1 + (x2 - x1) * 0.3, join = x2 - (x2 - x1) * 0.3, bend = Math.max(12, (join - split) * 0.55);
       const on = traced && plan.contains(traced) && (name === traced.dataset.job || el.dataset.job === traced.dataset.job);
-      paths += '<path data-from="' + esc(name) + '" data-to="' + esc(el.dataset.job) + '" class="' + (/s-(wait|skip)/.test(el.className) ? 'open' : '') + (on ? ' on' : '') + '"' + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' H' + split.toFixed(1) + ' C' + (split + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (x2 - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"/>';
+      paths += '<path data-from="' + esc(name) + '" data-to="' + esc(el.dataset.job) + '" class="' + (/s-(wait|skip)/.test(el.className) ? 'open' : '') + (on ? ' on' : '') + '"' + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' H' + split.toFixed(1) + ' C' + (split + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (join - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + join.toFixed(1) + ' ' + y2.toFixed(1) + ' H' + x2.toFixed(1) + '"/>';
     }
   }
   plan.querySelector('svg').innerHTML = paths;
@@ -407,7 +408,7 @@ function chart(id, label, value, of, source, max, format, warn, marks, note) {
   return '<div>' + headline + '<svg class="chart' + (warn ? ' warn' : '') + '" data-chart="' + id + '" viewBox="0 0 300 74" preserveAspectRatio="none" role="img" aria-label="' + esc(label) + '">' +
     '<line class="cap" x1="0" x2="300" y1="8" y2="8"/><line class="mid" x1="0" x2="300" y1="39" y2="39"/>' + shown.map((time) => '<line class="mark" x1="' + x(time).toFixed(1) + '" x2="' + x(time).toFixed(1) + '" y1="0" y2="74"/>').join('') +
     '<polygon points="' + points[0].split(',')[0] + ',74 ' + points.join(' ') + ' ' + lastX[0] + ',74"/><polyline points="' + points.join(' ') + '"/><line class="peak" x1="0" x2="300" y1="' + y(peak).toFixed(1) + '" y2="' + y(peak).toFixed(1) + '"/></svg>' +
-    '<div class="ax"><span>' + (span > 3600000 ? t('before24') : t('before30')) + '</span>' + (shown.length ? '<span>' + t('started') + '</span>' : '') + '<span>' + t('now') + '</span></div><div class="k' + (warn ? ' c-fail' : '') + '">' + (note ? note + ' · ' : '') + t('peak', format(peak), ago(new Date(peakAt).toISOString())) + '</div></div>';
+    '<div class="ax"><span>' + (span > 3600000 ? t('before24') : t('before30')) + '</span>' + (shown.length ? '<span class="wide">' + t('started') + '</span>' : '') + '<span>' + t('now') + '</span></div><div class="k' + (warn ? ' c-fail' : '') + '">' + (note ? note + ' · ' : '') + t('peak', format(peak), ago(new Date(peakAt).toISOString())) + '</div></div>';
 }
 
 function bandCharts(marks) {

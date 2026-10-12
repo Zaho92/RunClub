@@ -189,7 +189,7 @@ Ein Lauf ist ein Liniennetz auf einem mitternachtsblauen Emailleschild. Jobs sin
 
 Das System ist ruhig und flach. Es gibt genau ein dunkles Thema, keine Schatten, keine Verläufe und kein reines Weiß. Tiefe entsteht aus vier eng gestuften Blautönen, Gliederung aus feinen Haarlinien. Die Schrift ist Overpass in leichten Schnitten; alle Zahlen stehen in Tabellenziffern, weil sie im Sekundentakt weiterzählen. Sättigung ist dem Zustand vorbehalten: Sechs Zustandsfarben, jede mit eigenem gezeichnetem Symbol, sind das Einzige auf der Fläche, das leuchtet.
 
-Die Dichte folgt der Aufgabe. Im Kompaktmodus zeigt eine Pill Symbol, Name und Zeit; beim Überfahren klappt sie auf, die Nachbarn machen Platz und die Strecken folgen. Im Detailmodus sind alle Pills offen. Unter dem Netzplan steht die Auslastung des Rechners als Verlauf über die Zeit, nicht als Momentwert.
+Die Dichte folgt der Aufgabe. Im Kompaktmodus zeigt eine Pill Symbol, Name und Zeit; beim Überfahren verlängert sie sich nach unten und legt ihre Details über das, was darunter liegt – nichts verschiebt sich. Im Detailmodus trägt jede Pill eine gekürzte zweite Zeile. Über allem steht die Auslastung des Rechners als Verlauf über die Zeit, nicht als Momentwert; sie bleibt beim Scrollen stehen.
 
 **Key Characteristics:**
 - Netzplan statt Jobliste: Stufen von links nach rechts, Strecken zwischen den Pills.
@@ -276,12 +276,12 @@ Zwei Spalten über die volle Fensterhöhe: links die Projektleiste (232 px), rec
 
 Der Kopf eines Laufs stellt Titel und Herkunft links an die Grundlinie der großen Restzeit rechts. Der Netzplan füllt die Breite: Jede Stufe ist eine Spalte (mindestens 180 px, höchstens 280 px), die Spalten stehen mit `clamp(40px, 6vw, 96px)` Abstand nebeneinander und sind senkrecht mittig ausgerichtet, die Pills einer Spalte haben 12 px Abstand. Hat ein Lauf keine Abhängigkeiten, stehen die Jobs in Startreihenfolge zu sechst je Spalte. Im Kompaktmodus hält der Plan 44 px Höhe vor, damit das Aufklappen einer Pill nichts darunter verschiebt. Reicht die Breite nicht, rollt der Plan waagerecht.
 
-Darunter folgen die Legende und, durch eine Haarlinie abgesetzt, das Auslastungsband: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). „Verbrauch“ zeigt dieselben drei Kurven über 24 Stunden und je Projekt eine Tabelle (höchstens 760 px breit, Zahlenspalten 104 px). „Einstellungen“ ist auf 860 px begrenzt; Abschnitte sind durch eine Haarlinie und 22 px getrennt.
+Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ zeigt dieselben drei Kurven über 24 Stunden und je Projekt eine Tabelle (höchstens 760 px breit, Zahlenspalten 104 px). „Einstellungen“ ist auf 860 px begrenzt; Abschnitte sind durch eine Haarlinie und 22 px getrennt.
 
 Umbrüche:
 - **bis 1100 px:** Das Band wird zweispaltig, der seitliche Abstand des Hauptbereichs sinkt auf 24 px.
 - **bis 900 px:** Die Zeilen ruhiger Projekte in „Alle Projekte“ werden zweizeilig.
-- **bis 760 px:** Die Leiste wird zur waagerecht rollenden Zeile oben, das Band einspaltig, Titel und Restzeit stehen untereinander. Der Netzplan rollt die Spalte mit dem ersten roten oder laufenden Job in die Mitte.
+- **bis 760 px:** Die Leiste wird zur waagerecht rollenden Zeile oben, das Band zweispaltig mit niedrigeren Kurven (44 px) und den Plätzen über die volle Breite, Titel und Restzeit stehen untereinander. Das Band bleibt dort nicht stehen. Der Netzplan rollt die Spalte mit dem ersten roten oder laufenden Job in die Mitte.
 
 ## Elevation & Depth
 
@@ -294,7 +294,7 @@ Das System ist flach. Es gibt keinen Schatten, keinen Verlauf und keine Unschär
 
 ## Shapes
 
-Drei Formen, jede mit fester Bedeutung. Die **Pill** (Radius 21 px, die halbe Höhe der geschlossenen Station) ist dem Job vorbehalten; aufgeklappt wird sie zum Rechteck mit denselben runden Ecken. Der **Kreis** ist das Zustandssymbol (22 px, in Legende 18 px, in Leiste und Listen 16 px; Rand 2 px). Alles Bedienbare außerhalb des Netzplans (Schaltfläche, Segment, Feld, Eintrag der Leiste) hat **sanft gerundete Ecken** (8 px); Tooltip und Meldung 6 px, Tags sind voll gerundet.
+Drei Formen, jede mit fester Bedeutung. Die **Pill** (Radius 21 px, die halbe Höhe der geschlossenen Station) ist dem Job vorbehalten; beim Überfahren werden ihre unteren Ecken gerade und gehen in die Überlagerung über, die unten mit 16 px Radius schließt. Der **Kreis** ist das Zustandssymbol (22 px, in Legende 18 px, in Leiste und Listen 16 px; Rand 2 px). Alles Bedienbare außerhalb des Netzplans (Schaltfläche, Segment, Feld, Eintrag der Leiste) hat **sanft gerundete Ecken** (8 px); Tooltip und Meldung 6 px, Tags sind voll gerundet.
 
 Strecken sind kubische Bézierkurven: Sie verlassen die rechte Mitte des Vorgängers waagerecht und laufen waagerecht in die linke Mitte des Nachfolgers ein (Anfasser 55 % des Abstands, mindestens 30 px), 2,5 px stark mit runden Enden. Gerade oder rechtwinklig geführte Strecken gibt es nicht.
 
@@ -304,13 +304,13 @@ Rahmen sind 1 px. Durchgezogen heißt: ist dran oder war dran. Gestrichelt (Pill
 
 ### Pill (Station)
 Die Signaturkomponente; ein Job im Netzplan, als Ganzes ein Link zum Job bei GitHub.
-- **Aufbau:** Dreispaltiges Raster: Zustandssymbol (22 px), Name (`ink`, 400, mit Auslassungspunkten gekürzt), Zeit rechts. Darunter ein aufklappbarer Bereich in 12 px `muted` für Schritt, Platz und übliche Dauer.
-- **Form und Farbe:** Fläche `surface`, Rahmen 1 px `edge`, Radius 21 px, Innenabstand 8 px 16 px 8 px 9px.
-- **Überfahren / Fokus:** Fläche `raised`, Rahmen `track` (180 ms). Im Kompaktmodus klappt der untere Bereich nach 120 ms Verzögerung in 220 ms auf (`grid-template-rows` 0fr → 1fr); zugleich treten die Strecken dieser Pill in `ink` hervor und alle anderen gehen auf 30 % Deckkraft zurück.
+- **Aufbau:** Dreispaltiges Raster: Zustandssymbol (22 px), Name (`ink`, 400, mit Auslassungspunkten gekürzt), Zeit rechts. Die Höhe ist fest. Die Details (Schritt, Platz, übliche Dauer; 12 px `muted`) liegen in einer Überlagerung, die an der Unterkante der Pill ansetzt und nichts verschiebt.
+- **Form und Farbe:** Fläche `surface`, Rahmen 1 px `edge`, Radius 21 px, Innenabstand 8 px 16 px 8 px 9 px.
+- **Überfahren / Fokus:** Fläche `raised`, Rahmen `track` (180 ms). Die Überlagerung öffnet sich nach 120 ms Verzögerung in 200 ms (`grid-template-rows` 0fr → 1fr) in `raised` mit Rahmen `track`, ohne Schatten; zugleich treten die Strecken dieser Pill in `ink` hervor und alle anderen gehen auf 30 % Deckkraft zurück.
 - **Läuft:** Am unteren Rand wächst ein 2 px hoher Strich in `run` bis zur üblichen Dauer. Braucht der Job spürbar länger (über 115 % und mehr als 10 s), färbt sich die Zeit `run`.
-- **Fehler:** Rahmen `fail-edge`; der untere Bereich ist immer offen und nennt in `fail-text` den Schritt, an dem es scheiterte.
+- **Fehler:** Rahmen `fail-edge`; eine zweite, gekürzte Zeile nennt in beiden Modi in `fail-text` den Schritt, an dem es scheiterte.
 - **Wartet / ausgesetzt:** Durchsichtig, Rahmen gestrichelt, Name `muted`; die Zeit ist eine Schätzung („ca. 2:19“).
-- **Detailmodus:** Alle Pills sind offen.
+- **Detailmodus:** Jede Pill trägt eine zweite, auf eine Zeile gekürzte Detailzeile; die Überlagerung setzt dann unter der ersten Zeile an.
 
 ### Zustandssymbol
 Ein Kreis mit einer Zeichnung aus einem 16er-Raster, Strich 2,2 mit runden Enden. Läuft: gefülltes Dreieck auf `run`. Fertig: Haken auf `done`. Fehler: Kreuz auf `fail`. Abgebrochen: gefülltes Quadrat auf `cancel`. Ausgesetzt: Strich im leeren Ring `skip`. Wartet: Punkt im leeren Ring `wait`. Ein leerer Ring ohne Zeichnung steht in der Leiste für ein Projekt, in dem nichts läuft. Die Legende unter dem Netzplan zeigt alle sechs mit ihrem Wort.
@@ -319,7 +319,7 @@ Ein Kreis mit einer Zeichnung aus einem 16er-Raster, Strich 2,2 mit runden Enden
 Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunktet in `track-open`. Farbe und Deckkraft wechseln in 150 ms.
 
 ### Verlaufskurve
-- **Aufbau:** Beschriftung (12 px `muted`), darüber­stehende Kennzahl mit Bezugsgröße, die Kurve (74 px hoch, volle Spaltenbreite), eine Achse mit zwei oder drei Wörtern („vor 30 min“, „Lauf gestartet“, „jetzt“) und eine Zeile mit der Spitze.
+- **Aufbau:** Beschriftung (12 px `muted`), darunter die Kennzahl mit Bezugsgröße, die Kurve (74 px hoch, volle Spaltenbreite), eine Achse mit zwei oder drei Wörtern („vor 30 min“, „Lauf gestartet“, „jetzt“) und eine Zeile mit der Spitze.
 - **Zeichnung:** Linie 2 px in `chart` mit runden Ecken, darunter dieselbe Farbe als Fläche mit 16 % Deckkraft. Hilfslinien 1 px: Obergrenze (`cap`), Mitte (`rule`), Spitze (gepunktet, `chart`), Beginn eines Laufs (senkrecht, gestrichelt, `wait`).
 - **Warnung:** Wird der Speicher knapp, wechseln Linie, Fläche, Kennzahl und Spitzenzeile auf Rot.
 - **Mauszeiger:** Fadenkreuz; eine senkrechte Linie in `ink` und ein Tooltip mit Uhrzeit und Wert.
@@ -328,7 +328,7 @@ Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunkte
 - **Eintrag:** Zweizeilig: Name (`ink`, 400) und Zustand in Worten (12 px `muted`), links das Zustandssymbol (16 px). Radius 8 px, Innenabstand 8 px 12 px 8 px 36 px, 4 px Abstand zwischen Einträgen.
 - **Zustände:** Ruhe durchsichtig, überfahren `rail-hover`, gewählt `surface`.
 - **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand.
-- **Schmal:** Eine waagerecht rollende Zeile nur mit Namen.
+- **Schmal:** Eine waagerecht rollende Zeile aus Symbol und Name; der gewählte Eintrag rückt in den Blick.
 
 ### Schaltflächen
 Zurückhaltend und klein; sie gehören zum Einrichten, nicht zum Zustand.
@@ -377,6 +377,6 @@ Eine Kurve für alles Räumliche: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 
 - **Don't** Schatten, Verläufe oder Unschärfe einsetzen.
 - **Don't** Strecken in einer Zustandsfarbe färben oder gerade beziehungsweise rechtwinklig führen.
 - **Don't** einen Lauf als Jobliste mit Statuspunkten in Karten darstellen.
-- **Don't** eine Zustandsfarbe als Schmuck oder für etwas anderes als ihren Zustand verwenden.
+- **Don't** eine der leuchtenden Zustandsfarben (`run`, `done`, `fail`, `cancel`) als Schmuck oder für etwas anderes als ihren Zustand verwenden.
 - **Don't** Schrift schwerer als 400 setzen (Ausnahme: die Wortmarke) oder Beschriftungen in Versalien sperren.
 - **Don't** die Pill-Form für etwas anderes als einen Job verwenden.

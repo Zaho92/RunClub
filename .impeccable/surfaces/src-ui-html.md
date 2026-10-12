@@ -27,11 +27,12 @@ Symbol; die Helligkeit folgt der Dringlichkeit (läuft am hellsten, wartet am du
 STORY: Der Nutzer sieht links, welches Projekt läuft oder rot ist; rechts, wie weit der Lauf ist und wie lange noch; darunter,
 ob der Rechner die Last trägt – nicht als Momentwert, sondern als Verlauf.
 
-FIRST VIEWPORT: Links die Projektleiste (232 px). Rechts oben Titel des Laufs, darunter Repo, Workflow und Branch, ganz rechts
-die Restzeit groß und leicht. Mitte: der Netzplan über die volle Breite, Stufen von links nach rechts. Darunter die Legende
-und ein Band mit drei Verlaufskurven (Docker-VM-Speicher, Docker-VM-CPU, Windows-Speicher) und den Plätzen.
+FIRST VIEWPORT: Links die Projektleiste (232 px). Rechts ganz oben, beim Scrollen stehend, das Band mit drei Verlaufskurven
+(Docker-VM-Speicher, Docker-VM-CPU, Windows-Speicher) und den in sich rollenden Plätzen. Darunter je laufendem Lauf der Titel,
+darunter Repo, Workflow und Branch, ganz rechts die Restzeit groß und leicht, dann der Netzplan über die volle Breite, Stufen
+von links nach rechts; nach dem letzten Plan die Legende, danach die ruhigen Projekte als Zeilen.
 
 FORM: Liniennetzplan (Midnight Transit), vom Nutzer nach zwei Würfelrunden gewählt und verfeinert; seed key ead5eeac.
-Signaturbewegung: Im Kompaktmodus öffnet sich die überfahrene Pill, die Strecken folgen ihr.
+Signaturbewegung: Die überfahrene Pill verlängert sich nach unten über das Darunterliegende, ohne etwas zu verschieben; ihre Strecken treten hervor.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
