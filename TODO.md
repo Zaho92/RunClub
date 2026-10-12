@@ -20,6 +20,16 @@ Stand: 12.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
    `docker build` einen echten Ordner braucht.
 
+## Zwischendurch, regelmäßig
+
+- **Code-Review.** Nach größeren Blöcken den Stand prüfen lassen, im Stil von Matt Pocock: Skill
+  `mattpocock-skills:code-review` (Regeln des Repos und Auftragstreue, zwei getrennte Durchgänge) über die Änderungen
+  seit dem letzten Review.
+- **Sicherheitsdurchgang** dazu: Skill `security-review`. Besonders ansehen: der lokale Dienst (Port 8770, Token und
+  Host-Prüfung in `src/backend.js`), alles, was aus GitHub-Antworten in Befehle oder ins HTML gelangt (Repo-, Job- und
+  Schrittnamen), und die Abschottung der Runner (privilegierte Container, Volumes, was Jobs schreiben dürfen).
+- Bisher lief keines von beiden. Ein erster Durchgang über den ganzen Stand steht aus.
+
 ## Noch nicht echt ausprobiert
 
 - **CI_RUNNER setzen und entfernen** gegen GitHub. Gelesen wird richtig, das Schreiben ist nur gegen ein nachgestelltes
@@ -39,7 +49,11 @@ Stand: 12.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
   nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern.
-- **`confirm()`** öffnet den nativen Dialog; eine Rückfrage in der Bildwelt der App fehlt.
+- **Fenster im Stil der App.** Titelleiste und die Knöpfe zum Minimieren, Maximieren und Schließen kommen von Windows
+  und passen nicht zur Bildwelt. Gewünscht: rahmenloses Fenster mit eigener Titelleiste (in Electron `frame: false` oder
+  `titleBarStyle: 'hidden'` mit `titleBarOverlay`, dazu ein ziehbarer Bereich). Schließen muss weiter nur das Fenster
+  verstecken. Dazu gehört die **Rückfrage**: `confirm()` öffnet heute den nativen Dialog; eine in der Bildwelt der App fehlt.
+  Ohne Eile, vom Nutzer als „finde ich gut“ eingestuft.
 - **Erster Bildschirm** ist bis zur ersten Antwort leer; ein Gerüstzustand fehlt.
 - **„−“ und „+“** auf den Schrittknöpfen sind Textzeichen, keine gezeichneten Symbole.
 - **`src/backend.js` aufteilen.** Es startet beim Laden und ist deshalb nicht testbar. Pools, Reserve und Caches sind der
