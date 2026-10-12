@@ -294,7 +294,7 @@ Das System ist flach. Es gibt keinen Schatten, keinen Verlauf und keine Unschär
 
 ## Shapes
 
-Drei Formen, jede mit fester Bedeutung. Die **Pill** (Radius 21 px, die halbe Höhe der geschlossenen Station) ist dem Job vorbehalten; beim Überfahren werden ihre unteren Ecken gerade und gehen in die Überlagerung über, die unten mit 16 px Radius schließt. Der **Kreis** ist das Zustandssymbol (22 px, in Legende 18 px, in Leiste und Listen 16 px; Rand 2 px). Alles Bedienbare außerhalb des Netzplans (Schaltfläche, Segment, Feld, Eintrag der Leiste) hat **sanft gerundete Ecken** (8 px); Tooltip und Meldung 6 px, Tags sind voll gerundet.
+Drei Formen, jede mit fester Bedeutung. Die **Pill** (Radius 21 px, die halbe Höhe der geschlossenen Station) ist dem Job vorbehalten; beim Überfahren wächst sie als eine Form mit unverändertem Radius nach unten. Der **Kreis** ist das Zustandssymbol (22 px, in Legende 18 px, in Leiste und Listen 16 px; Rand 2 px). Alles Bedienbare außerhalb des Netzplans (Schaltfläche, Segment, Feld, Eintrag der Leiste) hat **sanft gerundete Ecken** (8 px); Tooltip und Meldung 6 px, Tags sind voll gerundet.
 
 Strecken sind kubische Bézierkurven: Sie verlassen die rechte Mitte des Vorgängers waagerecht und laufen waagerecht in die linke Mitte des Nachfolgers ein (Anfasser 55 % des Abstands, mindestens 30 px), 2,5 px stark mit runden Enden. Gerade oder rechtwinklig geführte Strecken gibt es nicht.
 
@@ -304,9 +304,9 @@ Rahmen sind 1 px. Durchgezogen heißt: ist dran oder war dran. Gestrichelt (Pill
 
 ### Pill (Station)
 Die Signaturkomponente; ein Job im Netzplan, als Ganzes ein Link zum Job bei GitHub.
-- **Aufbau:** Dreispaltiges Raster: Zustandssymbol (22 px), Name (`ink`, 400, mit Auslassungspunkten gekürzt), Zeit rechts. Die Höhe ist fest. Die Details (Schritt, Platz, übliche Dauer; 12 px `muted`) liegen in einer Überlagerung, die an der Unterkante der Pill ansetzt und nichts verschiebt.
+- **Aufbau:** Dreispaltiges Raster: Zustandssymbol (22 px), Name (`ink`, 400, mit Auslassungspunkten gekürzt), Zeit rechts. Die Höhe ist fest. Die Details (Schritt, Platz, übliche Dauer; 12 px `muted`) liegen in einer zweiten Fläche in der Form der Pill, deckungsgleich hinter ihrem Inhalt; sie verschiebt nichts.
 - **Form und Farbe:** Fläche `surface`, Rahmen 1 px `edge`, Radius 21 px, Innenabstand 8 px 16 px 8 px 9 px.
-- **Überfahren / Fokus:** Fläche `raised`, Rahmen `track` (180 ms). Die Überlagerung öffnet sich nach 120 ms Verzögerung in 200 ms (`grid-template-rows` 0fr → 1fr) in `raised` mit Rahmen `track`, ohne Schatten; zugleich treten die Strecken dieser Pill in `ink` hervor und alle anderen gehen auf 30 % Deckkraft zurück.
+- **Überfahren / Fokus:** Fläche `raised`, Rahmen `track` (180 ms). Diese Fläche (`raised`, Rahmen `track`, Radius 21 px, kein Schatten) wächst nach 80 ms Verzögerung in 280 ms nach unten (`grid-template-rows` 0fr → 1fr); Ecken und Rand ändern sich dabei nicht. Zugleich treten die Strecken dieser Pill in `ink` hervor und alle anderen gehen auf 30 % Deckkraft zurück.
 - **Läuft:** Am unteren Rand wächst ein 2 px hoher Strich in `run` bis zur üblichen Dauer. Braucht der Job spürbar länger (über 115 % und mehr als 10 s), färbt sich die Zeit `run`.
 - **Fehler:** Rahmen `fail-edge`; eine zweite, gekürzte Zeile nennt in beiden Modi in `fail-text` den Schritt, an dem es scheiterte.
 - **Wartet / ausgesetzt:** Durchsichtig, Rahmen gestrichelt, Name `muted`; die Zeit ist eine Schätzung („ca. 2:19“).

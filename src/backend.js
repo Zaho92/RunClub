@@ -651,6 +651,7 @@ function status() {
     },
     repos: [...repos.values()],
     log: recent.slice(-25),
+    ui: fs.statSync(path.join(__dirname, 'ui.html')).mtimeMs, // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
   };
 }
