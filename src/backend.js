@@ -37,6 +37,7 @@ const HOST = os.hostname();
 const TOKEN = crypto.randomBytes(24).toString('hex'); // schützt die ändernden Aufrufe vor fremden Webseiten
 const PROCESS_INTERVAL_S = 3;
 const GITHUB_INTERVAL_MS = 20000;
+const GITHUB_ACTIVE_INTERVAL_MS = 8000; // Repos, in denen gerade ein Job läuft
 const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * 60000;
@@ -385,10 +386,13 @@ async function serveOneJob(pool, slot) {
       if (started && slot.state !== 'arbeitet') {
         Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), meter: metrics.meter() });
         log(`${pool.repo}: Job „${started[1]}“ läuft auf ${slot.name}`);
+        refreshRepo(pool.repo);
+        setTimeout(() => refreshRepo(pool.repo), 4000);
       }
       if (finished && !slot.finished) {
         if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / 1000), ...slot.meter.finish() });
         slot.meter = null;
+        refreshRepo(pool.repo);
         Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
         log(`${pool.repo}: Job „${finished[1]}“ – ${finished[2]}`);
       }
@@ -564,29 +568,41 @@ function measure() {
     metrics.sample({ hostCpu: usage.hostCpu, hostMemory: os.totalmem() - os.freemem(), vmCpu: usage.vmCpu + usage.otherCpu, vmMemory: usage.vmMemory + usage.otherMemory });
   }
 }
-let githubBusy = false;
+const githubBusy = new Set(); // Repos, deren Abfrage gerade läuft
+const githubAgain = new Set(); // … und die danach noch einmal dran sind
 
-async function refreshGitHub() {
-  if (githubBusy) return;
-  githubBusy = true;
+// Ein Repo abfragen. Läuft schon eine Abfrage, folgt danach genau eine weitere.
+async function refreshRepo(repo) {
+  if (githubBusy.has(repo)) { githubAgain.add(repo); return; }
+  githubBusy.add(repo);
   try {
-    const repos = config.pools.map((pool) => pool.repo);
-    for (const repo of repos) {
-      try {
-        const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=100`])).runners;
-        const runs = (await gh(['api', `repos/${repo}/actions/runs?per_page=20`])).workflow_runs;
-        const jobs = (await pipelines.refresh(repo, runs)).flatMap((pipeline) => pipeline.jobs
-          .filter((job) => job.status !== 'completed' && job.status !== 'pending')
-          .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
-        github.set(repo, {
-          runners, jobs, error: null,
-          runs: runs.slice(0, 20).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
-        });
-      } catch (error) {
-        github.set(repo, { ...(github.get(repo) ?? { runners: [], jobs: [], runs: [] }), error: error.message });
-      }
-    }
-  } finally { githubBusy = false; }
+    const runs = (await gh(['api', `repos/${repo}/actions/runs?per_page=20`])).workflow_runs;
+    const jobs = (await pipelines.refresh(repo, runs)).flatMap((pipeline) => pipeline.jobs
+      .filter((job) => job.status !== 'completed' && job.status !== 'pending')
+      .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
+    github.set(repo, {
+      jobs, error: null,
+      runs: runs.slice(0, 20).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
+    });
+  } catch (error) {
+    github.set(repo, { ...(github.get(repo) ?? { jobs: [], runs: [] }), error: error.message });
+  } finally {
+    githubBusy.delete(repo);
+    if (githubAgain.delete(repo) && !stopping) refreshRepo(repo);
+  }
+}
+
+// Alle Repos der Reihe nach – der ruhige Takt.
+async function refreshGitHub() {
+  for (const pool of [...config.pools]) await refreshRepo(pool.repo);
+}
+
+// Wo gerade etwas läuft, öfter nachsehen: Dort ändert sich der Stand im Sekundentakt.
+function refreshActive() {
+  for (const settings of config.pools) {
+    const working = pools.get(settings.repo)?.slots.some((slot) => slot.state === 'arbeitet');
+    if (working || github.get(settings.repo)?.jobs.length) refreshRepo(settings.repo);
+  }
 }
 
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
@@ -801,6 +817,7 @@ http.createServer(async (request, response) => {
 
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
+setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
 setInterval(measure, MEASURE_INTERVAL_MS);
 setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 
