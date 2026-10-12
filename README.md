@@ -36,6 +36,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
 | `src/backend.js` | Pools, Reserve, Caches, GitHub-Abfragen, lokaler Dienst für die Oberfläche |
 | `src/pipeline.js` | laufende Läufe mit ihren Jobs, übliche Dauer je Job, Restzeit |
+| `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
 | `src/ui.html` | Oberfläche |
 | `linux/` | Abbild der Runner |
 | `scripts/make-icon.js` | zeichnet das Symbol nach `build/` (`npm run icon`) |

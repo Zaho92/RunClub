@@ -10,6 +10,7 @@ const path = require('node:path');
 const KEEP = 10; // gemerkte Dauern je Job
 const LEARN_PER_ROUND = 5; // abgeschlossene Läufe, die je Abfrage nachgelernt werden
 const SEEN_MAX = 300;
+const WAITS_KEEP = 50; // gemerkte Wartezeiten je Repo
 const TURNAROUND_S = 8; // Wechsel eines Platzes zum nächsten Job
 
 const median = (values) => {
@@ -41,6 +42,10 @@ function createPipelines({ gh, dataDir }) {
       list.push(seconds(job.started_at, job.completed_at));
       if (list.length > KEEP) list.shift();
     }
+    // Wartezeit: vom Anlegen des Jobs bis ein eigener Runner ihn nimmt.
+    const waits = (memory.waits ??= []);
+    for (const job of good) if ((job.labels ?? []).includes('self-hosted') && job.created_at) waits.push(seconds(job.created_at, job.started_at));
+    if (waits.length > WAITS_KEEP) waits.splice(0, waits.length - WAITS_KEEP);
     // Welche Jobs zu einem Workflow gehören: So lassen sich Jobs ankündigen, die GitHub erst später anlegt.
     if (run.conclusion === 'success') memory.jobsOf[run.name] = good.map((job) => job.name);
     memory.seen.push(run.id);
@@ -125,7 +130,13 @@ function createPipelines({ gh, dataDir }) {
     });
   }
 
-  return { refresh, view };
+  // Wie lange Jobs zuletzt auf einen eigenen Runner gewartet haben (Sekunden).
+  function waitOf(repo) {
+    const waits = memoryOf(repo).waits ?? [];
+    return waits.length ? { usual: median(waits), longest: Math.max(...waits), jobs: waits.length } : null;
+  }
+
+  return { refresh, view, waitOf };
 }
 
 module.exports = { createPipelines };

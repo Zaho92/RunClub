@@ -21,6 +21,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { createPipelines } = require('./pipeline');
+const { createMetrics } = require('./metrics');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -36,6 +37,8 @@ const HOST = os.hostname();
 const TOKEN = crypto.randomBytes(24).toString('hex'); // schützt die ändernden Aufrufe vor fremden Webseiten
 const PROCESS_INTERVAL_S = 3;
 const GITHUB_INTERVAL_MS = 20000;
+const MEASURE_INTERVAL_MS = 2000;
+const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * 60000;
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
@@ -111,8 +114,10 @@ const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((
 // --- Linux-Pools ---
 
 const pools = new Map(); // Repo -> { repo, slots, hold, removed, sizes, seeded }
-const containerStats = new Map(); // Container-Name -> { cpu, memory }
+const containerStats = new Map(); // Container-Name -> { cpu (Kerne), memory }
+const otherStats = new Map(); // fremde Container in derselben Docker-VM: Name -> { cpu, memory, at }
 let dockerCpus = 1;
+let dockerMemory = 0;
 let linuxReady = false;
 let linuxError = null;
 
@@ -125,9 +130,10 @@ const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
 
 async function prepareLinux() {
-  const info = await docker(['info', '--format', '{{.NCPU}}']);
+  const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}']);
   if (info.code !== 0) throw new Error('Docker ist nicht erreichbar – läuft Docker Desktop?');
-  dockerCpus = Number(info.stdout.trim()) || 1;
+  dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
+  dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
   log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
   const build = await docker(['build', '--pull', '-q', '-t', IMAGE, path.join(__dirname, '..', 'linux')]);
   if (build.code !== 0) throw new Error(`Das Runner-Abbild ließ sich nicht bauen: ${lastLine(build.stderr)}`);
@@ -377,10 +383,12 @@ async function serveOneJob(pool, slot) {
       const finished = line.match(/Job (.+) completed with result: (\w+)/);
       if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
       if (started && slot.state !== 'arbeitet') {
-        Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString() });
+        Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), meter: metrics.meter() });
         log(`${pool.repo}: Job „${started[1]}“ läuft auf ${slot.name}`);
       }
       if (finished && !slot.finished) {
+        if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / 1000), ...slot.meter.finish() });
+        slot.meter = null;
         Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
         log(`${pool.repo}: Job „${finished[1]}“ – ${finished[2]}`);
       }
@@ -490,13 +498,13 @@ function startStatsFeed() {
       if (!line.startsWith('{')) return;
       try {
         const entry = JSON.parse(line);
-        if (!entry.Name.startsWith('rc-')) return;
         const [value, unit] = entry.MemUsage.split('/')[0].trim().match(/^([\d.]+)\s*(\w+)$/).slice(1);
         const factor = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: 1048576, GB: 1e9, GiB: 1073741824 }[unit] ?? 1;
-        containerStats.set(entry.Name, { cpu: parseFloat(entry.CPUPerc) / dockerCpus, memory: Number(value) * factor });
+        const usage = { cpu: (parseFloat(entry.CPUPerc) || 0) / 100, memory: Number(value) * factor, at: Date.now() };
+        if (entry.Name.startsWith('rc-')) containerStats.set(entry.Name, usage); else otherStats.set(entry.Name, usage);
       } catch { /* Kopfzeile oder unvollständige Zeile */ }
     },
-  }).then(() => { containerStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
+  }).then(() => { containerStats.clear(); otherStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
 }
 
 // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
@@ -526,6 +534,36 @@ async function linuxLoop() {
 
 const github = new Map(); // Repo -> { runners, jobs, runs, error }
 const pipelines = createPipelines({ gh, dataDir: DATA_DIR });
+
+// --- Messung: Rechner, Docker-VM und der Verbrauch je Job ---
+
+const metrics = createMetrics({ dataDir: DATA_DIR });
+const usage = { hostCpu: 0, vmCpu: 0, vmMemory: 0, otherCpu: 0, otherMemory: 0 }; // CPU in Kernen
+let hostTicks = null;
+let measureRound = 0;
+
+function measure() {
+  // Windows: Anteil der Zeit, in der die Kerne nicht im Leerlauf waren.
+  const ticks = os.cpus().reduce((sum, cpu) => ({ idle: sum.idle + cpu.times.idle, total: sum.total + cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.irq + cpu.times.idle }), { idle: 0, total: 0 });
+  if (hostTicks && ticks.total > hostTicks.total) usage.hostCpu = (1 - (ticks.idle - hostTicks.idle) / (ticks.total - hostTicks.total)) * os.cpus().length;
+  hostTicks = ticks;
+
+  // Docker-VM: die eigenen Container und, was sonst darin läuft. Ein beendeter Container meldet sich nicht ab.
+  const now = Date.now();
+  for (const stats of [containerStats, otherStats]) {
+    for (const [name, entry] of stats) if (now - entry.at > 15000) stats.delete(name);
+  }
+  const sum = (entries, field) => [...entries].reduce((total, entry) => total + entry[field], 0);
+  Object.assign(usage, { vmCpu: sum(containerStats.values(), 'cpu'), vmMemory: sum(containerStats.values(), 'memory'), otherCpu: sum(otherStats.values(), 'cpu'), otherMemory: sum(otherStats.values(), 'memory') });
+
+  for (const pool of pools.values()) {
+    for (const slot of pool.slots) if (slot.meter && slot.base) slot.meter.add(containerStats.get(`${slot.base}-runner`), containerStats.get(`${slot.base}-dind`));
+  }
+  measureRound += 1;
+  if (measureRound % SAMPLE_EVERY === 0) {
+    metrics.sample({ hostCpu: usage.hostCpu, hostMemory: os.totalmem() - os.freemem(), vmCpu: usage.vmCpu + usage.otherCpu, vmMemory: usage.vmMemory + usage.otherMemory });
+  }
+}
 let githubBusy = false;
 
 async function refreshGitHub() {
@@ -580,6 +618,7 @@ function status() {
     const pool = pools.get(settings.repo);
     const entry = repoEntry(settings.repo);
     entry.pipelines = pipelines.view(settings.repo, settings.paused ? 0 : settings.parallel);
+    entry.usage = { jobs: metrics.jobsView(settings.repo), wait: pipelines.waitOf(settings.repo) };
     const service = containerStats.get(buildService(settings.repo));
     entry.pool = {
       parallel: settings.parallel, paused: settings.paused, cache: settings.cache, busy: Boolean(pool?.hold),
@@ -597,7 +636,7 @@ function status() {
         : null;
       entry.runners.push({
         kind: 'Linux', name: slot.base ? slot.name : `Platz ${index + 1}`, state: slot.retired && slot.state !== 'aus' ? `${slot.state}, läuft aus` : slot.state, job,
-        cpu: parts.reduce((sum, p) => sum + p.cpu, 0), memory: parts.reduce((sum, p) => sum + p.memory, 0), cpuBase: `${dockerCpus} Kerne der Docker-VM`,
+        cpu: parts.reduce((sum, p) => sum + p.cpu, 0) / dockerCpus * 100, memory: parts.reduce((sum, p) => sum + p.memory, 0), cpuBase: `${dockerCpus} Kerne der Docker-VM`,
         note: [`Platz ${index + 1}`, `${slot.jobs} Job${slot.jobs === 1 ? '' : 's'} seit dem Start`, slot.lastResult && `zuletzt ${slot.lastResult}`, slot.error && `Fehler: ${slot.error}`].filter(Boolean).join(' · '),
       });
     });
@@ -605,7 +644,10 @@ function status() {
 
   return {
     at: new Date().toISOString(),
-    machine: { cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet') },
+    machine: {
+      cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, dockerMemory, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet'),
+      usage, limits: config.limits, series: metrics.series(),
+    },
     repos: [...repos.values()],
     log: recent.slice(-25),
     ...hooks.status(),
@@ -657,6 +699,7 @@ const actions = {
       delete state.learned[repo];
       delete state.rejected[repo];
       saveState();
+      metrics.forget(repo);
       pools.delete(repo);
       log(`${repo}: Pool und seine Caches sind entfernt`);
     })().catch((error) => log(`${repo}: ${error.message}`));
@@ -704,6 +747,7 @@ async function shutdown() {
   if (stopping) return;
   stopping = true;
   log('Beende die Runner …');
+  metrics.save();
   await Promise.all([...pools.values()].flatMap((pool) => pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })));
   for (const settings of config.pools) await docker(['rm', '-f', buildService(settings.repo)]);
   await removeLeftovers();
@@ -749,6 +793,7 @@ http.createServer(async (request, response) => {
 
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
+setInterval(measure, MEASURE_INTERVAL_MS);
 setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 
 for (const settings of config.pools) startPool(settings.repo);

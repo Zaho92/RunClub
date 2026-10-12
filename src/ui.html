@@ -62,6 +62,17 @@
   .check { display:flex; align-items:center; gap:6px; align-self:center; cursor:pointer; }
   .picks { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
   .picks:empty { display:none; }
+  .tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:12px; }
+  @media (max-width:820px) { .tiles { grid-template-columns:1fr 1fr; } }
+  .tile .value { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .tile .value span { font-size:13px; font-weight:400; color:var(--muted); }
+  .tile .sub { font-size:12px; min-height:17px; }
+  .spark { display:block; width:100%; height:44px; margin-top:6px; border-bottom:1px solid var(--line); cursor:crosshair; }
+  .spark polyline { fill:none; stroke:var(--fill); stroke-width:2; vector-effect:non-scaling-stroke; stroke-linejoin:round; stroke-linecap:round; }
+  .spark polygon { fill:var(--fill); opacity:.12; }
+  .spark line { stroke:var(--muted); stroke-width:1; vector-effect:non-scaling-stroke; }
+  .axis { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:2px; }
+  #tip { position:fixed; z-index:5; pointer-events:none; background:var(--text); color:var(--bg); padding:4px 9px; border-radius:6px; font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; display:none; }
   .pipe .eta { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .pipe .bar { margin-top:10px; }
   .pipe .title { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:0 1 auto; }
@@ -100,6 +111,7 @@
 <details id="logbox"><summary>Protokoll</summary><pre id="log"></pre></details>
 </main>
 <div id="toast" role="status"></div>
+<div id="tip"></div>
 <script>
 const TOKEN = '__TOKEN__';
 const gb = (b) => (b / 1073741824).toFixed(1).replace('.', ',') + ' GB';
@@ -113,6 +125,70 @@ const elapsed = (iso) => Math.max(0, (Date.now() - new Date(iso)) / 1000);
 const left = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? 'gleich fertig' : 'noch ≈ ' + (s < 90 ? '1 min' : Math.round(s / 60) + ' min'); };
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
 const stepText = (step) => step ? 'Schritt ' + step.number + '/' + step.total + ': ' + step.name : '';
+const cores = (n) => n.toFixed(1).replace('.', ',');
+const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
+const SPAN = 30 * 60000; // Verlauf: die letzte halbe Stunde
+const FORMAT = { hostCpu: (v) => cores(v) + ' Kerne', vmCpu: (v) => cores(v) + ' Kerne', hostMemory: (v) => gb(v), vmMemory: (v) => gb(v) };
+let SERIES = { at: [] };
+
+// Verlauf einer Messgröße als Linie; die Höhe reicht von 0 bis `max` (alle Kerne, aller Speicher).
+function spark(key, max) {
+  const values = SERIES[key] || [];
+  if (values.length < 2) return '<div class="spark"></div><div class="axis"><span>Verlauf folgt …</span></div>';
+  const end = Date.now();
+  const points = values.map((v, i) => ((1 - (end - SERIES.at[i]) / SPAN) * 300).toFixed(1) + ',' + (42 - Math.min(1, v / max) * 40).toFixed(1));
+  const first = points[0].split(',')[0];
+  const last = points[points.length - 1].split(',')[0];
+  return '<svg class="spark" data-key="' + key + '" viewBox="0 0 300 44" preserveAspectRatio="none" role="img" aria-label="Verlauf der letzten 30 Minuten">' +
+    '<polygon points="' + first + ',44 ' + points.join(' ') + ' ' + last + ',44"/><polyline points="' + points.join(' ') + '"/></svg>' +
+    '<div class="axis"><span>vor 30 min</span><span>jetzt</span></div>';
+}
+const tile = (key, label, value, of, sub, max, warn) => '<div class="tile"><div class="label"><span>' + label + '</span></div><div class="value' + (warn ? ' warn' : '') + '">' + value + ' <span>' + of + '</span></div><div class="sub">' + sub + '</div>' + spark(key, max) + '</div>';
+
+function machineCard(data) {
+  const m = data.machine;
+  const u = m.usage;
+  const all = data.repos.flatMap((r) => r.runners);
+  const used = m.memoryTotal - m.memoryFree;
+  const split = (own, other, format) => other > own * 0.05 + 0.05 ? 'Runner ' + format(own) + ' · andere ' + format(other) : 'nur Runner';
+  const perJob = limitBytes(m.limits.runnerMemory) + limitBytes(m.limits.dockerMemory);
+  const slots = data.repos.reduce((sum, r) => sum + (r.pool && !r.pool.paused ? r.pool.parallel : 0), 0);
+  const over = m.dockerMemory && perJob * slots > m.dockerMemory;
+  return '<div class="card"><div class="row"><span class="name">Rechner</span>' +
+    (m.docker === 'bereit' ? '' : '<span class="tag warn">Docker: ' + esc(m.docker) + '</span>') +
+    '<span class="state" style="color:var(--muted);font-weight:400">' + all.filter((r) => r.state.startsWith('arbeitet')).length + ' arbeiten · ' + all.filter((r) => r.state.startsWith('bereit')).length + ' bereit</span></div><div class="tiles">' +
+    tile('hostCpu', 'Windows · CPU', cores(u.hostCpu), 'von ' + m.cores + ' Kernen', '', m.cores) +
+    tile('hostMemory', 'Windows · Arbeitsspeicher', gb(used), 'von ' + gb(m.memoryTotal), m.memoryFree < m.memoryTotal * 0.08 ? '<span class="warn">nur ' + gb(m.memoryFree) + ' frei</span>' : gb(m.memoryFree) + ' frei', m.memoryTotal, m.memoryFree < m.memoryTotal * 0.08) +
+    tile('vmCpu', 'Docker-VM · CPU', cores(u.vmCpu + u.otherCpu), 'von ' + m.dockerCpus + ' Kernen', split(u.vmCpu, u.otherCpu, cores), m.dockerCpus) +
+    tile('vmMemory', 'Docker-VM · Container', gb(u.vmMemory + u.otherMemory), m.dockerMemory ? 'von ' + gb(m.dockerMemory) : '', split(u.vmMemory, u.otherMemory, mb), m.dockerMemory || m.memoryTotal) +
+    '</div><div class="small' + (over ? ' warn' : '') + '">Erlaubt je Job: ' + gb(perJob) + ' Arbeitsspeicher (' + esc(m.limits.runnerMemory) + ' Runner + ' + esc(m.limits.dockerMemory) + ' Docker). ' +
+    'Bei ' + slots + ' Plätzen zusammen bis zu ' + gb(perJob * slots) + (m.dockerMemory ? ' – die Docker-VM hat ' + gb(m.dockerMemory) + (over ? '. Die Limits schützen so nicht vor einer vollen VM.' : '.') : '.') + '</div></div>';
+}
+
+// Gemessener Verbrauch je Job und die Wartezeit auf einen Runner.
+function usageBox(repo, u, limits) {
+  if (!u || (!u.jobs.length && !u.wait)) return '';
+  const runs = u.jobs.reduce((sum, j) => sum + j.runs, 0);
+  const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '<div class="sub">' + j.runs + (j.runs === 1 ? ' Durchlauf' : ' Durchläufe') + ' · zuletzt ' + ago(j.lastAt) + '</div></td>' +
+    '<td class="num">' + clock(j.duration) + '</td><td class="num">' + (j.peakMemory ? mb(j.peakMemory) : '–') + '</td><td class="num">' + (j.peakMemory ? cores(j.cpu) : '–') + '</td><td class="num">' + (j.peakMemory ? cores(j.peakCpu) : '–') + '</td></tr>').join('');
+  const notes = [];
+  if (u.wait) notes.push('Wartezeit auf einen Runner: üblich ' + Math.round(u.wait.usual) + ' s, längste ' + clock(u.wait.longest) + ' min (letzte ' + u.wait.jobs + ' Jobs).');
+  const peakRunner = Math.max(0, ...u.jobs.map((j) => j.peakRunner));
+  const peakDocker = Math.max(0, ...u.jobs.map((j) => j.peakDocker));
+  if (peakRunner + peakDocker > 0) {
+    const allowRunner = limitBytes(limits.runnerMemory);
+    const allowDocker = limitBytes(limits.dockerMemory);
+    const room = (bytes) => Math.max(1, Math.ceil(bytes * 1.5 / 1073741824 * 2) / 2);
+    let note = 'Höchste Spitze: Runner ' + mb(peakRunner) + ', Docker ' + mb(peakDocker) + ' (erlaubt ' + esc(limits.runnerMemory) + ' + ' + esc(limits.dockerMemory) + ').';
+    if (peakRunner > allowRunner * 0.85 || peakDocker > allowDocker * 0.85) note += ' <span class="warn">Ein Job stößt ans Limit.</span>';
+    else if (runs >= 5 && (room(peakRunner) * 1073741824 < allowRunner || room(peakDocker) * 1073741824 < allowDocker)) note += ' Mit 50 % Luft würden ' + String(room(peakRunner)).replace('.', ',') + ' + ' + String(room(peakDocker)).replace('.', ',') + ' GB reichen.';
+    notes.push(note);
+  }
+  return '<details data-keep="usage-' + esc(repo) + '"><summary>Verbrauch je Job (' + runs + ' gemessen)</summary>' +
+    (rows ? '<div class="scroll"><table><tr class="sub"><td>Job</td><td class="num">Dauer üblich</td><td class="num">RAM-Spitze</td><td class="num">CPU Ø (Kerne)</td><td class="num">CPU-Spitze</td></tr>' + rows + '</table></div>' : '') +
+    notes.map((n) => '<div class="small">' + n + '</div>').join('') + '</details>';
+}
+
 const meter = (label, value, share) => '<div><div class="label"><span>' + label + '</span><b>' + value + '</b></div><div class="bar"><i style="width:' + Math.min(100, share).toFixed(1) + '%"></i></div></div>';
 const stateClass = (state) => state.startsWith('bereit') ? 's-bereit' : state.startsWith('arbeitet') ? 's-arbeitet' : state.startsWith('gestört') ? 's-gestoert' : /^(startet|räumt|wartet)/.test(state) ? 's-unterwegs' : '';
 const attrs = (o) => Object.entries(o).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('');
@@ -134,14 +210,14 @@ async function call(action, body) {
   } catch { toast('Der Dienst antwortet nicht.'); return false; }
 }
 
-function runnerCard(repo, r, index, memoryTotal) {
+function runnerCard(repo, r, index, pairLimit) {
   const j = r.job;
   const job = j ? '<div class="job">Job <b>' + esc([j.workflow, j.job].filter(Boolean).join(' / ')) + '</b>' + (j.branch ? ' auf <code>' + esc(j.branch) + '</code>' : '') + (j.startedAt ? ', ' + clock(elapsed(j.startedAt)) + (j.estimate ? ' von üblich ' + clock(j.estimate) : '') : '') + (j.step ? ' · ' + esc(stepText(j.step)) : '') + ' · <a href="' + esc(j.url) + '" target="_blank" rel="noopener">bei GitHub</a></div>' : '';
   let controls = '';
   if (!r.state.startsWith('arbeitet') && !r.state.includes('läuft aus')) controls = button('Neu aufbauen', { do: 'slot/restart', repo, index }, '', 'Verwirft dieses Paar und stellt ein frisches bereit');
   return '<div class="card ' + stateClass(r.state) + '"><div class="row"><span class="name">' + esc(r.name) + '</span><span class="tag">' + r.kind + '</span>' + controls +
     '<span class="state"><span class="dot"></span>' + esc(r.state) + '</span></div>' + job +
-    '<div class="meters">' + meter('CPU (' + esc(r.cpuBase) + ' = 100 %)', pct(r.cpu), r.cpu) + meter('Arbeitsspeicher', mb(r.memory), r.memory / memoryTotal * 100) + '</div>' +
+    '<div class="meters">' + meter('CPU (' + esc(r.cpuBase) + ' = 100 %)', pct(r.cpu), r.cpu) + meter('Arbeitsspeicher (erlaubt ' + gb(pairLimit) + ')', mb(r.memory), r.memory / pairLimit * 100) + '</div>' +
     '<div class="small">' + esc(r.note) + '</div></div>';
 }
 
@@ -222,14 +298,10 @@ async function refresh() {
   try { data = await (await fetch('/api/status')).json(); }
   catch { document.getElementById('sub').innerHTML = '<span class="warn">Der Dienst läuft nicht. Starte RunClub neu.</span>'; return; }
   const m = data.machine;
-  const used = m.memoryTotal - m.memoryFree;
-  const all = data.repos.flatMap((r) => r.runners);
-  const runnerMemory = all.reduce((a, r) => a + r.memory, 0);
-  document.getElementById('sub').textContent = 'Stand ' + new Date(data.at).toLocaleTimeString('de-DE') + ' · ' + m.cores + ' Kerne, davon ' + m.dockerCpus + ' für Docker · ' + gb(m.memoryTotal) + ' Arbeitsspeicher';
-  document.getElementById('machine').innerHTML = '<div class="card"><div class="row"><span class="name">Rechner</span>' +
-    (m.docker === 'bereit' ? '' : '<span class="tag warn">Docker: ' + esc(m.docker) + '</span>') +
-    '<span class="state" style="color:var(--muted);font-weight:400">' + all.filter((r) => r.state.startsWith('arbeitet')).length + ' arbeiten · ' + all.filter((r) => r.state.startsWith('bereit')).length + ' bereit</span></div><div class="meters">' +
-    meter('Arbeitsspeicher belegt', gb(used) + ' von ' + gb(m.memoryTotal), used / m.memoryTotal * 100) + meter('davon Runner', mb(runnerMemory), runnerMemory / m.memoryTotal * 100) + '</div></div>';
+  SERIES = m.series;
+  const pairLimit = limitBytes(m.limits.runnerMemory) + limitBytes(m.limits.dockerMemory);
+  document.getElementById('sub').textContent = 'Stand ' + new Date(data.at).toLocaleTimeString('de-DE');
+  document.getElementById('machine').innerHTML = machineCard(data);
 
   const open = new Set([...document.querySelectorAll('details[data-keep][open]')].map((d) => d.dataset.keep));
   document.getElementById('repos').innerHTML = data.repos.map((entry) => {
@@ -239,7 +311,8 @@ async function refresh() {
       (entry.error ? '<span class="tag warn">GitHub: ' + esc(entry.error) + '</span>' : '') + '</div>' +
       (entry.pipelines || []).map(pipelineCard).join('') +
       (entry.pool ? poolCard(entry.repo, entry.pool) : '') +
-      entry.runners.map((r) => runnerCard(entry.repo, r, r.kind === 'Linux' ? linux++ : 0, m.memoryTotal)).join('') +
+      entry.runners.map((r) => runnerCard(entry.repo, r, r.kind === 'Linux' ? linux++ : 0, pairLimit)).join('') +
+      usageBox(entry.repo, entry.usage, m.limits) +
       runsBox(entry.repo, entry.runs) + '</div>';
   }).join('') || '<div class="card">Noch kein Runner eingerichtet.</div>';
   if (data.app) { document.getElementById('autostart').hidden = false; document.getElementById('autostartBox').checked = data.app.autostart; }
@@ -293,6 +366,26 @@ document.getElementById('picks').addEventListener('click', (event) => {
 document.getElementById('autostartBox').addEventListener('change', (event) => call('app/autostart', { on: event.target.checked }));
 
 loadRepos();
+
+// Verlauf unter dem Mauszeiger: Zeitpunkt und Wert, dazu eine Linie an der Stelle.
+document.addEventListener('mousemove', (event) => {
+  const tip = document.getElementById('tip');
+  const svg = event.target.closest ? event.target.closest('svg.spark') : null;
+  if (!svg || !SERIES.at.length) { tip.style.display = 'none'; return; }
+  const box = svg.getBoundingClientRect();
+  const time = Date.now() - SPAN * (1 - (event.clientX - box.left) / box.width);
+  let index = 0;
+  SERIES.at.forEach((at, i) => { if (Math.abs(at - time) < Math.abs(SERIES.at[index] - time)) index = i; });
+  const key = svg.dataset.key;
+  const x = (1 - (Date.now() - SERIES.at[index]) / SPAN) * 300;
+  let line = svg.querySelector('line');
+  if (!line) { line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.setAttribute('y1', 0); line.setAttribute('y2', 44); svg.appendChild(line); }
+  line.setAttribute('x1', x); line.setAttribute('x2', x);
+  tip.textContent = new Date(SERIES.at[index]).toLocaleTimeString('de-DE') + ' · ' + FORMAT[key](SERIES[key][index]);
+  tip.style.display = 'block';
+  tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, event.clientX + 12) + 'px';
+  tip.style.top = (event.clientY - 34) + 'px';
+});
 
 refresh(); setInterval(refresh, 3000);
 </script></body></html>
