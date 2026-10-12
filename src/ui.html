@@ -2,390 +2,565 @@
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>RunClub</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --text:#1c1f24; --muted:#6b7280; --line:#e3e6ea; --bar:#e9ecf0; --soft:#f1f3f6;
-          --ok:#1f9d55; --busy:#c77700; --off:#8a9099; --bad:#c0392b; --fill:#3b6fd4; --accent:#2f5fc4; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#15171b; --card:#1e2126; --text:#e8eaed; --muted:#9aa1ab; --line:#2c3037; --bar:#2a2e35; --soft:#252930;
-            --ok:#3ecf7c; --busy:#f0a43a; --off:#737a85; --bad:#ff6b5e; --fill:#6f9bf0; --accent:#8fb2f5; } }
+  @font-face { font-family: Overpass; src: url(/fonts/overpass-latin.woff2) format("woff2"); font-weight: 100 900; font-display: swap; unicode-range: U+0000-00B6, U+00B8-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+  :root {
+    color-scheme: dark;
+    --ground:#0c1838; --rail:#091230; --surface:#14224f; --raised:#1a2b60; --edge:#26366e; --rule:#1f2d62; --track:#4a5b94; --track-open:#33427a;
+    --ink:#dfe5f5; --text:#c9d2ea; --muted:#8793b8; --chart:#8fa4e0;
+    --run:#ffc53d; --done:#3fcf8e; --fail:#f0524a; --fail-text:#f58a8f; --cancel:#c084fc; --skip:#7a85a3; --wait:#5b6a94;
+    --ease: cubic-bezier(.16, 1, .3, 1);
+  }
   * { box-sizing: border-box; }
-  body { margin:0; padding:24px 16px 48px; background:var(--bg); color:var(--text); font:15px/1.45 "Segoe UI", system-ui, sans-serif; }
-  main { max-width:860px; margin:0 auto; }
-  header { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
-  h1 { font-size:20px; margin:0; }
-  .sub { color:var(--muted); font-size:13px; }
-  .spacer { flex:1; }
-  h2 { font-size:16px; margin:0; }
-  .repo { margin-top:28px; }
-  .repohead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
-  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .name { font-weight:600; }
-  .tag { font-size:12px; border:1px solid var(--line); border-radius:5px; padding:1px 7px; color:var(--muted); white-space:nowrap; }
-  .tag.warn { color:var(--busy); border-color:var(--busy); }
-  .state { margin-left:auto; display:flex; align-items:center; gap:7px; font-weight:600; color:var(--off); }
-  .dot { width:10px; height:10px; border-radius:50%; background:var(--off); flex:none; }
-  .s-bereit .dot { background:var(--ok); } .s-bereit .state { color:var(--ok); }
-  .s-arbeitet .dot { background:var(--busy); animation:pulse 1.2s infinite; } .s-arbeitet .state { color:var(--busy); }
-  .s-unterwegs .dot { background:var(--busy); }
-  .s-gestoert .dot { background:var(--bad); } .s-gestoert .state { color:var(--bad); }
-  @keyframes pulse { 50% { opacity:.35; } }
-  @media (prefers-reduced-motion: reduce) { .s-arbeitet .dot { animation:none; } .bar i { transition:none; } }
-  .job { margin-top:8px; font-size:14px; }
-  a { color:var(--accent); }
-  .meters { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px; }
-  @media (max-width:560px) { .meters { grid-template-columns:1fr; } .state { margin-left:0; width:100%; } }
-  .label { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:var(--muted); margin-bottom:4px; }
-  .label b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .bar { height:8px; background:var(--bar); border-radius:4px; overflow:hidden; }
-  .bar i { display:block; height:100%; background:var(--fill); border-radius:4px; transition:width .6s; }
-  .small { margin-top:8px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
-  .warn { color:var(--busy); } .bad { color:var(--bad); }
-  button { font:inherit; font-size:13px; padding:5px 11px; border-radius:7px; border:1px solid var(--line); background:var(--soft); color:var(--text); cursor:pointer; }
-  button:hover { border-color:var(--muted); }
-  button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  button.danger { color:var(--bad); }
-  button.step { width:30px; padding:5px 0; }
-  button:disabled { opacity:.5; cursor:default; }
-  input { font:inherit; padding:6px 10px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--text); min-width:0; }
-  details { margin-top:10px; }
-  summary { cursor:pointer; font-size:13px; color:var(--muted); }
-  table { border-collapse:collapse; width:100%; font-size:13px; margin-top:8px; }
-  td { padding:5px 8px 5px 0; border-top:1px solid var(--line); vertical-align:middle; }
-  td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  td.act { text-align:right; white-space:nowrap; }
-  .scroll { overflow-x:auto; }
-  pre { font:12px/1.5 Consolas, monospace; white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0 0; color:var(--muted); }
-  code { font:13px Consolas, monospace; }
-  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:9px 16px; border-radius:8px; font-size:14px; max-width:90vw; display:none; }
-  .add { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .add input { flex:1 1 220px; }
-  .check { display:flex; align-items:center; gap:6px; align-self:center; cursor:pointer; }
-  .picks { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
-  .picks:empty { display:none; }
-  .tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:12px; }
-  @media (max-width:820px) { .tiles { grid-template-columns:1fr 1fr; } }
-  .tile .value { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; }
-  .tile .value span { font-size:13px; font-weight:400; color:var(--muted); }
-  .tile .sub { font-size:12px; min-height:17px; }
-  .spark { display:block; width:100%; height:44px; margin-top:6px; border-bottom:1px solid var(--line); cursor:crosshair; }
-  .spark polyline { fill:none; stroke:var(--fill); stroke-width:2; vector-effect:non-scaling-stroke; stroke-linejoin:round; stroke-linecap:round; }
-  .spark polygon { fill:var(--fill); opacity:.12; }
-  .spark line { stroke:var(--muted); stroke-width:1; vector-effect:non-scaling-stroke; }
-  .axis { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:2px; }
-  #tip { position:fixed; z-index:5; pointer-events:none; background:var(--text); color:var(--bg); padding:4px 9px; border-radius:6px; font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; display:none; }
-  .pipe .eta { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .pipe .bar { margin-top:10px; }
-  .pipe .title { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:0 1 auto; }
-  .jobs td { padding:6px 8px 6px 0; }
-  .jobs td.mark { width:22px; text-align:center; font-weight:700; color:var(--off); }
-  .jobs td.jbar { width:22%; min-width:70px; padding-right:0; }
-  .jobs .j-ok .mark { color:var(--ok); } .jobs .j-bad .mark { color:var(--bad); }
-  .jobs .j-run .mark { color:var(--busy); animation:pulse 1.2s infinite; }
-  .jobs .j-wait, .jobs .j-skip { color:var(--muted); } .jobs .j-wait a, .jobs .j-skip a { color:var(--muted); }
-  .jobs .j-ok .bar i { background:var(--ok); } .jobs .over .bar i { background:var(--busy); }
-  @media (prefers-reduced-motion: reduce) { .jobs .j-run .mark { animation:none; } }
-  @media (max-width:560px) { .jobs td.jbar { display:none; } }
-</style></head><body><main>
-<header>
-  <div><h1>RunClub</h1><div class="sub" id="sub">lädt …</div></div>
-  <span class="spacer"></span>
-  <label class="sub check" id="autostart" hidden title="Startet RunClub beim Anmelden im Infobereich, ohne Fenster"><input type="checkbox" id="autostartBox"> Mit Windows starten</label>
-  <button data-do="shutdown" class="danger" title="Beendet alle Runner und dieses Programm">Alles beenden</button>
-</header>
-<div id="machine"></div>
-<div id="repos"></div>
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--text); font: 300 14px/1.45 Overpass, "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden; }
+  ::selection { background: #2c4391; color: var(--ink); }
+  * { scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
+  :focus-visible { outline: 2px solid var(--chart); outline-offset: 2px; }
+  a { color: inherit; text-decoration: none; }
+  button, input { font: inherit; color: inherit; }
+  #app { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100%; }
 
-<div class="repo">
-  <div class="repohead"><h2>Linux-Runner für ein weiteres Repo</h2></div>
-  <div class="card">
-    <form class="add" id="add">
-      <input id="addRepo" list="repoList" placeholder="Repo suchen oder besitzer/name" aria-label="Repo" autocomplete="off" spellcheck="false">
-      <datalist id="repoList"></datalist>
-      <button type="submit">Pool anlegen</button>
-    </form>
-    <div class="picks" id="picks"></div>
-    <div class="small">Die Jobs des Repos brauchen <code>runs-on: [self-hosted, Linux]</code>. Je Job entsteht ein frischer Container mit eigenem Docker-Daemon.</div>
-  </div>
-</div>
+  /* Projektleiste */
+  #rail { background: var(--rail); padding: 22px 14px 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+  .brand { font-weight: 600; font-size: 22px; color: var(--ink); padding: 0 12px 14px; }
+  .nav { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 12px 8px 36px; position: relative; cursor: pointer; }
+  .nav:hover { background: #0f1b44; }
+  .nav[aria-current="true"] { background: var(--surface); }
+  .nav b { display: block; font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav > span { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav i { position: absolute; left: 13px; top: 13px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--wait); }
+  .nav .d-run { border-color: var(--run); background: var(--run); }
+  .nav .d-fail { border-color: var(--fail); background: var(--fail); }
+  .nav .d-done { border-color: var(--done); background: var(--done); }
+  .nav.plain { padding-left: 12px; }
+  .railfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 16px; }
 
-<details id="logbox"><summary>Protokoll</summary><pre id="log"></pre></details>
-</main>
-<div id="toast" role="status"></div>
-<div id="tip"></div>
+  /* Hauptbereich */
+  #main { overflow-y: auto; padding: 26px 44px 40px; }
+  .stack { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+  .head { display: flex; align-items: flex-end; gap: 24px; }
+  .head > div:first-child { min-width: 0; }
+  h1 { font-weight: 400; font-size: 26px; line-height: 1.2; color: var(--ink); margin: 0 0 2px; text-wrap: balance; overflow-wrap: anywhere; }
+  h2 { font-weight: 400; font-size: 18px; color: var(--ink); margin: 0; }
+  .sub { font-size: 13px; color: var(--muted); }
+  .sub a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+  .eta { margin-left: auto; text-align: right; white-space: nowrap; }
+  .eta b { display: block; font-weight: 200; font-size: 56px; line-height: 1; color: var(--ink); }
+  .eta b.small { font-size: 34px; font-weight: 300; }
+  .c-fail { color: var(--fail-text) !important; } .c-done { color: var(--done) !important; } .c-run { color: var(--run) !important; }
+  .note { font-size: 13px; color: var(--muted); }
+  .tag { display: inline-block; font-size: 12px; border: 1px solid var(--edge); border-radius: 999px; padding: 1px 10px; color: var(--muted); }
+  .tag.c-fail { border-color: #7a2f38; }
+
+  /* Netzplan */
+  .planwrap { overflow-x: auto; padding: 4px 0; }
+  .plan { position: relative; display: flex; align-items: center; gap: 96px; width: max-content; min-width: 100%; }
+  .plan svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .plan path { fill: none; stroke: var(--track); stroke-width: 2.5; stroke-linecap: round; }
+  .plan path.open { stroke: var(--track-open); stroke-dasharray: 2 7; }
+  .col { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
+  .pill { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; align-items: center; width: 280px; padding: 8px 16px 8px 9px; border-radius: 21px; background: var(--surface); border: 1px solid var(--edge); position: relative; overflow: hidden; transition: background .18s var(--ease), border-color .18s var(--ease); }
+  .pill:hover, .pill:focus-visible { background: var(--raised); border-color: var(--track); }
+  .ic { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--wait); display: grid; place-items: center; color: var(--ground); }
+  .ic svg { position: static; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .s-run .ic { background: var(--run); border-color: var(--run); } .s-done .ic { background: var(--done); border-color: var(--done); }
+  .s-fail .ic { background: var(--fail); border-color: var(--fail); } .s-cancel .ic { background: var(--cancel); border-color: var(--cancel); }
+  .s-skip .ic { border-color: var(--skip); color: var(--skip); }
+  .pill .n { color: var(--ink); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill .tm { color: var(--text); }
+  .pill .tm.over { color: var(--run); }
+  .pill .more { grid-column: 2 / 4; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s var(--ease); }
+  .pill .more > div { overflow: hidden; font-size: 12px; color: var(--muted); }
+  .pill .more span { display: block; padding-top: 2px; overflow-wrap: anywhere; }
+  .pill:hover .more, .pill:focus-visible .more, .detail .pill .more { grid-template-rows: 1fr; }
+  .pill .pg { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--run); transition: width 1s linear; }
+  .s-fail.pill { border-color: #7a2f38; } .s-fail .more > div { color: var(--fail-text); }
+  .s-wait.pill, .s-skip.pill { background: transparent; border-style: dashed; }
+  .s-wait .n, .s-skip .n { color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend .ic { width: 18px; height: 18px; } .legend .ic svg { width: 11px; height: 11px; }
+
+  /* Auslastung */
+  .band { border-top: 1px solid var(--rule); padding-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 34px; }
+  .k { font-size: 12px; color: var(--muted); }
+  .v { font-size: 26px; line-height: 1.25; color: var(--ink); }
+  .v small { font-size: 13px; color: var(--muted); }
+  .chart { display: block; width: 100%; height: 74px; margin-top: 6px; cursor: crosshair; }
+  .chart polyline { fill: none; stroke: var(--chart); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .chart polygon { fill: var(--chart); opacity: .16; }
+  .chart.warn polyline { stroke: var(--fail); } .chart.warn polygon { fill: var(--fail); }
+  .chart line { vector-effect: non-scaling-stroke; stroke-width: 1; }
+  .chart .cap { stroke: var(--track-open); } .chart .mid { stroke: var(--rule); } .chart .mark { stroke: var(--wait); stroke-dasharray: 2 3; }
+  .chart .peak { stroke: var(--chart); stroke-dasharray: 1 4; opacity: .7; } .chart.warn .peak { stroke: var(--fail); } .chart .cross { stroke: var(--ink); }
+  .ax { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin: 3px 0 4px; }
+  .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  th { font-weight: 300; color: var(--muted); }
+  td.r, th.r { text-align: right; padding: 6px 0 6px 12px; white-space: nowrap; }
+  .dim { color: var(--muted); }
+  .scroll { overflow-x: auto; }
+  .quiet td { padding-top: 9px; padding-bottom: 9px; }
+  .quiet a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Einstellungen */
+  section + section { border-top: 1px solid var(--rule); padding-top: 22px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .grow { flex: 1; min-width: 0; }
+  .btn { background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; transition: background .15s, border-color .15s; }
+  .btn:hover { background: var(--raised); border-color: var(--track); }
+  .btn:active { background: var(--edge); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.danger { color: var(--fail-text); border-color: #7a2f38; }
+  .btn.step { width: 30px; padding: 5px 0; text-align: center; }
+  .seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: 0; padding: 5px 14px; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
+  input[type=text] { background: var(--rail); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 12px; min-width: 0; }
+  input[type=text]::placeholder { color: var(--muted); }
+  label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  input[type=checkbox] { accent-color: var(--chart); width: 15px; height: 15px; }
+  pre { font: 12px/1.5 Consolas, monospace; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .empty { max-width: 52ch; }
+
+  #tip, #toast { position: fixed; z-index: 5; background: var(--ink); color: var(--ground); border-radius: 6px; font-weight: 400; display: none; }
+  #tip { pointer-events: none; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
+  #toast { left: 50%; bottom: 22px; transform: translateX(-50%); padding: 9px 16px; max-width: 90vw; }
+
+  @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; } #main { padding: 22px 24px 32px; } }
+  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: wrap; padding: 10px; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav span { display: none; } .band { grid-template-columns: 1fr; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
+  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .pg, .btn { transition: none; } }
+</style></head>
+<body>
+<div id="app"><nav id="rail" aria-label="Projekte"></nav><main id="main"></main></div>
+<div id="tip"></div><div id="toast" role="status"></div>
 <script>
 const TOKEN = '__TOKEN__';
-const gb = (b) => (b / 1073741824).toFixed(1).replace('.', ',') + ' GB';
-const mb = (b) => b >= 1073741824 ? gb(b) : Math.round(b / 1048576) + ' MB';
-const pct = (n) => n.toFixed(n < 10 ? 1 : 0).replace('.', ',') + ' %';
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
-const since = (iso) => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 60 ? s + ' s' : s < 3600 ? Math.floor(s / 60) + ' min ' + (s % 60) + ' s' : Math.floor(s / 3600) + ' h ' + Math.floor(s % 3600 / 60) + ' min'; };
-const ago = (iso) => { const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000)); return s < 90 ? 'gerade eben' : s < 3600 ? 'vor ' + Math.round(s / 60) + ' min' : s < 86400 ? 'vor ' + Math.round(s / 3600) + ' h' : 'vor ' + Math.round(s / 86400) + ' Tagen'; };
+const TEXT = {
+  de: {
+    all: 'Alle Projekte', usage: 'Verbrauch', settings: 'Einstellungen', working: '{0} arbeiten · {1} bereit', ready: 'bereit', paused: 'pausiert',
+    running: 'läuft', left: 'noch ca. {0} min', soon: 'gleich fertig', noRunner: 'wartet auf einen Runner', failed: 'Fehler', failedN: '{0} Fehler', finished: 'fertig', cancelled: 'abgebrochen',
+    untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
+    ago: 'vor {0}', justNow: 'gerade eben', s_run: 'läuft', s_done: 'fertig', s_fail: 'Fehler', s_cancel: 'abgebrochen', s_skip: 'ausgesetzt', s_wait: 'wartet',
+    usual: 'üblich {0}', step: 'Schritt {0}/{1}: {2}', waitsFor: 'wartet auf {0}', waitsRunner: 'wartet auf einen Runner', notYet: 'noch nicht angelegt', noGraph: 'Abhängigkeiten unbekannt: die Workflow-Datei ließ sich nicht lesen',
+    lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
+    peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', project: 'Projekt',
+    reserve: 'Reserve {0} von {1} vorbereitet', free: 'frei', docker: 'Docker: {0}', github: 'GitHub: {0}',
+    perJob: 'Verbrauch je Job', runs: 'Läufe', usualTime: 'üblich', ramPeak: 'RAM-Spitze', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
+    wait: 'Wartezeit auf einen Runner: üblich {0} s, längste {1} min (letzte {2} Jobs).', peakNote: 'Höchste Spitze: Runner {0}, Docker {1}. Erlaubt sind {2} + {3} je Job.', hitsLimit: 'Ein Job stößt ans Limit.', couldBe: 'Mit 50 % Luft würden {0} + {1} GB reichen.',
+    limits: 'Erlaubt je Job: {0}. Bei {1} Plätzen zusammen bis zu {2}, die Docker-VM hat {3}.', limitsOver: 'Die Limits schützen so nicht vor einer vollen VM.', day: 'Die letzten 24 Stunden',
+    projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', keeps: 'Was zwischen den Jobs bleibt', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
+    clear: 'Leeren', forget: 'Vergessen', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
+    confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? Jobs dieses Repos warten danach.', confirmQuit: 'Alle Runner und RunClub beenden? Jobs warten, bis es wieder läuft.',
+    add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
+    app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Kompakt zeigt Details erst beim Überfahren eines Jobs.', language: 'Sprache', quit: 'Alles beenden', log: 'Protokoll',
+    firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
+  },
+  en: {
+    all: 'All projects', usage: 'Usage', settings: 'Settings', working: '{0} working · {1} ready', ready: 'ready', paused: 'paused',
+    running: 'running', left: 'about {0} min left', soon: 'almost done', noRunner: 'waiting for a runner', failed: 'failed', failedN: '{0} failed', finished: 'done', cancelled: 'cancelled',
+    untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
+    ago: '{0} ago', justNow: 'just now', s_run: 'running', s_done: 'done', s_fail: 'failed', s_cancel: 'cancelled', s_skip: 'skipped', s_wait: 'waiting',
+    usual: 'usually {0}', step: 'Step {0}/{1}: {2}', waitsFor: 'waiting for {0}', waitsRunner: 'waiting for a runner', notYet: 'not created yet', noGraph: 'Dependencies unknown: the workflow file could not be read',
+    lastRun: 'Last run', nothing: 'Nothing has run here yet.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
+    peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', project: 'Project',
+    reserve: 'Reserve {0} of {1} prepared', free: 'free', docker: 'Docker: {0}', github: 'GitHub: {0}',
+    perJob: 'Usage per job', runs: 'Runs', usualTime: 'usual', ramPeak: 'RAM peak', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
+    wait: 'Waiting for a runner: usually {0} s, longest {1} min (last {2} jobs).', peakNote: 'Highest peak: runner {0}, Docker {1}. Allowed are {2} + {3} per job.', hitsLimit: 'A job is hitting the limit.', couldBe: 'With 50% headroom, {0} + {1} GB would do.',
+    limits: 'Allowed per job: {0}. With {1} slots up to {2} in total, the Docker VM has {3}.', limitsOver: 'These limits do not protect against a full VM.', day: 'The last 24 hours',
+    projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', keeps: 'What stays between jobs', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
+    clear: 'Clear', forget: 'Forget', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
+    confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? Jobs of this repo will wait.', confirmQuit: 'Stop all runners and quit RunClub? Jobs wait until it runs again.',
+    add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
+    app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Compact shows details only when you hover a job.', language: 'Language', quit: 'Quit everything', log: 'Log',
+    firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
+  },
+};
+const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off' };
+const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* ohne Speicher */ } } };
+let lang = store.get('lang', 'de');
+let mode = store.get('mode', 'compact');
+let view = store.get('view', 'all');
+let data = null;
+let repoList = null;
+let dayData = null;
+const charts = {}; // Kennung -> { at, values, span, format } für die Anzeige unter dem Mauszeiger
+
+const t = (key, ...args) => (TEXT[lang][key] ?? key).replace(/\{(\d)\}/g, (_, i) => args[i]);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const num = (n, digits = 1) => n.toFixed(digits).replace('.', lang === 'de' ? ',' : '.');
+const gb = (b) => num(b / 1073741824) + ' GB';
+const mb = (b) => (b >= 1073741824 ? gb(b) : Math.round(b / 1048576) + ' MB');
 const clock = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-const elapsed = (iso) => Math.max(0, (Date.now() - new Date(iso)) / 1000);
-const left = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? 'gleich fertig' : 'noch ≈ ' + (s < 90 ? '1 min' : Math.round(s / 60) + ' min'); };
-const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
-const stepText = (step) => step ? 'Schritt ' + step.number + '/' + step.total + ': ' + step.name : '';
-const cores = (n) => n.toFixed(1).replace('.', ',');
+const secondsSince = (iso) => Math.max(0, (Date.now() - new Date(iso)) / 1000);
+const span = (s) => (s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : s < 129600 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + (lang === 'de' ? ' Tagen' : ' days'));
+const ago = (iso) => { const s = secondsSince(iso); return s < 45 ? t('justNow') : t('ago', span(s)); };
+const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? t('soon') : t('left', Math.max(1, Math.round(s / 60))); };
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
-const SPAN = 30 * 60000; // Verlauf: die letzte halbe Stunde
-const FORMAT = { hostCpu: (v) => cores(v) + ' Kerne', vmCpu: (v) => cores(v) + ' Kerne', hostMemory: (v) => gb(v), vmMemory: (v) => gb(v) };
-let SERIES = { at: [] };
-
-// Verlauf einer Messgröße als Linie; die Höhe reicht von 0 bis `max` (alle Kerne, aller Speicher).
-function spark(key, max) {
-  const values = SERIES[key] || [];
-  if (values.length < 2) return '<div class="spark"></div><div class="axis"><span>Verlauf folgt …</span></div>';
-  const end = Date.now();
-  const points = values.map((v, i) => ((1 - (end - SERIES.at[i]) / SPAN) * 300).toFixed(1) + ',' + (42 - Math.min(1, v / max) * 40).toFixed(1));
-  const first = points[0].split(',')[0];
-  const last = points[points.length - 1].split(',')[0];
-  return '<svg class="spark" data-key="' + key + '" viewBox="0 0 300 44" preserveAspectRatio="none" role="img" aria-label="Verlauf der letzten 30 Minuten">' +
-    '<polygon points="' + first + ',44 ' + points.join(' ') + ' ' + last + ',44"/><polyline points="' + points.join(' ') + '"/></svg>' +
-    '<div class="axis"><span>vor 30 min</span><span>jetzt</span></div>';
-}
-const tile = (key, label, value, of, sub, max, warn) => '<div class="tile"><div class="label"><span>' + label + '</span></div><div class="value' + (warn ? ' warn' : '') + '">' + value + ' <span>' + of + '</span></div><div class="sub">' + sub + '</div>' + spark(key, max) + '</div>';
-
-function machineCard(data) {
-  const m = data.machine;
-  const u = m.usage;
-  const all = data.repos.flatMap((r) => r.runners);
-  const used = m.memoryTotal - m.memoryFree;
-  const split = (own, other, format) => other > own * 0.05 + 0.05 ? 'Runner ' + format(own) + ' · andere ' + format(other) : 'nur Runner';
-  const perJob = limitBytes(m.limits.runnerMemory) + limitBytes(m.limits.dockerMemory);
-  const slots = data.repos.reduce((sum, r) => sum + (r.pool && !r.pool.paused ? r.pool.parallel : 0), 0);
-  const over = m.dockerMemory && perJob * slots > m.dockerMemory;
-  return '<div class="card"><div class="row"><span class="name">Rechner</span>' +
-    (m.docker === 'bereit' ? '' : '<span class="tag warn">Docker: ' + esc(m.docker) + '</span>') +
-    '<span class="state" style="color:var(--muted);font-weight:400">' + all.filter((r) => r.state.startsWith('arbeitet')).length + ' arbeiten · ' + all.filter((r) => r.state.startsWith('bereit')).length + ' bereit</span></div><div class="tiles">' +
-    tile('hostCpu', 'Windows · CPU', cores(u.hostCpu), 'von ' + m.cores + ' Kernen', '', m.cores) +
-    tile('hostMemory', 'Windows · Arbeitsspeicher', gb(used), 'von ' + gb(m.memoryTotal), m.memoryFree < m.memoryTotal * 0.08 ? '<span class="warn">nur ' + gb(m.memoryFree) + ' frei</span>' : gb(m.memoryFree) + ' frei', m.memoryTotal, m.memoryFree < m.memoryTotal * 0.08) +
-    tile('vmCpu', 'Docker-VM · CPU', cores(u.vmCpu + u.otherCpu), 'von ' + m.dockerCpus + ' Kernen', split(u.vmCpu, u.otherCpu, cores), m.dockerCpus) +
-    tile('vmMemory', 'Docker-VM · Container', gb(u.vmMemory + u.otherMemory), m.dockerMemory ? 'von ' + gb(m.dockerMemory) : '', split(u.vmMemory, u.otherMemory, mb), m.dockerMemory || m.memoryTotal) +
-    '</div><div class="small' + (over ? ' warn' : '') + '">Erlaubt je Job: ' + gb(perJob) + ' Arbeitsspeicher (' + esc(m.limits.runnerMemory) + ' Runner + ' + esc(m.limits.dockerMemory) + ' Docker). ' +
-    'Bei ' + slots + ' Plätzen zusammen bis zu ' + gb(perJob * slots) + (m.dockerMemory ? ' – die Docker-VM hat ' + gb(m.dockerMemory) + (over ? '. Die Limits schützen so nicht vor einer vollen VM.' : '.') : '.') + '</div></div>';
-}
-
-// Gemessener Verbrauch je Job und die Wartezeit auf einen Runner.
-function usageBox(repo, u, limits) {
-  if (!u || (!u.jobs.length && !u.wait)) return '';
-  const runs = u.jobs.reduce((sum, j) => sum + j.runs, 0);
-  const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '<div class="sub">' + j.runs + (j.runs === 1 ? ' Durchlauf' : ' Durchläufe') + ' · zuletzt ' + ago(j.lastAt) + '</div></td>' +
-    '<td class="num">' + clock(j.duration) + '</td><td class="num">' + (j.peakMemory ? mb(j.peakMemory) : '–') + '</td><td class="num">' + (j.peakMemory ? cores(j.cpu) : '–') + '</td><td class="num">' + (j.peakMemory ? cores(j.peakCpu) : '–') + '</td></tr>').join('');
-  const notes = [];
-  if (u.wait) notes.push('Wartezeit auf einen Runner: üblich ' + Math.round(u.wait.usual) + ' s, längste ' + clock(u.wait.longest) + ' min (letzte ' + u.wait.jobs + ' Jobs).');
-  const peakRunner = Math.max(0, ...u.jobs.map((j) => j.peakRunner));
-  const peakDocker = Math.max(0, ...u.jobs.map((j) => j.peakDocker));
-  if (peakRunner + peakDocker > 0) {
-    const allowRunner = limitBytes(limits.runnerMemory);
-    const allowDocker = limitBytes(limits.dockerMemory);
-    const room = (bytes) => Math.max(1, Math.ceil(bytes * 1.5 / 1073741824 * 2) / 2);
-    let note = 'Höchste Spitze: Runner ' + mb(peakRunner) + ', Docker ' + mb(peakDocker) + ' (erlaubt ' + esc(limits.runnerMemory) + ' + ' + esc(limits.dockerMemory) + ').';
-    if (peakRunner > allowRunner * 0.85 || peakDocker > allowDocker * 0.85) note += ' <span class="warn">Ein Job stößt ans Limit.</span>';
-    else if (runs >= 5 && (room(peakRunner) * 1073741824 < allowRunner || room(peakDocker) * 1073741824 < allowDocker)) note += ' Mit 50 % Luft würden ' + String(room(peakRunner)).replace('.', ',') + ' + ' + String(room(peakDocker)).replace('.', ',') + ' GB reichen.';
-    notes.push(note);
-  }
-  return '<details data-keep="usage-' + esc(repo) + '"><summary>Verbrauch je Job (' + runs + ' gemessen)</summary>' +
-    (rows ? '<div class="scroll"><table><tr class="sub"><td>Job</td><td class="num">Dauer üblich</td><td class="num">RAM-Spitze</td><td class="num">CPU Ø (Kerne)</td><td class="num">CPU-Spitze</td></tr>' + rows + '</table></div>' : '') +
-    notes.map((n) => '<div class="small">' + n + '</div>').join('') + '</details>';
-}
-
-const meter = (label, value, share) => '<div><div class="label"><span>' + label + '</span><b>' + value + '</b></div><div class="bar"><i style="width:' + Math.min(100, share).toFixed(1) + '%"></i></div></div>';
-const stateClass = (state) => state.startsWith('bereit') ? 's-bereit' : state.startsWith('arbeitet') ? 's-arbeitet' : state.startsWith('gestört') ? 's-gestoert' : /^(startet|räumt|wartet)/.test(state) ? 's-unterwegs' : '';
-const attrs = (o) => Object.entries(o).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('');
-const button = (text, o, cls, title) => '<button' + attrs(o) + (cls ? ' class="' + cls + '"' : '') + (title ? ' title="' + esc(title) + '"' : '') + '>' + text + '</button>';
+const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
+const stateText = (state) => (lang === 'de' ? state : state.split(', ').map((part) => STATES_EN[part] ?? part).join(', '));
+const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '' };
+const icon = (state) => '<span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[state] + '</svg></span>';
+const jobState = (j) => j.status === 'in_progress' ? 'run' : j.status !== 'completed' ? 'wait' : ({ success: 'done', failure: 'fail', timed_out: 'fail', cancelled: 'cancel', skipped: 'skip' })[j.conclusion] ?? 'done';
+// Setzt den Inhalt nur, wenn er sich geändert hat – so bleiben Mauszeiger-Zustand und Übergänge erhalten.
+const put = (el, html) => { if (el && el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; return true; } return false; };
 
 let toastTimer;
-function toast(text) {
-  const el = document.getElementById('toast');
-  el.textContent = text; el.style.display = 'block';
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000);
-}
-
+function toast(text) { const el = document.getElementById('toast'); el.textContent = text; el.style.display = 'block'; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.style.display = 'none'; }, 5000); }
 async function call(action, body) {
   try {
     const response = await fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-rc-token': TOKEN }, body: JSON.stringify(body ?? {}) });
-    const data = await response.json();
-    if (!response.ok) { toast(data.error || 'Das hat nicht geklappt.'); return false; }
+    const answer = await response.json();
+    if (!response.ok) { toast(answer.error || t('stale')); return false; }
     refresh(); return true;
-  } catch { toast('Der Dienst antwortet nicht.'); return false; }
+  } catch { toast(t('noAnswer')); return false; }
 }
 
-function runnerCard(repo, r, index, pairLimit) {
-  const j = r.job;
-  const job = j ? '<div class="job">Job <b>' + esc([j.workflow, j.job].filter(Boolean).join(' / ')) + '</b>' + (j.branch ? ' auf <code>' + esc(j.branch) + '</code>' : '') + (j.startedAt ? ', ' + clock(elapsed(j.startedAt)) + (j.estimate ? ' von üblich ' + clock(j.estimate) : '') : '') + (j.step ? ' · ' + esc(stepText(j.step)) : '') + ' · <a href="' + esc(j.url) + '" target="_blank" rel="noopener">bei GitHub</a></div>' : '';
-  let controls = '';
-  if (!r.state.startsWith('arbeitet') && !r.state.includes('läuft aus')) controls = button('Neu aufbauen', { do: 'slot/restart', repo, index }, '', 'Verwirft dieses Paar und stellt ein frisches bereit');
-  return '<div class="card ' + stateClass(r.state) + '"><div class="row"><span class="name">' + esc(r.name) + '</span><span class="tag">' + r.kind + '</span>' + controls +
-    '<span class="state"><span class="dot"></span>' + esc(r.state) + '</span></div>' + job +
-    '<div class="meters">' + meter('CPU (' + esc(r.cpuBase) + ' = 100 %)', pct(r.cpu), r.cpu) + meter('Arbeitsspeicher (erlaubt ' + gb(pairLimit) + ')', mb(r.memory), r.memory / pairLimit * 100) + '</div>' +
-    '<div class="small">' + esc(r.note) + '</div></div>';
-}
+// --- Projektleiste ---
 
-function jobRow(j) {
-  let cls, mark, detail, time, share = 0;
-  if (j.status === 'completed') {
-    const ok = j.conclusion === 'success';
-    const skipped = j.conclusion === 'skipped';
-    cls = ok ? 'j-ok' : skipped ? 'j-skip' : 'j-bad';
-    mark = ok ? '✓' : skipped ? '–' : '✕';
-    detail = ok ? shortRunner(j.runner) : ({ skipped: 'übersprungen', cancelled: 'abgebrochen', failure: 'fehlgeschlagen' }[j.conclusion] || j.conclusion || '');
-    const slow = ok && j.estimate && j.duration > j.estimate * 1.25 && j.duration - j.estimate > 10;
-    time = j.duration == null || skipped ? '' : clock(j.duration) + (ok && j.estimate ? ' <span class="sub' + (slow ? ' warn' : '') + '">sonst ' + clock(j.estimate) + '</span>' : '');
-    share = skipped ? 0 : 100;
-  } else if (j.status === 'in_progress') {
-    const run = elapsed(j.startedAt);
-    const over = j.estimate && run > j.estimate * 1.25 && run - j.estimate > 10;
-    cls = 'j-run' + (over ? ' over' : '');
-    mark = '●';
-    detail = [shortRunner(j.runner), stepText(j.step)].filter(Boolean).join(' · ');
-    time = clock(run) + (j.estimate ? ' <span class="sub' + (over ? ' warn' : '') + '">von ' + clock(j.estimate) + '</span>' : '');
-    share = j.estimate ? Math.min(100, run / j.estimate * 100) : 0;
-  } else {
-    cls = 'j-wait';
-    mark = '○';
-    detail = j.status === 'pending' ? 'steht noch aus' : 'wartet auf einen Runner';
-    time = j.estimate ? '<span class="sub">≈ ' + clock(j.estimate) + '</span>' : '';
+function projectState(entry) {
+  const jobs = entry.pipelines.flatMap((p) => p.jobs);
+  const failed = jobs.filter((j) => jobState(j) === 'fail').length;
+  if (entry.pipelines.length) {
+    const finish = entry.pipelines.map((p) => p.finishAt).filter(Boolean).sort().pop();
+    return { dot: failed ? 'fail' : 'run', text: [t('running'), finish ? '<span data-finish="' + esc(finish) + '"></span>' : t('noRunner'), failed ? t('failedN', failed) : ''].filter(Boolean).join(' · ') };
   }
-  return '<tr class="' + cls + '"><td class="mark">' + mark + '</td><td><a href="' + esc(j.url) + '" target="_blank" rel="noopener">' + esc(j.name) + '</a><div class="sub">' + esc(detail) + '</div></td>' +
-    '<td class="num">' + time + '</td><td class="jbar"><div class="bar"><i style="width:' + share.toFixed(1) + '%"></i></div></td></tr>';
+  if (entry.pool?.paused) return { dot: '', text: t('paused') };
+  const last = entry.lastRun;
+  if (last?.conclusion === 'failure') return { dot: 'fail', text: t('failed') + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' };
+  if (last && secondsSince(last.updatedAt) < 1800) return { dot: 'done', text: t('finished') + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' };
+  return { dot: '', text: t('ready') };
 }
 
-function pipelineCard(p) {
-  const open = p.jobs.filter((j) => j.status !== 'completed').length;
-  const eta = p.finishAt ? left(p.finishAt) : 'wartet auf einen Runner';
-  return '<div class="card pipe"><div class="row"><a class="name" href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.workflow) + '</a>' +
-    '<span class="tag">' + esc(p.branch || p.event) + '</span><span class="title">' + esc(p.title || '') + '</span>' +
-    '<span class="eta' + (p.finishAt ? '' : ' warn') + '"' + (p.rough ? ' title="Für einige Jobs gibt es noch keine Erfahrungswerte – grob geschätzt"' : '') + '>' + eta + (p.rough && p.finishAt ? ' ?' : '') + '</span></div>' +
-    '<div class="bar"><i style="width:' + (p.progress * 100).toFixed(1) + '%"></i></div>' +
-    '<div class="small">' + (p.jobs.length - open) + ' von ' + p.jobs.length + ' Jobs fertig · läuft seit ' + since(p.startedAt) + '</div>' +
-    '<div class="scroll"><table class="jobs">' + p.jobs.map(jobRow).join('') + '</table></div></div>';
+function renderRail() {
+  const runners = data.repos.flatMap((r) => r.runners);
+  const count = (state) => runners.filter((r) => r.state.startsWith(state)).length;
+  const item = (key, title, sub, dot, plain) => '<button class="nav' + (plain ? ' plain' : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (plain ? '' : '<i class="' + (dot ? 'd-' + dot : '') + '"></i>') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
+  put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
+    data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, entry.repo.split('/')[1], state.text, state.dot); }).join('') +
+    '<div class="railfoot">' + item('usage', t('usage'), '', '', true) + item('settings', t('settings'), '', '', true) + '</div>');
 }
 
-function poolCard(repo, p) {
-  const s = p.sizes;
-  const size = (key) => s ? mb(s[key]) : '…';
-  const clear = (what, text) => button(text, { do: 'pool/clear', repo, what, confirm: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.' });
-  const rows = p.cache
-    ? '<tr><td>Pakete (NuGet, npm)</td><td class="num">' + size('packages') + '</td><td class="act">' + clear('packages', 'Leeren') + '</td></tr>' +
-      '<tr><td>Build-Layer von <code>docker build</code>' + (p.buildService ? ' · Dienst ' + mb(p.buildService.memory) : '') + '</td><td class="num">' + size('build') + '</td><td class="act">' + clear('build', 'Leeren') + '</td></tr>'
-    : '<tr><td colspan="3">Paket- und Build-Cache sind aus: Jeder Job lädt Pakete und baut Layer neu.</td></tr>';
-  return '<div class="card"><div class="row"><span class="name">Pool</span>' +
-    (p.paused ? '<span class="tag warn">pausiert</span>' : '') + (p.busy ? '<span class="tag warn">wird umgebaut</span>' : '') +
-    '<span class="tag" title="Fertig vorbereitete Paare; ein frei gewordener Platz ist damit in Sekunden wieder bereit">Reserve ' + p.reserve + ' von ' + p.reserveWanted + '</span>' +
-    '<span class="spacer" style="flex:1"></span><span class="sub">Plätze</span>' +
-    button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step', 'Ein Platz weniger') + '<b>' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step', 'Ein Platz mehr') +
-    button(p.paused ? 'Fortsetzen' : 'Pausieren', { do: 'pool/set', repo, paused: p.paused ? '' : '1' }, '', p.paused ? '' : 'Freie Runner werden beendet, laufende Jobs laufen zu Ende') +
-    '</div>' +
-    '<details data-keep="cache-' + esc(repo) + '"><summary>Was zwischen den Jobs bleibt</summary><div class="scroll"><table>' + rows +
-    '<tr><td>Abbilder in der Vorlage (' + p.images.length + ', gelernt aus den Jobs)</td><td class="num">' + size('images') + '</td><td class="act">' + clear('images', 'Vergessen') + '</td></tr></table></div>' +
-    (p.images.length ? '<div class="small">' + p.images.map(esc).join(' · ') + '</div>' : '') +
-    '<div class="row" style="margin-top:10px">' + clear('all', 'Alles leeren und neu lernen') +
-    button(p.cache ? 'Paket- und Build-Cache abschalten' : 'Paket- und Build-Cache einschalten', { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
-    button('Pool entfernen', { do: 'pool/remove', repo, confirm: 'Pool für ' + repo + ' mit allen Caches entfernen? Jobs dieses Repos warten danach.' }, 'danger') + '</div></details></div>';
+// --- Netzplan ---
+
+function columnsOf(pipeline) {
+  const jobs = pipeline.jobs;
+  if (!pipeline.graph || jobs.every((j) => !j.needs.length)) { // ohne Abhängigkeiten: in Startreihenfolge, sechs je Spalte
+    const ordered = [...jobs].sort((a, b) => String(a.startedAt ?? '9').localeCompare(String(b.startedAt ?? '9')));
+    return Array.from({ length: Math.ceil(ordered.length / 6) }, (_, i) => ordered.slice(i * 6, i * 6 + 6));
+  }
+  const columns = [];
+  for (const job of jobs) (columns[job.stage] ??= []).push(job);
+  const rowOf = new Map();
+  columns.filter(Boolean).forEach((column, index) => { // Reihenfolge wie bei den Vorgängern, damit sich Strecken wenig kreuzen
+    if (index) column.sort((a, b) => Math.min(...a.needs.map((n) => rowOf.get(n) ?? 99), 99) - Math.min(...b.needs.map((n) => rowOf.get(n) ?? 99), 99));
+    column.forEach((job, row) => rowOf.set(job.name, row / Math.max(1, column.length - 1)));
+  });
+  return columns.filter(Boolean);
 }
 
-function runsBox(repo, runs) {
-  if (!runs.length) return '';
-  const word = (r) => r.status !== 'completed' ? '<span class="warn">' + ({ queued: 'wartet', in_progress: 'läuft' }[r.status] || esc(r.status)) + '</span>'
-    : r.conclusion === 'success' ? 'grün' : r.conclusion === 'failure' ? '<span class="bad">rot</span>' : esc({ cancelled: 'abgebrochen', skipped: 'übersprungen' }[r.conclusion] || r.conclusion);
-  return '<details data-keep="runs-' + esc(repo) + '"><summary>Letzte Läufe</summary><div class="scroll"><table>' + runs.map((r) =>
-    '<tr><td><a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.name) + '</a> · ' + esc(r.title || '') + '<div class="sub"><code>' + esc(r.branch) + '</code> · ' + ago(r.at) + '</div></td><td>' + word(r) + '</td><td class="act">' +
-    (r.status === 'completed' ? (r.conclusion === 'failure' ? button('Rote Jobs erneut', { do: 'run/rerun', repo, id: r.id, failedOnly: '1' }) + ' ' : '') + button('Erneut', { do: 'run/rerun', repo, id: r.id }) : '') + '</td></tr>').join('') + '</table></div></details>';
+function pill(j) {
+  const state = jobState(j);
+  let time = '';
+  let more = '';
+  const usual = j.estimate ? t('usual', clock(j.estimate)) : '';
+  const step = j.step ? t('step', j.step.number, j.step.total, j.step.name) : '';
+  if (state === 'run') {
+    time = '<span class="tm" data-since="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></span>';
+    more = [shortRunner(j.runner), step, usual].filter(Boolean).map(esc).join(' · ') + '<b data-over="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></b>';
+  } else if (state === 'wait') {
+    time = j.estimate ? '<span class="tm dim">ca. ' + clock(j.estimate) + '</span>' : '';
+    more = esc([j.status === 'pending' ? t('notYet') : '', j.needs.length ? t('waitsFor', j.needs.join(', ')) : t('waitsRunner')].filter(Boolean).join(' · '));
+  } else {
+    time = j.duration != null && state !== 'skip' ? '<span class="tm">' + clock(j.duration) + '</span>' : '';
+    more = esc([t('s_' + state), state === 'fail' ? step : shortRunner(j.runner), state === 'done' ? usual : ''].filter(Boolean).join(' · '));
+  }
+  return '<a class="pill s-' + state + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
+    '<span class="n">' + esc(j.name) + '</span>' + time + '<div class="more"><div><span>' + more + '</span></div></div>' +
+    (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
+}
+
+function runBlock(pipeline, running, repo) {
+  const jobs = pipeline.jobs;
+  const done = jobs.filter((j) => j.status === 'completed').length;
+  const failed = jobs.filter((j) => jobState(j) === 'fail').length;
+  let big;
+  let sub;
+  if (running) {
+    big = pipeline.finishAt ? '<b data-finish="' + esc(pipeline.finishAt) + '" data-short="1"></b>' : '<b class="small">' + t('noRunner') + '</b>';
+    sub = [t('untilDone'), t('jobsDone', done, jobs.length), failed ? '<span class="c-fail">' + t('failedN', failed) + '</span>' : '', pipeline.rough ? t('rough') : ''].filter(Boolean).join(' · ');
+  } else {
+    const word = { success: ['finished', 'c-done'], failure: ['failed', 'c-fail'], cancelled: ['cancelled', ''] }[pipeline.conclusion] ?? ['finished', ''];
+    big = '<b class="small ' + word[1] + '">' + t(word[0]) + '</b>';
+    sub = '<span data-ago="' + esc(pipeline.updatedAt) + '"></span> · ' + t('took', clock(secondsSince(pipeline.startedAt) - secondsSince(pipeline.updatedAt)));
+  }
+  const meta = [repo ? esc(repo) : '', esc(pipeline.workflow), esc(pipeline.branch || pipeline.event), running ? '<span data-running="' + esc(pipeline.startedAt) + '"></span>' : t('lastRun')].filter(Boolean).join(' · ');
+  return '<div class="stack" style="gap:14px"><div class="head"><div><h1>' + esc(pipeline.title || pipeline.workflow) + '</h1><div class="sub"><a href="' + esc(pipeline.url) + '" target="_blank" rel="noopener">' + meta + '</a></div></div><div class="eta">' + big + '<div class="sub">' + sub + '</div></div></div>' +
+    '<div class="planwrap"><div class="plan' + (mode === 'detail' ? ' detail' : '') + '"><svg aria-hidden="true"></svg>' + columnsOf(pipeline).map((column) => '<div class="col">' + column.map(pill).join('') + '</div>').join('') + '</div></div>' +
+    (pipeline.graph ? '' : '<div class="note">' + t('noGraph') + '</div>') + '</div>';
+}
+
+// Strecken zwischen den Pills: aus der rechten Mitte des Vorgängers in die linke Mitte des Nachfolgers.
+function drawLinks(plan) {
+  const box = plan.getBoundingClientRect();
+  const pills = new Map([...plan.querySelectorAll('.pill')].map((el) => [el.dataset.job, el]));
+  let paths = '';
+  for (const [, el] of pills) {
+    const to = el.getBoundingClientRect();
+    for (const name of JSON.parse(el.dataset.needs)) {
+      const parent = pills.get(name);
+      if (!parent) continue;
+      const from = parent.getBoundingClientRect();
+      const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top, x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top, bend = Math.max(30, (x2 - x1) * 0.55);
+      paths += '<path' + (/s-(wait|skip)/.test(el.className) ? ' class="open"' : '') + ' d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' C' + (x1 + bend).toFixed(1) + ' ' + y1.toFixed(1) + ' ' + (x2 - bend).toFixed(1) + ' ' + y2.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"/>';
+    }
+  }
+  plan.querySelector('svg').innerHTML = paths;
+}
+const observer = new ResizeObserver((entries) => { for (const plan of new Set(entries.map((entry) => entry.target.closest('.plan')).filter(Boolean))) drawLinks(plan); });
+function watchPlans(root) { observer.disconnect(); for (const plan of root.querySelectorAll('.plan')) { drawLinks(plan); for (const el of plan.querySelectorAll('.pill')) observer.observe(el); } }
+
+const legend = () => '<div class="legend">' + ['run', 'done', 'fail', 'cancel', 'skip', 'wait'].map((state) => '<span class="s-' + state + '">' + icon(state) + t('s_' + state) + '</span>').join('') + '</div>';
+
+// --- Auslastung ---
+
+function chart(id, label, value, of, source, max, format, warn, marks, note) {
+  const at = source.at || [];
+  const values = source.values || [];
+  const span = source.span;
+  charts[id] = { at, values, span, format };
+  const headline = '<div class="k">' + label + '</div><div class="v' + (warn ? ' c-fail' : '') + '">' + value + ' <small>' + of + '</small></div>';
+  if (values.length < 2) return '<div>' + headline + '<div class="chart"></div><div class="ax"><span>' + t('follows') + '</span></div></div>';
+  const end = Date.now();
+  const x = (time) => ((1 - (end - time) / span) * 300);
+  const y = (v) => 70 - Math.min(1, v / max) * 62;
+  const first = Math.max(0, at.findIndex((time) => end - time <= span));
+  const points = values.slice(first).map((v, i) => x(at[first + i]).toFixed(1) + ',' + y(v).toFixed(1));
+  const peak = Math.max(...values.slice(first));
+  const peakAt = at[first + values.slice(first).indexOf(peak)];
+  const lastX = points[points.length - 1].split(',');
+  return '<div>' + headline + '<svg class="chart' + (warn ? ' warn' : '') + '" data-chart="' + id + '" viewBox="0 0 300 74" preserveAspectRatio="none" role="img" aria-label="' + esc(label) + '">' +
+    '<line class="cap" x1="0" x2="300" y1="8" y2="8"/><line class="mid" x1="0" x2="300" y1="39" y2="39"/>' + marks.filter((time) => end - time < span).map((time) => '<line class="mark" x1="' + x(time).toFixed(1) + '" x2="' + x(time).toFixed(1) + '" y1="0" y2="74"/>').join('') +
+    '<polygon points="' + points[0].split(',')[0] + ',74 ' + points.join(' ') + ' ' + lastX[0] + ',74"/><polyline points="' + points.join(' ') + '"/><line class="peak" x1="0" x2="300" y1="' + y(peak).toFixed(1) + '" y2="' + y(peak).toFixed(1) + '"/></svg>' +
+    '<div class="ax"><span>' + (span > 3600000 ? t('before24') : t('before30')) + '</span><span>' + t('now') + '</span></div><div class="k' + (warn ? ' c-fail' : '') + '">' + (note ? note + ' · ' : '') + t('peak', format(peak), ago(new Date(peakAt).toISOString())) + '</div></div>';
+}
+
+function bandCharts(marks) {
+  const m = data.machine;
+  const u = m.usage;
+  const s = m.series;
+  const tight = m.memoryFree < m.memoryTotal * 0.08;
+  const src = (key) => ({ at: s.at, values: s[key], span: 30 * 60000 });
+  return chart('vmMem', t('vmMem'), num((u.vmMemory + u.otherMemory) / 1073741824), t('of', gb(m.dockerMemory || m.memoryTotal)), src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, marks) +
+    chart('vmCpu', t('vmCpu'), num(u.vmCpu + u.otherCpu), t('cores', m.dockerCpus), src('vmCpu'), m.dockerCpus, (v) => num(v), false, marks) +
+    chart('hostMem', t('hostMem'), num((m.memoryTotal - m.memoryFree) / 1073741824), t('of', gb(m.memoryTotal)), src('hostMemory'), m.memoryTotal, gb, tight, marks, tight ? t('freeOnly', gb(m.memoryFree)) : '');
+}
+
+function seats(entries) {
+  const many = entries.length > 1;
+  const rows = entries.flatMap((entry) => entry.runners.map((r, index) => {
+    const working = r.state.startsWith('arbeitet');
+    if (many && !working) return '';
+    return '<tr>' + (many ? '<td class="dim">' + esc(entry.repo.split('/')[1]) + '</td>' : '') + '<td>' + (index + 1) + '</td><td' + (working ? '' : ' class="dim"') + '>' + esc(working ? (r.job?.job ?? '') : stateText(r.state)) + '</td>' +
+      '<td class="r">' + (working ? mb(r.memory) : '–') + '</td><td class="r">' + (working ? num(r.cores ?? 0) : '–') + '</td></tr>';
+  }));
+  if (many) {
+    for (const entry of entries) {
+      const idle = entry.runners.filter((r) => !r.state.startsWith('arbeitet'));
+      const states = [...new Set(idle.map((r) => r.state))].map((state) => idle.filter((r) => r.state === state).length + ' ' + stateText(state)).join(', ');
+      if (idle.length) rows.push('<tr><td class="dim">' + esc(entry.repo.split('/')[1]) + '</td><td colspan="4" class="dim">' + esc(states) + '</td></tr>');
+    }
+  }
+  const reserve = entries.reduce((sum, e) => sum + (e.pool?.reserve ?? 0), 0);
+  const wanted = entries.reduce((sum, e) => sum + (e.pool?.reserveWanted ?? 0), 0);
+  return '<div class="label">' + t('seats') + '</div><table><tr>' + (many ? '<th>' + t('project') + '</th>' : '') + '<th>' + t('seat') + '</th><th>' + t('job') + '</th><th class="r">' + t('ram') + '</th><th class="r">' + t('coresShort') + '</th></tr>' + rows.join('') +
+    '<tr><td colspan="' + (many ? 5 : 4) + '" class="dim">' + t('reserve', reserve, wanted) + '</td></tr></table>';
+}
+
+// --- Ansichten ---
+
+const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+
+// „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
+function quietRows(entries) {
+  if (!entries.length) return '';
+  const word = { success: ['finished', 'c-done'], failure: ['failed', 'c-fail'], cancelled: ['cancelled', ''] };
+  return '<div class="scroll"><table class="quiet">' + entries.map((entry) => {
+    const last = entry.lastRun;
+    const result = last ? word[last.conclusion] ?? ['finished', ''] : null;
+    return '<tr><td><button class="btn" data-view="' + esc(entry.repo) + '">' + esc(entry.repo.split('/')[1]) + '</button></td><td>' + (last ? '<a href="' + esc(last.url) + '" target="_blank" rel="noopener">' + esc(last.title || last.workflow) + '</a><div class="dim" style="font-size:12px">' + esc(last.workflow) + ' · ' + esc(last.branch || last.event) + '</div>' : '<span class="dim">' + t('nothing') + '</span>') + '</td>' +
+      '<td class="r">' + (last ? '<span class="' + result[1] + '">' + t(result[0]) + '</span><div class="dim" style="font-size:12px" data-ago="' + esc(last.updatedAt) + '"></div>' : '') + '</td></tr>';
+  }).join('') + '</table></div>';
+}
+
+function projectBlocks(entry, withRepo) {
+  if (entry.pipelines.length) return entry.pipelines.map((p) => runBlock(p, true, withRepo ? entry.repo : '')).join('');
+  if (entry.lastRun) return runBlock(entry.lastRun, false);
+  return '<div class="head"><div><h1>' + esc(entry.repo) + '</h1><div class="sub">' + t('nothing') + '</div></div></div>';
+}
+
+function renderOverview(entries, single) {
+  const main = document.getElementById('main');
+  if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div><div id="legend"></div><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div></div>'; }
+  put(document.getElementById('warn'), warnings(entries));
+  const busy = entries.filter((entry) => entry.pipelines.length);
+  const blocks = single ? projectBlocks(entries[0]) : busy.map((entry) => projectBlocks(entry, true)).join('') + quietRows(entries.filter((entry) => !entry.pipelines.length));
+  if (put(document.getElementById('runs'), blocks)) watchPlans(main);
+  put(document.getElementById('legend'), single || busy.length ? legend() : '');
+  put(document.getElementById('charts'), bandCharts(entries.flatMap((entry) => entry.pipelines.map((p) => new Date(p.startedAt).getTime()))));
+  put(document.getElementById('seats'), seats(entries));
+}
+
+function renderUsage() {
+  const main = document.getElementById('main');
+  main.dataset.shape = 'usage';
+  const m = data.machine;
+  const perJob = limitBytes(m.limits.runnerMemory) + limitBytes(m.limits.dockerMemory);
+  const slots = data.repos.reduce((sum, r) => sum + (r.pool && !r.pool.paused ? r.pool.parallel : 0), 0);
+  const over = m.dockerMemory && perJob * slots > m.dockerMemory;
+  const day = dayData ?? [];
+  const src = (key) => ({ at: day.map((p) => p.at), values: day.map((p) => p[key + 'Max']), span: 24 * 3600000 });
+  const tables = data.repos.map((entry) => {
+    const u = entry.usage ?? { jobs: [] };
+    const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '</td><td class="r">' + j.runs + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + (j.peakMemory ? mb(j.peakMemory) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td></tr>').join('');
+    const notes = [];
+    if (u.wait) notes.push(t('wait', Math.round(u.wait.usual), clock(u.wait.longest), u.wait.jobs));
+    const peakRunner = Math.max(0, ...u.jobs.map((j) => j.peakRunner));
+    const peakDocker = Math.max(0, ...u.jobs.map((j) => j.peakDocker));
+    if (peakRunner + peakDocker > 0) {
+      const room = (bytes) => Math.max(1, Math.ceil(bytes * 1.5 / 1073741824 * 2) / 2);
+      const allowRunner = limitBytes(m.limits.runnerMemory);
+      const allowDocker = limitBytes(m.limits.dockerMemory);
+      let note = t('peakNote', mb(peakRunner), mb(peakDocker), esc(m.limits.runnerMemory), esc(m.limits.dockerMemory));
+      if (peakRunner > allowRunner * 0.85 || peakDocker > allowDocker * 0.85) note += ' <span class="c-fail">' + t('hitsLimit') + '</span>';
+      else if (u.jobs.reduce((sum, j) => sum + j.runs, 0) >= 5 && (room(peakRunner) * 1073741824 < allowRunner || room(peakDocker) * 1073741824 < allowDocker)) note += ' ' + t('couldBe', num(room(peakRunner)), num(room(peakDocker)));
+      notes.push(note);
+    }
+    return '<section class="stack" style="gap:10px"><h2>' + esc(entry.repo) + '</h2>' + (rows ? '<div class="scroll"><table><tr><th>' + t('job') + '</th><th class="r">' + t('runs') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('ramPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('cpuPeak') + '</th></tr>' + rows + '</table></div>' : '<div class="note">' + t('noUsage') + '</div>') +
+      notes.map((note) => '<div class="note">' + note + '</div>').join('') + '</section>';
+  }).join('');
+  put(main, '<div class="stack"><div class="head"><div><h1>' + t('usage') + '</h1><div class="sub' + (over ? ' c-fail' : '') + '">' + t('limits', gb(perJob), slots, gb(perJob * slots), gb(m.dockerMemory)) + (over ? ' ' + t('limitsOver') : '') + '</div></div></div>' +
+    '<section class="stack" style="gap:12px"><h2>' + t('day') + '</h2><div class="band" style="border:0;padding:0;grid-template-columns:repeat(3,minmax(0,1fr))">' +
+    chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div></section>' + tables + '</div>');
+}
+
+function renderSettings() {
+  const main = document.getElementById('main');
+  main.dataset.shape = 'settings';
+  const button = (text, attrs, cls) => '<button class="btn' + (cls ? ' ' + cls : '') + '"' + Object.entries(attrs).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('') + '>' + text + '</button>';
+  const seg = (name, options, current) => '<span class="seg">' + options.map(([value, text]) => '<button data-set="' + name + '" data-value="' + value + '" aria-pressed="' + (current === value) + '">' + text + '</button>').join('') + '</span>';
+  const pools = data.repos.filter((entry) => entry.pool).map((entry) => {
+    const p = entry.pool;
+    const repo = entry.repo;
+    const size = (key) => (p.sizes ? mb(p.sizes[key]) : '…');
+    const clear = (what, text) => button(text, { do: 'pool/clear', repo, what, confirm: t('confirmClear') });
+    return '<div class="stack" style="gap:8px"><div class="row"><b class="grow" style="font-weight:400;color:var(--ink)">' + esc(repo) + (p.paused ? ' <span class="tag">' + t('paused') + '</span>' : '') + (p.busy ? ' <span class="tag">' + t('rebuilding') + '</span>' : '') + '</b>' +
+      '<span class="dim">' + t('slots') + '</span>' + button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step') + '<b style="font-weight:400">' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step') +
+      button(p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) + '</div>' +
+      '<table>' + (p.cache ? '<tr><td>' + t('packages') + '</td><td class="r">' + size('packages') + '</td><td class="r">' + clear('packages', t('clear')) + '</td></tr><tr><td>' + t('layers') + '</td><td class="r">' + size('build') + '</td><td class="r">' + clear('build', t('clear')) + '</td></tr>' : '<tr><td colspan="3" class="dim">' + t('cacheIsOff') + '</td></tr>') +
+      '<tr><td>' + t('images', p.images.length) + (p.images.length ? '<div class="dim" style="font-size:12px">' + p.images.map(esc).join(' · ') + '</div>' : '') + '</td><td class="r">' + size('images') + '</td><td class="r">' + clear('images', t('forget')) + '</td></tr></table>' +
+      '<div class="row">' + clear('all', t('clearAll')) + button(p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) + button(t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, 'danger') + '</div></div>';
+  }).join('');
+  const free = (repoList ?? []).filter((r) => !r.pool);
+  const html = '<div class="stack" style="max-width:860px"><div class="head"><div><h1>' + t('settings') + '</h1></div></div>' +
+    (pools ? '<section class="stack" style="gap:26px"><h2>' + t('projects') + '</h2>' + pools + '</section>' : '') +
+    '<section class="stack" style="gap:10px"><h2>' + t('add') + '</h2><form class="row" id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false"><datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + t('addButton') + '</button></form>' +
+    '<div class="row">' + free.slice(0, 6).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">+ ' + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></section>' +
+    '<section class="stack" style="gap:12px"><h2>' + t('app') + '</h2>' + (data.app ? '<label class="check"><input type="checkbox" id="autostart"' + (data.app.autostart ? ' checked' : '') + '> ' + t('autostart') + '</label>' : '') +
+    '<div class="row"><span class="dim" style="width:110px">' + t('view') + '</span>' + seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode) + '<span class="note">' + t('viewHint') + '</span></div>' +
+    '<div class="row"><span class="dim" style="width:110px">' + t('language') + '</span>' + seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang) + '</div>' +
+    '<div class="row">' + button(t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, 'danger') + '</div></section>' +
+    '<section class="stack" style="gap:8px"><h2>' + t('log') + '</h2><pre>' + esc(data.log.join('\n')) + '</pre></section></div>';
+  // Nicht neu aufbauen, solange im Eingabefeld getippt wird.
+  if (document.activeElement?.id === 'addRepo' && main.dataset.html) return;
+  put(main, html);
+}
+
+function renderEmpty() {
+  const main = document.getElementById('main');
+  main.dataset.shape = 'empty';
+  put(main, '<div class="stack empty"><div class="head"><div><h1>' + t('firstTitle') + '</h1><div class="sub">' + t('firstText') + '</div></div></div><div class="row">' +
+    (repoList ?? []).filter((r) => !r.pool).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">+ ' + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
+}
+
+function render() {
+  if (!data) return;
+  document.documentElement.lang = lang;
+  renderRail();
+  const entry = data.repos.find((r) => r.repo === view);
+  if (view !== 'usage' && view !== 'settings' && !data.repos.length) renderEmpty();
+  else if (view === 'usage') renderUsage();
+  else if (view === 'settings') renderSettings();
+  else if (entry) renderOverview([entry], true);
+  else { view = 'all'; renderOverview(data.repos, false); }
+  tick();
+}
+
+// Laufende Zeiten zählen zwischen den Abfragen in der Seite weiter.
+function tick() {
+  for (const el of document.querySelectorAll('[data-since]')) {
+    const s = secondsSince(el.dataset.since);
+    const est = Number(el.dataset.est);
+    el.textContent = clock(s);
+    el.classList.toggle('over', Boolean(est) && s > est * 1.15 && s - est > 10);
+  }
+  for (const el of document.querySelectorAll('[data-over]')) { const over = secondsSince(el.dataset.over) - Number(el.dataset.est); el.textContent = Number(el.dataset.est) && over > 10 ? ' · +' + clock(over) : ''; }
+  for (const el of document.querySelectorAll('[data-progress]')) { const est = Number(el.dataset.est); el.style.width = (est ? Math.min(100, secondsSince(el.dataset.progress) / est * 100) : 0) + '%'; }
+  for (const el of document.querySelectorAll('[data-finish]')) el.textContent = el.dataset.short ? leftText(el.dataset.finish).replace(/^noch |\s*left$/g, '') : leftText(el.dataset.finish);
+  for (const el of document.querySelectorAll('[data-ago]')) el.textContent = ago(el.dataset.ago);
+  for (const el of document.querySelectorAll('[data-running]')) el.textContent = t('since', clock(secondsSince(el.dataset.running)));
 }
 
 async function refresh() {
-  let data;
-  try { data = await (await fetch('/api/status')).json(); }
-  catch { document.getElementById('sub').innerHTML = '<span class="warn">Der Dienst läuft nicht. Starte RunClub neu.</span>'; return; }
-  const m = data.machine;
-  SERIES = m.series;
-  const pairLimit = limitBytes(m.limits.runnerMemory) + limitBytes(m.limits.dockerMemory);
-  document.getElementById('sub').textContent = 'Stand ' + new Date(data.at).toLocaleTimeString('de-DE');
-  document.getElementById('machine').innerHTML = machineCard(data);
-
-  const open = new Set([...document.querySelectorAll('details[data-keep][open]')].map((d) => d.dataset.keep));
-  document.getElementById('repos').innerHTML = data.repos.map((entry) => {
-    let linux = 0;
-    return '<div class="repo"><div class="repohead"><h2>' + esc(entry.repo) + '</h2>' +
-      (entry.waiting ? '<span class="tag warn">' + entry.waiting + ' Job' + (entry.waiting > 1 ? 's warten' : ' wartet') + '</span>' : '') +
-      (entry.error ? '<span class="tag warn">GitHub: ' + esc(entry.error) + '</span>' : '') + '</div>' +
-      (entry.pipelines || []).map(pipelineCard).join('') +
-      (entry.pool ? poolCard(entry.repo, entry.pool) : '') +
-      entry.runners.map((r) => runnerCard(entry.repo, r, r.kind === 'Linux' ? linux++ : 0, pairLimit)).join('') +
-      usageBox(entry.repo, entry.usage, m.limits) +
-      runsBox(entry.repo, entry.runs) + '</div>';
-  }).join('') || '<div class="card">Noch kein Runner eingerichtet.</div>';
-  if (data.app) { document.getElementById('autostart').hidden = false; document.getElementById('autostartBox').checked = data.app.autostart; }
-  document.querySelectorAll('details[data-keep]').forEach((d) => { if (open.has(d.dataset.keep)) d.open = true; });
-  document.getElementById('log').textContent = data.log.join('\n');
+  try { data = await (await fetch('/api/status')).json(); } catch { toast(t('noAnswer')); return; }
+  render();
 }
+async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* Vorschläge sind Beiwerk */ } }
+async function loadDay() { try { dayData = await (await fetch('/api/metrics/day')).json(); if (view === 'usage') render(); } catch { /* Verlauf ist Beiwerk */ } }
+async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })) { toast(t('added')); loadRepos(); return true; } return false; }
 
 document.addEventListener('click', async (event) => {
+  const nav = event.target.closest('[data-view]');
+  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; if (view === 'usage') loadDay(); if (view === 'settings') loadRepos(); render(); return; }
+  const set = event.target.closest('[data-set]');
+  if (set) { if (set.dataset.set === 'mode') mode = set.dataset.value; else lang = set.dataset.value; store.set(set.dataset.set, set.dataset.value); document.getElementById('main').dataset.shape = ''; render(); return; }
+  const pick = event.target.closest('[data-pick]');
+  if (pick) { pick.disabled = true; addPool(pick.dataset.pick); return; }
   const el = event.target.closest('button[data-do]');
   if (!el) return;
   const { do: action, confirm: question, ...body } = el.dataset;
-  if (action === 'shutdown') {
-    if (!confirm('Alle Runner und dieses Programm beenden? Jobs warten, bis es wieder läuft.')) return;
-    if (await call('shutdown')) toast('Wird beendet …');
-    return;
-  }
   if (question && !confirm(question)) return;
-  for (const key of ['paused', 'cache', 'failedOnly']) if (key in body) body[key] = body[key] === '1';
-  for (const key of ['parallel', 'index']) if (key in body) body[key] = Number(body[key]);
+  for (const key of ['paused', 'cache']) if (key in body) body[key] = body[key] === '1';
+  if ('parallel' in body) body.parallel = Number(body.parallel);
   el.disabled = true;
-  await call(action, body);
+  if (await call(action, body) && action === 'shutdown') toast(t('quitting'));
 });
-
-async function addPool(repo) {
-  if (!await call('pool/add', { repo, parallel: 1 })) return false;
-  toast('Pool angelegt. Die Runner stehen in etwa einer Minute bereit.');
-  loadRepos();
-  return true;
-}
-
-document.getElementById('add').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const input = document.getElementById('addRepo');
-  if (await addPool(input.value.trim())) input.value = '';
-});
-
-// Repos aus dem GitHub-Konto: alle als Vorschlag beim Tippen, die zuletzt bewegten ohne Pool als Knöpfe.
-async function loadRepos() {
-  let repos;
-  try { const response = await fetch('/api/repos'); repos = await response.json(); if (!response.ok) return; } catch { return; }
-  const free = repos.filter((r) => !r.pool);
-  document.getElementById('repoList').innerHTML = free.map((r) => '<option value="' + esc(r.repo) + '">').join('');
-  document.getElementById('picks').innerHTML = free.slice(0, 6).map((r) => '<button data-pick="' + esc(r.repo) + '" title="zuletzt bewegt ' + ago(r.pushedAt) + '">+ ' + esc(r.repo) + '</button>').join('');
-}
-
-document.getElementById('picks').addEventListener('click', (event) => {
-  const el = event.target.closest('button[data-pick]');
-  if (el) { el.disabled = true; addPool(el.dataset.pick); }
-});
-
-document.getElementById('autostartBox').addEventListener('change', (event) => call('app/autostart', { on: event.target.checked }));
-
-loadRepos();
+document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) input.value = ''; });
+document.addEventListener('change', (event) => { if (event.target.id === 'autostart') call('app/autostart', { on: event.target.checked }); });
 
 // Verlauf unter dem Mauszeiger: Zeitpunkt und Wert, dazu eine Linie an der Stelle.
 document.addEventListener('mousemove', (event) => {
   const tip = document.getElementById('tip');
-  const svg = event.target.closest ? event.target.closest('svg.spark') : null;
-  if (!svg || !SERIES.at.length) { tip.style.display = 'none'; return; }
+  const svg = event.target.closest ? event.target.closest('svg.chart') : null;
+  const source = svg && charts[svg.dataset.chart];
+  if (!source || !source.at.length) { tip.style.display = 'none'; return; }
   const box = svg.getBoundingClientRect();
-  const time = Date.now() - SPAN * (1 - (event.clientX - box.left) / box.width);
+  const time = Date.now() - source.span * (1 - (event.clientX - box.left) / box.width);
   let index = 0;
-  SERIES.at.forEach((at, i) => { if (Math.abs(at - time) < Math.abs(SERIES.at[index] - time)) index = i; });
-  const key = svg.dataset.key;
-  const x = (1 - (Date.now() - SERIES.at[index]) / SPAN) * 300;
-  let line = svg.querySelector('line');
-  if (!line) { line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.setAttribute('y1', 0); line.setAttribute('y2', 44); svg.appendChild(line); }
+  source.at.forEach((at, i) => { if (Math.abs(at - time) < Math.abs(source.at[index] - time)) index = i; });
+  const x = (1 - (Date.now() - source.at[index]) / source.span) * 300;
+  let line = svg.querySelector('.cross');
+  if (!line) { line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.setAttribute('class', 'cross'); line.setAttribute('y1', 0); line.setAttribute('y2', 74); svg.appendChild(line); }
   line.setAttribute('x1', x); line.setAttribute('x2', x);
-  tip.textContent = new Date(SERIES.at[index]).toLocaleTimeString('de-DE') + ' · ' + FORMAT[key](SERIES[key][index]);
+  tip.textContent = new Date(source.at[index]).toLocaleTimeString(lang === 'de' ? 'de-DE' : 'en-GB', source.span > 3600000 ? { hour: '2-digit', minute: '2-digit' } : undefined) + ' · ' + source.format(source.values[index]);
   tip.style.display = 'block';
   tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, event.clientX + 12) + 'px';
   tip.style.top = (event.clientY - 34) + 'px';
 });
+window.addEventListener('resize', () => document.querySelectorAll('.plan').forEach(drawLinks));
+document.fonts?.ready.then(() => document.querySelectorAll('.plan').forEach(drawLinks));
 
-refresh(); setInterval(refresh, 3000);
+refresh(); loadRepos();
+setInterval(refresh, 3000); setInterval(tick, 1000); setInterval(() => { if (view === 'usage') loadDay(); }, 60000);
 </script></body></html>

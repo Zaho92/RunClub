@@ -1,0 +1,3 @@
+Overpass (Variable, lateinischer Zeichensatz), Copyright The Overpass Project Authors.
+Lizenz: SIL Open Font License 1.1, https://openfontlicense.org
+Quelle: https://fonts.google.com/specimen/Overpass

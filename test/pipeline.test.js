@@ -64,3 +64,61 @@ test('ohne freien Platz gibt es keine Restzeit', async () => {
   await pipelines.refresh(REPO, runs);
   assert.equal(pipelines.view(REPO, 0)[0].finishAt, null);
 });
+
+const { parseWorkflow, stagesOf } = require('../src/pipeline');
+
+const WORKFLOW = `name: CI
+on: [push]
+jobs:
+  changes:
+    name: Berührte Bereiche
+    runs-on: x
+    steps:
+      - name: irgendein Schritt
+        run: echo
+  build:
+    name: "Build und Tests"   # Kommentar
+    needs: changes
+    steps:
+      - run: echo
+  lint:
+    needs: [changes]
+  smoke:
+    name: Smoke-Test
+    needs:
+      - build
+      - lint
+`;
+
+test('liest Namen und Abhängigkeiten aus einer Workflow-Datei', () => {
+  assert.deepEqual(parseWorkflow(WORKFLOW), [
+    { id: 'changes', name: 'Berührte Bereiche', needs: [] },
+    { id: 'build', name: 'Build und Tests', needs: ['changes'] },
+    { id: 'lint', name: 'lint', needs: ['changes'] },
+    { id: 'smoke', name: 'Smoke-Test', needs: ['build', 'lint'] },
+  ]);
+});
+
+test('ordnet Jobs nach ihren Abhängigkeiten in Stufen', () => {
+  const jobs = [{ name: 'c', needs: ['b'] }, { name: 'a', needs: [] }, { name: 'b', needs: ['a'] }, { name: 'd', needs: ['a', 'c'] }];
+  stagesOf(jobs);
+  assert.deepEqual(jobs.map((job) => [job.name, job.stage]), [['c', 2], ['a', 0], ['b', 1], ['d', 3]]);
+});
+
+test('mit Workflow-Datei: Abhängigkeiten, spätere Jobs und Restzeit in der richtigen Reihenfolge', async () => {
+  const jobsOf = {
+    1: [done('Berührte Bereiche', 10), done('Build und Tests', 100), done('lint', 20), done('Smoke-Test', 50)],
+    2: [done('Berührte Bereiche', 10), job('Build und Tests', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null }), job('lint', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null })],
+  };
+  const gh = async (args) => args[1].includes('/contents/') ? { content: Buffer.from(WORKFLOW).toString('base64') } : { jobs: jobsOf[args[1].match(/runs\/(\d+)\/jobs/)[1]] };
+  const pipelines = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  const run = { name: 'CI', event: 'push', head_branch: 'main', html_url: 'https://example.invalid', path: '.github/workflows/ci.yml', head_sha: 'abc' };
+  await pipelines.refresh(REPO, [{ ...run, id: 2, status: 'in_progress', conclusion: null, run_started_at: iso(-60) }, { ...run, id: 1, status: 'completed', conclusion: 'success', updated_at: 'x' }]);
+  const [pipeline] = pipelines.view(REPO, 4);
+  const smoke = pipeline.jobs.find((j) => j.name === 'Smoke-Test');
+  assert.equal(smoke.status, 'pending');
+  assert.deepEqual(smoke.needs, ['Build und Tests', 'lint']);
+  assert.deepEqual(pipeline.jobs.map((j) => j.stage), [0, 1, 1, 2]);
+  assert.equal(left(smoke.finishAt), 60 + 50); // erst wenn „Build und Tests“ fertig ist
+  assert.equal(pipelines.lastOf(REPO).jobs.length, 4);
+});

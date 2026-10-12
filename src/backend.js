@@ -580,7 +580,7 @@ async function refreshGitHub() {
           .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
         github.set(repo, {
           runners, jobs, error: null,
-          runs: runs.slice(0, 6).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
+          runs: runs.slice(0, 20).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
         });
       } catch (error) {
         github.set(repo, { ...(github.get(repo) ?? { runners: [], jobs: [], runs: [] }), error: error.message });
@@ -618,6 +618,7 @@ function status() {
     const pool = pools.get(settings.repo);
     const entry = repoEntry(settings.repo);
     entry.pipelines = pipelines.view(settings.repo, settings.paused ? 0 : settings.parallel);
+    entry.lastRun = pipelines.lastOf(settings.repo);
     entry.usage = { jobs: metrics.jobsView(settings.repo), wait: pipelines.waitOf(settings.repo) };
     const service = containerStats.get(buildService(settings.repo));
     entry.pool = {
@@ -636,7 +637,7 @@ function status() {
         : null;
       entry.runners.push({
         kind: 'Linux', name: slot.base ? slot.name : `Platz ${index + 1}`, state: slot.retired && slot.state !== 'aus' ? `${slot.state}, läuft aus` : slot.state, job,
-        cpu: parts.reduce((sum, p) => sum + p.cpu, 0) / dockerCpus * 100, memory: parts.reduce((sum, p) => sum + p.memory, 0), cpuBase: `${dockerCpus} Kerne der Docker-VM`,
+        cpu: parts.reduce((sum, p) => sum + p.cpu, 0) / dockerCpus * 100, cores: parts.reduce((sum, p) => sum + p.cpu, 0), memory: parts.reduce((sum, p) => sum + p.memory, 0), cpuBase: `${dockerCpus} Kerne der Docker-VM`,
         note: [`Platz ${index + 1}`, `${slot.jobs} Job${slot.jobs === 1 ? '' : 's'} seit dem Start`, slot.lastResult && `zuletzt ${slot.lastResult}`, slot.error && `Fehler: ${slot.error}`].filter(Boolean).join(' · '),
       });
     });
@@ -778,6 +779,12 @@ http.createServer(async (request, response) => {
   }
   if (request.method === 'GET' && request.url === '/api/ping') return json(200, { ok: true });
   if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
+  if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
+  const font = request.method === 'GET' && request.url.match(/^\/fonts\/([a-z0-9-]+\.woff2)$/);
+  if (font && fs.existsSync(path.join(__dirname, 'fonts', font[1]))) {
+    response.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=31536000, immutable' });
+    return response.end(fs.readFileSync(path.join(__dirname, 'fonts', font[1])));
+  }
   if (request.method === 'GET' && request.url === '/api/repos') {
     try { return json(200, await listRepos()); } catch (error) { return json(502, { error: error.message }); }
   }

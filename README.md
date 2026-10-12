@@ -35,9 +35,10 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | --- | --- |
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
 | `src/backend.js` | Pools, Reserve, Caches, GitHub-Abfragen, lokaler Dienst für die Oberfläche |
-| `src/pipeline.js` | laufende Läufe mit ihren Jobs, übliche Dauer je Job, Restzeit |
+| `src/pipeline.js` | Läufe mit ihren Jobs, Abhängigkeiten aus der Workflow-Datei (`needs`), übliche Dauer, Restzeit |
 | `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
-| `src/ui.html` | Oberfläche |
+| `src/ui.html` | Oberfläche: Projektleiste, Netzplan je Lauf, Auslastung, Verbrauch, Einstellungen (Deutsch und Englisch) |
+| `src/fonts/` | Schrift Overpass (OFL), liegt in der App, damit sie ohne Internet funktioniert |
 | `linux/` | Abbild der Runner |
 | `scripts/make-icon.js` | zeichnet das Symbol nach `build/` (`npm run icon`) |
 
@@ -52,4 +53,5 @@ npm test        # Tests für Restzeit und Messung
 ```
 
 Dieselben beiden Schritte laufen als CI bei jedem Push und Pull Request (`.github/workflows/ci.yml`).
-Hinweise für die Arbeit mit Claude Code stehen in `CLAUDE.md`.
+Hinweise für die Arbeit mit Claude Code stehen in `CLAUDE.md`, die Produktbeschreibung für die Gestaltung in `PRODUCT.md`.
+Die Gestaltung folgt dem Skill [Impeccable](https://github.com/pbakaus/impeccable) (`npx impeccable install --providers=claude --project`).
