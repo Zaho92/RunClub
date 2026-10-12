@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Syntax und Tests
+    # Eigene Runner, wenn die Repo-Variable CI_RUNNER gesetzt ist (siehe README), sonst die von GitHub.
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Ohne `npm ci`: Syntaxprüfung und Tests brauchen nur Node, nicht Electron.
+      - name: Syntax
+        run: node scripts/check.js
+      - name: Tests
+        run: node --test

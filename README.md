@@ -43,3 +43,13 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 
 Einstellungen, Gelerntes und Protokoll liegen unter `%APPDATA%\RunClub\data`.
 `npm run backend` startet nur den Dienst, ohne Fenster (Daten dann in `data/`).
+
+## Entwicklung
+
+```sh
+npm run check   # Syntax aller Skripte, auch des Skripts in der Oberfläche
+npm test        # Tests für Restzeit und Messung
+```
+
+Dieselben beiden Schritte laufen als CI bei jedem Push und Pull Request (`.github/workflows/ci.yml`).
+Hinweise für die Arbeit mit Claude Code stehen in `CLAUDE.md`.

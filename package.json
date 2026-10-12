@@ -8,9 +8,15 @@
   "scripts": {
     "start": "electron .",
     "backend": "node src/backend.js",
+    "check": "node scripts/check.js",
+    "test": "node --test",
     "icon": "electron scripts/make-icon.js"
   },
   "devDependencies": {
     "electron": "^44.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zaho92/RunClub.git"
   }
 }

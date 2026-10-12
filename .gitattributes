@@ -1,0 +1,4 @@
+# Überall LF: Die Skripte in linux/ laufen im Container und vertragen kein CRLF.
+* text=auto eol=lf
+*.png binary
+*.ico binary
