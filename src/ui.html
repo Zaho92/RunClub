@@ -83,7 +83,9 @@
   .pill .more p:last-child { padding-bottom: 12px; }
   .pill .more .bit { white-space: nowrap; }
   .pill:hover .more, .pill:focus-visible .more { grid-template-rows: 1fr; opacity: 1; transition-delay: .08s; }
-  .pill .pg { position: absolute; z-index: 1; left: 18px; bottom: -1px; height: 2px; max-width: calc(100% - 36px); background: var(--run); transition: width 1s linear, opacity .12s linear; }
+  .pill .pg, .s-run .more::after { position: absolute; z-index: 1; left: 18px; bottom: -1px; height: 2px; width: var(--p, 0%); max-width: calc(100% - 36px); background: var(--run); transition: width 1s linear, opacity .12s linear; }
+  .s-run .more::after { content: ""; bottom: 0; }
+  .pill:hover > .pg, .pill:focus-visible > .pg { opacity: 0; }
   .col:has(.pill:hover) .pill:not(:hover) .pg, .col:has(.pill:focus-visible) .pill:not(:focus-visible) .pg { opacity: 0; }
   .s-fail.pill { border-color: var(--fail-edge); } .s-fail .line, .s-fail .more > div { color: var(--fail-text); }
   .s-wait.pill, .s-skip.pill { background: transparent; border-style: dashed; }
@@ -580,7 +582,7 @@ function tick() {
     el.classList.toggle('over', Boolean(est) && s > est * 1.15 && s - est > 10);
   }
   for (const el of document.querySelectorAll('[data-usual]')) { const est = Number(el.dataset.est); const s = secondsSince(el.dataset.usual); el.textContent = s > est * 1.15 && s - est > 10 ? t('late', clock(est)) : t('usual', clock(est)); }
-  for (const el of document.querySelectorAll('[data-progress]')) { const est = Number(el.dataset.est); el.style.width = (est ? Math.min(100, secondsSince(el.dataset.progress) / est * 100) : 0) + '%'; }
+  for (const el of document.querySelectorAll('[data-progress]')) { const est = Number(el.dataset.est); el.parentElement.style.setProperty('--p', (est ? Math.min(100, secondsSince(el.dataset.progress) / est * 100) : 0) + '%'); }
   for (const el of document.querySelectorAll('[data-finish]')) el.textContent = el.dataset.short ? leftText(el.dataset.finish).replace(/^noch |\s*left$/g, '') : leftText(el.dataset.finish);
   for (const el of document.querySelectorAll('[data-ago]')) el.textContent = ago(el.dataset.ago);
   for (const el of document.querySelectorAll('[data-running]')) el.textContent = t('since', clock(secondsSince(el.dataset.running)));
