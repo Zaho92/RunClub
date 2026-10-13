@@ -1,5 +1,7 @@
 // Regeln für die gelernten Abbilder eines Repos (siehe „Abbilder“ in backend.js).
 
+const { DAY } = require('./units');
+
 // Sagt die Registry, dass es das Abbild für uns nicht gibt? Nur dann lohnt kein weiterer Versuch.
 // Alles andere (Netz weg, Anfragelimit, Daemon nicht bereit) geht vorüber und ändert nichts am Gelernten.
 const GONE = /not found|manifest unknown|does not exist|access denied|denied:|unauthorized|authentication required|invalid reference format/i;
@@ -10,7 +12,7 @@ const permanentPullError = (stderr) => { const text = String(stderr ?? ''); retu
 function pruneOlder(entries, days, now = Date.now()) {
   let removed = false;
   for (const [name, at] of Object.entries(entries ?? {})) {
-    if (!((now - new Date(at).getTime()) / 86400000 <= days)) { delete entries[name]; removed = true; }
+    if (!((now - new Date(at).getTime()) / DAY <= days)) { delete entries[name]; removed = true; }
   }
   return removed;
 }

@@ -213,3 +213,20 @@ test('gespeicherte Durchläufe ohne Ergebnis stören die übliche Dauer nicht', 
   assert.equal(metrics.jobsView('nur/alt')[0].duration, 20);
   assert.equal(metrics.jobsView('wer/was')[0].duration, 50);
 });
+
+test('eine Datei in falscher Form verhindert den Start nicht', () => {
+  for (const content of ['{"minutes":[null]}', '{"minutes":{}}', '{"jobs":[]}', 'null', '[1]']) {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
+    fs.writeFileSync(path.join(dataDir, 'metrics.json'), content);
+    const metrics = createMetrics({ dataDir });
+    assert.deepEqual(metrics.minutes(), []);
+    assert.deepEqual(metrics.jobsView('wer/was'), []);
+  }
+});
+
+test('Minuten aus der Zukunft fallen heraus (die Uhr wurde zurückgestellt)', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
+  const now = Date.UTC(2026, 9, 13, 12, 0, 0);
+  fs.writeFileSync(path.join(dataDir, 'metrics.json'), JSON.stringify({ minutes: [{ at: now - 60000 }, { at: now + 3600000 }], jobs: {} }));
+  assert.deepEqual(createMetrics({ dataDir, now: () => now }).minutes().map((entry) => entry.at), [now - 60000]);
+});

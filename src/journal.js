@@ -56,18 +56,34 @@ const rows = (entries) => entries.map((entry) => `${JSON.stringify(entry)}\n`).j
 // Die Zeile der Datei aus einem Eintrag: Zeit, Projekt, Meldung.
 const line = (entry) => `${new Date(entry.at).toLocaleString('de-DE')} ${entry.repo ? `${entry.repo}: ` : ''}${entry.text}`;
 
-function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = () => new Date(), echo = () => {} }) {
+const bytes = (path) => { try { return fs.statSync(path).size; } catch { return 0; } };
+
+// Das Ende einer Datei, höchstens `max` Bytes: Eine von außen aufgeblähte Datei wird so nicht ganz gelesen. Die erste,
+// dann wahrscheinlich angeschnittene Zeile fällt weg.
+function tail(path, max) {
+  try {
+    const { size } = fs.statSync(path);
+    if (size <= max) return fs.readFileSync(path, 'utf8');
+    const buffer = Buffer.alloc(max);
+    const handle = fs.openSync(path, 'r');
+    try { fs.readSync(handle, buffer, 0, max, size - max); } finally { fs.closeSync(handle); }
+    const text = buffer.toString('utf8');
+    return text.slice(text.indexOf('\n') + 1);
+  } catch { return ''; }
+}
+
+// `now`: die Uhr in Millisekunden; in Tests steuerbar.
+function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = Date.now, echo = () => {} }) {
   const old = `${file}.1`;
   const saved = `${file}.entries`; // dieselben Einträge als JSON, für den nächsten Start
-  const content = (path) => { try { return fs.readFileSync(path, 'utf8'); } catch { return ''; } };
+  const content = (path) => { try { return fs.readFileSync(path, 'utf8'); } catch { return ''; } }; // für den Export
 
   // Die Einträge vom letzten Lauf. Was keine ganze Zeile mit einem Eintrag ist, wird übergangen.
-  const before = content(saved);
+  const before = tail(saved, fileMax);
   const entries = before.split('\n').map(parse).filter(Boolean).slice(-keep);
   let count = entries.length; // geladene Einträge und die seit dem Start; daran erkennt die Oberfläche, dass etwas dazugekommen ist
   let rowCount = entries.length; // Zeilen in der Datei mit den Einträgen, mitgezählt
-  let size = 0; // Größe der Datei, mitgezählt
-  try { size = fs.statSync(file).size; } catch { /* noch keine Datei */ }
+  let size = bytes(file); // Größe der lesbaren Datei, mitgezählt
 
   function write(text) {
     // Lässt sich die volle Datei nicht beiseitelegen (die alte ist gesperrt), wird trotzdem weitergeschrieben.
@@ -82,14 +98,15 @@ function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = () => new 
   // erst daneben und dann an ihre Stelle, damit ein Absturz dazwischen die alte nicht halb zurücklässt.
   function compact() {
     try {
-      fs.writeFileSync(`${saved}.tmp`, rows(entries));
-      fs.renameSync(`${saved}.tmp`, saved);
+      const draft = `${saved}.${process.pid}.tmp`; // je Programm eine eigene, falls zwei denselben Datenordner nutzen
+      fs.writeFileSync(draft, rows(entries));
+      fs.renameSync(draft, saved);
       rowCount = entries.length;
     } catch { /* beim nächsten Mal wieder versuchen */ }
   }
   // Schon beim Start, wenn die Datei mehr oder anderes enthält als das Geladene: Eine halbe letzte Zeile würde sonst
   // den nächsten Eintrag mit verderben.
-  if (before !== rows(entries)) compact();
+  if (bytes(saved) !== Buffer.byteLength(rows(entries))) compact();
 
   function save(entry) {
     try {
@@ -100,7 +117,7 @@ function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = () => new 
   }
 
   function add(text, { repo = null, kind = 'info', job, runner } = {}) {
-    const entry = shape({ at: now().toISOString(), repo, text, kind, job, runner });
+    const entry = shape({ at: new Date(now()).toISOString(), repo, text, kind, job, runner });
     entries.push(entry);
     if (entries.length > keep) entries.shift();
     count += 1;

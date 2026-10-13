@@ -76,8 +76,13 @@ function parseWorkflow(text) {
 //   Aufruf (`uses:`)    „Name / innerer Job“, mit Matrix „Name (Wert) / innerer Job“. Nur für solche Jobs, denn
 //                       sonst träfe „Build“ einen fremden Job, der „Build / Docker“ heißt.
 const EXPRESSION = /\$\{\{.*?\}\}/g;
+const EXPRESSIONS_MAX = 3; // mehr Ausdrücke in einem Jobnamen werden nicht mehr als Muster gelesen
 function matcherOf(defined) {
-  const name = defined.name.split(EXPRESSION).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+  // Jeder Ausdruck steht für beliebigen Text. Mehrere davon machen das Prüfen eines langen Jobnamens beliebig teuer;
+  // Ausdrücke direkt hintereinander zählen deshalb als einer, und mit mehr als EXPRESSIONS_MAX gilt nur der genaue Name.
+  const parts = defined.name.split(EXPRESSION).filter((part, index, all) => part || index === 0 || index === all.length - 1);
+  const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const name = parts.length - 1 > EXPRESSIONS_MAX ? literal(defined.name) : parts.map(literal).join('.*');
   return new RegExp(defined.uses ? `^${name}( \\(.*\\))? / ` : `^${name}( \\(.*)?$`);
 }
 
@@ -118,9 +123,10 @@ function createPipelines({ gh, dataDir }) {
         const content = await gh(['api', `repos/${repo}/contents/${run.path}?ref=${run.head_sha}`]);
         jobs = parseWorkflow(Buffer.from(content.content, 'base64').toString('utf8'));
       } catch (error) {
-        // Dynamischer Lauf ohne Datei oder kein Zugriff (GitHub antwortet mit 4xx): dann ohne Abhängigkeiten.
+        // Dynamischer Lauf ohne Datei oder kein Zugriff (GitHub antwortet mit 4xx): dann ohne Abhängigkeiten. 403 und
+        // 429 können auch nur „zu viele Anfragen“ heißen und zählen deshalb nicht dazu.
         // Alles andere (kein Netz, Anfragelimit) ist vorübergehend und wird beim nächsten Mal neu versucht.
-        if (!/HTTP 4\d\d/.test(error.message)) return null;
+        if (!/HTTP 4\d\d/.test(error.message) || /HTTP 4(03|29)/.test(error.message)) return null;
       }
       workflows.set(id, jobs);
       if (workflows.size > WORKFLOWS_MAX) workflows.delete(workflows.keys().next().value);
@@ -156,7 +162,7 @@ function createPipelines({ gh, dataDir }) {
       const current = steps.find((step) => step.status === 'in_progress');
       const failed = steps.find((step) => step.conclusion === 'failure');
       return {
-        name: job.name, status: job.status, conclusion: job.conclusion, runner: job.runner_name || null, own: (job.labels ?? []).includes('self-hosted'),
+        name: job.name, status: job.status, conclusion: job.conclusion, runner: job.runner_name || null, own: (job.labels ?? []).some((label) => String(label).toLowerCase() === 'self-hosted'),
         startedAt: job.started_at, completedAt: job.completed_at, url: job.html_url, estimate: estimate(repo, run.name, job.name), needs: [],
         step: current ? { name: current.name, number: current.number, total: steps.length } : failed ? { name: failed.name, number: failed.number, total: steps.length, failed: true } : null,
       };
@@ -169,9 +175,11 @@ function createPipelines({ gh, dataDir }) {
       // längsten festen Text – ein Name nur aus einem Ausdruck passt auf alles und bekommt, was übrig bleibt.
       const matchers = new Map(definition.map((defined) => [defined, matcherOf(defined)]));
       const fixed = (defined) => defined.name.replace(EXPRESSION, '').length;
+      const vague = (defined) => Number(defined.name !== defined.name.replace(EXPRESSION, ''));
       const found = new Map(definition.map((defined) => [defined, []]));
       for (const job of jobs) {
-        const owner = definition.find((defined) => defined.name === job.name) ?? definition.filter((defined) => matchers.get(defined).test(job.name)).sort((a, b) => fixed(b) - fixed(a))[0];
+        // Der genaue Name geht vor; sonst ein Job ohne Ausdruck vor einem mit, dann der mit dem längsten festen Text.
+        const owner = definition.find((defined) => defined.name === job.name) ?? definition.filter((defined) => matchers.get(defined).test(job.name)).sort((a, b) => vague(a) - vague(b) || fixed(b) - fixed(a))[0];
         if (owner) found.get(owner).push(job);
       }
       const actual = (defined) => found.get(defined);
@@ -270,4 +278,4 @@ function createPipelines({ gh, dataDir }) {
   return { refresh, view, lastOf, waitOf };
 }
 
-module.exports = { createPipelines, parseWorkflow, stagesOf };
+module.exports = { createPipelines, parseWorkflow, stagesOf, matcherOf };

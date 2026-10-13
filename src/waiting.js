@@ -2,17 +2,19 @@
 // keinen Pool hat. Solche Jobs warten sonst still, bis jemand nachsieht.
 //
 // Gesucht wird sparsam: nur in privaten Repos mit Verwaltungsrecht, die zuletzt bewegt wurden, und nur nach Läufen,
-// die GitHub als wartend führt. Unveränderte Antworten zählen nicht gegen das Anfragelimit (siehe github.js).
+// die GitHub als wartend oder laufend führt (in einem laufenden Lauf kann ein späterer Job warten). Unveränderte Antworten zählen nicht gegen das Anfragelimit (siehe github.js).
 
-const DAY = 24 * 3600000;
+const { DAY } = require('./units');
 const RECENT_DAYS = 14; // ältere Repos haben keine wartenden Läufe, die jemand vermisst
 const REPOS_MAX = 20;
-const RUNS_MAX = 5; // wartende Läufe je Repo, deren Jobs angesehen werden
+const RUNS_MAX = 5; // Läufe je Repo und Zustand, deren Jobs angesehen werden
+const OPEN = ['queued', 'in_progress']; // Zustände eines Laufs, in denen einer seiner Jobs warten kann
 
-// Welche Repos sich anzusehen lohnen: ohne Pool, privat (für öffentliche legt RunClub keinen an), zuletzt bewegt.
+// Welche Repos sich anzusehen lohnen: solche, für die ein Pool möglich wäre (`free`, siehe listRepos in backend.js)
+// und die zuletzt bewegt wurden.
 function candidates(repos, now = Date.now()) {
   return repos
-    .filter((entry) => !entry.pool && entry.private !== false && now - new Date(entry.pushedAt) < RECENT_DAYS * DAY)
+    .filter((entry) => entry.free && now - new Date(entry.pushedAt) < RECENT_DAYS * DAY)
     .sort((a, b) => String(b.pushedAt).localeCompare(String(a.pushedAt)))
     .slice(0, REPOS_MAX)
     .map((entry) => entry.repo);
@@ -28,7 +30,8 @@ function createWaiting({ gh }) {
   let found = []; // [{ repo, jobs: [Name, …], since (ISO), url }], das am längsten wartende Repo zuerst
 
   async function waitingIn(repo) {
-    const runs = (await gh(['api', `repos/${repo}/actions/runs?status=queued&per_page=${RUNS_MAX}`])).workflow_runs ?? [];
+    const runs = [];
+    for (const status of OPEN) runs.push(...((await gh(['api', `repos/${repo}/actions/runs?status=${status}&per_page=${RUNS_MAX}`])).workflow_runs ?? []));
     const jobs = [];
     for (const run of runs) {
       const waiting = ((await gh(['api', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`])).jobs ?? []).filter(wantsOwnRunner);
@@ -38,19 +41,16 @@ function createWaiting({ gh }) {
     return { repo, jobs: jobs.map((job) => job.name), since: jobs.map((job) => job.since).sort()[0], url: `https://github.com/${repo}/actions?query=is%3Aqueued` };
   }
 
-  // Sieht die Repos der Reihe nach an. Ein Repo, das sich nicht lesen lässt, wird übergangen; scheitert alles
-  // (kein Netz, Anfragelimit), bleibt der letzte Stand.
+  // Sieht die Repos der Reihe nach an. Für ein Repo, das sich gerade nicht lesen lässt (kein Netz, Anfragelimit),
+  // bleibt der letzte Stand; was nicht mehr angesehen wird, fällt heraus.
   async function scan(repos) {
     const next = [];
-    let answered = 0;
     for (const repo of repos) {
-      try {
-        const entry = await waitingIn(repo);
-        answered += 1;
-        if (entry) next.push(entry);
-      } catch { /* dieses Repo beim nächsten Mal wieder */ }
+      let entry;
+      try { entry = await waitingIn(repo); } catch { entry = found.find((known) => known.repo === repo); }
+      if (entry) next.push(entry);
     }
-    if (answered || !repos.length) found = next.sort((a, b) => String(a.since).localeCompare(String(b.since)));
+    found = next.sort((a, b) => String(a.since).localeCompare(String(b.since)));
     return found;
   }
 

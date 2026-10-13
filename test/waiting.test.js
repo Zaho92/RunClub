@@ -5,19 +5,19 @@ const { createWaiting, candidates, wantsOwnRunner } = require('../src/waiting');
 const NOW = new Date('2026-10-13T12:00:00Z').getTime();
 const daysAgo = (days) => new Date(NOW - days * 24 * 3600000).toISOString();
 
-test('angesehen werden nur private Repos ohne Pool, die zuletzt bewegt wurden', () => {
+test('angesehen werden nur Repos, für die ein Pool möglich ist und die zuletzt bewegt wurden', () => {
   const repos = [
-    { repo: 'wer/alt', private: true, pushedAt: daysAgo(30), pool: false },
-    { repo: 'wer/pool', private: true, pushedAt: daysAgo(1), pool: true },
-    { repo: 'wer/offen', private: false, pushedAt: daysAgo(1), pool: false },
-    { repo: 'wer/gestern', private: true, pushedAt: daysAgo(1), pool: false },
-    { repo: 'wer/heute', private: true, pushedAt: daysAgo(0), pool: false },
+    { repo: 'wer/alt', private: true, pushedAt: daysAgo(30), free: true },
+    { repo: 'wer/pool', private: true, pushedAt: daysAgo(1), free: false },
+    { repo: 'wer/offen', private: false, pushedAt: daysAgo(1), free: false },
+    { repo: 'wer/gestern', private: true, pushedAt: daysAgo(1), free: true },
+    { repo: 'wer/heute', private: true, pushedAt: daysAgo(0), free: true },
   ];
   assert.deepEqual(candidates(repos, NOW), ['wer/heute', 'wer/gestern']);
 });
 
 test('höchstens zwanzig Repos, die zuletzt bewegten zuerst', () => {
-  const repos = Array.from({ length: 30 }, (_, i) => ({ repo: `wer/r${i}`, private: true, pushedAt: new Date(NOW - i * 60000).toISOString(), pool: false }));
+  const repos = Array.from({ length: 30 }, (_, i) => ({ repo: `wer/r${i}`, private: true, pushedAt: new Date(NOW - i * 60000).toISOString(), free: true }));
   const picked = candidates(repos, NOW);
   assert.equal(picked.length, 20);
   assert.equal(picked[0], 'wer/r0');
@@ -41,7 +41,8 @@ function fakeGitHub(runsOf, broken = []) {
     if (broken.includes(repo)) throw new Error('gh: Not Found (HTTP 404)');
     const job = path.match(/runs\/(\d+)\/jobs/);
     if (job) return { jobs: runsOf[repo].find((run) => String(run.id) === job[1]).jobs };
-    return { workflow_runs: (runsOf[repo] ?? []).map(({ id, created_at }) => ({ id, created_at })) };
+    const status = path.match(/status=([a-z_]+)/)[1]; // ein Lauf ohne `state` gilt als wartend
+    return { workflow_runs: (runsOf[repo] ?? []).filter((run) => (run.state ?? 'queued') === status).map(({ id, created_at }) => ({ id, created_at })) };
   };
   return { gh, calls };
 }
@@ -81,4 +82,17 @@ test('ein Repo lässt sich aus dem Stand nehmen, sobald es einen Pool bekommt', 
   await waiting.scan(['wer/a']);
   waiting.forget('wer/a');
   assert.deepEqual(waiting.list(), []);
+});
+
+test('auch in einem laufenden Lauf kann ein späterer Job auf einen eigenen Runner warten', async () => {
+  const github = fakeGitHub({ 'wer/a': [{ id: 7, state: 'in_progress', created_at: daysAgo(0), jobs: [{ name: 'Bauen', status: 'in_progress', labels: ['ubuntu-latest'] }, own('Ausliefern', '2026-10-13T11:30:00Z')] }] });
+  const waiting = createWaiting({ gh: github.gh });
+  assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => entry.jobs), [['Ausliefern']]);
+  assert.ok(github.calls.includes('repos/wer/a/actions/runs?status=in_progress&per_page=5'));
+});
+
+test('ein Repo, das nicht mehr angesehen wird, fällt aus dem Stand', async () => {
+  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': [{ id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:00:00Z')] }] }).gh });
+  await waiting.scan(['wer/a']);
+  assert.deepEqual(await waiting.scan([]), []);
 });

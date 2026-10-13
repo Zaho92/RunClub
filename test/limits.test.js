@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, GB } = require('../src/limits');
+const { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key } = require('../src/limits');
+const { GB } = require('../src/units');
 
 const range = bounds({ dockerMemory: 9.7 * GB, dockerCpus: 12 });
 const current = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' };

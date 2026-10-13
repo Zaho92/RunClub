@@ -12,7 +12,7 @@ const path = require('node:path');
 
 const RECENT_MAX = 300; // Messpunkte der letzten halben Stunde
 const MINUTES_MAX = 1440;
-const DAY = 24 * 3600000;
+const { MINUTE, DAY } = require('./units');
 const JOB_KEEP = 20; // gemerkte Durchläufe je Job und Workflow
 const NAME_KEEP = 100; // … und je Jobname über alle Workflows
 const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
@@ -26,12 +26,13 @@ const median = (values) => {
 };
 
 // `now`: die Uhr; in Tests steuerbar.
-function createMetrics({ dataDir, now: clock = Date.now }) {
+function createMetrics({ dataDir, now: clock = Date.now }) { // `now`: die Uhr in Millisekunden; in Tests steuerbar
   const file = path.join(dataDir, 'metrics.json');
   let stored = {};
   try { stored = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* noch nichts gemessen */ }
-  const minutes = stored.minutes ?? [];
-  const jobs = stored.jobs ?? {};
+  // Die Datei kann von Hand verändert oder beschädigt sein: nur nehmen, was die erwartete Form hat.
+  const minutes = (Array.isArray(stored?.minutes) ? stored.minutes : []).filter((entry) => entry && Number.isFinite(entry.at));
+  const jobs = stored?.jobs && typeof stored.jobs === 'object' && !Array.isArray(stored.jobs) ? stored.jobs : {};
   // Job- und Repo-Namen kommen von außen und können wie eingebaute Eigenschaften heißen (constructor, __proto__):
   // nur eigene Einträge zählen, und angelegt wird, ohne den Prototyp zu berühren.
   const own = (object, key) => (Object.hasOwn(object, key) ? object[key] : undefined);
@@ -42,8 +43,9 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
   const save = () => { try { fs.writeFileSync(file, JSON.stringify({ minutes, jobs })); } catch { /* Messwerte sind Beiwerk */ } };
 
   // Was älter als 24 Stunden ist, fällt heraus: Nach einer langen Pause lägen sonst alte Minuten auf der Achse eines Tages.
+  // Ebenso, was in der Zukunft liegt (die Uhr wurde zurückgestellt): Die Kurve liefe sonst rückwärts.
   const prune = (time) => {
-    const kept = minutes.filter((entry) => entry.at >= time - DAY);
+    const kept = minutes.filter((entry) => entry.at >= time - DAY && entry.at <= time);
     if (kept.length !== minutes.length) minutes.splice(0, minutes.length, ...kept);
   };
   prune(clock());
@@ -55,9 +57,9 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
   function sample(point, now = clock()) {
     recent.push({ at: now, ...point });
     if (recent.length > RECENT_MAX) recent.shift();
-    const minute = Math.floor(now / 60000);
+    const minute = Math.floor(now / MINUTE);
     if (bucket && bucket.minute !== minute) {
-      const entry = { at: bucket.minute * 60000 };
+      const entry = { at: bucket.minute * MINUTE };
       for (const field of FIELDS) { entry[field] = bucket.sum[field] / bucket.count; entry[`${field}Max`] = bucket.max[field]; }
       minutes.push(entry);
       prune(now);
@@ -93,7 +95,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     const list = ensure(ensure(jobs, repo, () => ({})), String(record.job), () => []);
     const workflow = String(record.workflow ?? '');
     const same = (run) => (run.workflow ?? '') === workflow;
-    list.push({ at: new Date().toISOString(), ...record, job: undefined, workflow });
+    list.push({ at: new Date(clock()).toISOString(), ...record, job: undefined, workflow });
     // Je Workflow gezählt: Sonst verdrängte der häufige Workflow die Durchläufe des seltenen gleichnamigen Jobs.
     if (list.filter(same).length > JOB_KEEP) list.splice(list.findIndex(same), 1);
     if (list.length > NAME_KEEP) list.shift();

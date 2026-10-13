@@ -202,3 +202,14 @@ test('ein Job schluckt keinen fremden mit ähnlichem Namen', async () => {
   // „Test“ gehört zum Job, der genau so heißt – nicht zum Job mit dem Ausdruck im Namen.
   assert.deepEqual((await renamed([done('Vorbereiten', 10), done('Test', 10)])).pending, [EXPR, 'lint', 'Ausliefern']);
 });
+
+test('viele Ausdrücke im Namen werden nicht zum teuren Muster', async () => {
+  const { matcherOf } = require('../src/pipeline');
+  const long = 'a'.repeat(400) + '!';
+  const started = Date.now();
+  assert.equal(matcherOf({ name: '${{ a }}${{ b }}${{ c }}${{ d }}${{ e }}${{ f }}x' }).test(long), false);
+  assert.equal(matcherOf({ name: 'T ${{ a }} ${{ b }} ${{ c }} ${{ d }} ${{ e }} z' }).test(`T ${long}`), false);
+  assert.ok(Date.now() - started < 500);
+  // Ausdrücke direkt hintereinander zählen als einer und passen weiter.
+  assert.equal(matcherOf({ name: 'Test ${{ a }}${{ b }}' }).test('Test ubuntu 20'), true);
+});

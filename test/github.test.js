@@ -104,7 +104,7 @@ test('rate_limit liefert den Stand, auch ohne andere Abfragen', async () => {
 
 test('refreshQuota meldet nur, wenn der Zustand kippt', async () => {
   const { github } = fake([limit(4000), limit(3900), limit(500), limit(400), limit(4900)]);
-  assert.deepEqual(await github.refreshQuota(), { limit: 5000, remaining: 4000, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok', tightAt: 0.85, before: 'unknown', until: new Date(RESET * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) });
+  assert.deepEqual(await github.refreshQuota(), { limit: 5000, remaining: 4000, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok', tightAt: 0.85, before: 'unknown', until: new Date(RESET * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), paused: false });
   assert.equal(await github.refreshQuota(), null);
   assert.partialDeepStrictEqual(await github.refreshQuota(), { state: 'tight', before: 'ok', remaining: 500 });
   assert.equal(await github.refreshQuota(), null);
@@ -181,4 +181,25 @@ test('bittet GitHub um eine Pause, wird bis dahin nicht mehr gelesen', async () 
   time += 90001;
   assert.equal(stateOf(github), 'ok');
   assert.deepEqual(await github.call(['api', 'x']), { a: 1 });
+});
+
+test('eine erbetene Pause gilt auch über das Ende des Fensters hinaus', async () => {
+  let time = NOW;
+  const pause = { code: 1, stderr: 'gh: HTTP 429', stdout: ['HTTP/2.0 429 Too Many Requests', 'Retry-After: 900', 'X-Ratelimit-Limit: 5000', 'X-Ratelimit-Remaining: 4000', `X-Ratelimit-Reset: ${RESET}`, '', '{}'].join('\r\n') };
+  const github = createGitHub({ run: async () => pause, now: () => time });
+  await assert.rejects(github.call(['api', 'x']));
+  time = RESET * 1000 + 1000; // das Fenster ist abgelaufen, die Pause (15 min) noch nicht
+  assert.equal(github.mayPoll('wer/was'), false);
+  await assert.rejects(github.call(['api', 'x']), /Pause/);
+});
+
+test('der Abstand bei knappem Limit lässt sich je Sache größer wählen', async () => {
+  let time = NOW;
+  const github = createGitHub({ run: async () => ({ code: 0, stderr: '', ...limit(500) }), now: () => time });
+  await github.refreshQuota();
+  assert.equal(github.mayPoll('wartende Läufe', 300000), true);
+  time += 100000;
+  assert.equal(github.mayPoll('wartende Läufe', 300000), false);
+  time += 200000;
+  assert.equal(github.mayPoll('wartende Läufe', 300000), true);
 });

@@ -184,3 +184,14 @@ test('ohne lesbare Datei mit Einträgen beginnt das Protokoll leer', () => {
   journal.add('trotzdem');
   assert.equal(journal.recent().length, 1);
 });
+
+test('von einer aufgeblähten Datei mit Einträgen wird nur das Ende gelesen', () => {
+  const target = file();
+  const row = (text) => `${JSON.stringify({ at: at.toISOString(), repo: null, text, kind: 'info' })}\n`;
+  fs.writeFileSync(`${target}.entries`, row('x'.repeat(300)).repeat(40) + row('zuletzt'));
+  const journal = createJournal({ file: target, fileMax: 1000 });
+  const texts = journal.recent().map((entry) => entry.text);
+  assert.equal(texts.at(-1), 'zuletzt');
+  assert.ok(texts.length < 5); // nur was in die letzten 1000 Bytes passt, ohne die angeschnittene erste Zeile
+  assert.ok(fs.statSync(`${target}.entries`).size < 2000); // und die Datei ist danach wieder klein
+});

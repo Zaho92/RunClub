@@ -10,14 +10,15 @@
 //           und der neue Stand noch nicht da).
 
 const { lastLine } = require('./run');
+const { SECOND, MINUTE, DAY } = require('./units');
 
 const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', UNKNOWN: 'unknown' };
 const TIGHT = 0.15; // Anteil, der noch frei ist
 const RESERVE = 0.02;
-const TIGHT_GAP = 60000; // so lange liegt bei knappem Limit zwischen zwei Abfragen derselben Sache
-const PAUSE_MAX = 3600; // Sekunden; länger lässt sich RunClub von einer Antwort nicht anhalten
-const WINDOW_MAX = 24 * 3600000; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
-const CACHE_MAX = 200; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
+const TIGHT_GAP = MINUTE; // so lange liegt bei knappem Limit zwischen zwei Abfragen derselben Sache
+const PAUSE_MAX_S = 3600; // Sekunden; länger lässt sich RunClub von einer Antwort nicht anhalten
+const WINDOW_MAX = DAY; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
+const CACHE_MAX = 500; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
 
 // Friert eine Antwort samt allem darin ein.
 function deepFreeze(value) {
@@ -48,7 +49,7 @@ function parseResponse(text) {
   }
 }
 
-function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
+function createGitHub({ run, timeout = MINUTE, now = Date.now }) {
   const cache = new Map(); // Pfad -> { etag, data }, der zuletzt benutzte am Ende
   const polled = new Map(); // Schlüssel -> wann zuletzt abgefragt (nur bei knappem Limit von Belang)
   let quota = null; // { limit, remaining, resetAt (ms) }
@@ -58,34 +59,36 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
   function note(limit, remaining, reset) {
     const values = [limit, remaining, reset].map(Number);
     if (values.some((value) => !Number.isFinite(value)) || values[0] <= 0) return;
-    const resetAt = values[2] * 1000;
+    const resetAt = values[2] * SECOND;
     if (resetAt > now() + WINDOW_MAX) return;
     quota = { limit: values[0], remaining: Math.max(0, values[1]), resetAt };
   }
 
   const paused = () => now() < pausedUntil;
-  const spent = () => quota.remaining <= quota.limit * RESERVE;
+  const windowOpen = () => Boolean(quota) && now() < quota.resetAt; // es gibt einen Stand, und er gilt noch
+  const spent = () => windowOpen() && quota.remaining <= quota.limit * RESERVE;
 
+  // Eine erbetene Pause gilt auch über das Ende des Fensters hinaus.
   function state() {
-    if (!quota || now() >= quota.resetAt) return STATE.UNKNOWN;
     if (paused() || spent()) return STATE.OUT;
+    if (!windowOpen()) return STATE.UNKNOWN;
     return quota.remaining < quota.limit * TIGHT ? STATE.TIGHT : STATE.OK;
   }
 
   // Wann es weitergeht: am Ende des Fensters; wurde nur um eine Pause gebeten, an deren Ende. Ist beides der Fall,
   // zählt das spätere.
-  const endsAt = () => (!paused() ? quota.resetAt : spent() ? Math.max(pausedUntil, quota.resetAt) : pausedUntil);
+  const endsAt = () => Math.max(paused() ? pausedUntil : 0, spent() ? quota.resetAt : 0) || quota.resetAt;
 
   // Das Ende des Fensters als Uhrzeit für Meldungen (die sind deutsch).
   const until = () => new Date(endsAt()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-  // Darf das, was `key` benennt (ein Repo), jetzt routinemäßig abgefragt werden? Bei knappem Limit nur in
-  // größerem Abstand, bei aufgebrauchtem gar nicht.
-  function mayPoll(key) {
+  // Darf das, was `key` benennt (ein Repo), jetzt routinemäßig abgefragt werden? Bei knappem Limit nur im Abstand `gap`,
+  // bei aufgebrauchtem gar nicht.
+  function mayPoll(key, gap = TIGHT_GAP) {
     const current = state();
     if (current === STATE.OUT) return false;
     if (current === STATE.TIGHT) {
-      if (now() - (polled.get(key) ?? -Infinity) < TIGHT_GAP) return false;
+      if (now() - (polled.get(key) ?? -Infinity) < gap) return false;
       polled.set(key, now());
     }
     return true;
@@ -98,7 +101,7 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
     const { status, headers, body } = parseResponse(result.stdout);
     if ((headers['x-ratelimit-resource'] ?? 'core') === 'core') note(headers['x-ratelimit-limit'], headers['x-ratelimit-remaining'], headers['x-ratelimit-reset']);
     // Das zweite Limit von GitHub (zu viel in kurzer Zeit): Die Antwort nennt, wie lange zu warten ist.
-    if ((status === 403 || status === 429) && Number(headers['retry-after']) > 0) pausedUntil = now() + Math.min(Number(headers['retry-after']), PAUSE_MAX) * 1000;
+    if ((status === 403 || status === 429) && Number(headers['retry-after']) > 0) pausedUntil = now() + Math.min(Number(headers['retry-after']), PAUSE_MAX_S) * SECOND;
     if (status === 304 && known) {
       cache.delete(path);
       cache.set(path, known);
@@ -125,7 +128,7 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
   }
 
   // `tightAt`: der verbrauchte Anteil, ab dem es knapp ist; die Oberfläche setzt dort ihre Marke.
-  const view = () => (state() === STATE.UNKNOWN ? null : { limit: quota.limit, remaining: quota.remaining, resetAt: new Date(endsAt()).toISOString(), state: state(), tightAt: 1 - TIGHT });
+  const view = () => (!windowOpen() ? null : { limit: quota.limit, remaining: quota.remaining, resetAt: new Date(endsAt()).toISOString(), state: state(), tightAt: 1 - TIGHT });
 
   // Den Stand ausdrücklich holen; nötig, solange sonst nichts abgefragt wird. Liefert den Stand, wenn der Zustand
   // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before` und dem Ende des Fensters als Uhrzeit `until`),
@@ -136,10 +139,10 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
       try { const core = JSON.parse(result.stdout).resources.core; note(core.limit, core.remaining, core.reset); } catch { /* dann bleibt der letzte Stand */ }
     }
     const current = state();
-    if (current === STATE.UNKNOWN || current === reported) return null;
+    if (!windowOpen() || current === reported) return null;
     const before = reported;
     reported = current;
-    return { ...view(), before, until: until() };
+    return { ...view(), before, until: until(), paused: paused() };
   }
 
   return { call, refreshQuota, mayPoll, quota: view };

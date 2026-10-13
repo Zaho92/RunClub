@@ -891,8 +891,8 @@ function renderSettings() {
       button('plus', t('more'), { do: 'pool/set', repo, parallel: p.parallel + 1 }, { only: true, why: p.parallel >= 4 ? t('maxSlots') : '' }) + '</span></div>' +
       '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + route + limits + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
   }).join('');
-  // Vorschläge nur für private Repos: Für öffentliche legt RunClub keinen Pool an.
-  const free = (repoList ?? []).filter((r) => !r.pool && r.private !== false);
+  // Vorschläge nur, wo ein Pool möglich ist (siehe `free` in listRepos).
+  const free = (repoList ?? []).filter((r) => r.free);
   const add = '<div class="addrow"><span>' + t('add') + '</span><form id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false">' +
     '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + glyph('plus') + t('addButton') + '</button></form>' +
     (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(r.repo.split('/')[1]) + '</button>').join('') + (free.length ? '</span>' : '') + '</div><div class="note">' + esc(t('addHint')) + '</div>';
@@ -976,7 +976,7 @@ function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
   put(main, '<div class="stack empty"><div class="head"><div><h1>' + t('firstTitle') + '</h1><div class="sub">' + t('firstText') + '</div></div></div><div class="row">' +
-    (repoList ?? []).filter((r) => !r.pool).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
+    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
 
 function render() {

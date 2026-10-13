@@ -1,7 +1,7 @@
 // Limits je Job: wie viel Arbeitsspeicher und wie viele Kerne der Runner und sein Docker-Daemon bekommen.
 // In `runners.json` stehen sie, wie Docker sie liest (`4g`, `1536m`); die Oberfläche rechnet in GB und Kernen.
 
-const GB = 1073741824;
+const { GB } = require('./units');
 
 const bytesOf = (text) => {
   const match = String(text ?? '').trim().match(/^([\d.]+)\s*([gmk]?)b?$/i);
@@ -122,4 +122,4 @@ function rate(jobs, values, range) {
   return { state: values.runnerMemory + values.dockerMemory > 2 * (need.runnerMemory + need.dockerMemory) ? 'generous' : 'ok', runs };
 }
 
-module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, SUGGEST_RUNS, TIGHT, GB };
+module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, SUGGEST_RUNS, TIGHT };

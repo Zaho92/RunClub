@@ -24,6 +24,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { run, lastLine } = require('./run');
+const { SECOND, MINUTE, DAY, GB } = require('./units');
 const { createAccess, pageHeaders, newNonce } = require('./access');
 const { orphaned } = require('./pairs');
 const { createNetwork, alreadyExists } = require('./subnets');
@@ -65,13 +66,11 @@ const GITHUB_INTERVAL_MS = 20000;
 const GITHUB_ACTIVE_INTERVAL_MS = 8000; // Repos, in denen gerade ein Job läuft
 const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
-const SIZES_INTERVAL_MS = 5 * 60000;
-const WAITING_INTERVAL_MS = 5 * 60000; // so oft wird nach wartenden Läufen ohne Pool gesucht
-const IMAGE_INTERVAL_MS = 24 * 60 * 60000; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
+const SIZES_INTERVAL_MS = 5 * MINUTE;
+const WAITING_INTERVAL_MS = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht
+const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
-const SECOND = 1000;
-const MINUTE = 60 * SECOND;
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
 const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
@@ -148,7 +147,7 @@ const buildService = (repo) => `rc-buildkit-${slug(repo)}${INSTANCE}`;
 const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}${INSTANCE}`;
 const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits); // eigene Limits des Projekts oder die für alle
-const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
+const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / DAY;
 
 // Das Runner-Abbild bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
 // nur ganz ohne Abbild geht es nicht.
@@ -222,18 +221,21 @@ async function removeRegistrations(repo) {
 }
 
 // Der Build-Dienst trägt die Limits des Docker-Daemons; mit dieser Kennung ist zu erkennen, ob er noch alte trägt.
-const serviceKey = (repo) => `${limitsOf(repo).dockerCpus}/${limitRules.bytesOf(limitsOf(repo).dockerMemory)}`;
+const SERVICE_FAILED = 'gescheitert'; // steht in `serviceBuilt`, wenn der Build-Dienst nicht zustande kam
+const serviceKey = (repo) =>`${limitsOf(repo).dockerCpus}/${limitRules.bytesOf(limitsOf(repo).dockerMemory)}`;
 
 // Legt den Build-Dienst mit den geltenden Limits neu an, sobald im Pool nichts gebaut wird, und hängt ihn wieder in
 // die Netze der stehenden Paare. Die Paare selbst bleiben, wie sie sind.
 async function renewService(pool) {
   const settings = settingsOf(pool.repo);
   if (!settings?.cache || !pool.serviceBuilt || pool.serviceBuilt === serviceKey(pool.repo)) return;
+  const retry = pool.serviceBuilt === SERVICE_FAILED;
+  if (retry && Date.now() < pool.serviceRetryAt) return;
   if (stopping || pool.removed || pool.hold || pool.renewingService || !pool.prepared || !linuxReady) return;
   if (pool.slots.some((slot) => slot.state === 'arbeitet' || slot.state === 'räumt auf')) return;
   pool.renewingService = true;
   try {
-    log('Lege den Build-Dienst mit den neuen Limits an', pool.repo);
+    log(retry ? 'Versuche erneut, den Build-Dienst anzulegen' : 'Lege den Build-Dienst mit den neuen Limits an', pool.repo);
     await prepareCaches(pool.repo);
     for (const [base, repo] of livePairs) if (repo === pool.repo) await docker(['network', 'connect', '--alias', 'buildkit', base, buildService(pool.repo)]);
   } finally { pool.renewingService = false; }
@@ -251,16 +253,20 @@ async function prepareCaches(repo) {
   // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
   // Es bleibt stehen, solange das Repo einen Cache hat; dass es schon da ist, ist deshalb kein Fehler.
   const network = await createNetwork(docker, [buildNetwork(repo)]);
-  if (network.code !== 0 && !alreadyExists(network.stderr)) {
-    log(`Netz für den Build-Dienst lässt sich nicht anlegen – ${lastLine(network.stderr)}`, repo, 'error');
-  } else {
+  let failure = network.code !== 0 && !alreadyExists(network.stderr) ? `Netz für den Build-Dienst lässt sich nicht anlegen – ${lastLine(network.stderr)}` : null;
+  if (!failure) {
     const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no', '--network', buildNetwork(repo),
       '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory,
       '-v', `${buildVolume(repo)}:/var/lib/buildkit`, BUILDKIT, '--addr', 'tcp://0.0.0.0:1234']);
-    if (service.code !== 0) log(`Build-Dienst startet nicht – ${lastLine(service.stderr)}`, repo, 'error');
+    if (service.code !== 0) failure = `Build-Dienst startet nicht – ${lastLine(service.stderr)}`;
   }
   const pool = pools.get(repo);
-  if (pool) pool.serviceBuilt = serviceKey(repo);
+  if (failure) log(failure, repo, 'error');
+  if (!pool) return;
+  // Nach einem Fehlschlag versucht `renewService` es wieder, in wachsendem Abstand (höchstens eine halbe Stunde).
+  pool.serviceFailures = failure ? (pool.serviceFailures ?? 0) + 1 : 0;
+  pool.serviceRetryAt = Date.now() + Math.min(2 ** pool.serviceFailures, 30) * MINUTE;
+  pool.serviceBuilt = failure ? SERVICE_FAILED : serviceKey(repo);
 }
 
 function wantedImages(repo) {
@@ -659,20 +665,23 @@ function startStatsFeed() {
 // der Aufruf ohne Messwert: Dann bleibt es still bei der Summe der Container, bis Docker neu vorbereitet wird.
 // Neu gestartet wird nur von `linuxLoop`, wenn Docker gerade geantwortet hat: Der Aufruf würde eine angehaltene
 // Distro sonst selbst hochfahren.
-const gib = (bytes) => `${(bytes / 1073741824).toFixed(1).replace('.', ',')} GB`;
+const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`;
 const vmProbe = createVmMemory({
   onChange: (tight, sample) => {
-    if (tight) log(`Die Docker-VM hat nur noch ${gib(sample.available)} von ${gib(sample.total)} Arbeitsspeicher frei.`, null, 'error');
-    else log(sample ? `Die Docker-VM hat wieder ${gib(sample.available)} Arbeitsspeicher frei.` : 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.');
+    if (tight) log(`Die Docker-VM hat nur noch ${gbText(sample.available)} von ${gbText(sample.total)} Arbeitsspeicher frei.`, null, 'error');
+    else log(sample ? `Die Docker-VM hat wieder ${gbText(sample.available)} Arbeitsspeicher frei.` : 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.');
   },
 });
+// Der Messprozess wird stündlich beendet und neu gestartet: Bliebe er stumm hängen, käme sonst nie wieder ein Wert.
+const VM_FEED_MAX = 60 * MINUTE;
+const vmFree = () => { const sample = vmProbe.tight() ? vmProbe.current() : null; return sample ? { free: sample.available } : null; };
 let vmFeed = false; // es läuft höchstens einer
 let vmFeedMissing = false; // der letzte Versuch brachte keinen Messwert
 function startVmFeed() {
   if (vmFeed || vmFeedMissing || stopping) return;
   vmFeed = true;
   let seen = false;
-  run('wsl', ['-d', 'docker-desktop', 'sh', '-c', VM_COMMAND], { onLine: (line) => { vmProbe.line(line); seen ||= Boolean(vmProbe.current()); } })
+  run('wsl', ['-d', 'docker-desktop', 'sh', '-c', VM_COMMAND], { timeout: VM_FEED_MAX, onLine: (line) => { vmProbe.line(line); seen ||= Boolean(vmProbe.current()); } })
     .then(() => { vmFeed = false; vmFeedMissing = !seen; vmProbe.drop(); });
 }
 
@@ -794,7 +803,8 @@ function refreshActive() {
 async function checkQuota() {
   const changed = await githubApi.refreshQuota();
   if (!changed) return;
-  if (changed.state === QUOTA.OUT) log(`GitHub-Anfragen sind aufgebraucht (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.`);
+  if (changed.paused) log(`GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis ${changed.until} wird nicht mehr abgefragt.`);
+  else if (changed.state === QUOTA.OUT) log(`GitHub-Anfragen sind aufgebraucht (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.`);
   else if (changed.state === QUOTA.TIGHT) log(`GitHub-Anfragen werden knapp (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird seltener abgefragt.`);
   else if (changed.before !== QUOTA.UNKNOWN) log('GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.');
   // Solange nichts gelesen werden durfte, blieb auch der Stand von CI_RUNNER unbekannt: jetzt nachholen.
@@ -805,7 +815,7 @@ const watchQuota = () => checkQuota().catch(logError(null, 'Anfragelimit'));
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
 let repoList = { at: 0, repos: [] };
 async function listRepos() {
-  if (Date.now() - repoList.at > 5 * 60000) {
+  if (Date.now() - repoList.at > 5 * MINUTE) {
     const repos = [];
     for (let page = 1; page <= 10; page += 1) {
       const batch = await gh(['api', `user/repos?per_page=100&page=${page}&sort=pushed`]);
@@ -814,13 +824,15 @@ async function listRepos() {
     }
     repoList = { at: Date.now(), repos };
   }
-  return repoList.repos.map((r) => ({ ...r, pool: Boolean(settingsOf(r.repo)) }));
+  // `free`: Für das Repo ist ein Pool möglich (es hat keinen, und öffentliche bekommen keinen; siehe `pool/add`).
+  return repoList.repos.map((r) => { const pool = Boolean(settingsOf(r.repo)); return { ...r, pool, free: !pool && r.private !== false }; });
 }
 
 // Nach Läufen suchen, die auf einen eigenen Runner warten, für die es aber keinen Pool gibt (siehe waiting.js).
 // Lässt sich die Liste der Repos nicht lesen, bleibt der letzte Stand.
 function scanWaiting() {
-  if (stopping || !githubApi.mayPoll('wartende Läufe')) return Promise.resolve();
+  // Bei knappem Limit nur jede dritte Runde.
+  if (stopping || !githubApi.mayPoll('wartende Läufe', 3 * WAITING_INTERVAL_MS)) return Promise.resolve();
   return listRepos().then((repos) => waiting.scan(candidates(repos))).catch(() => {});
 }
 
@@ -885,13 +897,13 @@ function status() {
     at: new Date().toISOString(),
     machine: {
       cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, dockerMemory, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet'),
-      usage, vmTight: vmProbe.tight() ? { free: vmProbe.current().available } : null, // die Docker-VM hat kaum noch Arbeitsspeicher frei
+      usage, vmTight: vmFree(), // { free }, wenn die Docker-VM kaum noch Arbeitsspeicher frei hat, sonst null
       limits: config.limits, series: metrics.series(),
       limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },
     },
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
-    unserved: waiting.list(), // Repos ohne Pool mit wartenden Jobs: [{ repo, jobs, since, url }]
+    unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool mit wartenden Jobs: [{ repo, jobs, since, url }]
     logCount: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
