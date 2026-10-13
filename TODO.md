@@ -5,7 +5,7 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 ## Als Nächstes
 
-1. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
+1. **Installer** (zurückgestellt am 13.10.2026, nicht jetzt). Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
    `docker build` einen echten Ordner braucht.
@@ -46,7 +46,7 @@ Sicherheit:
   Enhanced Container Isolation von Docker Desktop). Vor einer Veröffentlichung von RunClub klären.
 - **Caches sind zwischen Branches beschreibbar.** Ein Job auf einem Branch kann den NuGet-Ordner und den Build-Cache
   verändern, den ein späterer Job auf `main` benutzt. Möglich: Caches nur für den Standard-Branch beschreibbar einhängen.
-  Entscheidung des Nutzers, weil es Läufe auf Branches langsamer macht.
+  Entschieden am 13.10.2026: bleibt so, weil es Läufe auf Branches sonst langsamer macht.
 - **Das Netz je Repo trennt Repos, nicht die Paare eines Repos.** Der Build-Dienst hängt in allen Paar-Netzen seines
   Repos; ein Build-Schritt könnte Ports erreichen, die ein gleichzeitig laufender Job desselben Repos veröffentlicht.
 - **Abbilder ohne feste Version** (`docker:dind`, `moby/buildkit:latest`, `actions-runner:latest`, `node:24-slim`) laufen
@@ -67,7 +67,6 @@ Richtigkeit:
   vergebenen Subnetzen anlegen.
 - **„Runner neu aufbauen“ kann einen Pool anhalten**, wenn gerade ein Cache geleert wird und in der Zwischenzeit ein Job
   startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
-- Die Endpunkte `slot/restart`, `run/rerun` und `api/ping` ruft die Oberfläche nicht auf: behalten oder entfernen?
 
 ## Noch nicht echt ausprobiert
 
@@ -116,11 +115,7 @@ Richtigkeit:
 
 ## Offene Entscheidungen des Nutzers
 
-- **Verspätung als „+0:33“** hinter der Zeit? Heute färbt sich die Zeit gelb, und das Detail sagt „länger als üblich (1:40)“.
-  Idee des Nutzers, von ihm selbst als möglicherweise zu unruhig eingeschätzt.
-- **Lizenz**, falls RunClub veröffentlicht wird. Das Repo ist privat und hat keine.
-- **Alte Reste löschen** (nur mit ausdrücklichem Ja): der Ordner `C:\actions-runner\monitor` (das Vorgängerwerkzeug) und die
-  Docker-Volumes mit Präfix `qd-` (rund 0,5 GB Caches des Vorgängers).
+- **Lizenz.** RunClub soll später veröffentlicht werden (Entscheidung des Nutzers, 13.10.2026); bis dahin eine wählen.
 
 ## Später
 
@@ -135,8 +130,6 @@ Richtigkeit:
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
   nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern. Das
   Protokoll liefert schon Einträge mit Zeit, Projekt und Art getrennt (`src/journal.js`); nur `text` ist noch ein Satz.
-- **Das Protokoll im Fenster beginnt mit jedem Start leer** (die letzten 300 Einträge liegen nur im Speicher); Älteres
-  steht in der Datei. Möglich: beim Start das Ende der Datei einlesen.
 - **Erster Bildschirm** ist bis zur ersten Antwort leer; ein Gerüstzustand fehlt.
 - **`src/backend.js` aufteilen.** Es startet beim Laden und ist deshalb nicht testbar. Pools, Reserve und Caches sind der
   ungetestete Kern; jede Änderung dort erst mit einem leeren Datenordner ausprobieren (siehe `CLAUDE.md`). Vorschlag aus
@@ -144,7 +137,6 @@ Richtigkeit:
   einem `start()`. Zuerst testen: Lebenslauf eines Platzes (`serveOneJob`, `abortIdle`, `quiesce`), dann Vorlage und
   Gelerntes, dann die Docker-Überwachung.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.
-- **Impeccable** liegt zusätzlich für GitHub Copilot unter `.github/skills` (nicht eingecheckt, 21 MB). Kann lokal weg.
 
 ## Erledigt (zur Einordnung)
 

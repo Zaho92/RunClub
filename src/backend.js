@@ -80,6 +80,10 @@ const journal = createJournal({ file: LOG_FILE, echo: (line) => console.log(line
 // `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` und `about` (bei Jobs `{ job, runner }`) siehe journal.js.
 const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...about });
 // Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll, auf Wunsch mit dem, was gerade versucht wurde.
+// Kennung des Stands für die Oberfläche: Sie ändert sich mit jedem Eintrag und mit jedem Start, damit ein offenes
+// Fenster nach einem Neustart nicht zufällig dieselbe Zahl sieht und das Nachladen auslässt.
+const STARTED = Date.now();
+const logStamp = () => `${STARTED}-${journal.count()}`;
 const logError = (repo, what) => (error) => log(what ? `${what} – ${error.message}` : error.message, repo, 'error');
 
 // --- Einstellungen und Gelerntes ---
@@ -836,7 +840,7 @@ function status() {
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
     unserved: waiting.list(), // Repos ohne Pool mit wartenden Jobs: [{ repo, jobs, since, url }]
-    logCount: journal.count(), // das Protokoll selbst holt die Oberfläche, wenn sich die Zahl ändert
+    logCount: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
   };
@@ -986,18 +990,6 @@ const actions = {
         .catch(logError(pool.repo));
     }
   },
-  async 'slot/restart'({ repo, index }) {
-    const slot = pools.get(repo)?.slots[Number(index)];
-    if (!slot) throw new Error('Diesen Platz gibt es nicht.');
-    if (slot.state === 'arbeitet') throw new Error('Auf diesem Platz läuft ein Job; er wird nach dem Job ohnehin neu aufgebaut.');
-    await abortIdle(slot);
-  },
-  async 'run/rerun'({ repo, id, failedOnly }) {
-    if (!github.has(repo) || !/^\d+$/.test(String(id))) throw new Error('Diesen Lauf gibt es nicht.');
-    await gh(['api', '-X', 'POST', `repos/${repo}/actions/runs/${id}/${failedOnly ? 'rerun-failed-jobs' : 'rerun'}`]);
-    log(`Lauf ${id} erneut angestoßen`, repo);
-    setTimeout(refreshGitHub, 3000);
-  },
   async shutdown() { setTimeout(shutdown, 100); },
 };
 
@@ -1058,7 +1050,7 @@ http.createServer(async (request, response) => {
   }
   if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
   if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
-  if (request.method === 'GET' && request.url === '/api/log') return json(200, { count: journal.count(), entries: journal.recent() });
+  if (request.method === 'GET' && request.url === '/api/log') return json(200, { count: logStamp(), entries: journal.recent() });
   // Die ganze Datei zum Speichern oder Kopieren.
   if (request.method === 'GET' && request.url === '/api/log/file') {
     response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': 'attachment; filename="runclub.log"', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
