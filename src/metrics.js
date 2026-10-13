@@ -10,6 +10,7 @@ const path = require('node:path');
 
 const RECENT_MAX = 300; // Messpunkte der letzten halben Stunde
 const MINUTES_MAX = 1440;
+const DAY = 24 * 3600000;
 const JOB_KEEP = 20; // gemerkte Durchläufe je Job
 const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
 const FIELDS = ['hostCpu', 'hostMemory', 'vmCpu', 'vmMemory'];
@@ -21,7 +22,8 @@ const median = (values) => {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
-function createMetrics({ dataDir }) {
+// `now`: die Uhr; in Tests steuerbar.
+function createMetrics({ dataDir, now: clock = Date.now }) {
   const file = path.join(dataDir, 'metrics.json');
   let stored = {};
   try { stored = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* noch nichts gemessen */ }
@@ -36,11 +38,18 @@ function createMetrics({ dataDir }) {
   };
   const save = () => { try { fs.writeFileSync(file, JSON.stringify({ minutes, jobs })); } catch { /* Messwerte sind Beiwerk */ } };
 
+  // Was älter als 24 Stunden ist, fällt heraus: Nach einer langen Pause lägen sonst alte Minuten auf der Achse eines Tages.
+  const prune = (time) => {
+    const kept = minutes.filter((entry) => entry.at >= time - DAY);
+    if (kept.length !== minutes.length) minutes.splice(0, minutes.length, ...kept);
+  };
+  prune(clock());
+
   const recent = [];
   let bucket = null; // die laufende Minute
 
   // `point`: { hostCpu, hostMemory, vmCpu, vmMemory }
-  function sample(point, now = Date.now()) {
+  function sample(point, now = clock()) {
     recent.push({ at: now, ...point });
     if (recent.length > RECENT_MAX) recent.shift();
     const minute = Math.floor(now / 60000);
@@ -48,6 +57,7 @@ function createMetrics({ dataDir }) {
       const entry = { at: bucket.minute * 60000 };
       for (const field of FIELDS) { entry[field] = bucket.sum[field] / bucket.count; entry[`${field}Max`] = bucket.max[field]; }
       minutes.push(entry);
+      prune(now);
       if (minutes.length > MINUTES_MAX) minutes.splice(0, minutes.length - MINUTES_MAX);
       if (minute % 5 === 0) save();
       bucket = null;
@@ -95,9 +105,12 @@ function createMetrics({ dataDir }) {
   function jobsView(repo) {
     return Object.entries(own(jobs, repo) ?? {}).map(([job, list]) => {
       const measured = list.filter((r) => r.samples > 0);
+      // Üblich ist, was ein erfolgreicher Durchlauf braucht (wie in pipeline.js): Ein Abbruch nach Sekunden verfälscht sonst die Dauer.
+      // Ohne einen erfolgreichen zählen alle, damit die Spalte nicht leer bleibt.
+      const good = list.filter((r) => r.result === 'Succeeded');
       return {
         job, runs: list.length, measuredRuns: measured.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,
-        duration: median(list.map((r) => r.duration)), lastDuration: list.at(-1).duration,
+        duration: median((good.length ? good : list).map((r) => r.duration)), lastDuration: list.at(-1).duration,
         peakMemory: Math.max(0, ...measured.map((r) => r.peakMemory)), peakRunner: Math.max(0, ...measured.map((r) => r.peakRunner)), peakDocker: Math.max(0, ...measured.map((r) => r.peakDocker)),
         cpu: median(measured.map((r) => r.cpu)) ?? 0, peakCpu: Math.max(0, ...measured.map((r) => r.peakCpu)),
       };
@@ -107,7 +120,7 @@ function createMetrics({ dataDir }) {
   // Die letzte halbe Stunde, je Messgröße eine Reihe.
   const series = () => ({ at: recent.map((p) => p.at), ...Object.fromEntries(FIELDS.map((field) => [field, recent.map((p) => Math.round(p[field] * 100) / 100)])) });
 
-  return { sample, meter, recordJob, forget, jobsView, series, minutes: () => minutes, save };
+  return { sample, meter, recordJob, forget, jobsView, series, minutes: () => { prune(clock()); return minutes; }, save };
 }
 
 module.exports = { createMetrics };
