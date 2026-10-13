@@ -1,6 +1,6 @@
 # Offene Punkte
 
-Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
+Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
 `CLAUDE.md`; wofür die App da ist, in `PRODUCT.md`; wie sie aussieht und warum, in `DESIGN.md`.
 
 ## Als Nächstes
@@ -35,7 +35,8 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
   fand, ist ebenfalls behoben (im Commit nach `eba81c1`), aber nicht noch einmal gegengelesen.
 - Ein vierter Durchgang lief am 14.10.2026 über die Kontingent-Anzeige und die Korrekturen der Anmeldung
   (`19ae429..ab8212c`): Richtigkeit, Standards, Sicherheit und der Gutachter der Oberfläche. Alle Befunde sind
-  behoben; der nächste Durchgang prüft `src/seed.js`, `src/caches.js` und was danach kommt.
+  behoben, und die Korrekturen sind gegengelesen (Code und Oberfläche); was das Gegenlesen fand, ist ebenfalls
+  behoben, aber nicht noch einmal gelesen. `src/seed.js` und `src/caches.js` sind dabei mitgelesen worden.
 
 ## Aus den Reviews noch offen
 
@@ -240,17 +241,17 @@ Richtigkeit:
   - Erledigt: Vorlage und Gelerntes als `src/seed.js` mit Tests (`wantedImages`, `withSeed`, `refreshSeed`,
     `learnImages`). Der Code ist unverändert umgezogen (Zeile für Zeile verglichen); anders sind nur die Namen des
     Hereingereichten (`mark`, `dind`, `longTimeout`, `poolOf`). Getestet gegen ein nachgestelltes Docker. Im Betrieb
-    noch nicht geprüft; wirksam erst nach einem Neustart der App. Dann nachsehen: Nach dem Start steht „Frische die
-    Vorlage auf (n Abbilder) …“ je Projekt im Protokoll, und die Einstellungen zeigen dieselben gelernten Abbilder wie
-    zuvor.
+    geprüft am 14.10.2026: Nach dem Start steht „Frische die Vorlage auf (3 Abbilder) …“ im Protokoll, die
+    Einstellungen zeigen dieselben gelernten Abbilder wie zuvor, und ein Demo-Lauf geht durch. Im Betrieb noch nicht
+    gesehen: dass ein Job ein neues Abbild lädt und die Vorlage danach aufgefrischt wird.
   - Erledigt: Caches und Build-Dienst als `src/caches.js` mit Tests (`prepareCaches`, `renewService`). Der Code ist
     unverändert umgezogen (Zeile für Zeile verglichen); anders sind nur `stopping()` und `linuxReady()` als Abfrage
-    und die Namen des Hereingereichten. Im Betrieb noch nicht geprüft; wirksam erst nach einem Neustart der App. Dann
-    nachsehen: `docker ps` zeigt je Projekt mit Cache einen `rc-buildkit-…`, und ein Demo-Lauf baut sein Abbild über
-    den Build-Dienst.
+    und die Namen des Hereingereichten. Im Betrieb geprüft am 14.10.2026: `docker ps` zeigt
+    je Projekt einen `rc-buildkit-…`, und ein Demo-Lauf geht durch. Im Betrieb noch nicht gesehen: der Build-Dienst
+    mit neuen Limits (`renewService`) und der erneute Versuch nach einem Fehlschlag.
   - Seit dem Review der Kontingent-Anzeige sucht `src/run.js` Programme ohne Pfad (`gh`, `docker`, `wsl`) unter
     Windows selbst in den Ordnern aus PATH und nie im Arbeitsverzeichnis (`locate`). Geprüft am echten Rechner für
-    alle drei; wirksam erst nach einem Neustart der App. Liegt eines davon nur als `.cmd` vor, findet RunClub es nicht
+    alle drei, auch im Betrieb (Start und Demo-Lauf am 14.10.2026). Liegt eines davon nur als `.cmd` vor, findet RunClub es nicht
     mehr (das ließ sich auch vorher nicht starten).
   - Als Nächstes: die Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`, `removeLeftovers`), danach
     `startPool`, `preparePool` und `measureSizes`, die an Caches und Vorlage hängen.

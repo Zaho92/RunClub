@@ -88,6 +88,13 @@ test('unter Windows wird ein Programm ohne Pfad nur in den Ordnern aus PATH gesu
   assert.equal(seek('gh', '.;relativ'), null); // liegt nur im Arbeitsverzeichnis
   assert.equal(locate('gh', { platform: 'win32', env: { Path: 'C:\\Tools' }, exists: (file) => there.has(file) }), 'C:\\Tools\\gh.exe');
   assert.equal(locate('gh', { platform: 'win32', env: {}, exists: () => true }), null);
+  // Nur Ordner mit Laufwerk oder Rechnernamen; ein Ordner mit Semikolon im Namen wird nicht zerlegt durchsucht.
+  const anywhere = (PATH) => locate('gh', { platform: 'win32', env: { PATH }, exists: () => true });
+  assert.equal(anywhere('\\tools;/tools;tools'), null);
+  assert.equal(anywhere('"C:\\a;b";D:\\c'), 'D:\\c\\gh.exe');
+  assert.equal(anywhere('\\\\server\\frei'), '\\\\server\\frei\\gh.exe');
+  // Ein Punkt im Namen ist noch keine Endung.
+  assert.equal(locate('tool.v2', { platform: 'win32', env: { PATH: 'C:\\Tools' }, exists: (file) => file === 'C:\\Tools\\tool.v2.exe' }), 'C:\\Tools\\tool.v2.exe');
   // Mit Pfad und außerhalb von Windows bleibt der Name, wie er ist.
   assert.equal(seek('C:\\Anders\\gh.exe'), 'C:\\Anders\\gh.exe');
   assert.equal(seek('./gh'), './gh');

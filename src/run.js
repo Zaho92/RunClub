@@ -23,13 +23,16 @@ const GRACE = 5000; // so lange darf ein beendetes Programm seine Ausgabe noch o
 
 // Wo das Programm liegt. Windows sucht einen Namen ohne Pfad zuerst im Arbeitsverzeichnis und erst dann in PATH: Ein
 // dort abgelegtes `gh.exe` bekäme sonst die Anmeldung samt Einmalcode. Deshalb wird der Name hier nur über die
-// Ordner aus PATH aufgelöst (nur vollständige Pfade). Liefert den Pfad, den Namen unverändert (er trägt schon einen
-// Pfad, oder es ist kein Windows) oder null, wenn es das Programm in PATH nicht gibt.
+// Ordner aus PATH aufgelöst, und nur über solche mit Laufwerk oder Rechnernamen: Alles andere hinge wieder am
+// Arbeitsverzeichnis. Ein Eintrag, dessen Anführungszeichen nicht aufgehen (ein Ordner mit Semikolon im Namen), wird
+// übergangen. Liefert den Pfad, den Namen unverändert (er trägt schon einen Pfad, oder es ist kein Windows) oder
+// null, wenn es das Programm in PATH nicht gibt.
 const EXTENSIONS = ['.exe', '.com']; // was sich ohne Kommandozeile starten lässt
+const ROOTED = /^(?:[A-Za-z]:[\\/]|\\\\)/; // mit Laufwerk (C:\…) oder Rechnernamen (\\server\…)
 function locate(command, { platform = process.platform, env = process.env, exists = fs.existsSync } = {}) {
   if (platform !== 'win32' || /[\\/]/.test(command)) return command;
-  const names = path.win32.extname(command) ? [command] : EXTENSIONS.map((extension) => command + extension);
-  const folders = String(env.PATH ?? env.Path ?? '').split(';').map((folder) => folder.trim().replace(/^"|"$/g, '')).filter((folder) => path.win32.isAbsolute(folder));
+  const names = EXTENSIONS.includes(path.win32.extname(command).toLowerCase()) ? [command] : EXTENSIONS.map((extension) => command + extension);
+  const folders = String(env.PATH ?? env.Path ?? '').split(';').map((folder) => folder.trim().replace(/^"(.*)"$/, '$1')).filter((folder) => !folder.includes('"') && ROOTED.test(folder));
   for (const folder of folders) {
     for (const name of names) { const found = path.win32.join(folder, name); if (exists(found)) return found; }
   }

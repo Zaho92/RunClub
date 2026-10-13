@@ -245,7 +245,7 @@ Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, i
 
 **Display Font:** Overpass (mit „Segoe UI“, system-ui, sans-serif), als variable Schrift lokal ausgeliefert (`src/fonts/overpass-latin.woff2`, Strichstärken 100–900)
 **Body Font:** Overpass (dieselbe Familie)
-**Label/Mono Font:** Consolas, monospace, nur für Code (der Ausdruck für `runs-on` und die Namen der GitHub-Rechte in den Einstellungen)
+**Label/Mono Font:** Consolas, monospace, nur für Code (der Ausdruck für `runs-on`, die Namen der GitHub-Rechte und Variablen, der Einmalcode der Anmeldung)
 
 **Character:** Eine einzige Familie, deren Herkunft aus der Verkehrsbeschilderung zur Bildwelt passt. Die Hierarchie entsteht aus Größe und Farbe, kaum aus Gewicht: Lauftext in 300, Namen und Überschriften in 400, die große Restzeit in 200.
 
@@ -261,7 +261,7 @@ Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, i
 - **Label** (400, 12 px): Beschriftung über Kennzahlen, zweite Zeile in Leiste und Pill, Tags, Tooltip.
 - **Achse** (400, 11 px): Zeitachse unter den Kurven.
 - **Wortmarke** (600, 22 px): „RunClub“ oben in der Leiste; die einzige Stelle mit kräftigem Schnitt.
-- **Mono** (Consolas, 12 px): Code in den Einstellungen. Das Protokoll steht in Overpass.
+- **Mono** (Consolas, 12 px): Code, wo immer er steht; in einem hervorgehobenen Satz in `ink`, damit er nicht hinter dem Satz zurückfällt. Das Protokoll steht in Overpass.
 
 ### Named Rules
 **Die Leichte-Schnitte-Regel.** Lauftext steht in 300, Betonung in 400, nichts außer der Wortmarke darüber. Je größer die Schrift, desto leichter der Schnitt.
@@ -358,15 +358,17 @@ Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, recht
   von sich aus mehr). Rechts „Abmelden“. Abmelden fragt nach, weil es Jobs trifft und auch `gh` im Terminal abmeldet;
   rot ist es nicht, weil sich wieder anmelden lässt. Fehlt ein freiwilliges Recht, folgt eine Zeile ohne Titel mit dem
   Satz, wofür es gebraucht würde und wie weit es reicht, und „Recht ergänzen“. Das ist keine Störung und bleibt `muted`.
-  Der Name eines Rechts steht immer in Mono.
+  Der Name eines Rechts steht immer in Mono. Die Sätze der Zeilen sind höchstens so breit wie Lauftext (56ch).
 - **Störung mit Ausweg:** Nicht angemeldet, ein fehlendes Pflichtrecht und ein fehlendes `gh` sind rot: der Titel der
   Zeile in `fail-text`, der Satz darunter in `text`, rechts der Ausweg („Bei GitHub anmelden“, „Recht ergänzen“). Fehlt
   `gh`, gibt es keine Schaltfläche, nur den Satz mit dem Link, wo es `gh` gibt. Dazu trägt „Einstellungen“ in der Leiste
-  die zweite Zeile in `fail-text`, und in der Übersicht steht ein Warn-Tag. Ein gescheiterter Ablauf steht als Satz in
-  `fail-text` (höchstens so breit wie Lauftext) über der Zeile, um die es ging: beim Ergänzen über der Zeile des Rechts,
-  sonst über allen. Den Grund sagt die Oberfläche in ihrer Sprache; wörtlich steht nur da, was `gh` selbst schrieb.
+  die zweite Zeile in `fail-text`, und in der Übersicht steht ein Warn-Tag. Solange ein Pflichtrecht fehlt, steht nur
+  dieses zur Wahl; die freiwilligen folgen, sobald es ergänzt ist. Ein gescheiterter Ablauf steht als Satz in
+  `fail-text` in der Zeile, um die es ging, über deren Titel und Satz: beim Ergänzen in der Zeile des Rechts, sonst in
+  der des Kontos. Den Grund sagt die Oberfläche in ihrer Sprache; wörtlich steht nur da, was `gh` selbst schrieb.
 - **Während eines Ablaufs** (Anmelden oder Ergänzen) ersetzt er die Zeilen: die Beschriftung „Einmalcode“ (Label,
-  `muted`), darunter der Code als Kennzahl (`figure`, `ink`; ein Klick markiert ihn ganz), ein Satz in `text`, was zu tun
+  `muted`), darunter der Code als Kennzahl (`figure`, `ink`, in Mono, damit 0 und O, 1 und I zu unterscheiden sind; ein
+  Klick markiert ihn ganz), ein Satz in `text`, was zu tun
   ist, und eine Zeile Schaltflächen in der Reihenfolge des Gebrauchs: „Code kopieren“ (Symbol mit Wort), „GitHub öffnen“
   (ein Link, der im Browser aufgeht) und abgesetzt am rechten Ende „Abbrechen“. Beim Ergänzen nennt der Satz das Konto,
   als das zu bestätigen ist, und das Recht, weil im Browser ein anderes Konto angemeldet sein kann. Rot ist hier
@@ -374,8 +376,10 @@ Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, recht
 - **Ohne Projekte** steht bei fehlender Anmeldung statt „Noch kein Projekt“ der Schritt „Zuerst bei GitHub anmelden“:
   Überschrift, ein Satz, die Schaltfläche „Bei GitHub anmelden“; während des Ablaufs derselbe Einmalcode. Dass hier noch
   niemand angemeldet ist, ist der Anfang und keine Störung; auch die Zeile in der Leiste ist dann `muted`. Fehlt `gh`
-  oder ein Pflichtrecht, nennt die Überschrift das, und die Zeile dazu steht ohne ihren Titel darunter; rot sind dort
-  die Zeile in der Leiste und ein gescheiterter Ablauf.
+  oder ein Pflichtrecht, nennt die Überschrift das, und die Zeile dazu steht ohne ihren Titel direkt darunter, beim
+  Pflichtrecht gefolgt von der Zeile des Kontos; rot sind dort die Zeile in der Leiste und ein gescheiterter Ablauf.
+  Die Zeilen des ersten Schritts tragen keine Haarlinie. „Alle Projekte“ trägt in der Leiste keine zweite Zeile,
+  solange es kein Projekt gibt.
 
 
 ### Projektzeile
@@ -428,7 +432,7 @@ eigenen Runnern verbraucht hat. So heißt es überall in der Oberfläche, auch i
 GitHub-Minuten“); im Code und in der übrigen Doku ist es das Minuten-Kontingent. Im Kopf rechts, was noch frei ist und
 an welchem Tag es wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und den enthaltenen Minuten,
 dieselbe Schiene mit der gepunkteten Marke bei 85 % und ein Satz in `muted`: woraus die Zahl besteht (Linux, Windows,
-macOS, soweit vorhanden) und wie viele Minuten der Tarif im Monat enthält. Diese Zahl ist eine Annahme aus dem Tarif;
+macOS, soweit vorhanden), was davon berechnet wird, und wie viele Minuten RunClub für den Tarif annimmt. Diese Zahl ist eine Annahme aus dem Tarif;
 die Tabelle dazu steht nur in `src/minutes.js` (`INCLUDED`) und kommt mit dem Stand in die Oberfläche. Kennt RunClub
 für den Tarif keine Zahl, steht die Kennzahl allein, ohne Grenze und Schiene, und der Satz nennt die Tarife, die es
 kennt. Die Zustände und ihre Regeln stehen in `src/minutes.js`; die Oberfläche liest sie nur ab.
@@ -437,19 +441,19 @@ kennt. Die Zustände und ihre Regeln stehen in `src/minutes.js`; die Oberfläche
 - **Aufgebraucht** (das Enthaltene ist erreicht, nichts wurde bezahlt: Ohne Budget startet GitHub in privaten Repos
   keine Läufe mehr) ist rot, weil es einen Ausweg gibt: Kennzahl, Schiene und der erste Satz, der den Tag nennt, an dem
   es weitergeht; der Rest nennt in `text` den Ausweg (Projekte auf die eigenen Runner holen oder bei GitHub ein Budget
-  setzen). Ob ein Budget gesetzt ist, sieht RunClub nicht; der Satz sagt deshalb „ohne Budget“. Die Zeile in der Leiste
+  setzen), darunter die Schaltfläche „Zu den Projekten“. Ob ein Budget gesetzt ist, sieht RunClub nicht; der Satz sagt deshalb „ohne Budget“. Die Zeile in der Leiste
   ist dann `fail-text`. Ein Warn-Tag in der Übersicht gibt es dafür nicht; dort stehen die betroffenen Repos als Zeilen
   „Keine GitHub-Minuten“.
 - **Bezahlt** (das Enthaltene ist erreicht, und es wird berechnet) ist weder knapp noch rot: Wer bezahlt, hat ein
-  Budget gesetzt. Der Kopf nennt dann statt des Freien, wie viele Minuten darüber liegen und was sie bisher kosten. Ein
-  Satz in `text` sagt dasselbe und dass GitHub nur bis zum Budget berechnet und danach nichts mehr startet; diese
+  Budget gesetzt. Der Kopf nennt dann statt des Freien, wie viele Minuten berechnet sind und was sie bisher kosten. Ein
+  Satz in `text` sagt, was daraus folgt: GitHub berechnet nur bis zum Budget und startet danach nichts mehr; diese
   Grenze sieht RunClub nicht. Die Leiste meldet nichts. Wird schon unter dem Enthaltenen etwas berechnet (etwa ein
-  größerer Runner), steht das nur im Satz in `muted`.
+  größerer Runner), steht das nur im Satz in `muted`; knapp ist es dann nicht, weil es ein Budget gibt.
 - **Ohne das Recht `user`** steht in der Haltestelle nur ein Satz in `muted` mit der Schaltfläche „In den
   Einstellungen ergänzen“, die zur Haltestelle „GitHub“ führt. Das Recht ist freiwillig; rot ist hier nichts.
 - **Ohne Stand** (noch nicht gelesen, oder die Abfrage ist gescheitert) steht dort ein Satz in `muted`, damit die
   Haltestelle nicht erst später dazukommt und die Projekte nach unten schiebt. Der Grund eines Fehlers steht im
-  Protokoll. Ohne Anmeldung fehlt die Haltestelle; lassen sich die Rechte der Anmeldung nicht lesen, wird die Abfrage
+  Protokoll; die Schaltfläche „Zum Protokoll“ führt hin. Ohne Anmeldung fehlt die Haltestelle; lassen sich die Rechte der Anmeldung nicht lesen, wird die Abfrage
   versucht.
 
 

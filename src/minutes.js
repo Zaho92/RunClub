@@ -13,7 +13,7 @@
 //           Minute: Die eine echte Antwort (test/minutes.test.js) zeigt 2.097 verbrauchte bei angenommenen 2.000.
 // Budget    Ob bei GitHub ein Budget gesetzt ist und wie hoch, sagt die Antwort nicht. Zu sehen ist nur, ob schon
 //           etwas bezahlt wurde. Daraus folgen die Zustände; was sie über das Starten von Läufen sagen, ist ein Schluss.
-// Zustand   ok | tight (ab 85 % des Enthaltenen) | out (das Enthaltene ist erreicht und nichts wurde bezahlt: Ohne
+// Zustand   ok | tight (ab 85 % des Enthaltenen, solange nichts berechnet wird) | out (das Enthaltene ist erreicht und nichts wurde bezahlt: Ohne
 //           Budget startet GitHub in privaten Repos keine Jobs mehr) | paid (das Enthaltene ist erreicht und es wird
 //           bezahlt: Es gibt ein Budget; ob es schon erschöpft ist, ist nicht zu sehen) | unknown (der Tarif ist
 //           unbekannt). Solange es für das Konto keinen Stand gibt: reading (wird gelesen) | failed (die letzte
@@ -50,9 +50,11 @@ function monthEnd(summary, now) {
 }
 
 // Geurteilt wird über die gerundeten Zahlen, die auch die Oberfläche zeigt.
+// Wird schon etwas berechnet, gibt es ein Budget: Dann ist nichts knapp, und der Vorbehalt „ohne Budget“ gälte nicht.
 function stateOf(used, included, paid) {
   if (!included) return STATE.UNKNOWN;
-  if (used >= included) return paid > 0 ? STATE.PAID : STATE.OUT;
+  if (paid > 0) return used >= included ? STATE.PAID : STATE.OK;
+  if (used >= included) return STATE.OUT;
   return used >= included * TIGHT_AT ? STATE.TIGHT : STATE.OK;
 }
 
@@ -85,13 +87,14 @@ function summarize(summary, plan, now = Date.now()) {
 // `gh` wie `call` in github.js. `log(text)` schreibt einen Fehler ins Protokoll.
 function createMinutes({ gh, log = () => {}, now = Date.now }) {
   let current = null; // { login, …Stand }
-  let failures = 0; // gescheiterte Abfragen in Folge: Gemeldet wird nur die erste
+  let failures = 0; // gescheiterte Abfragen in Folge für das Konto in `asked`: Gemeldet wird nur die erste
   let asked = null; // { login, nextAt }: für wen zuletzt gefragt wurde und wann die nächste Abfrage fällig ist
   let reading = null; // { login, promise }: die laufende Abfrage; es läuft höchstens eine
 
   const valid = (login) => Boolean(current) && current.login === login && now() < new Date(current.resetAt).getTime();
 
   async function read(login) {
+    if (asked?.login !== login) failures = 0; // ein anderes Konto beginnt von vorn: Sein erster Fehler steht im Protokoll
     try {
       const wanted = monthOf(now());
       const summary = await gh(['api', `users/${encodeURIComponent(login)}/settings/billing/usage/summary?year=${wanted.year}&month=${wanted.month}`]);

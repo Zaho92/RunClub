@@ -71,7 +71,7 @@ test('angemeldet ohne das freiwillige Recht: nichts fehlt, eines lässt sich erg
   const { auth, calls } = fake();
   assert.equal(auth.view().state, 'unknown');
   assert.deepEqual(await auth.refresh(), {
-    state: 'in', login: 'Zaho92', scopes: ['gist', 'project', 'read:org', 'repo', 'workflow'], extra: ['gist', 'project', 'read:org', 'workflow'],
+    state: 'in', login: 'Zaho92', scopes: ['gist', 'project', 'read:org', 'repo', 'workflow'], required: ['repo'], extra: ['gist', 'project', 'read:org', 'workflow'],
     missing: [], optional: [{ scope: 'user', purpose: 'minutes' }], flow: null,
   });
   assert.deepEqual(calls[0], { command: 'gh', args: ['auth', 'status', '--active', '--hostname', 'github.com', '--json', 'hosts'], input: undefined, timeout: MINUTE });
@@ -134,7 +134,7 @@ test('scheitert das Lesen des Stands ganz, bleibt er stehen, und das nächste Le
 
 test('nicht angemeldet; und was sich nicht lesen lässt, ändert den Stand nicht', async () => {
   const { auth, world } = fake(SIGNED_OUT);
-  assert.deepEqual(await auth.refresh(), { state: 'out', login: null, scopes: null, extra: [], missing: [], optional: [], flow: null });
+  assert.deepEqual(await auth.refresh(), { state: 'out', login: null, scopes: null, required: ['repo'], extra: [], missing: [], optional: [], flow: null });
   world.status = ok(SIGNED_IN);
   assert.equal((await auth.refresh()).state, 'in');
   world.status = { code: -1, stdout: '', stderr: 'keine Antwort nach 60 s', timedOut: true };
@@ -203,6 +203,12 @@ test('anmelden nur, wenn sicher niemand angemeldet ist: Ein unbekannter Stand wi
   blind.world.status = { code: 1, stdout: '', stderr: 'irgendein Fehler', timedOut: false };
   await assert.rejects(blind.auth.login(), /noch nicht lesen/);
   assert.deepEqual(blind.flowCalls(), []);
+  // Wer sich inzwischen im Terminal angemeldet hat, wird nicht noch einmal angemeldet: Der Stand wird davor gelesen.
+  const late = fake(SIGNED_OUT);
+  await late.auth.refresh();
+  late.world.status = ok(SIGNED_IN);
+  await assert.rejects(late.auth.login(), /schon als Zaho92 angemeldet/);
+  assert.deepEqual(late.flowCalls(), []);
   // Nicht angemeldet: Der Ablauf beginnt auch ohne vorheriges Lesen.
   const out = fake(SIGNED_OUT);
   const begun = start(out, () => out.auth.login());
@@ -341,7 +347,7 @@ test('abmelden: nennt gh das Konto, liest den Stand neu und schreibt ins Protoko
   world.status = ok(SIGNED_OUT);
   await auth.logout();
   assert.deepEqual(flowCalls().at(-1), { command: 'gh', args: ['auth', 'logout', '--hostname', 'github.com', '--user', 'Zaho92'], input: '\n', timeout: MINUTE });
-  assert.deepEqual(auth.view(), { state: 'out', login: null, scopes: null, extra: [], missing: [], optional: [], flow: null });
+  assert.deepEqual(auth.view(), { state: 'out', login: null, scopes: null, required: ['repo'], extra: [], missing: [], optional: [], flow: null });
   assert.deepEqual(logs, ['Bei GitHub abgemeldet (Zaho92).']);
   await assert.rejects(auth.logout(), /nicht bei GitHub angemeldet/);
 });

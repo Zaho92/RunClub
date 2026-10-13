@@ -211,6 +211,6 @@ test('gh läuft ohne Token, Host und Mitschreiben aus der Umgebung, bei jedem Au
   await github.call(['api', '-X', 'POST', 'repos/wer/App/actions/runs/1/rerun']);
   await github.refreshQuota();
   assert.deepEqual(seen, [GH_ENV, GH_ENV, GH_ENV]);
-  for (const name of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'GH_HOST', 'GH_DEBUG', 'DEBUG']) assert.equal(GH_ENV[name], '');
+  for (const name of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'GH_HOST', 'GH_DEBUG', 'DEBUG', 'GH_FORCE_TTY', 'CLICOLOR_FORCE']) assert.equal(GH_ENV[name], '');
   assert.ok(Object.isFrozen(GH_ENV));
 });

@@ -61,8 +61,8 @@ test('wer über das Enthaltene hinaus bezahlt, hat ein Budget: weder knapp noch 
   assert.equal(found.paid, 310);
   assert.equal(found.cost, 2.42);
   assert.deepEqual(found.systems, { linux: 2300, windows: 0, macos: 10, other: 0 });
-  // Unter dem Enthaltenen (bezahlt wird etwa ein größerer Runner) gilt die gewöhnliche Regel.
-  assert.equal(summarize(summaryOf([item('actions_linux', 1800), item('actions_linux_4_core', 5, 5)]), 'free', NOW).state, STATE.TIGHT);
+  // Wird schon unter dem Enthaltenen etwas berechnet (etwa ein größerer Runner), ist es deshalb nicht knapp.
+  assert.equal(summarize(summaryOf([item('actions_linux', 1800), item('actions_linux_4_core', 5, 5)]), 'free', NOW).state, STATE.OK);
 });
 
 test('die enthaltenen Minuten kommen aus dem Tarif; ein unbekannter hat keine und damit keinen Zustand', () => {
@@ -185,6 +185,22 @@ test('ein Fehler lässt den letzten Stand stehen und steht einmal im Protokoll, 
   github.fail = 'kein Netz';
   await minutes.refresh('wer');
   assert.equal(logged.length, 2);
+});
+
+test('ein anderes Konto beginnt von vorn: Sein erster Fehler steht im Protokoll, und es wird bald wieder gefragt', async () => {
+  let now = NOW;
+  const github = fakeGitHub(REAL);
+  const logged = [];
+  github.fail = 'gh: Not Found (HTTP 404)';
+  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(text), now: () => now });
+  for (let round = 0; round < 4; round += 1) { await minutes.refresh('wer'); }
+  assert.equal(logged.length, 1);
+  await minutes.poll('anders');
+  assert.equal(logged.length, 2);
+  const before = github.reads().length;
+  now += RETRY;
+  await minutes.poll('anders');
+  assert.equal(github.reads().length, before + 1);
 });
 
 test('wirft das Protokoll, scheitert die Abfrage trotzdem nicht', async () => {

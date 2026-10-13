@@ -578,7 +578,7 @@ function status() {
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
     minutes: minutes.view(minutesLogin()), // Minuten-Kontingent von GitHub Actions in diesem Monat: { plan | null, used, included | null, paid, cost, systems: { linux, windows, macos, other }, resetAt, state, tightAt, plans }; solange es keinen Stand gibt, nur { state: 'reading' | 'failed' }; null ohne Anmeldung oder ohne das Recht dafür
     unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'minutes', runs, since, url }]
-    auth: auth.view(), // Anmeldung bei GitHub: { state, login, scopes, missing, optional: [{ scope, purpose }], flow: { kind, scopes, state, code, url, why, error } | null }
+    auth: auth.view(), // Anmeldung bei GitHub: { state, login, scopes, required, extra, missing, optional: [{ scope, purpose }], flow: { kind, scopes, state, code, url, why, error } | null }
     logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),

@@ -93,6 +93,7 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
     const known = [...REQUIRED, ...OPTIONAL.map((entry) => entry.scope)];
     return {
       state: current.state, login: current.login, scopes: current.scopes,
+      required: [...REQUIRED], // die Pflichtrechte, damit die Oberfläche sie beim Namen nennt
       extra: (current.scopes ?? []).filter((scope) => !known.includes(scope)), // Rechte, die RunClub nicht nutzt (`gh` verlangt von sich aus mehr)
       missing: REQUIRED.filter(lacks), // fehlende Pflichtrechte
       optional: OPTIONAL.filter((entry) => lacks(entry.scope)).map((entry) => ({ ...entry })), // fehlende freiwillige
@@ -197,10 +198,12 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
   }
 
   // Nur wer sicher nicht angemeldet ist, meldet sich an: Ein Anmelden über eine bestehende Anmeldung hinweg ersetzte
-  // deren Token, auch für das Terminal. Ist der Stand noch unbekannt, wird er deshalb erst gelesen. Das Protokoll für
-  // Git (`--git-protocol`) bleibt, wie der Nutzer es in `gh` eingestellt hat.
+  // deren Token, auch für das Terminal. Der Stand wird deshalb unmittelbar davor frisch gelesen (der letzte kann eine
+  // Minute alt sein, und im Terminal kann sich inzwischen jemand angemeldet haben). Das Protokoll für Git
+  // (`--git-protocol`) bleibt, wie der Nutzer es in `gh` eingestellt hat.
   async function login() {
-    if (current.state === STATE.UNKNOWN) await fresh();
+    if (closed) throw new Error('RunClub wird gerade beendet.');
+    if (!running() && !leaving) await fresh();
     if (current.state === STATE.MISSING) throw new Error('Das Programm gh ist nicht installiert.');
     if (current.state === STATE.IN) throw new Error(`Du bist schon als ${current.login} angemeldet.`);
     if (current.state !== STATE.OUT) throw new Error('Der Stand der Anmeldung ließ sich noch nicht lesen. Bitte gleich noch einmal versuchen.');

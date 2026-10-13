@@ -22,8 +22,9 @@ const CACHE_MAX = 500; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs 
 // RunClub arbeitet mit der Anmeldung von `gh` bei github.com (siehe auth.js). Was `gh` aus der Umgebung läse, gilt
 // deshalb nicht: ein Token, das die Anmeldung umgeht, ein anderer Host, und das Mitschreiben des Verkehrs samt Token
 // auf die Fehlerausgabe (deren letzte Zeile als Fehlermeldung in die Oberfläche geht). Ein leerer Wert zählt für `gh`
-// wie ein fehlender. Der Hinweis auf eine neue Version von `gh` stünde sonst ebenfalls als letzte Zeile da.
-const GH_ENV = Object.freeze({ GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '', GH_HOST: '', GH_DEBUG: '', DEBUG: '', GH_NO_UPDATE_NOTIFIER: '1' });
+// wie ein fehlender. Der Hinweis auf eine neue Version von `gh` stünde sonst ebenfalls als letzte Zeile da, und
+// erzwungene Farbe (GH_FORCE_TTY, CLICOLOR_FORCE) setzte Steuerzeichen in die Antworten, die hier gelesen werden.
+const GH_ENV = Object.freeze({ GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '', GH_HOST: '', GH_DEBUG: '', DEBUG: '', GH_FORCE_TTY: '', CLICOLOR_FORCE: '', GH_NO_UPDATE_NOTIFIER: '1' });
 
 // Friert eine Antwort samt allem darin ein.
 function deepFreeze(value) {
