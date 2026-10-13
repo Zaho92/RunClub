@@ -44,6 +44,12 @@ const CONFIG_FILE = path.join(DATA_DIR, 'runners.json');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const LOG_FILE = path.join(DATA_DIR, 'runclub.log');
 const IMAGE = 'runclub-runner:latest';
+// Was privilegiert läuft, ist per Digest festgenagelt: Ein bewegliches Etikett (`dind`, `latest`) kann von heute auf
+// morgen etwas anderes sein. Anheben: das neue Abbild laden (`docker pull docker:dind`), prüfen, den Digest aus
+// `docker image inspect --format '{{index .RepoDigests 0}}'` hier eintragen. Das Runner-Abbild selbst (linux/Dockerfile)
+// folgt bewusst dem neuesten Stand: GitHub weist zu alte Runner ab.
+const DIND = 'docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470';
+const BUILDKIT = 'moby/buildkit@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c';
 // Kennzeichen der eigenen Container, Volumes und Netze. Es trägt den Datenordner in sich, damit eine zweite
 // Instanz (zum Ausprobieren, mit eigenem Datenordner) beim Aufräumen nicht die Paare der ersten entfernt.
 const MARK = `runclub.runner=${crypto.createHash('sha256').update(path.resolve(DATA_DIR).toLowerCase()).digest('hex').slice(0, 10)}`;
@@ -168,8 +174,8 @@ async function prepareLinux() {
   dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
   log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
   await buildImage();
-  await docker(['pull', '-q', 'docker:dind'], { timeout: DOCKER_LONG });
-  await docker(['pull', '-q', 'moby/buildkit:latest'], { timeout: DOCKER_LONG });
+  await docker(['pull', '-q', DIND], { timeout: DOCKER_LONG });
+  await docker(['pull', '-q', BUILDKIT], { timeout: DOCKER_LONG });
   // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
   // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.
   if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; } else await removeOrphans();
@@ -238,7 +244,7 @@ async function prepareCaches(repo) {
   await docker(['rm', '-f', buildService(repo)]);
   if (!settings?.cache) { await docker(['network', 'rm', buildNetwork(repo)]); return; }
   await docker(['volume', 'create', cacheVolume(repo)]);
-  await docker(['run', '--rm', '-v', `${cacheVolume(repo)}:/c`, '--entrypoint', 'sh', 'docker:dind', '-c',
+  await docker(['run', '--rm', '-v', `${cacheVolume(repo)}:/c`, '--entrypoint', 'sh', DIND, '-c',
     'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
   await docker(['volume', 'create', buildVolume(repo)]);
   // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
@@ -249,7 +255,7 @@ async function prepareCaches(repo) {
   } else {
     const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no', '--network', buildNetwork(repo),
       '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory,
-      '-v', `${buildVolume(repo)}:/var/lib/buildkit`, 'moby/buildkit:latest', '--addr', 'tcp://0.0.0.0:1234']);
+      '-v', `${buildVolume(repo)}:/var/lib/buildkit`, BUILDKIT, '--addr', 'tcp://0.0.0.0:1234']);
     if (service.code !== 0) log(`Build-Dienst startet nicht – ${lastLine(service.stderr)}`, repo, 'error');
   }
   const pool = pools.get(repo);
@@ -285,7 +291,7 @@ function refreshSeed(repo) {
     if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
     log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
     await docker(['volume', 'create', seed]);
-    await docker(['run', '-d', '--label', MARK, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, 'docker:dind']);
+    await docker(['run', '-d', '--label', MARK, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, DIND]);
     let ready = false;
     for (let attempt = 0; attempt < 40 && !ready; attempt += 1) {
       ready = (await docker(['exec', loader, 'docker', 'info', '--format', 'ok'], { timeout: 20 * SECOND })).code === 0;
@@ -386,7 +392,7 @@ async function provision(pool, cancelled) {
     pair.copied = new Set(pool.seeded);
     if (!pair.copied.size || cancelled()) return;
     await docker(['run', '--rm', ...label, '--name', `${base}-seed`, '-v', `${seedVolume(pool.repo)}:/seed:ro`, '-v', `${base}-docker:/var/lib/docker`,
-      '--entrypoint', 'sh', 'docker:dind', '-c', 'cp -a /seed/. /var/lib/docker/'], { timeout: DOCKER_LONG });
+      '--entrypoint', 'sh', DIND, '-c', 'cp -a /seed/. /var/lib/docker/'], { timeout: DOCKER_LONG });
   });
   if (cancelled()) return giveUp();
 
@@ -395,7 +401,7 @@ async function provision(pool, cancelled) {
   const dind = await docker(['run', '-d', ...label, '--name', `${base}-dind`, '--privileged', '--network', base,
     '--cpus', String(limits.dockerCpus), '--memory', limits.dockerMemory,
     '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:/var/lib/docker`,
-    '--entrypoint', 'sh', 'docker:dind', '-c',
+    '--entrypoint', 'sh', DIND, '-c',
     'chown 1001:1001 /home/runner/_work && exec dockerd-entrypoint.sh dockerd --host=unix:///sock/docker.sock --group=123']);
   if (dind.code !== 0) return giveUp(new Error(`Docker-Daemon startet nicht: ${lastLine(dind.stderr)}`));
   let ready = false;
@@ -618,7 +624,7 @@ async function measureSizes(pool) {
   const sizes = { packages: 0, images: 0, build: 0 };
   if (parts.length) {
     const mounts = parts.flatMap(([key, volume]) => ['-v', `${volume}:/m/${key}:ro`]);
-    const result = await docker(['run', '--rm', ...mounts, '--entrypoint', 'sh', 'docker:dind', '-c', 'du -sm /m/* 2>/dev/null']);
+    const result = await docker(['run', '--rm', ...mounts, '--entrypoint', 'sh', DIND, '-c', 'du -sm /m/* 2>/dev/null']);
     for (const line of result.stdout.split('\n')) {
       const match = line.match(/^(\d+)\s+\/m\/(\w+)/);
       if (match) sizes[match[2]] = Number(match[1]) * 1048576;
