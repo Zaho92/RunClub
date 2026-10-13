@@ -39,7 +39,7 @@ Jeder Job bekommt einen frischen, abgeschotteten Linux-Container mit eigenem Doc
 
 Vorhanden:
 
-- Pool je Repo mit einstellbarer Zahl von Plätzen, Pause, Reserve, Caches zum Leeren.
+- Pool je Repo mit einstellbarer Zahl von Plätzen, Pause, Reserve, Caches zum Leeren; Limits je Job (Speicher und Kerne) mit Vorschlag aus den Messwerten.
 - Repo-Auswahl aus dem GitHub-Konto.
 - Laufende Läufe als Netzplan: alle Jobs mit ihren Abhängigkeiten (aus `needs` der Workflow-Datei), aktuellem Schritt, üblicher Dauer und grober Restzeit.
 - Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job (Dauer, Spitzen-RAM, CPU), Wartezeit auf einen Runner.
@@ -55,8 +55,6 @@ Grenzen:
 
 Offen:
 
-- `CI_RUNNER` wird noch nicht von der App gesetzt.
-- Limits je Job sind noch nicht in der Oberfläche einstellbar.
 - Ob und unter welcher Lizenz RunClub veröffentlicht wird.
 
 ## Brand Commitments
