@@ -5,17 +5,28 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 ## Als Nächstes
 
-1. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
+1. **Popups und Fenster im Stil der App.** Vom Nutzer zweimal gewünscht. Rückfragen: `confirm()` öffnet den nativen
+   Dialog; gebraucht wird eine eigene Rückfrage in der Bildwelt (für Leeren, Entfernen, Zurückschalten, Beenden), die
+   nennt, was passiert, und per Tastatur bedienbar ist. Fenster: Titelleiste und die Knöpfe zum Minimieren, Maximieren
+   und Schließen kommen von Windows; gewünscht ist ein rahmenloses Fenster mit eigener Titelleiste (in Electron
+   `frame: false` oder `titleBarStyle: 'hidden'` mit `titleBarOverlay`, dazu ein ziehbarer Bereich). Schließen muss
+   weiter nur das Fenster verstecken. Das Menü am Symbol im Infobereich bleibt von Windows gezeichnet.
+2. **Protokoll lesbarer und exportierbar.** Wunsch des Nutzers. Im Fenster: Zeitpunkt, Projekt und Meldung getrennt
+   setzen statt als eine Zeile Text, Fehler und Ergebnisse von Jobs kenntlich machen, nach Projekt filtern. Dafür sollte
+   das Backend Einträge als `{ at, repo, text, kind }` liefern statt fertiger Zeilen (das hilft auch der Übersetzung,
+   siehe „Meldungen des Backends sind nur deutsch“). Export: die ganze Datei `runclub.log` aus dem Datenordner
+   speichern oder in die Zwischenablage legen; die Oberfläche zeigt heute nur die letzten 25 Zeilen.
+3. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
    anbieten, einen Pool anzulegen. Auf das Anfragelimit achten (5.000 je Stunde; im Leerlauf verbraucht RunClub rund 720).
-2. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
+4. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
    `docker build` einen echten Ordner braucht.
-3. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
+5. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
    deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
    Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
    Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner unter `%APPDATA%\RunClub` bleibt, wo er ist.
-4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
+6. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
    holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein
@@ -64,7 +75,9 @@ Richtigkeit:
   verspricht die Warnung. Die Summe „zusammen bis zu“ in „Verbrauch“ lässt den Build-Dienst je Repo aus.
 - **Zwei verschiedene „übliche Dauern“**: `src/metrics.js` nimmt den Median aller Durchläufe, `src/pipeline.js` nur der
   erfolgreichen. Verbrauch wird nur nach Jobname geführt; gleichnamige Jobs aus zwei Workflows mischen sich.
-- **Ein gescheiterter Reserve-Eintrag** zählt als vorhanden, bis ein Platz ihn zieht (`replenish` in `src/backend.js`).
+- **Vorrat an Docker-Netzen.** Jedes Paar und jeder Build-Dienst belegt ein eigenes Netz; Docker hält in der
+  Voreinstellung rund 30 bereit. Mit vielen Pools oder Plätzen reicht das nicht. Möglich: Netze mit kleinen, selbst
+  vergebenen Subnetzen anlegen.
 - Die Endpunkte `slot/restart`, `run/rerun` und `api/ping` ruft die Oberfläche nicht auf: behalten oder entfernen?
 
 Oberfläche:
@@ -72,6 +85,19 @@ Oberfläche:
 - Nach mehr als 24 Stunden Pause zeichnet der Tagesverlauf alte Minuten und meldet eine Spitze „vor x Tagen“.
 
 ## Noch nicht echt ausprobiert
+
+- **Limits je Projekt und „Runner neu aufbauen“** (Einstellungen → Projekt aufklappen → Limits → „Eigene“). Getestet sind
+  nur die Rechenregeln (`test/limits.test.js`). Im Betrieb prüfen: Ein Projekt mit eigenen Werten baut seine Paare damit
+  (`docker inspect`), „Wie alle“ nimmt sie wieder weg, und „Runner neu aufbauen“ ersetzt die freien Runner, ohne einen
+  laufenden Job zu stören.
+- **„Vorschlag übernehmen“ für alle Projekte** (`limits/plan`): setzt den Standard und eigene Limits für Ausreißer in einem
+  Schritt und nimmt allen anderen Projekten ihre eigenen Werte. Die Regeln sind getestet (`plan`, `rate` in
+  `test/limits.test.js`), der Aufruf gegen die laufende App nicht.
+- **Mehrere Limit-Änderungen kurz nacheinander.** Am 13.10.2026 scheiterten danach sieben Paare mit „Docker-Daemon
+  startet nicht“, und die Reserve dreier Pools blieb leer. Vermutete Ursache: Docker gingen die Netze aus, weil alte und
+  neue Paare zugleich standen (belegt ist das nicht, die Meldung zeigte nur den Hilfe-Hinweis). Seither laufen die
+  Erneuerungen nacheinander, ein gescheiterter Eintrag verlässt die Reserve, und die Meldung nennt die Ursache. Beim
+  nächsten Mal im Protokoll nachsehen, ob es dabei bleibt.
 
 - **CI_RUNNER setzen und entfernen** gegen GitHub. Gelesen wird richtig, das Schreiben ist nur gegen ein nachgestelltes
   GitHub getestet (`test/routing.test.js`). Ausprobieren in Einstellungen → Projekt RunClub.
@@ -90,11 +116,6 @@ Oberfläche:
 
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
   nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern.
-- **Fenster im Stil der App.** Titelleiste und die Knöpfe zum Minimieren, Maximieren und Schließen kommen von Windows
-  und passen nicht zur Bildwelt. Gewünscht: rahmenloses Fenster mit eigener Titelleiste (in Electron `frame: false` oder
-  `titleBarStyle: 'hidden'` mit `titleBarOverlay`, dazu ein ziehbarer Bereich). Schließen muss weiter nur das Fenster
-  verstecken. Dazu gehört die **Rückfrage**: `confirm()` öffnet heute den nativen Dialog; eine in der Bildwelt der App fehlt.
-  Ohne Eile, vom Nutzer als „finde ich gut“ eingestuft.
 - **Erster Bildschirm** ist bis zur ersten Antwort leer; ein Gerüstzustand fehlt.
 - **`src/backend.js` aufteilen.** Es startet beim Laden und ist deshalb nicht testbar. Pools, Reserve und Caches sind der
   ungetestete Kern; jede Änderung dort erst mit einem leeren Datenordner ausprobieren (siehe `CLAUDE.md`). Vorschlag aus
@@ -111,4 +132,5 @@ Netzplan je Lauf mit Abhängigkeiten aus `needs`, üblicher Dauer und Restzeit �
 neue Oberfläche „Midnight Transit“ mit Kompakt- und Detailmodus, Deutsch und Englisch · Läufe erscheinen sofort ·
 CI_RUNNER wird beim Anlegen und Entfernen eines Pools gesetzt · Tests und CI auf den eigenen Runnern ·
 erstes Code- und Sicherheits-Review mit Korrekturen (Zugriff nur mit Schlüssel, Zeitgrenzen, Docker-Aussetzer) ·
-Einstellungen und Verbrauch als Strecke mit Haltestellen, Limits je Job einstellbar mit Vorschlag aus den Messwerten.
+Einstellungen und Verbrauch als Strecke mit Haltestellen, Limits je Job einstellbar mit Vorschlag aus den Messwerten,
+auch je Projekt; freie Runner lassen sich mit neuen Limits neu aufbauen.
