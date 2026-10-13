@@ -156,10 +156,18 @@ Richtigkeit:
     `removePair`, `slotLoop`, `abortIdle`, `slotWanted`, `livePairs`). Der Code ist unverändert umgezogen (Zeile für
     Zeile gegengelesen) und am 13.10.2026 im Betrieb geprüft: Demo-Lauf mit Fehler, Plätze verringern, pausieren,
     Beenden ohne Reste.
-  - Als Nächstes: die Reserve und das Anhalten eines Pools (`replenish`, `renewReserve`, `discardReserve`,
-    `reserveSize`, `staleCount`, `reconcile`, `quiesce`, `withPoolAtRest`, `rebuildIdle`), sie hängen an `slots.js`
-    und am Build-Dienst. Dann Vorlage und Gelerntes (`withSeed`, `refreshSeed`, `learnImages`), dann die
-    Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`).
+  - Erledigt: die Reserve und das Anhalten eines Pools als `src/pools.js` mit Tests (`replenish`, `renewReserve`,
+    `discardReserve`, `reserveSize`, `staleCount`, `poolResting`, `reconcile`, `quiesce`, `withPoolAtRest`,
+    `rebuildIdle`). Keine der beiden Dateien lädt die andere: `backend.js` reicht `pools.js` die Funktionen der
+    Plätze herein und `slots.js` die der Reserve (dort als Rückruf, weil die Reserve erst danach entsteht). Der Code
+    ist unverändert umgezogen; anders sind nur `stopping()` und `linuxReady()` als Abfrage statt als Variable und ein
+    eigenes `logError`. Getestet gegen nachgestellte und gegen die echten Plätze mit nachgestelltem Docker; im
+    Betrieb noch nicht geprüft: Limits ändern (Reserve erneuert sich), „Runner neu aufbauen“ mit und ohne laufenden
+    Job, Cache leeren, Plätze verringern, pausieren, Pool entfernen.
+  - Als Nächstes: Vorlage und Gelerntes (`withSeed`, `refreshSeed`, `learnImages`, `wantedImages`), dann Caches und
+    Build-Dienst (`prepareCaches`, `renewService`; `pools.js` bekommt `prepareCaches` heute hereingereicht), dann die
+    Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`). `startPool` und `preparePool` bleiben bis
+    dahin in `backend.js`, weil sie an Caches und Vorlage hängen.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.
 
 ## Erledigt (zur Einordnung)

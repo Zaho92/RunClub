@@ -34,8 +34,9 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | Pfad | Inhalt |
 | --- | --- |
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
-| `src/backend.js` | Pools, Reserve, Caches, GitHub-Abfragen, lokaler Dienst für die Oberfläche |
+| `src/backend.js` | Pools, Caches, Vorlage, Docker-Überwachung, GitHub-Abfragen, lokaler Dienst für die Oberfläche |
 | `src/slots.js` | Lebenslauf eines Platzes: ein Paar aufbauen, den Runner anmelden, einen Job bedienen, abräumen, im Leerlauf abbrechen |
+| `src/pools.js` | Reserve eines Pools (nachfüllen, erneuern, abbauen), Zahl der Plätze angleichen, einen Pool zur Ruhe bringen |
 | `src/pipeline.js` | Läufe mit ihren Jobs, Abhängigkeiten aus der Workflow-Datei (`needs`), übliche Dauer, Restzeit |
 | `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
 | `src/vmmemory.js` | Belegung der Docker-VM aus `/proc/meminfo` (mit Kernel und Daemon), Regel für die Warnung, wenn kaum noch Speicher frei ist |

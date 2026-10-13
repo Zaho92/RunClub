@@ -39,6 +39,7 @@ const { createWaiting, candidates } = require('./waiting');
 const { createJournal } = require('./journal');
 const { createGitHub, STATE: QUOTA } = require('./github');
 const { createSlots } = require('./slots');
+const { createPools } = require('./pools');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -356,100 +357,27 @@ async function learnImages(pool, slot) {
   }
 }
 
-// Die Reserve eines Pools: fertig vorbereitete Paare ohne Anmeldung. Ein Platz, der frei wird, nimmt eines davon
-// und ist nach wenigen Sekunden wieder bereit; die Reserve füllt sich im Hintergrund nach.
-const reserveSize = (pool) => settingsOf(pool.repo)?.reserve ?? Math.min(2, settingsOf(pool.repo)?.parallel ?? 0);
-
-function replenish(pool) {
-  if (stopping || pool.removed || !linuxReady || poolResting(pool)) return;
-  while (pool.reserve.length < reserveSize(pool)) {
-    const entry = { cancel: false, ready: false, built: limitRules.key(limitsOf(pool.repo)) };
-    const drop = () => { pool.reserve = pool.reserve.filter((other) => other !== entry); };
-    entry.promise = provision(pool, () => entry.cancel || stopping)
-      .then((pair) => { entry.ready = Boolean(pair); if (!pair) drop(); return pair; })
-      .catch((error) => { log(`Vorbereitung eines Paars – ${error.message}`, pool.repo, 'error'); drop(); return null; });
-    pool.reserve.push(entry);
-  }
-}
-
-// Die Reserve erneuern, soweit sie alte Limits trägt. Mehrere Aufrufe kurz nacheinander (vier Regler, vier Änderungen) laufen
-// nacheinander: Erst wenn die alten Paare samt Netz entfernt sind, entstehen neue.
-function renewReserve(pool) {
-  pool.renewing = (pool.renewing ?? Promise.resolve())
-    .then(async () => {
-      // Nur was noch mit anderen Limits gebaut ist, geht; eine schon frische Reserve bleibt stehen.
-      const current = limitRules.key(limitsOf(pool.repo));
-      await discardReserve(pool, (entry) => entry.built === current);
-    })
-    .then(() => replenish(pool))
-    .catch(logError(pool.repo));
-  return pool.renewing;
-}
-
-// Die Reserve abbauen; was `keep` behält, bleibt stehen.
-async function discardReserve(pool, keep = () => false) {
-  const entries = pool.reserve.filter((entry) => !keep(entry));
-  pool.reserve = pool.reserve.filter(keep);
-  for (const entry of entries) entry.cancel = true;
-  for (const entry of entries) {
-    const pair = await entry.promise;
-    if (pair) await removePair(pool.repo, pair.base, null);
-  }
-}
-
-// Freie Paare und Reserve, die noch mit anderen Limits gebaut sind als den jetzt geltenden.
-function staleCount(pool) {
-  const current = limitRules.key(limitsOf(pool.repo));
-  return pool.slots.filter((slot) => slot.base && slot.built && slot.built !== current && slot.state !== 'arbeitet' && slot.state !== 'räumt auf').length +
-    pool.reserve.filter((entry) => entry.built !== current).length;
-}
-
-const poolResting = (pool) => !pool.prepared || pool.hold || settingsOf(pool.repo)?.paused;
-
 // Der Lebenslauf eines Platzes liegt in slots.js: ein Paar aufbauen, anmelden, einen Job bedienen, abräumen. Was davon
-// hier gebraucht wird, behält seinen Namen. `metrics` entsteht weiter unten und wird deshalb erst beim Gebrauch gelesen.
+// hier gebraucht wird, behält seinen Namen. `metrics` entsteht weiter unten und wird deshalb erst beim Gebrauch gelesen;
+// ebenso die Reserve aus pools.js, die gleich darunter entsteht und ihrerseits die Plätze braucht.
 const { livePairs, provision, removePair, teardown, slotLoop, abortIdle } = createSlots({
   docker, gh, log, sleep,
   host: HOST, mark: MARK, image: IMAGE, dind: DIND, longTimeout: DOCKER_LONG,
   metrics: { meter: () => metrics.meter(), recordJob: (repo, record) => metrics.recordJob(repo, record) },
   settingsOf, limitsOf, seedVolume, cacheVolume, buildService,
-  stopping: () => stopping, linuxReady: () => linuxReady, poolResting,
-  withSeed, learnImages, replenish, discardReserve, refreshRepo,
+  stopping: () => stopping, linuxReady: () => linuxReady, poolResting: (pool) => poolResting(pool),
+  withSeed, learnImages, replenish: (pool) => replenish(pool), discardReserve: (pool) => discardReserve(pool), refreshRepo,
   forgetStats: (name) => containerStats.delete(name),
 });
 
-// Die Zahl der Plätze an die Einstellung angleichen.
-function reconcile(pool) {
-  const wanted = settingsOf(pool.repo)?.parallel ?? 0;
-  const active = pool.slots.filter((slot) => !slot.retired);
-  for (let index = active.length; index < wanted; index += 1) {
-    const slot = { repo: pool.repo, state: 'startet', jobs: 0 };
-    pool.slots.push(slot);
-    slotLoop(pool, slot);
-  }
-  for (const slot of active.slice(wanted)) { slot.retired = true; abortIdle(slot); }
-}
-
-// Wartet, bis kein Paar des Pools mehr steht: freie Paare und die Reserve werden entfernt, arbeitende laufen zu Ende.
-async function quiesce(pool) {
-  await Promise.all([discardReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]);
-  while (pool.reserve.length || pool.slots.some((slot) => slot.base || slot.building)) await sleep(500);
-}
-
-// Die freien Runner eines Pools neu aufbauen. Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits
-// des Docker-Daemons. Ob ein Job läuft, entscheidet sich erst, wenn der Pool nicht mehr anderweitig angehalten ist
-// (ein Cache wird geleert): Startet in der Wartezeit ein Job, würde der Pool sonst bis zu dessen Ende stillstehen.
-async function rebuildIdle(pool) {
-  while (pool.hold) await sleep(500);
-  if (pool.slots.some((slot) => slot.state === 'arbeitet')) return Promise.all([renewReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]);
-  return withPoolAtRest(pool, () => prepareCaches(pool.repo));
-}
-
-async function withPoolAtRest(pool, work) {
-  while (pool.hold) await sleep(500);
-  pool.hold = true;
-  try { await quiesce(pool); return await work(); } finally { pool.hold = false; }
-}
+// Die Reserve eines Pools und sein Anhalten liegen in pools.js: nachfüllen, erneuern, abbauen, die Zahl der Plätze
+// angleichen, den Pool zur Ruhe bringen.
+const { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, rebuildIdle, withPoolAtRest } = createPools({
+  log, sleep,
+  settingsOf, limitsOf, stopping: () => stopping, linuxReady: () => linuxReady,
+  provision, removePair, slotLoop, abortIdle,
+  prepareCaches,
+});
 
 async function startPool(repo) {
   const pool = { repo, slots: [], reserve: [], hold: false, prepared: false, removed: false, seeded: new Set(), sizes: null };

@@ -63,7 +63,7 @@ function world() {
     forgetStats: (name) => w.forgotten.push(name),
   });
   w.pool = { repo: REPO, slots: [], reserve: [], seeded: new Set(), removed: false };
-  w.slot = { repo: REPO, state: 'startet', jobs: 0 }; // wie `reconcile` in backend.js einen Platz anlegt
+  w.slot = { repo: REPO, state: 'startet', jobs: 0 }; // wie `reconcile` in pools.js einen Platz anlegt
   w.pool.slots.push(w.slot);
   return w;
 }

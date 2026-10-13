@@ -3,8 +3,8 @@
 // (`provision`), anmelden und einen Job bedienen (`serveOneJob`), abräumen (`teardown`, `removePair`), im Leerlauf
 // abbrechen (`abortIdle`) und die Schleife, die das wiederholt (`slotLoop`).
 //
-// Was zum Pool im Ganzen gehört, bleibt in backend.js und kommt als Funktion herein: die Reserve (`replenish`,
-// `discardReserve`), die Vorlage (`withSeed`, `learnImages`), die Namen der Caches und des Build-Dienstes, die
+// Was zum Pool im Ganzen gehört, kommt als Funktion herein: die Reserve (`replenish`, `discardReserve`, beide aus
+// pools.js), aus backend.js die Vorlage (`withSeed`, `learnImages`), die Namen der Caches und des Build-Dienstes, die
 // Einstellungen und Limits eines Repos. Zustand, den beide Seiten brauchen (`stopping`, `linuxReady`,
 // `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
@@ -68,7 +68,7 @@ function createSlots({
 
   // Baut ein Paar bis kurz vor die Anmeldung: Netz, Volumes, Kopie der Vorlage, laufender Docker-Daemon.
   // Das ist der lange Teil. Er geschieht deshalb im Voraus, als Reserve des Pools
-  // (`replenish` in backend.js); der Wechsel zum nächsten Job kostet dann nur noch Anmeldung und Start des Runners.
+  // (`replenish` in pools.js); der Wechsel zum nächsten Job kostet dann nur noch Anmeldung und Start des Runners.
   async function provision(pool, cancelled) {
     const limits = limitsOf(pool.repo);
     const id = newId();
