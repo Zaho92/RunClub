@@ -145,8 +145,14 @@ Richtigkeit:
 - **`src/backend.js` aufteilen.** Es startet beim Laden und ist deshalb nicht testbar. Pools, Reserve und Caches sind der
   ungetestete Kern; jede Änderung dort erst mit einem leeren Datenordner ausprobieren (siehe `CLAUDE.md`). Vorschlag aus
   dem Review: `createPools({ docker, gh, config, state, log, sleep })` als Modul, `backend.js` wird Verdrahtung mit
-  einem `start()`. Zuerst testen: Lebenslauf eines Platzes (`serveOneJob`, `abortIdle`, `quiesce`), dann Vorlage und
-  Gelerntes, dann die Docker-Überwachung.
+  einem `start()`.
+  - Erledigt: der Lebenslauf eines Platzes als `src/slots.js` mit Tests (`provision`, `serveOneJob`, `teardown`,
+    `removePair`, `slotLoop`, `abortIdle`, `slotWanted`, `livePairs`). Der Code ist unverändert umgezogen; im echten
+    Betrieb ist der Umbau noch nicht geprüft (ein Job, ein Abbruch im Leerlauf, Beenden der App).
+  - Als Nächstes: die Reserve und das Anhalten eines Pools (`replenish`, `renewReserve`, `discardReserve`,
+    `reserveSize`, `staleCount`, `reconcile`, `quiesce`, `withPoolAtRest`, `rebuildIdle`), sie hängen an `slots.js`
+    und am Build-Dienst. Dann Vorlage und Gelerntes (`withSeed`, `refreshSeed`, `learnImages`), dann die
+    Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`).
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.
 
 ## Erledigt (zur Einordnung)
