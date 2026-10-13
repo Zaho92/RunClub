@@ -49,21 +49,25 @@ Sicherheit:
   Entschieden am 13.10.2026: bleibt so, weil es Läufe auf Branches sonst langsamer macht.
 - **Das Netz je Repo trennt Repos, nicht die Paare eines Repos.** Der Build-Dienst hängt in allen Paar-Netzen seines
   Repos; ein Build-Schritt könnte Ports erreichen, die ein gleichzeitig laufender Job desselben Repos veröffentlicht.
-- **Abbilder ohne feste Version** (`docker:dind`, `moby/buildkit:latest`, `actions-runner:latest`, `node:24-slim`) laufen
-  privilegiert. Per Digest festnageln und gezielt anheben.
+- **Digests anheben.** `docker:dind` und `moby/buildkit` laufen privilegiert und sind per Digest festgenagelt (`DIND`,
+  `BUILDKIT` in `src/backend.js`); von Zeit zu Zeit bewusst anheben. `node`, das .NET-SDK und der Runner im
+  Runner-Abbild folgen dem neuesten Stand, weil GitHub zu alte Runner abweist; sie laufen nicht privilegiert.
 
 Richtigkeit:
 
 - **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
   einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
-- **Abmeldungen bleiben liegen**, wenn Windows abgemeldet wird (kein Haken in `src/main.js`) oder ein Job beim Beenden
-  noch läuft. Aufgeräumt wird erst beim nächsten Start.
-- **„Runner neu aufbauen“ kann einen Pool anhalten**, wenn gerade ein Cache geleert wird und in der Zwischenzeit ein Job
-  startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
+- **Abmeldungen bleiben liegen**, wenn ein Job beim Beenden oder Abmelden noch läuft: Sein Runner bleibt bei GitHub
+  eingetragen, bis der nächste Start aufräumt. Freie Runner werden beim Abmelden von Windows jetzt abgemeldet.
 
 ## Noch nicht echt ausprobiert
 
+- **Abmelden von Windows** (`watchSession` in `src/main.js`, `release` in `src/backend.js`): nur am Code geprüft. Nach
+  einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
+  Rechners stehen geblieben sind.
+- **Startzustand der Oberfläche** („Verbinde mit RunClub …“, bei ausbleibender Antwort „RunClub antwortet nicht.“): nur
+  am Code geprüft.
 - **Belegung der Docker-VM aus der VM selbst und die Warnung** (`src/vmmemory.js`, `startVmFeed` in `src/backend.js`).
   Getestet sind das Lesen und die Regel (unter 15 % frei in drei Proben in Folge). Nur am Code geprüft: der Dauerlauf
   `wsl -d docker-desktop` (startet er, liefert er alle 2 s, endet er mit der App), das stille Ausbleiben ohne die
@@ -138,7 +142,6 @@ Richtigkeit:
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
   nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern. Das
   Protokoll liefert schon Einträge mit Zeit, Projekt und Art getrennt (`src/journal.js`); nur `text` ist noch ein Satz.
-- **Erster Bildschirm** ist bis zur ersten Antwort leer; ein Gerüstzustand fehlt.
 - **`src/backend.js` aufteilen.** Es startet beim Laden und ist deshalb nicht testbar. Pools, Reserve und Caches sind der
   ungetestete Kern; jede Änderung dort erst mit einem leeren Datenordner ausprobieren (siehe `CLAUDE.md`). Vorschlag aus
   dem Review: `createPools({ docker, gh, config, state, log, sleep })` als Modul, `backend.js` wird Verdrahtung mit
