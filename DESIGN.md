@@ -245,7 +245,7 @@ Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, i
 
 **Display Font:** Overpass (mit „Segoe UI“, system-ui, sans-serif), als variable Schrift lokal ausgeliefert (`src/fonts/overpass-latin.woff2`, Strichstärken 100–900)
 **Body Font:** Overpass (dieselbe Familie)
-**Label/Mono Font:** Consolas, monospace, nur für das Protokoll
+**Label/Mono Font:** Consolas, monospace, nur für Code (der Ausdruck für `runs-on` in den Einstellungen)
 
 **Character:** Eine einzige Familie, deren Herkunft aus der Verkehrsbeschilderung zur Bildwelt passt. Die Hierarchie entsteht aus Größe und Farbe, kaum aus Gewicht: Lauftext in 300, Namen und Überschriften in 400, die große Restzeit in 200.
 
@@ -261,7 +261,7 @@ Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, i
 - **Label** (400, 12 px): Beschriftung über Kennzahlen, zweite Zeile in Leiste und Pill, Tags, Tooltip.
 - **Achse** (400, 11 px): Zeitachse unter den Kurven.
 - **Wortmarke** (600, 22 px): „RunClub“ oben in der Leiste; die einzige Stelle mit kräftigem Schnitt.
-- **Mono** (Consolas, 12 px, Zeilenhöhe 1,5): Protokoll in den Einstellungen.
+- **Mono** (Consolas, 12 px): Code in den Einstellungen. Das Protokoll steht in Overpass.
 
 ### Named Rules
 **Die Leichte-Schnitte-Regel.** Lauftext steht in 300, Betonung in 400, nichts außer der Wortmarke darüber. Je größer die Schrift, desto leichter der Schnitt.
@@ -362,7 +362,7 @@ Schiene 4 px, voll gerundet, links vom Griff `chart`, rechts `edge`; Griff 16 px
 Für An und Aus einer einzelnen Einstellung: 38 × 22 px, voll gerundet. Aus: Fläche `rail`, Rahmen `edge`, Griff `muted`. An: Fläche `raised`, Rahmen `track`, Griff `ink`.
 
 ### Segmentschalter
-Zwei Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px). Nicht gewählt: durchsichtig, `muted`. Gewählt: `raised`, `ink`.
+Wenige Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px), meist zwei; der Filter des Protokolls hat eine je Projekt und bricht um, wenn die Breite nicht reicht. Nicht gewählt: durchsichtig, `muted`. Gewählt: `raised`, `ink`.
 
 ### Eingabefeld
 Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 px 12 px, Platzhalter `muted`, Schreibmarke `chart`.
@@ -372,6 +372,17 @@ Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für �
 
 ### Tabellen und Zeilen
 Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Projektzeile der Einstellungen ist keine Tabellenzeile, sondern eine aufklappbare Fläche.) Kopfzeile in `muted` 400, Zahlen rechtsbündig. In „Alle Projekte“ steht jedes ruhige Projekt in einer Zeile aus drei Spalten (190 px Name mit Symbol, Titel des letzten Laufs mit einer Kette kleiner Zustandssymbole davor, rechts das Alter).
+
+### Protokoll
+Die letzte Haltestelle der Einstellungen. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und
+Projekt in Meta `muted` (Spalten 92 px und 128 px), ein Zustandssymbol (16 px) und der Text in Body. Von heute steht
+die Uhrzeit, von früher Tag und Uhrzeit ohne Sekunden. Ein Symbol trägt nur, was ein Ergebnis ist: Job fertig, Job
+gescheitert, Job abgebrochen, Fehler. Der Beginn eines Jobs bleibt ohne Symbol, weil Gelb „läuft jetzt“ heißt. Der
+Text einer Fehlerzeile bleibt in `text`; das rote Symbol trägt den Zustand, denn ein Fehler von vor Stunden verlangt
+nichts mehr. Darüber links der Filter als Segmentschalter (Alle, je Projekt, Allgemein; nur bei mehr als einem
+Projekt), rechts „Kopieren“ und „Speichern“, die beide die ganze Datei nehmen. Auf ein Projekt gefiltert entfällt die
+Projektspalte, und die allgemeinen Fehler bleiben dabei, weil dort oft die Ursache steht. Eingeklappt acht Zeilen;
+aufgeklappt rollt die Liste in sich (höchstens 496 px), damit „Weniger zeigen“ erreichbar bleibt.
 
 ### Tooltip und Meldung
 `raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden.

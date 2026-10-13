@@ -32,6 +32,7 @@ const limitRules = require('./limits');
 const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
 const { createRouting, VARIABLE } = require('./routing');
+const { createJournal, resultKind, resultText } = require('./journal');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -72,21 +73,15 @@ const lastLine = (text) => String(text ?? '').trim().split('\n').map((line) => l
 
 // --- Protokoll ---
 
-const recent = [];
-if (fs.existsSync(LOG_FILE) && fs.statSync(LOG_FILE).size > 2 * 1048576) fs.renameSync(LOG_FILE, `${LOG_FILE}.1`);
-function log(text) {
-  const line = `${new Date().toLocaleString('de-DE')} ${text}`;
-  console.log(line);
-  recent.push(line);
-  if (recent.length > 60) recent.shift();
-  try { fs.appendFileSync(LOG_FILE, `${line}\n`); } catch { /* Protokoll ist Beiwerk */ }
-}
+const journal = createJournal({ file: LOG_FILE, echo: (line) => console.log(line) });
+// `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` siehe journal.js.
+const log = (text, repo, kind) => journal.add(text, { repo, kind });
 
 // --- Einstellungen und Gelerntes ---
 
 function loadJson(file) {
   const { data, broken } = readJson(file, {});
-  if (broken) log(`${path.basename(file)} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter ${broken}.`);
+  if (broken) log(`${path.basename(file)} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter ${broken}.`, null, 'error');
   return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
 }
 
@@ -191,7 +186,7 @@ async function removeRegistrations(repo) {
     for (const runner of runners) {
       if (runner.name.startsWith(`${HOST}-linux-`) && !runner.busy) await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runner.id}`]);
     }
-  } catch (error) { log(`${repo}: Abmelden alter Runner – ${error.message}`); }
+  } catch (error) { log(`Abmelden alter Runner – ${error.message}`, repo, 'error'); }
 }
 
 // Der Build-Dienst trägt die Limits des Docker-Daemons; mit dieser Kennung ist zu erkennen, ob er noch alte trägt.
@@ -206,7 +201,7 @@ async function renewService(pool) {
   if (pool.slots.some((slot) => slot.state === 'arbeitet' || slot.state === 'räumt auf')) return;
   pool.renewingService = true;
   try {
-    log(`${pool.repo}: lege den Build-Dienst mit den neuen Limits an`);
+    log('Lege den Build-Dienst mit den neuen Limits an', pool.repo);
     await prepareCaches(pool.repo);
     for (const [base, repo] of livePairs) if (repo === pool.repo) await docker(['network', 'connect', '--alias', 'buildkit', base, buildService(pool.repo)]);
   } finally { pool.renewingService = false; }
@@ -226,7 +221,7 @@ async function prepareCaches(repo) {
   const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no', '--network', buildNetwork(repo),
     '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory,
     '-v', `${buildVolume(repo)}:/var/lib/buildkit`, 'moby/buildkit:latest', '--addr', 'tcp://0.0.0.0:1234']);
-  if (service.code !== 0) log(`${repo}: Build-Dienst startet nicht – ${lastLine(service.stderr)}`);
+  if (service.code !== 0) log(`Build-Dienst startet nicht – ${lastLine(service.stderr)}`, repo, 'error');
   const pool = pools.get(repo);
   if (pool) pool.serviceBuilt = serviceKey(repo);
 }
@@ -258,7 +253,7 @@ function refreshSeed(repo) {
     const wanted = wantedImages(repo);
     await docker(['rm', '-f', loader]);
     if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
-    log(`${repo}: frische die Vorlage auf (${wanted.length} Abbilder) …`);
+    log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
     await docker(['volume', 'create', seed]);
     await docker(['run', '-d', '--label', MARK, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, 'docker:dind']);
     let ready = false;
@@ -273,7 +268,7 @@ function refreshSeed(repo) {
     for (const image of wanted) {
       const pull = await docker(['exec', loader, 'docker', 'pull', '-q', image], { timeout: DOCKER_LONG });
       if (pull.code === 0) { present.add(image); continue; }
-      log(`${repo}: ${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`);
+      log(`${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`, repo, 'error');
       // Eine Störung (Netz, Anfragelimit) geht vorüber: Was schon in der Vorlage liegt, bleibt dort.
       if (!permanentPullError(pull.stderr)) { retry.add(image); continue; }
       // Was es bei der Registry nicht gibt, hat der Job selbst gebaut oder es ist nicht öffentlich: nicht wieder versuchen.
@@ -314,7 +309,7 @@ async function learnImages(pool, slot) {
   saveState();
   if (unknown && !refreshQueued.has(pool.repo)) {
     refreshQueued.add(pool.repo);
-    refreshSeed(pool.repo).catch((error) => log(`${pool.repo}: Vorlage – ${error.message}`)).finally(() => refreshQueued.delete(pool.repo));
+    refreshSeed(pool.repo).catch((error) => log(`Vorlage – ${error.message}`, pool.repo, 'error')).finally(() => refreshQueued.delete(pool.repo));
   }
 }
 
@@ -401,7 +396,7 @@ function replenish(pool) {
     const drop = () => { pool.reserve = pool.reserve.filter((other) => other !== entry); };
     entry.promise = provision(pool, () => entry.cancel || stopping)
       .then((pair) => { entry.ready = Boolean(pair); if (!pair) drop(); return pair; })
-      .catch((error) => { log(`${pool.repo}: Vorbereitung eines Paars – ${error.message}`); drop(); return null; });
+      .catch((error) => { log(`Vorbereitung eines Paars – ${error.message}`, pool.repo, 'error'); drop(); return null; });
     pool.reserve.push(entry);
   }
 }
@@ -419,7 +414,7 @@ function renewReserve(pool) {
       for (const entry of old) { const pair = await entry.promise; if (pair) await removePair(pool.repo, pair.base, null); }
     })
     .then(() => replenish(pool))
-    .catch((error) => log(`${pool.repo}: ${error.message}`));
+    .catch((error) => log(error.message, pool.repo, 'error'));
   return pool.renewing;
 }
 
@@ -467,7 +462,7 @@ async function serveOneJob(pool, slot) {
       if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
       if (started && slot.state !== 'arbeitet') {
         Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), meter: metrics.meter() });
-        log(`${pool.repo}: Job „${started[1]}“ läuft auf ${slot.name}`);
+        log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run');
         refreshRepo(pool.repo);
         setTimeout(() => refreshRepo(pool.repo), 4000);
       }
@@ -476,7 +471,7 @@ async function serveOneJob(pool, slot) {
         slot.meter = null;
         refreshRepo(pool.repo);
         Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
-        log(`${pool.repo}: Job „${finished[1]}“ – ${finished[2]}`);
+        log(`Job „${finished[1]}“ – ${resultText(finished[2])}`, pool.repo, resultKind(finished[2]));
       }
     },
   });
@@ -508,7 +503,7 @@ async function slotLoop(pool, slot) {
     } catch (error) {
       if (!slot.aborted) {
         Object.assign(slot, { error: error.message, state: 'gestört' });
-        log(`${pool.repo}: ${error.message}`);
+        log(error.message, pool.repo, 'error');
         await teardown(slot);
         for (let waited = 0; waited < 60 && slotWanted(pool, slot) && !poolResting(pool); waited += 1) await sleep(1000);
         continue;
@@ -575,7 +570,7 @@ async function preparePool(pool) {
   try {
     await prepareCaches(pool.repo);
     await refreshSeed(pool.repo);
-  } catch (error) { log(`${pool.repo}: Vorbereitung – ${error.message}`); } finally { pool.prepared = true; pool.preparing = false; }
+  } catch (error) { log(`Vorbereitung – ${error.message}`, pool.repo, 'error'); } finally { pool.prepared = true; pool.preparing = false; }
   measureSizes(pool);
 }
 
@@ -628,7 +623,7 @@ async function linuxLoop() {
         startStatsFeed();
         for (const pool of pools.values()) await preparePool(pool);
       } catch (error) {
-        if (linuxError !== error.message) log(error.message);
+        if (linuxError !== error.message) log(error.message, null, 'error');
         linuxError = error.message;
       }
     } else if ((await docker(['info', '--format', 'ok'], { timeout: 20 * SECOND })).code !== 0) {
@@ -637,7 +632,7 @@ async function linuxLoop() {
       misses += 1;
       if (misses >= DOCKER_MISSES) {
         linuxReady = false;
-        log('Docker antwortet nicht mehr – die Linux-Runner warten.');
+        log('Docker antwortet nicht mehr – die Linux-Runner warten.', null, 'error');
       }
       await sleep(5000);
       continue;
@@ -798,7 +793,7 @@ function status() {
       limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS },
     },
     repos: [...repos.values()],
-    log: recent.slice(-25),
+    logCount: journal.count(), // das Protokoll selbst holt die Oberfläche, wenn sich die Zahl ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
   };
@@ -821,14 +816,14 @@ const actions = {
     if (info.private === false) throw new Error('Das Repo ist öffentlich. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.');
     config.pools.push({ repo: info.full_name, parallel: Math.min(4, Math.max(1, Number(parallel) || 1)), cache: true, paused: false, preload: [] });
     saveConfig();
-    log(`${info.full_name}: Pool angelegt`);
+    log('Pool angelegt', info.full_name);
     startPool(info.full_name);
     refreshGitHub();
     // Die Jobs des Repos auf die eigenen Runner leiten, wenn seine Workflows die Variable lesen.
     routing.check(info.full_name).then(async (found) => {
-      if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(`${info.full_name}: ${VARIABLE} gesetzt – die Jobs laufen jetzt auf den eigenen Runnern`); }
-      else if (found.uses === 'none') log(`${info.full_name}: Die Workflows lesen ${VARIABLE} nicht – die Jobs gehen weiter an GitHubs Runner`);
-    }).catch((error) => log(`${info.full_name}: ${VARIABLE} – ${error.message}`));
+      if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(`${VARIABLE} gesetzt – die Jobs laufen jetzt auf den eigenen Runnern`, info.full_name); }
+      else if (found.uses === 'none') log(`Die Workflows lesen ${VARIABLE} nicht – die Jobs gehen weiter an GitHubs Runner`, info.full_name);
+    }).catch((error) => log(`${VARIABLE} – ${error.message}`, info.full_name, 'error'));
   },
   async 'pool/set'({ repo, parallel, paused, cache }) {
     const settings = settingsOf(repo);
@@ -842,9 +837,9 @@ const actions = {
     if (cache !== undefined && Boolean(cache) !== settings.cache) {
       settings.cache = Boolean(cache);
       saveConfig();
-      withPoolAtRest(pool, () => prepareCaches(repo)).catch((error) => log(`${repo}: ${error.message}`));
+      withPoolAtRest(pool, () => prepareCaches(repo)).catch((error) => log(error.message, repo, 'error'));
     }
-    log(`${repo}: ${settings.parallel} Platz/Plätze, ${settings.paused ? 'pausiert' : 'aktiv'}, Cache ${settings.cache ? 'an' : 'aus'}`);
+    log(`${settings.parallel} ${settings.parallel === 1 ? 'Platz' : 'Plätze'}, ${settings.paused ? 'pausiert' : 'aktiv'}, Cache ${settings.cache ? 'an' : 'aus'}`, repo);
   },
   async 'pool/remove'({ repo }) {
     const pool = pools.get(repo);
@@ -852,7 +847,7 @@ const actions = {
     config.pools = config.pools.filter((settings) => settings.repo !== repo);
     saveConfig();
     pool.removed = true;
-    log(`${repo}: Pool wird entfernt`);
+    log('Pool wird entfernt', repo);
     (async () => {
       await quiesce(pool);
       await docker(['rm', '-f', buildService(repo)]);
@@ -860,7 +855,7 @@ const actions = {
       await docker(['volume', 'rm', '-f', cacheVolume(repo), seedVolume(repo), buildVolume(repo)]);
       // Ohne Pool würden die Jobs ewig auf einen Runner warten: zurück zu GitHubs Runnern.
       // Der Stand wird frisch gelesen – die Variable kann inzwischen von Hand gesetzt worden sein.
-      try { if ((await routing.check(repo)).here) { await routing.set(repo, false); log(`${repo}: ${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`); } } catch (error) { log(`${repo}: ${VARIABLE} – ${error.message}`); }
+      try { if ((await routing.check(repo)).here) { await routing.set(repo, false); log(`${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`, repo); } } catch (error) { log(`${VARIABLE} – ${error.message}`, repo, 'error'); }
       routing.forget(repo);
       await removeRegistrations(repo);
       delete state.learned[repo];
@@ -868,8 +863,8 @@ const actions = {
       saveState();
       metrics.forget(repo);
       github.delete(repo);
-      log(`${repo}: Pool und seine Caches sind entfernt`);
-    })().catch((error) => log(`${repo}: ${error.message}`))
+      log('Pool und seine Caches sind entfernt', repo);
+    })().catch((error) => log(error.message, repo, 'error'))
       // Auch wenn ein Schritt scheitert, wird der Name wieder frei.
       .finally(() => { if (pools.get(repo) === pool) pools.delete(repo); });
   },
@@ -879,7 +874,7 @@ const actions = {
     if (!settingsOf(repo) || !pool) throw new Error('Diesen Pool gibt es nicht.');
     if (!['packages', 'build', 'images', 'all'].includes(what)) throw new Error('Unbekannter Cache.');
     const all = what === 'all';
-    log(`${repo}: leere ${{ packages: 'den Paket-Cache', build: 'die Build-Layer', images: 'die gelernten Abbilder', all: 'alle Caches' }[what]} …`);
+    log(`Leere ${{ packages: 'den Paket-Cache', build: 'die Build-Layer', images: 'die gelernten Abbilder', all: 'alle Caches' }[what]} …`, repo);
     withPoolAtRest(pool, async () => {
       if (all || what === 'packages') await docker(['volume', 'rm', '-f', cacheVolume(repo)]);
       if (all || what === 'build') { await docker(['rm', '-f', buildService(repo)]); await docker(['volume', 'rm', '-f', buildVolume(repo)]); }
@@ -892,13 +887,13 @@ const actions = {
       await prepareCaches(repo);
       await refreshSeed(repo);
       await measureSizes(pool);
-      log(`${repo}: geleert; der nächste Lauf füllt wieder auf`);
-    }).catch((error) => log(`${repo}: ${error.message}`));
+      log('Geleert; der nächste Lauf füllt wieder auf', repo);
+    }).catch((error) => log(error.message, repo, 'error'));
   },
   async 'pool/routing'({ repo, on }) {
     if (!settingsOf(repo)) throw new Error('Diesen Pool gibt es nicht.');
     await routing.set(repo, Boolean(on));
-    log(`${repo}: ${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen an GitHubs Runner'}`);
+    log(`${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen an GitHubs Runner'}`, repo);
   },
   // Speicher in GB, Kerne als Anzahl. Arbeitende und schon bereite Paare behalten ihre Limits bis zum nächsten Aufbau.
   // Mit `repo` gelten sie nur für dieses Projekt; `inherit` nimmt dessen eigene Werte wieder weg.
@@ -907,8 +902,8 @@ const actions = {
     const settings = repo ? settingsOf(repo) : null;
     if (repo && !settings) throw new Error('Diesen Pool gibt es nicht.');
     const text = (limits) => `Runner ${limits.runnerMemory} und ${limits.runnerCpus} Kerne, Docker ${limits.dockerMemory} und ${limits.dockerCpus} Kerne`;
-    if (settings && inherit) { delete settings.limits; log(`${repo}: wieder die Limits für alle (${text(config.limits)})`); }
-    else if (settings) { settings.limits = limitRules.normalize(input, limitsOf(repo), limitRange()); log(`${repo}: eigene Limits – ${text(settings.limits)}`); }
+    if (settings && inherit) { delete settings.limits; log(`Wieder die Limits für alle (${text(config.limits)})`, repo); }
+    else if (settings) { settings.limits = limitRules.normalize(input, limitsOf(repo), limitRange()); log(`Eigene Limits – ${text(settings.limits)}`, repo); }
     else { config.limits = { ...config.limits, ...limitRules.normalize(input, config.limits, limitRange()) }; log(`Limits je Job: ${text(config.limits)}`); }
     saveConfig();
     // Vorbereitete Paare tragen noch die alten Limits: verwerfen, die Reserve füllt sich mit den neuen.
@@ -935,11 +930,11 @@ const actions = {
     if (repo && !pools.get(repo)) throw new Error('Diesen Pool gibt es nicht.');
     for (const pool of repo ? [pools.get(repo)] : [...pools.values()]) {
       if (pool.removed || !staleCount(pool)) continue;
-      log(`${pool.repo}: baue die freien Runner mit den neuen Limits auf`);
+      log('Baue die freien Runner mit den neuen Limits auf', pool.repo);
       const working = pool.slots.some((slot) => slot.state === 'arbeitet');
       // Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits des Docker-Daemons.
       (working ? Promise.all([renewReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]) : withPoolAtRest(pool, () => prepareCaches(pool.repo)))
-        .catch((error) => log(`${pool.repo}: ${error.message}`));
+        .catch((error) => log(error.message, pool.repo, 'error'));
     }
   },
   async 'slot/restart'({ repo, index }) {
@@ -951,7 +946,7 @@ const actions = {
   async 'run/rerun'({ repo, id, failedOnly }) {
     if (!github.has(repo) || !/^\d+$/.test(String(id))) throw new Error('Diesen Lauf gibt es nicht.');
     await gh(['api', '-X', 'POST', `repos/${repo}/actions/runs/${id}/${failedOnly ? 'rerun-failed-jobs' : 'rerun'}`]);
-    log(`${repo}: Lauf ${id} erneut angestoßen`);
+    log(`Lauf ${id} erneut angestoßen`, repo);
     setTimeout(refreshGitHub, 3000);
   },
   async shutdown() { setTimeout(shutdown, 100); },
@@ -1014,6 +1009,12 @@ http.createServer(async (request, response) => {
   }
   if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
   if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
+  if (request.method === 'GET' && request.url === '/api/log') return json(200, { count: journal.count(), entries: journal.recent() });
+  // Die ganze Datei zum Speichern oder Kopieren.
+  if (request.method === 'GET' && request.url === '/api/log/file') {
+    response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': 'attachment; filename="runclub.log"', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+    return response.end(journal.read());
+  }
   if (request.method === 'GET' && request.url === '/api/repos') {
     try { return json(200, await listRepos()); } catch (error) { return json(502, { error: error.message }); }
   }
@@ -1038,7 +1039,7 @@ setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
 setInterval(measure, MEASURE_INTERVAL_MS);
 setInterval(() => {
-  for (const pool of pools.values()) { replenish(pool); renewService(pool).catch((error) => log(`${pool.repo}: ${error.message}`)); }
+  for (const pool of pools.values()) { replenish(pool); renewService(pool).catch((error) => log(error.message, pool.repo, 'error')); }
 }, MINUTE);
 setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 

@@ -5,22 +5,17 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 ## Als Nächstes
 
-1. **Protokoll lesbarer und exportierbar.** Wunsch des Nutzers. Im Fenster: Zeitpunkt, Projekt und Meldung getrennt
-   setzen statt als eine Zeile Text, Fehler und Ergebnisse von Jobs kenntlich machen, nach Projekt filtern. Dafür sollte
-   das Backend Einträge als `{ at, repo, text, kind }` liefern statt fertiger Zeilen (das hilft auch der Übersetzung,
-   siehe „Meldungen des Backends sind nur deutsch“). Export: die ganze Datei `runclub.log` aus dem Datenordner
-   speichern oder in die Zwischenablage legen; die Oberfläche zeigt heute nur die letzten 25 Zeilen.
-2. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
+1. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
    anbieten, einen Pool anzulegen. Auf das Anfragelimit achten (5.000 je Stunde; im Leerlauf verbraucht RunClub rund 720).
-3. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
+2. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
    `docker build` einen echten Ordner braucht.
-4. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
+3. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
    deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
    Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
    Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner unter `%APPDATA%\RunClub` bleibt, wo er ist.
-5. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
+4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
    holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein
@@ -86,6 +81,9 @@ Oberfläche:
 
 ## Noch nicht echt ausprobiert
 
+- **Protokoll speichern und kopieren** im Fenster der App. Geprüft sind die Endpunkte (`/api/log`, `/api/log/file`) an
+  einer Testinstanz und die Darstellung als Standbild. Am echten Fenster prüfen: „Speichern“ öffnet den Dialog von
+  Windows, „Kopieren“ legt die ganze Datei in die Zwischenablage und meldet die Zahl der Zeilen.
 - **Fenster ohne Titelleiste von Windows.** Am echten Fenster prüfen: Ziehen und Doppelklick am oberen Streifen (auch über
   der Leiste), Größe ändern an der oberen Kante, Andocken und Maximieren; ob die Knöpfe von Windows bündig mit dem
   32 px hohen Streifen abschließen; ob die Knöpfe im schmalen Fenster (bis 760 px) die Farbe der Leiste
@@ -135,7 +133,10 @@ Oberfläche:
 ## Kleinere Punkte
 
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
-  nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern.
+  nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern. Das
+  Protokoll liefert schon Einträge mit Zeit, Projekt und Art getrennt (`src/journal.js`); nur `text` ist noch ein Satz.
+- **Das Protokoll im Fenster beginnt mit jedem Start leer** (die letzten 300 Einträge liegen nur im Speicher); Älteres
+  steht in der Datei. Möglich: beim Start das Ende der Datei einlesen.
 - **Erster Bildschirm** ist bis zur ersten Antwort leer; ein Gerüstzustand fehlt.
 - **`src/backend.js` aufteilen.** Es startet beim Laden und ist deshalb nicht testbar. Pools, Reserve und Caches sind der
   ungetestete Kern; jede Änderung dort erst mit einem leeren Datenordner ausprobieren (siehe `CLAUDE.md`). Vorschlag aus
@@ -154,4 +155,5 @@ CI_RUNNER wird beim Anlegen und Entfernen eines Pools gesetzt · Tests und CI au
 erstes Code- und Sicherheits-Review mit Korrekturen (Zugriff nur mit Schlüssel, Zeitgrenzen, Docker-Aussetzer) ·
 Einstellungen und Verbrauch als Strecke mit Haltestellen, Limits je Job einstellbar mit Vorschlag aus den Messwerten,
 auch je Projekt; freie Runner lassen sich mit neuen Limits neu aufbauen · eigene Rückfrage statt des Dialogs von
-Windows, Fenster ohne Titelleiste von Windows.
+Windows, Fenster ohne Titelleiste von Windows · Protokoll als Liste mit Zeit, Projekt und Zustandssymbol, Filter nach
+Projekt, ganze Datei speichern oder kopieren.

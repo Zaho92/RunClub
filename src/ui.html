@@ -173,7 +173,16 @@
   input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--ink); border: 0; }
   input[type=range]:disabled { opacity: .5; cursor: default; }
   code { font: 12px Consolas, monospace; color: var(--text); overflow-wrap: anywhere; }
-  pre { font: 12px/1.5 Consolas, monospace; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  /* Protokoll: je Meldung eine Zeile aus Zeit, Projekt, Zustandssymbol und Text; die neueste steht oben. */
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log.open { max-height: 496px; overflow-y: auto; }
+  .log li { display: grid; grid-template-columns: 92px 128px 16px minmax(0, 1fr); column-gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+  .log.one li { grid-template-columns: 92px 16px minmax(0, 1fr); }
+  .log time, .log .lp { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .log time { white-space: nowrap; } .log .lp { overflow-wrap: anywhere; }
+  .log .ic { width: 16px; height: 16px; align-self: start; margin-top: 2px; } .log .ic svg { width: 10px; height: 10px; }
+  .log .lm { overflow-wrap: anywhere; }
+  .seg.wide { flex-wrap: wrap; max-width: 100%; }
   .empty { max-width: 52ch; }
 
   /* Einstellungen: eine Strecke mit einer Haltestelle je Abschnitt */
@@ -296,6 +305,8 @@ const TEXT = {
     confirmClear: 'Der nächste Lauf von {0} lädt das wieder und ist deshalb langsamer.', confirmRemove: 'Der Pool für {0} wird mit allen Caches entfernt. Auch CI_RUNNER wird entfernt; die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner werden abgebaut. Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
     app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'RunClub beenden', log: 'Protokoll',
+    logAll: 'Alle', logFilter: 'Protokoll nach Projekt filtern', logCopy: 'Kopieren', logSave: 'Speichern', logCopyTip: 'Die ganze Datei runclub.log in die Zwischenablage legen', logSaveTip: 'Die ganze Datei runclub.log speichern',
+    logCopied: 'Das ganze Protokoll liegt in der Zwischenablage ({0} Zeilen).', logCopyFailed: 'Das Protokoll ließ sich nicht kopieren.', logNone: 'Unter den letzten Meldungen ist keine dazu. Die ganze Datei gibt es über „Speichern“.', logSide: 'die letzten {0} Meldungen', logSideOne: 'eine Meldung', logSideOf: '{0} von {1} Meldungen', logGeneral: 'Allgemein',
     cachesSum: 'Caches {0}', projectsSum: '{0} Projekte · {1} Plätze', clearOf: '{0} leeren', forgetImages: 'Gelernte Abbilder vergessen', cancel: 'Abbrechen', showAll: 'Alles zeigen', showLess: 'Weniger zeigen', days: 'Tagen', peakTitle: 'Höchste gemessene Spitze eines Jobs', jobsMeasured: '{0} Jobs gemessen', jobMeasured: '1 Job gemessen', toLimits: 'Limits einstellen',
     limitsTitle: 'Limits je Job', limitsNew: 'für alle Projekte ohne eigene Werte', limitsShared: 'Wie alle', limitsOwn: 'Eigene', ownTag: 'eigene Limits', rebuild: 'Runner neu aufbauen', tagFull: 'Limit erreicht', tagTight: 'Limit knapp', tagGenerous: 'Limit großzügig',
     planText: 'Vorschlag: Standard Runner {0} GB, Docker {1} GB, je {2} Kerne.', planOwn: 'Eigene Limits für {0}.', planApplied: 'Die Limits entsprechen dem Vorschlag.',
@@ -329,6 +340,8 @@ const TEXT = {
     confirmClear: 'The next run of {0} downloads this again and is slower for it.', confirmRemove: 'The pool for {0} is removed with all its caches. CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'All runners are taken down. Running jobs are cut off, queued jobs wait until RunClub runs again.',
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
     app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit RunClub', log: 'Log',
+    logAll: 'All', logFilter: 'Filter the log by project', logCopy: 'Copy', logSave: 'Save', logCopyTip: 'Put the whole file runclub.log on the clipboard', logSaveTip: 'Save the whole file runclub.log',
+    logCopied: 'The whole log is on the clipboard ({0} lines).', logCopyFailed: 'The log could not be copied.', logNone: 'None of the recent messages match. “Save” gives you the whole file.', logSide: 'the last {0} messages', logSideOne: 'one message', logSideOf: '{0} of {1} messages', logGeneral: 'General',
     cachesSum: 'Caches {0}', projectsSum: '{0} projects · {1} slots', clearOf: 'Clear {0}', forgetImages: 'Forget learned images', cancel: 'Cancel', showAll: 'Show all', showLess: 'Show less', days: 'days', peakTitle: 'Highest measured peak of a job', jobsMeasured: '{0} jobs measured', jobMeasured: '1 job measured', toLimits: 'Adjust limits',
     limitsTitle: 'Limits per job', limitsNew: 'for all projects without their own', limitsShared: 'Shared', limitsOwn: 'Own', ownTag: 'own limits', rebuild: 'Rebuild runners', tagFull: 'limit reached', tagTight: 'limit tight', tagGenerous: 'limit generous',
     planText: 'Suggestion: default runner {0} GB, Docker {1} GB, {2} cores each.', planOwn: 'Own limits for {0}.', planApplied: 'The limits match the suggestion.',
@@ -705,12 +718,27 @@ const GLYPHS = {
   cache: '<path d="M8 3l5 2.5-5 2.5-5-2.5zM3 8.5l5 2.5 5-2.5"/>',
   gauge: '<path d="M2.5 11a5.5 5.5 0 0 1 11 0M8 11l2.5-3.5"/>',
   rebuild: '<path d="M12.6 8a4.6 4.6 0 1 1-1.5-3.4M12.6 2.6v2.6H10"/>',
+  copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
+  save: '<path d="M8 2.5v8M4.8 7.4L8 10.5l3.2-3.1M3 13.5h10"/>',
 };
 const glyph = (name, cls) => '<svg class="g' + (cls ? ' ' + cls : '') + '" viewBox="0 0 16 16" aria-hidden="true">' + GLYPHS[name] + '</svg>';
 const GIB = 1073741824;
 const LIMIT_KEYS = ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'];
 let openRepo = store.get('open', ''); // das aufgeklappte Projekt in den Einstellungen
 let logOpen = false;
+let logRepo = ''; // das Projekt, auf das das Protokoll gefiltert ist ('' = alle, '-' = Meldungen ohne Projekt)
+let logData = []; // Einträge { at, repo, text, kind }, der älteste zuerst
+let logCount = -1; // Stand des Protokolls, zu dem logData gehört
+const LOG_SHORT = 8;
+// Ein Symbol bekommt nur, was ein Ergebnis ist. Der Beginn eines Jobs bleibt ohne: Gelb heißt „läuft jetzt“.
+const LOG_STATE = { error: 'fail', done: 'done', fail: 'fail', cancel: 'cancel' };
+// Von heute genügt die Uhrzeit; Älteres nennt den Tag und spart dafür die Sekunden.
+function logTime(iso) {
+  const at = new Date(iso);
+  const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+  return at.toDateString() === new Date().toDateString() ? at.toLocaleTimeString(locale)
+    : at.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' }) + ' ' + at.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}
 let hereStop = view === 'usage' ? 'day' : 'projects'; // die Haltestelle, an der die Seite gerade steht
 // Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt.
 const routeStop = (key, title, side, body) => '<section class="stop' + (hereStop === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
@@ -846,11 +874,21 @@ function renderSettings() {
   const app = (data.app ? arow(t('autostart'), '', '<input type="checkbox" class="sw" id="autostart" aria-label="' + t('autostart') + '"' + (data.app.autostart ? ' checked' : '') + '>') : '') +
     arow(t('view'), t('viewHint'), seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode)) + arow(t('language'), '', seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang)) +
     '<div class="row" style="padding-top:12px">' + button('power', t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, { cls: 'danger push' }) + '</div>';
-  const log = '<pre>' + esc((logOpen ? data.log : data.log.slice(-3)).join('\n')) + '</pre>' + (data.log.length > 3 ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
+  if (logRepo && logRepo !== '-' && !withPool.some((entry) => entry.repo === logRepo)) logRepo = '';
+  // Zu einem Projekt gehören auch die allgemeinen Fehler: Dort steht oft die Ursache (Docker antwortet nicht).
+  const logShown = logData.filter((entry) => !logRepo || (logRepo === '-' ? !entry.repo : entry.repo === logRepo || (!entry.repo && entry.kind === 'error'))).reverse();
+  const logPick = (repo, text) => '<button data-log-repo="' + esc(repo) + '" aria-pressed="' + (logRepo === repo) + '">' + esc(text) + '</button>';
+  const logRow = (entry) => '<li' + (LOG_STATE[entry.kind] ? ' class="s-' + LOG_STATE[entry.kind] + '"' : '') + '><time datetime="' + esc(entry.at) + '" data-tip="' + esc(new Date(entry.at).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB')) + '">' + logTime(entry.at) + '</time>' +
+    (logRepo ? '' : '<span class="lp"' + (entry.repo ? ' data-tip="' + esc(entry.repo) + '"' : '') + '>' + esc((entry.repo ?? '').split('/').pop()) + '</span>') + (LOG_STATE[entry.kind] ? icon(LOG_STATE[entry.kind]) : '<span></span>') + '<span class="lm">' + esc(entry.text) + '</span></li>';
+  // Gezeigt werden die letzten Meldungen; Kopieren und Speichern nehmen die ganze Datei.
+  const log = '<div class="row">' + (withPool.length > 1 ? '<span class="seg wide" role="group" aria-label="' + t('logFilter') + '">' + logPick('', t('logAll')) + withPool.map((entry) => logPick(entry.repo, entry.repo.split('/')[1])).join('') + logPick('-', t('logGeneral')) + '</span>' : '') +
+    '<span class="row push"><button class="btn" data-log-copy data-tip="' + t('logCopyTip') + '">' + glyph('copy') + t('logCopy') + '</button><a class="btn" href="/api/log/file" download="runclub.log" data-tip="' + t('logSaveTip') + '">' + glyph('save') + t('logSave') + '</a></span></div>' +
+    (logShown.length ? '<ul class="log' + (logRepo ? ' one' : '') + (logOpen ? ' open' : '') + '"' + (logOpen ? ' tabindex="0"' : '') + '>' + (logOpen ? logShown : logShown.slice(0, LOG_SHORT)).map(logRow).join('') + '</ul>' : logRepo ? '<div class="note">' + t('logNone') + '</div>' : '') +
+    (logShown.length > LOG_SHORT ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
 
   const html = '<div class="stack set"><div class="head"><div><h1>' + t('settings') + '</h1></div></div><div class="route">' +
     stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add) +
-    stop('limits', t('limitsTitle'), t('limitsNew'), limitsAll) + stop('app', t('app'), '', app) + stop('log', t('log'), '', log) + '</div></div>';
+    stop('limits', t('limitsTitle'), t('limitsNew'), limitsAll) + stop('app', t('app'), '', app) + stop('log', t('log'), !logShown.length ? '' : logShown.length === 1 ? t('logSideOne') : !logOpen && logShown.length > LOG_SHORT ? t('logSideOf', LOG_SHORT, logShown.length) : t('logSide', logShown.length), log) + '</div></div>';
   // Nicht neu aufbauen, solange im Eingabefeld etwas steht, das noch nicht abgeschickt ist.
   if (document.activeElement?.id === 'addRepo' && document.activeElement.value && main.dataset.html) return;
   put(main, html);
@@ -901,6 +939,17 @@ async function refresh() {
   try { data = await (await fetch('/api/status')).json(); } catch { toast(t('noAnswer')); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
   render();
+  if (view === 'settings' && data.logCount !== logCount) loadLog();
+}
+async function loadLog() { try { const response = await fetch('/api/log'); if (!response.ok) return; const answer = await response.json(); logData = answer.entries; logCount = answer.count; if (view === 'settings') render(); } catch { /* das Protokoll kommt mit der nächsten Abfrage */ } }
+async function copyLog() {
+  try {
+    const response = await fetch('/api/log/file');
+    if (!response.ok) throw new Error('keine Datei');
+    const text = await response.text();
+    await navigator.clipboard.writeText(text);
+    toast(t('logCopied', text.split('\n').filter(Boolean).length));
+  } catch { toast(t('logCopyFailed')); }
 }
 async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* Vorschläge sind Beiwerk */ } }
 async function loadDay() { try { dayData = await (await fetch('/api/metrics/day')).json(); if (view === 'usage') render(); } catch { /* Verlauf ist Beiwerk */ } }
@@ -908,7 +957,7 @@ async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })
 
 document.addEventListener('click', async (event) => {
   const nav = event.target.closest('[data-view]');
-  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; hereStop = view === 'usage' ? 'day' : 'projects'; if (view === 'usage') loadDay(); if (view === 'settings') { loadRepos(); const trouble = limitTrouble(); if (trouble && !trouble.repos.includes(openRepo)) openRepo = trouble.repos[0]; }
+  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; hereStop = view === 'usage' ? 'day' : 'projects'; if (view === 'usage') loadDay(); if (view === 'settings') { loadRepos(); loadLog(); const trouble = limitTrouble(); if (trouble && !trouble.repos.includes(openRepo)) openRepo = trouble.repos[0]; }
     render();
     // Ein Verweis kann eine Haltestelle der Zielansicht nennen.
     if (nav.dataset.goto) { hereStop = nav.dataset.goto; render(); document.getElementById('stop-' + hereStop)?.scrollIntoView({ block: 'start' }); }
@@ -922,6 +971,9 @@ document.addEventListener('click', async (event) => {
   const dot = event.target.closest('[data-stop]');
   if (dot) { document.getElementById('stop-' + dot.dataset.stop)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
   if (event.target.closest('[data-log]')) { logOpen = !logOpen; render(); return; }
+  const logPick = event.target.closest('[data-log-repo]');
+  if (logPick) { logRepo = logPick.dataset.logRepo; render(); return; }
+  if (event.target.closest('[data-log-copy]')) { copyLog(); return; }
   const el = event.target.closest('button[data-do]');
   if (!el || el.getAttribute('aria-disabled') === 'true') return;
   const { do: action, confirm: question, ...body } = el.dataset;
