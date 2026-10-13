@@ -122,3 +122,83 @@ test('mit Workflow-Datei: Abhängigkeiten, spätere Jobs und Restzeit in der ric
   assert.equal(left(smoke.finishAt), 60 + 50); // erst wenn „Build und Tests“ fertig ist
   assert.equal(pipelines.lastOf(REPO).jobs.length, 4);
 });
+
+// Jobs, die bei GitHub anders heißen als in der Datei: Ausdruck im Namen, Matrix ohne Namen, aufgerufener Workflow.
+const RENAMED = `name: CI
+on: [push]
+jobs:
+  prepare:
+    name: Vorbereiten
+    runs-on: x
+  test:
+    name: Test \${{ matrix.os }}
+    needs: prepare
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+  lint:
+    needs: prepare
+    strategy:
+      matrix:
+        node: [18, 20]
+  deploy:
+    name: Ausliefern
+    needs: [test, lint]
+    uses: ./.github/workflows/deploy.yml
+  check:
+    name: Test
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+`;
+const EXPR = 'Test ${{ matrix.os }}';
+
+async function renamed(activeJobs) {
+  const gh = async (args) => args[1].includes('/contents/') ? { content: Buffer.from(RENAMED).toString('base64') } : { jobs: activeJobs };
+  const pipelines = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  await pipelines.refresh(REPO, [{ id: 2, name: 'CI', status: 'in_progress', conclusion: null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', path: '.github/workflows/ci.yml', head_sha: 'abc', run_started_at: iso(-60) }]);
+  const [pipeline] = pipelines.view(REPO, 4);
+  return { pipeline, pending: pipeline.jobs.filter((j) => j.status === 'pending').map((j) => j.name), needs: (name) => pipeline.jobs.find((j) => j.name === name).needs };
+}
+
+test('erkennt nur am Job selbst, dass er einen Workflow aufruft', () => {
+  assert.deepEqual(parseWorkflow(RENAMED).map((j) => [j.id, j.uses ?? false]), [['prepare', false], ['test', false], ['lint', false], ['deploy', true], ['check', false]]);
+});
+
+test('solange GitHub nichts Passendes liefert, bleiben die angekündigten Jobs stehen', async () => {
+  const { pending, needs } = await renamed([done('Vorbereiten', 10)]);
+  assert.deepEqual(pending, [EXPR, 'lint', 'Ausliefern', 'Test']);
+  assert.deepEqual(needs('Ausliefern'), [EXPR, 'lint']);
+});
+
+test('Ausdruck im Namen: die ausgewerteten Jobs lösen den angekündigten ab', async () => {
+  const { pending, needs } = await renamed([done('Vorbereiten', 10), done('Test ubuntu-latest', 10), done('Test windows-latest', 10)]);
+  assert.deepEqual(pending, ['lint', 'Ausliefern', 'Test']);
+  assert.deepEqual(needs('Test windows-latest'), ['Vorbereiten']);
+  assert.deepEqual(needs('Ausliefern'), ['Test ubuntu-latest', 'Test windows-latest', 'lint']);
+});
+
+test('Matrix ohne Namen: „Job (Wert)“ löst den angekündigten Job ab', async () => {
+  const { pending, needs } = await renamed([done('Vorbereiten', 10), done('lint (18)', 10), done('lint (20)', 10)]);
+  assert.deepEqual(pending, [EXPR, 'Ausliefern', 'Test']);
+  assert.deepEqual(needs('lint (20)'), ['Vorbereiten']);
+  assert.deepEqual(needs('Ausliefern'), [EXPR, 'lint (18)', 'lint (20)']);
+});
+
+test('aufgerufener Workflow: seine Jobs lösen den Aufruf ab und erben dessen Abhängigkeiten', async () => {
+  const all = [done('Vorbereiten', 10), done('Test ubuntu-latest', 10), done('Test windows-latest', 10), done('lint (18)', 10), done('lint (20)', 10), done('Test', 10), done('Ausliefern / Bauen', 10), done('Ausliefern / Hochladen', 10)];
+  const { pipeline, pending, needs } = await renamed(all);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(needs('Ausliefern / Hochladen'), ['Test ubuntu-latest', 'Test windows-latest', 'lint (18)', 'lint (20)']);
+  assert.equal(pipeline.jobs.length, all.length);
+  assert.equal(left(pipeline.finishAt), 0); // kein Phantom-Job mehr, der die Restzeit verlängert
+});
+
+test('ein Job schluckt keinen fremden mit ähnlichem Namen', async () => {
+  const strangers = ['Tests bauen', 'lint / Docker', 'Ausliefern (alt)', 'lint-fix (18)'];
+  const { pending, needs } = await renamed([done('Vorbereiten', 10), ...strangers.map((name) => done(name, 10))]);
+  assert.deepEqual(pending, [EXPR, 'lint', 'Ausliefern', 'Test']);
+  for (const name of strangers) assert.deepEqual(needs(name), []);
+  // „Test“ gehört zum Job, der genau so heißt – nicht zum Job mit dem Ausdruck im Namen.
+  assert.deepEqual((await renamed([done('Vorbereiten', 10), done('Test', 10)])).pending, [EXPR, 'lint', 'Ausliefern']);
+});

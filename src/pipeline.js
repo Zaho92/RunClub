@@ -27,6 +27,7 @@ const unquote = (text) => text.trim().replace(/\s+#.*$/, '').replace(/^(['"])(.*
 
 // Liest aus einer Workflow-Datei je Job seinen angezeigten Namen und seine Abhängigkeiten.
 // Kein vollständiges YAML: Es genügt der Block `jobs:` mit `name:` und `needs:` in den üblichen Schreibweisen.
+// `uses: true` bekommt ein Job, der einen anderen Workflow aufruft.
 function parseWorkflow(text) {
   const jobs = [];
   let inJobs = false;
@@ -57,6 +58,7 @@ function parseWorkflow(text) {
     if (depth !== job.depth) continue; // tiefer als die Eigenschaften des Jobs (Schritte, Matrix …)
     const name = line.match(/^name\s*:\s*(.+)$/);
     if (name) { job.name = unquote(name[1]); continue; }
+    if (/^uses\s*:/.test(line)) { job.uses = true; continue; }
     const needs = line.match(/^needs\s*:\s*(.*)$/);
     if (!needs) continue;
     const value = needs[1].replace(/\s+#.*$/, '').trim();
@@ -64,7 +66,19 @@ function parseWorkflow(text) {
     else if (value.startsWith('[')) job.needs.push(...value.replace(/^\[|\]$/g, '').split(',').map(unquote).filter(Boolean));
     else job.needs.push(unquote(value));
   }
-  return jobs.map(({ id, name, needs }) => ({ id, name, needs }));
+  return jobs.map(({ id, name, needs, uses }) => ({ id, name, needs, ...(uses && { uses }) }));
+}
+
+// Unter welchen Namen ein Job der Datei bei GitHub läuft. Der Name aus der Datei steht immer vollständig am Anfang,
+// danach ist nur erlaubt, was GitHub selbst anhängt – „Test“ trifft deshalb nicht „Tests bauen“:
+//   Ausdruck im Namen   `Test ${{ matrix.os }}` → „Test ubuntu-latest“: Der Ausdruck steht für beliebigen Text.
+//   Matrix              „Name (Wert, Wert)“
+//   Aufruf (`uses:`)    „Name / innerer Job“, mit Matrix „Name (Wert) / innerer Job“. Nur für solche Jobs, denn
+//                       sonst träfe „Build“ einen fremden Job, der „Build / Docker“ heißt.
+const EXPRESSION = /\$\{\{.*?\}\}/g;
+function matcherOf(defined) {
+  const name = defined.name.split(EXPRESSION).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+  return new RegExp(defined.uses ? `^${name}( \\(.*\\))? / ` : `^${name}( \\(.*)?$`);
 }
 
 // Ordnet Jobs nach ihren Abhängigkeiten in Stufen: 0 hat keine, sonst eine mehr als die tiefste Abhängigkeit.
@@ -150,8 +164,17 @@ function createPipelines({ gh, dataDir }) {
     const present = new Map(jobs.map((job) => [job.name, job]));
     const pending = (name) => ({ name, status: 'pending', conclusion: null, runner: null, own: true, startedAt: null, completedAt: null, url: run.html_url, estimate: estimate(repo, run.name, name), needs: [], step: null });
     if (definition) {
-      // Ein Job der Datei kann als mehrere Jobs laufen (Matrix): „Name (Wert)“.
-      const actual = (defined) => jobs.filter((job) => job.name === defined.name || job.name.startsWith(`${defined.name} (`));
+      // Ein Job der Datei kann als mehrere Jobs laufen (Matrix, Aufruf) und dort anders heißen: siehe matcherOf.
+      // Jeder echte Job gehört zu höchstens einem Job der Datei: zu dem, der genau so heißt, sonst zu dem mit dem
+      // längsten festen Text – ein Name nur aus einem Ausdruck passt auf alles und bekommt, was übrig bleibt.
+      const matchers = new Map(definition.map((defined) => [defined, matcherOf(defined)]));
+      const fixed = (defined) => defined.name.replace(EXPRESSION, '').length;
+      const found = new Map(definition.map((defined) => [defined, []]));
+      for (const job of jobs) {
+        const owner = definition.find((defined) => defined.name === job.name) ?? definition.filter((defined) => matchers.get(defined).test(job.name)).sort((a, b) => fixed(b) - fixed(a))[0];
+        if (owner) found.get(owner).push(job);
+      }
+      const actual = (defined) => found.get(defined);
       const nameOf = new Map(definition.map((defined) => [defined.id, defined]));
       for (const defined of definition) if (!actual(defined).length && run.status !== 'completed') { const job = pending(defined.name); jobs.push(job); present.set(job.name, job); }
       for (const defined of definition) {
