@@ -351,14 +351,14 @@ const TEXT = {
     capNote: 'Speicher von Runner und Docker zusammen: höchstens {0} GB je Job, damit das Limit unter dem Speicher der Docker-VM bleibt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
     memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
     suggestText: 'Vorschlag: Runner {0} GB, Docker {1} GB, je {2} Kerne.', suggestSame: 'Die Limits entsprechen dem Vorschlag.', suggestWhy: 'Aus den Messwerten dieses Projekts: die höchste Spitze mit 50 % Luft. Die gepunktete Marke zeigt den Vorschlag am Regler.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
-    authIn: 'Angemeldet als {0}', authWhat: 'RunClub darf in deinen Repos Runner an- und abmelden, Läufe lesen und erneut starten und CI_RUNNER setzen.', authSame: 'Es ist dieselbe Anmeldung, die gh im Terminal nutzt.', authUnreadable: 'Welche Rechte diese Anmeldung hat, lässt sich nicht lesen.',
-    authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach ist auch gh im Terminal abgemeldet. RunClub kann keine neuen Runner mehr anmelden; laufende Jobs arbeiten zu Ende.',
+    authIn: 'Angemeldet als {0}', authWhat: 'RunClub nutzt die Anmeldung, um in deinen Repos Runner an- und abzumelden, Läufe zu lesen und erneut zu starten und CI_RUNNER zu setzen. Das Recht dahinter (repo) reicht weiter: Es erlaubt Lesen und Schreiben in allen deinen Repos, auch den privaten.', authSame: 'Es ist dieselbe Anmeldung, die gh im Terminal nutzt.', authUnreadable: 'Welche Rechte diese Anmeldung hat, lässt sich nicht lesen.',
+    authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach ist auch gh im Terminal abgemeldet. RunClub kann keine neuen Runner mehr anmelden; laufende Jobs arbeiten zu Ende. Die Freigabe bei GitHub bleibt bestehen; widerrufen lässt sie sich dort unter Settings → Applications.',
     authOut: 'Nicht bei GitHub angemeldet', authOutMore: 'Ohne Anmeldung kann RunClub keine Runner anmelden und keine Läufe lesen. Sie gilt danach auch für gh im Terminal.',
     authNoGh: 'gh ist nicht installiert', authNoGhMore: 'RunClub spricht über die GitHub CLI (gh) mit GitHub. Es gibt sie unter {0}. Nach der Installation RunClub neu starten.',
     authScope: 'GitHub-Recht fehlt', authScopeMore: 'Der Anmeldung fehlt: {0}. RunClub braucht das, um Runner anzumelden und Läufe zu lesen und erneut zu starten.', authGrant: 'Recht ergänzen',
     authWhy_minutes: 'Freiwillig: Mit dem Recht {0} liest RunClub die Abrechnung deines Kontos und zeigt in „Verbrauch“, wie viele Minuten du diesen Monat auf GitHubs eigenen Runnern verbraucht hast. So siehst du, bevor dort Läufe am Kontingent scheitern.',
     authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst; der Code gilt 15 Minuten.',
-    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', authCopied: 'Der Code liegt in der Zwischenablage.', authCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
+    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
     authFirstText: 'RunClub meldet Runner in deinen Repos an und liest deren Läufe. Dafür braucht es einmal deine Anmeldung bei GitHub; sie gilt danach auch für gh im Terminal.',
     starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
@@ -406,14 +406,14 @@ const TEXT = {
     capNote: 'Runner and Docker memory together: at most {0} GB per job, so the limit stays below the Docker VM’s memory.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
     memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
     suggestText: 'Suggestion: runner {0} GB, Docker {1} GB, {2} cores each.', suggestSame: 'The limits match the suggestion.', suggestWhy: 'From this project’s measurements: the highest peak plus 50% headroom. The dotted mark shows the suggestion on the slider.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
-    authIn: 'Signed in as {0}', authWhat: 'RunClub may register and remove runners in your repos, read and re-run runs, and set CI_RUNNER.', authSame: 'It is the same sign-in gh uses in the terminal.', authUnreadable: 'The permissions of this sign-in cannot be read.',
-    authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'This signs gh in the terminal out as well. RunClub can no longer register new runners; running jobs finish.',
+    authIn: 'Signed in as {0}', authWhat: 'RunClub uses the sign-in to register and remove runners in your repos, read and re-run runs, and set CI_RUNNER. The permission behind it (repo) reaches further: it allows reading and writing in all your repos, private ones included.', authSame: 'It is the same sign-in gh uses in the terminal.', authUnreadable: 'The permissions of this sign-in cannot be read.',
+    authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'This signs gh in the terminal out as well. RunClub can no longer register new runners; running jobs finish. The authorization at GitHub stays in place; you can revoke it there under Settings → Applications.',
     authOut: 'Not signed in to GitHub', authOutMore: 'Without a sign-in RunClub cannot register runners or read runs. It then applies to gh in the terminal as well.',
     authNoGh: 'gh is not installed', authNoGhMore: 'RunClub talks to GitHub through the GitHub CLI (gh). Get it at {0}. Restart RunClub after installing.',
     authScope: 'GitHub permission missing', authScopeMore: 'The sign-in lacks: {0}. RunClub needs it to register runners and to read and re-run runs.', authGrant: 'Add permission',
     authWhy_minutes: 'Optional: with the {0} permission RunClub reads your account’s billing and shows under “Usage” how many minutes you have used on GitHub’s own runners this month. That way you see it before runs there fail for lack of minutes.',
     authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub notices by itself; the code is valid for 15 minutes.',
-    authOpen: 'Open GitHub', authCopy: 'Copy code', authCopied: 'The code is on the clipboard.', authCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
+    authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
     authFirstText: 'RunClub registers runners in your repos and reads their runs. For that it needs your GitHub sign-in once; it then applies to gh in the terminal as well.',
     starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
   },
@@ -1128,7 +1128,7 @@ function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
   // Ohne Anmeldung lässt sich kein Projekt anlegen: Dann ist sie der erste Schritt.
-  if (authTrouble()) { put(main, '<div class="stack empty">' + viewHead(t('authLogin'), t('authFirstText')) + authBody(true) + '</div>'); return; }
+  if (authTrouble()) { put(main, '<div class="stack empty">' + viewHead(data.auth.state === 'out' ? t('authLogin') : esc(authTrouble()), t('authFirstText')) + authBody(true) + '</div>'); return; }
   put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText')) + '<div class="row">' +
     (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
@@ -1182,13 +1182,16 @@ async function refresh() {
   if (view === 'settings' && data.logStamp !== logStamp) loadLog();
 }
 async function loadLog() { try { const response = await fetch('/api/log'); if (!response.ok) return; const answer = await response.json(); logData = answer.entries; logStamp = answer.stamp; if (view === 'settings') render(); } catch { /* das Protokoll kommt mit der nächsten Abfrage */ } }
+// Legt einen Text in die Zwischenablage und meldet, ob es geklappt hat.
+async function copyText(text, done, failed) {
+  try { await navigator.clipboard.writeText(text); toast(done); } catch { toast(failed); }
+}
 async function copyLog() {
   try {
     const response = await fetch('/api/log/file');
     if (!response.ok) throw new Error('keine Datei');
     const text = await response.text();
-    await navigator.clipboard.writeText(text);
-    toast(t('logCopied', text.split('\n').filter(Boolean).length));
+    await copyText(text, t('logCopied', text.split('\n').filter(Boolean).length), t('logCopyFailed'));
   } catch { toast(t('logCopyFailed')); }
 }
 async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* Vorschläge sind Beiwerk */ } }
@@ -1215,7 +1218,7 @@ document.addEventListener('click', async (event) => {
   if (logPick) { logRepo = logPick.dataset.logRepo; render(); return; }
   if (event.target.closest('[data-log-copy]')) { copyLog(); return; }
   const copy = event.target.closest('[data-copy]');
-  if (copy) { try { await navigator.clipboard.writeText(copy.dataset.copy); toast(t('authCopied')); } catch { toast(t('authCopyFailed')); } return; }
+  if (copy) { copyText(copy.dataset.copy, t('codeCopied'), t('codeCopyFailed')); return; }
   const el = event.target.closest('button[data-do]');
   if (!el || el.getAttribute('aria-disabled') === 'true') return;
   const { do: action, confirm: question, ...body } = el.dataset;

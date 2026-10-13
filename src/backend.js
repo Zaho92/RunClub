@@ -896,6 +896,7 @@ async function release() {
   if (stopping) return;
   stopping = true; // Beenden bleibt danach möglich: `shutdown` achtet nur auf sich selbst
   metrics.save();
+  auth.cancel().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, bliebe sonst zurück
   const idle = [...pools.values()].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job));
   await Promise.all(idle.map((slot) => gh(['api', '-X', 'DELETE', `repos/${slot.repo}/actions/runners/${slot.runnerId}`]).catch(() => {})));
 }

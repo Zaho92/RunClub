@@ -10,9 +10,10 @@ zeigt seine Oberfläche in einem Fenster.
 - GitHub CLI (`gh`), installiert; das Konto braucht Verwaltungsrecht auf den Repos
 - Node.js (nur für `npm install`)
 
-RunClub nutzt die Anmeldung von `gh`, dieselbe wie im Terminal, mit den Rechten `repo` und `workflow`. Anmelden geht in
+RunClub nutzt die Anmeldung von `gh`, dieselbe wie im Terminal, und braucht dafür das Recht `repo`; mit dem
+freiwilligen Recht `user` zeigt es zusätzlich das Minuten-Kontingent des Kontos. Anmelden geht in
 der App (Einstellungen → GitHub: Einmalcode, Bestätigung im Browser) oder wie bisher im Terminal
-(`gh auth login -s workflow`). Dort lässt sich auch ein fehlendes Recht ergänzen und wieder abmelden; Abmelden meldet
+(`gh auth login`). Dort lässt sich auch ein fehlendes Recht ergänzen und wieder abmelden; Abmelden meldet
 auch `gh` im Terminal ab.
 
 Die Jobs eines Repos müssen auf eigene Runner zeigen: `runs-on: [self-hosted, Linux]`. Wer umschaltbar bleiben

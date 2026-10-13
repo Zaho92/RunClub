@@ -67,12 +67,10 @@ Richtigkeit:
 ## Noch nicht echt ausprobiert
 
 - **Anmeldung bei GitHub in der App** (`src/auth.js`, Aktionen `auth/…` in `src/backend.js`, Haltestelle „GitHub“ in
-  `src/ui.html`): Anmelden, Abmelden und das Ergänzen eines Rechts sind nur gegen ein nachgestelltes `gh` getestet
-  (`test/auth.test.js`); kein `gh auth login`, `refresh` oder `logout` lief dafür echt. Echt gelesen ist nur der Stand
-  (`gh auth status --json hosts`, gh 2.96.0). Die Oberfläche ist nicht angesehen. Echt prüfen, bei ruhenden Runnern:
-  „Recht ergänzen“ für `user` (der Einmalcode erscheint, „GitHub öffnen“ geht im Browser auf, nach der Bestätigung
-  verschwindet die Zeile von selbst, im Protokoll steht nichts dazu), „Abbrechen“ (danach läuft kein `gh` mehr),
-  dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und als wer; der Code steht nirgends).
+  `src/ui.html`): „Recht ergänzen“ für `user` hat der Nutzer am 14.10.2026 echt benutzt (Einmalcode, Bestätigung im
+  Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Anmelden, Abmelden und
+  Abbrechen sind nur gegen ein nachgestelltes `gh` getestet (`test/auth.test.js`). Echt prüfen, bei ruhenden Runnern:
+  „Abbrechen“ (danach läuft kein `gh` mehr), dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und als wer; der Code steht nirgends).
   Offen ist dabei: ob `gh auth login --web` ohne Terminal wirklich ohne weitere Rückfrage durchläuft, was
   `gh auth status --json hosts` ohne Anmeldung und mit abgelaufenem Token schreibt (angenommen: `{"hosts":{}}` und
   `state` ungleich `success`), ob `gh auth status` gegen das Anfragelimit zählt (deshalb wird ein guter Stand nur alle
