@@ -85,7 +85,8 @@ function createWaiting({ gh, now = Date.now }) {
   // Gezählt wird je Workflow, was seit dessen letztem gelungenen Lauf gescheitert ist: Ein anderer Workflow, der
   // durchläuft, sagt nichts darüber, ob dieser wieder startet.
   async function minutesIn(repo) {
-    const runs = ((await gh(['api', `repos/${repo}/actions/runs?status=completed&per_page=${DONE_MAX}`])).workflow_runs ?? [])
+    // Die Antwort ist eingefroren (siehe github.js): sortiert wird eine Kopie.
+    const runs = [...((await gh(['api', `repos/${repo}/actions/runs?status=completed&per_page=${DONE_MAX}`])).workflow_runs ?? [])]
       .sort((a, b) => String(startOf(b)).localeCompare(String(startOf(a))));
     const recovered = new Set(); // Workflows, bei denen schon ein jüngerer gelungener Lauf gesehen wurde
     const failed = [];

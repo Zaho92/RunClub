@@ -34,9 +34,13 @@ test('ein Job zählt nur, wenn er auf einen eigenen Linux-Runner wartet', () => 
 
 // GitHub nachgestellt: je Repo Läufe mit ihren Jobs (ein Lauf ohne `state` gilt als wartend); ein Job trägt seine
 // Anmerkungen in `notes`. Ein Repo in `broken` lässt sich nicht lesen.
+// Die Antworten sind eingefroren wie die echten aus github.js: Wer eine an Ort und Stelle sortiert oder ändert, fällt
+// hier auf statt erst im Betrieb.
+const frozen = (value) => { if (value && typeof value === 'object') { Object.freeze(value); Object.values(value).forEach(frozen); } return value; };
+
 function fakeGitHub(runsOf, broken = []) {
   const calls = [];
-  const gh = async ([, path]) => {
+  const reply = async ([, path]) => {
     calls.push(path);
     const repo = path.match(/^repos\/([^/]+\/[^/]+)\//)[1];
     if (broken.includes(repo)) throw new Error('gh: Not Found (HTTP 404)');
@@ -47,7 +51,7 @@ function fakeGitHub(runsOf, broken = []) {
     const status = path.match(/status=([a-z_]+)/)[1];
     return { workflow_runs: (runsOf[repo] ?? []).filter((run) => (run.state ?? 'queued') === status).map(({ jobs: _, state: __, ...run }) => run) };
   };
-  return { gh, calls };
+  return { gh: async (args) => frozen(JSON.parse(JSON.stringify(await reply(args)))), calls };
 }
 
 const own = (name, created_at) => ({ name, status: 'queued', labels: ['self-hosted', 'Linux'], created_at });
