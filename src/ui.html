@@ -607,14 +607,20 @@ function chart(id, label, value, of, source, max, format, warn, marks, note) {
   const x = (time) => ((1 - (end - time) / span) * 300);
   const y = (v) => 70 - Math.min(1, v / max) * 62;
   const first = Math.max(0, at.findIndex((time) => end - time <= span));
-  const points = values.slice(first).map((v, i) => x(at[first + i]).toFixed(1) + ',' + y(v).toFixed(1));
+  // Wo länger nichts gemessen wurde (die App war aus), reißt die Kurve ab, statt die Lücke zu überbrücken.
+  const pieces = [];
+  values.slice(first).forEach((v, i) => {
+    if (!i || at[first + i] - at[first + i - 1] > span / 48) pieces.push([]);
+    pieces.at(-1).push(x(at[first + i]).toFixed(1) + ',' + y(v).toFixed(1));
+  });
+  const edge = (point) => point.split(',')[0] + ',74';
+  const curve = pieces.map((points) => '<polygon points="' + edge(points[0]) + ' ' + points.join(' ') + ' ' + edge(points.at(-1)) + '"/><polyline points="' + points.join(' ') + '"/>').join('');
   const peak = Math.max(...values.slice(first));
   const peakAt = at[first + values.slice(first).indexOf(peak)];
-  const lastX = points[points.length - 1].split(',');
   const shown = marks.filter((time) => end - time < span);
   return '<div>' + headline + '<svg class="chart' + (warn ? ' warn' : '') + '" data-chart="' + id + '" viewBox="0 0 300 74" preserveAspectRatio="none" role="img" aria-label="' + esc(label) + '">' +
     '<line class="cap" x1="0" x2="300" y1="8" y2="8"/><line class="mid" x1="0" x2="300" y1="39" y2="39"/>' + shown.map((time) => '<line class="mark" x1="' + x(time).toFixed(1) + '" x2="' + x(time).toFixed(1) + '" y1="0" y2="74"/>').join('') +
-    '<polygon points="' + points[0].split(',')[0] + ',74 ' + points.join(' ') + ' ' + lastX[0] + ',74"/><polyline points="' + points.join(' ') + '"/><line class="peak" x1="0" x2="300" y1="' + y(peak).toFixed(1) + '" y2="' + y(peak).toFixed(1) + '"/></svg>' +
+    curve + '<line class="peak" x1="0" x2="300" y1="' + y(peak).toFixed(1) + '" y2="' + y(peak).toFixed(1) + '"/></svg>' +
     '<div class="ax"><span>' + (span > 3600000 ? t('before24') : t('before30')) + '</span>' + (shown.length ? '<span class="wide">' + t('started') + '</span>' : '') + '<span>' + t('now') + '</span></div><div class="k' + (warn ? ' c-fail' : '') + '">' + (note ? note + ' · ' : '') + t('peak', format(peak), ago(new Date(peakAt).toISOString())) + '</div></div>';
 }
 
