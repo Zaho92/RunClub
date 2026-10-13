@@ -58,6 +58,11 @@ Richtigkeit:
 - **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
   einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
+- **Aus dem Umzug nach `src/pools.js`, noch offen.** Werden Plätze erhöht, während überzählige noch auslaufen, stehen
+  vorübergehend mehr Runner als eingestellt. „Runner neu aufbauen“ mit laufendem Job bricht alle freien Plätze ab,
+  auch solche, die schon die neuen Limits tragen. `pool/set` ruft beim Pausieren `discardReserve` ohne `await` und
+  ohne Fehlerbehandlung. Scheitert das Abbauen der alten Reserve in `renewReserve`, wird erst im Minutentakt
+  nachgefüllt.
 - **Aus dem Umzug nach `src/slots.js`, noch offen.** Scheitert das Anmelden eines Runners dauerhaft (403,
   Anfragelimit), baut der Platz jede Minute ein Paar aus der Reserve ab, und die Reserve baut nach. Endet ein Runner
   mitten im Job ohne Abschlusszeile, gibt es kein Ergebnis im Protokoll und keinen Verbrauch, und die Messung des
@@ -161,9 +166,10 @@ Richtigkeit:
     `rebuildIdle`). Keine der beiden Dateien lädt die andere: `backend.js` reicht `pools.js` die Funktionen der
     Plätze herein und `slots.js` die der Reserve (dort als Rückruf, weil die Reserve erst danach entsteht). Der Code
     ist unverändert umgezogen; anders sind nur `stopping()` und `linuxReady()` als Abfrage statt als Variable und ein
-    eigenes `logError`. Getestet gegen nachgestellte und gegen die echten Plätze mit nachgestelltem Docker; im
-    Betrieb noch nicht geprüft: Limits ändern (Reserve erneuert sich), „Runner neu aufbauen“ mit und ohne laufenden
-    Job, Cache leeren, Plätze verringern, pausieren, Pool entfernen.
+    eigenes `logError` (Zeile für Zeile gegengelesen). Getestet gegen nachgestellte und gegen die echten Plätze mit
+    nachgestelltem Docker. Im Betrieb geprüft am 13.10.2026: Start, die Reserve füllt sich, im Demo-Lauf nehmen die
+    Plätze Paare aus der Reserve und sie füllt nach, Beenden ohne Reste. Im Betrieb noch nicht geprüft: Limits ändern
+    (Reserve erneuert sich), „Runner neu aufbauen“ mit und ohne laufenden Job, Cache leeren, Pool entfernen.
   - Als Nächstes: Vorlage und Gelerntes (`withSeed`, `refreshSeed`, `learnImages`, `wantedImages`), dann Caches und
     Build-Dienst (`prepareCaches`, `renewService`; `pools.js` bekommt `prepareCaches` heute hereingereicht), dann die
     Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`). `startPool` und `preparePool` bleiben bis
