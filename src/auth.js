@@ -6,7 +6,9 @@
 // Ablauf    Anmelden und Ergänzen laufen über den Browser: `gh` schreibt einen Einmalcode und eine Adresse auf die
 //           Fehlerausgabe und wartet, bis dort bestätigt ist. Höchstens einer zugleich, mit Zeitgrenze.
 //           starting (der Code ist noch nicht da) | waiting (wartet auf die Bestätigung, mit Code und Adresse) |
-//           done | failed (mit Meldung) | cancelled. Ein beendeter Ablauf bleibt stehen, bis der nächste beginnt.
+//           done | failed | cancelled. Ein beendeter Ablauf bleibt stehen, bis der nächste beginnt. Ein gescheiterter
+//           nennt den Grund als Kennung (`why`), damit die Oberfläche ihn in ihrer Sprache sagt: late (nicht rechtzeitig
+//           bestätigt) | silent (`gh` gab keinen Code aus) | gh (`gh` meldete einen Fehler; sein Wortlaut steht in `error`).
 // Protokoll Hinein kommt nur, dass an- oder abgemeldet wurde und als wer. Der Einmalcode und alles, was `gh`
 //           schreibt, bleiben draußen; die Meldung eines gescheiterten Ablaufs steht nur im Stand.
 
@@ -16,6 +18,7 @@ const { SECOND, MINUTE } = require('./units');
 const HOST = 'github.com';
 const STATE = { UNKNOWN: 'unknown', MISSING: 'missing', OUT: 'out', IN: 'in' };
 const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
+const WHY = { LATE: 'late', SILENT: 'silent', GH: 'gh' };
 // Ohne sie kann RunClub nicht arbeiten. `repo` genügt für alles, was es tut: Runner an- und abmelden, Läufe lesen und
 // erneut starten, die Variable CI_RUNNER setzen. Mehr wird nicht verlangt (`gh` ergänzt von sich aus `read:org` und `gist`).
 const REQUIRED = ['repo'];
@@ -75,7 +78,7 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
       state: current.state, login: current.login, scopes: current.scopes,
       missing: REQUIRED.filter(lacks), // fehlende Pflichtrechte
       optional: OPTIONAL.filter((entry) => lacks(entry.scope)).map((entry) => ({ ...entry })), // fehlende freiwillige
-      flow: flow ? { kind: flow.kind, state: flow.state, code: flow.code, url: flow.url, error: flow.error } : null,
+      flow: flow ? { kind: flow.kind, state: flow.state, code: flow.code, url: flow.url, why: flow.why, error: flow.error } : null,
     };
   }
 
@@ -120,7 +123,7 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
   function begin(kind, args) {
     if (running()) throw new Error('Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.');
     const controller = new AbortController();
-    const mine = { kind, state: FLOW.STARTING, code: null, url: null, error: null, controller, ended: null, settled: false, silent: false };
+    const mine = { kind, state: FLOW.STARTING, code: null, url: null, why: null, error: null, controller, ended: null, settled: false, silent: false };
     flow = mine;
     let show;
     const shown = new Promise((resolve) => { show = resolve; });
@@ -147,10 +150,11 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
       mine.url = null;
       if (mine.silent) {
         mine.state = FLOW.FAILED;
-        mine.error = ['gh hat keinen Einmalcode ausgegeben.', result.aborted ? '' : reason(result)].filter(Boolean).join(' ');
+        mine.why = WHY.SILENT;
+        mine.error = result.aborted ? null : reason(result);
       } else if (mine.state !== FLOW.CANCELLED) {
         mine.state = result.code === 0 ? FLOW.DONE : FLOW.FAILED;
-        if (result.code !== 0) mine.error = result.timedOut ? `Nicht innerhalb von ${Math.round(flowTimeout / MINUTE)} Minuten bestätigt.` : reason(result, code);
+        if (result.code !== 0) Object.assign(mine, result.timedOut ? { why: WHY.LATE } : { why: WHY.GH, error: reason(result, code) });
       }
       if (mine.state === FLOW.DONE) {
         if (kind === 'login' && current.state === STATE.IN) log(`Bei GitHub angemeldet als ${current.login}.`);
@@ -212,4 +216,4 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
   return { view, refresh, poll, login, grant, cancel, logout };
 }
 
-module.exports = { createAuth, parseHosts, parseText, STATE, FLOW, REQUIRED, OPTIONAL };
+module.exports = { createAuth, parseHosts, parseText, STATE, FLOW, WHY, REQUIRED, OPTIONAL };

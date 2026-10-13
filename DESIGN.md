@@ -419,8 +419,8 @@ der Leiste ist dann `fail-text`, und in der Übersicht steht ein Warn-Tag mit de
 Die dritte Haltestelle in „Verbrauch“, gebaut wie die GitHub-Anfragen: was das Konto in diesem Monat auf GitHubs
 eigenen Runnern verbraucht hat. Im Kopf rechts, was noch frei ist und an welchem Tag der Monat neu beginnt. Darunter
 die Kennzahl (`figure`) mit dem Verbrauchten und den enthaltenen Minuten, dieselbe Schiene mit der gepunkteten Marke
-bei 85 % und ein Satz in `muted`: woraus die Zahl besteht (Linux, Windows, macOS, soweit vorhanden), dass die
-enthaltenen Minuten aus dem Tarif angenommen sind, weil GitHub sie nicht nennt, und was über das Enthaltene hinaus
+bei 85 % und ein Satz in `muted`: woraus die Zahl besteht (Linux, Windows, macOS, soweit vorhanden), wie viele Minuten
+der Tarif im Monat enthält (Free 2.000, Pro 3.000; die Zahlen stehen in `src/minutes.js`), und was darüber hinaus
 bezahlt wurde. Kennt RunClub für den Tarif keine Zahl, steht die Kennzahl allein, ohne Bezugsgröße und Schiene.
 - **Knapp** (ab der Marke) ist keine Störung: ein Satz in `text` über dem Satz in `muted`, und die zweite Zeile in der
   Leiste in `muted`. Wer über das Enthaltene hinaus bezahlt, hat sich so entschieden; das gilt nicht als knapp.

@@ -123,10 +123,10 @@ test('anmelden: der Aufruf antwortet mit Code und Adresse, und nach der Bestäti
   await auth.refresh();
   const begun = auth.login();
   await settle();
-  assert.deepEqual(auth.view().flow, { kind: 'login', state: 'starting', code: null, url: null, error: null });
+  assert.deepEqual(auth.view().flow, { kind: 'login', state: 'starting', code: null, url: null, why: null, error: null });
   env.prompt();
   const view = await begun;
-  assert.deepEqual(view.flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, error: null });
+  assert.deepEqual(view.flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, why: null, error: null });
   assert.equal(view.state, 'out');
   assert.deepEqual(flowCalls(), [{ command: 'gh', args: ['auth', 'login', '--hostname', 'github.com', '--web', '--git-protocol', 'https', '-s', 'repo'], input: '\n', timeout: 15 * MINUTE }]);
   // Höchstens ein Ablauf zugleich.
@@ -139,7 +139,7 @@ test('anmelden: der Aufruf antwortet mit Code und Adresse, und nach der Bestäti
   await settle();
   const after = auth.view();
   assert.deepEqual([after.state, after.login], ['in', 'Zaho92']);
-  assert.deepEqual(after.flow, { kind: 'login', state: 'done', code: null, url: null, error: null });
+  assert.deepEqual(after.flow, { kind: 'login', state: 'done', code: null, url: null, why: null, error: null });
   assert.equal(world.successes, 1);
   // Ins Protokoll kommt nur, dass angemeldet wurde und als wer.
   assert.deepEqual(logs, ['Bei GitHub angemeldet als Zaho92.']);
@@ -153,7 +153,7 @@ test('nur eine Adresse bei GitHub wird übernommen; sonst gilt die bekannte', as
   await settle();
   env.world.flows[0].say('Open this URL to continue in your web browser: https://example.com/login/device');
   env.world.flows[0].say(`\u001b[33m!\u001b[0m First copy your one-time code: ${CODE}`);
-  assert.deepEqual((await begun).flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, error: null });
+  assert.deepEqual((await begun).flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, why: null, error: null });
   await env.auth.cancel();
 });
 
@@ -162,7 +162,7 @@ test('bleibt der Code aus, scheitert der Ablauf bald, statt stumm zu warten', as
   await env.auth.refresh();
   const view = await env.auth.login();
   assert.equal(view.flow.state, 'failed');
-  assert.match(view.flow.error, /keinen Einmalcode/);
+  assert.equal(view.flow.why, 'silent');
   assert.equal(view.flow.code, null);
   // Danach ist ein neuer Versuch möglich.
   await start(env, () => env.auth.login());
@@ -177,7 +177,7 @@ test('gescheitert: die Meldung von gh ohne den Code, nichts im Protokoll; ein ne
   await start(env, () => auth.login());
   world.flows[0].end({ code: 1, stderr: `! First copy your one-time code: ${CODE}\nOpen this URL to continue in your web browser: ${DEVICE}\nfailed to authenticate via web browser: code ${CODE} was denied\nRun 'gh auth login --help' for more information\n` });
   await settle();
-  assert.deepEqual(auth.view().flow, { kind: 'login', state: 'failed', code: null, url: null, error: 'failed to authenticate via web browser: code … was denied' });
+  assert.deepEqual(auth.view().flow, { kind: 'login', state: 'failed', code: null, url: null, why: 'gh', error: 'failed to authenticate via web browser: code … was denied' });
   assert.equal(auth.view().state, 'out');
   assert.deepEqual(logs, []);
   assert.equal(world.successes, 0);
@@ -193,7 +193,7 @@ test('die Zeitgrenze beendet den Ablauf mit einer eigenen Meldung', async () => 
   await start(env, () => env.auth.login());
   env.world.flows[0].end({ code: -1, stderr: 'keine Antwort nach 900 s', timedOut: true });
   await settle();
-  assert.deepEqual(env.auth.view().flow, { kind: 'login', state: 'failed', code: null, url: null, error: 'Nicht innerhalb von 15 Minuten bestätigt.' });
+  assert.deepEqual(env.auth.view().flow, { kind: 'login', state: 'failed', code: null, url: null, why: 'late', error: null });
 });
 
 test('abbrechen beendet das wartende gh; danach lässt sich neu beginnen', async () => {
@@ -203,7 +203,7 @@ test('abbrechen beendet das wartende gh; danach lässt sich neu beginnen', async
   await auth.cancel(); // ohne Ablauf geschieht nichts
   await start(env, () => auth.login());
   await auth.cancel();
-  assert.deepEqual(auth.view().flow, { kind: 'login', state: 'cancelled', code: null, url: null, error: null });
+  assert.deepEqual(auth.view().flow, { kind: 'login', state: 'cancelled', code: null, url: null, why: null, error: null });
   assert.deepEqual([logs, world.successes], [[], 0]);
   const again = await start(env, () => auth.login());
   assert.equal(again.flow.state, 'waiting');
@@ -222,7 +222,7 @@ test('ein Recht ergänzen: nur ein bekanntes, das fehlt; gelungen steht es im St
   assert.deepEqual(flowCalls(), []);
 
   const view = await start(env, () => auth.grant('user'));
-  assert.deepEqual(view.flow, { kind: 'scope', state: 'waiting', code: CODE, url: DEVICE, error: null });
+  assert.deepEqual(view.flow, { kind: 'scope', state: 'waiting', code: CODE, url: DEVICE, why: null, error: null });
   assert.deepEqual(flowCalls(), [{ command: 'gh', args: ['auth', 'refresh', '-h', 'github.com', '-s', 'user'], input: '\n', timeout: 15 * MINUTE }]);
   world.status = ok(WITH_USER);
   world.flows[0].end({ code: 0 });
@@ -294,7 +294,7 @@ test('mit einem echten Programm: der Code kommt an, während es wartet, und sein
   const { auth, state, logs } = program('process.stdin.once("data", () => setTimeout(() => process.exit(0), 400));');
   await auth.refresh();
   const view = await auth.login();
-  assert.deepEqual(view.flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, error: null });
+  assert.deepEqual(view.flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, why: null, error: null });
   state.status = ok(SIGNED_IN);
   for (let round = 0; round < 100 && auth.view().flow.state === 'waiting'; round += 1) await new Promise((resolve) => { setTimeout(resolve, 50); });
   assert.deepEqual([auth.view().flow.state, auth.view().login, logs], ['done', 'Zaho92', ['Bei GitHub angemeldet als Zaho92.']]);
