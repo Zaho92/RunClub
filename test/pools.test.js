@@ -495,9 +495,9 @@ function wired() {
     host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234,
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
     settingsOf, limitsOf, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildService: () => 'rc-buildkit-app',
-    stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: (pool) => w.pools.poolResting(pool),
+    stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: (...args) => w.pools.poolResting(...args),
     withSeed: (repo, exclusive, work) => work(), learnImages: async () => {},
-    replenish: (pool) => w.pools.replenish(pool), discardReserve: (pool) => w.pools.discardReserve(pool),
+    replenish: (...args) => w.pools.replenish(...args), discardReserve: (...args) => w.pools.discardReserve(...args),
     refreshRepo: () => {}, forgetStats: () => {},
   });
   w.pools = createPools({

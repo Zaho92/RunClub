@@ -365,8 +365,8 @@ const { livePairs, provision, removePair, teardown, slotLoop, abortIdle } = crea
   host: HOST, mark: MARK, image: IMAGE, dind: DIND, longTimeout: DOCKER_LONG,
   metrics: { meter: () => metrics.meter(), recordJob: (repo, record) => metrics.recordJob(repo, record) },
   settingsOf, limitsOf, seedVolume, cacheVolume, buildService,
-  stopping: () => stopping, linuxReady: () => linuxReady, poolResting: (pool) => poolResting(pool),
-  withSeed, learnImages, replenish: (pool) => replenish(pool), discardReserve: (pool) => discardReserve(pool), refreshRepo,
+  stopping: () => stopping, linuxReady: () => linuxReady, poolResting: (...args) => poolResting(...args),
+  withSeed, learnImages, replenish: (...args) => replenish(...args), discardReserve: (...args) => discardReserve(...args), refreshRepo,
   forgetStats: (name) => containerStats.delete(name),
 });
 
