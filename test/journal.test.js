@@ -114,3 +114,73 @@ test('ohne schreibbare Datei geht nichts kaputt', () => {
   assert.equal(journal.recent().length, 1);
   assert.equal(journal.read(), '');
 });
+
+test('die Einträge überstehen einen Neustart, samt Art, Job und Runner', () => {
+  const target = file();
+  const first = createJournal({ file: target, now: () => at });
+  first.add('Pool angelegt', { repo: 'wer/was' });
+  first.add('Job „Tests“ läuft auf pc-linux-1', { repo: 'wer/was', kind: 'run', job: 'Tests', runner: 'pc-linux-1' });
+  first.add('Job „Tests“ – Fehler', { repo: 'wer/was', kind: 'fail', job: 'Tests' });
+  const second = createJournal({ file: target, now: () => at });
+  assert.deepEqual(second.recent(), first.recent());
+  assert.deepEqual(second.recent()[1], { at: at.toISOString(), repo: 'wer/was', text: 'Job „Tests“ läuft auf pc-linux-1', kind: 'run', job: 'Tests', runner: 'pc-linux-1' });
+  assert.equal(second.count(), 3);
+  second.add('Gestartet.');
+  assert.equal(second.count(), 4); // die Oberfläche erkennt den neuen Eintrag an der anderen Zahl
+  assert.equal(second.recent().length, 4);
+  assert.equal(second.read(), fs.readFileSync(target, 'utf8')); // der Export bleibt die lesbare Datei
+});
+
+test('aus der Datei kommen höchstens so viele Einträge, wie im Speicher bleiben', () => {
+  const target = file();
+  const first = createJournal({ file: target, keep: 10 });
+  for (let i = 1; i <= 7; i += 1) first.add(`Meldung ${i}`);
+  const second = createJournal({ file: target, keep: 3 });
+  assert.deepEqual(second.recent().map((entry) => entry.text), ['Meldung 5', 'Meldung 6', 'Meldung 7']);
+  assert.equal(second.count(), 3);
+});
+
+test('eine beschädigte oder halbe Zeile wird übergangen und verdirbt den nächsten Eintrag nicht', () => {
+  const target = file();
+  createJournal({ file: target, now: () => at }).add('heil');
+  fs.appendFileSync(`${target}.entries`, 'kein JSON\n"nur Text"\n{"at":"nie","text":"ohne Zeit"}\n{"at":"2026-10-13T13:34:28.000Z"}\n{"at":"2026-10-13T13:34:28.000Z","text":"hal');
+  const journal = createJournal({ file: target, now: () => at });
+  assert.deepEqual(journal.recent().map((entry) => entry.text), ['heil']);
+  journal.add('danach');
+  assert.deepEqual(createJournal({ file: target }).recent().map((entry) => entry.text), ['heil', 'danach']);
+});
+
+test('die Datei mit den Einträgen bleibt begrenzt', () => {
+  const target = file();
+  const journal = createJournal({ file: target, keep: 3 });
+  const rowCount = () => fs.readFileSync(`${target}.entries`, 'utf8').split('\n').length - 1;
+  for (let i = 1; i <= 20; i += 1) {
+    journal.add(`Meldung ${i}`);
+    assert.ok(rowCount() <= 5, `${rowCount()} Zeilen nach ${i} Meldungen`);
+  }
+  fs.appendFileSync(`${target}.entries`, fs.readFileSync(`${target}.entries`, 'utf8').repeat(4)); // von außen gewachsen
+  assert.equal(createJournal({ file: target, keep: 3 }).recent().length, 3);
+  assert.equal(rowCount(), 3); // beim Start auf das Geladene zusammengeschrieben
+  assert.equal(fs.existsSync(`${target}.entries.tmp`), false);
+});
+
+test('eine von außen veränderte Zeile kommt bereinigt an', () => {
+  const target = file();
+  const esc = String.fromCharCode(0x1b);
+  const turn = String.fromCharCode(0x202e);
+  const forged = { at: '2026-10-13T13:34:28Z', repo: `wer/${turn}was`, text: `Job${esc}[2J\nzwei`, kind: 'laut', job: `Te${esc}sts`, runner: 'pc\r\n1', mehr: true };
+  const odd = { at: 0, repo: 7, text: 'x'.repeat(5000), kind: 'done', runner: 'ohne Job' };
+  fs.writeFileSync(`${target}.entries`, `${JSON.stringify(forged)}\n${JSON.stringify(odd)}\n`);
+  const [first, second] = createJournal({ file: target }).recent();
+  assert.deepEqual(first, { at: '2026-10-13T13:34:28.000Z', repo: 'wer/ was', text: 'Job [2J zwei', kind: 'info', job: 'Te sts', runner: 'pc 1' });
+  assert.deepEqual({ ...second, text: second.text.length }, { at: '1970-01-01T00:00:00.000Z', repo: '7', text: 2002, kind: 'done' });
+});
+
+test('ohne lesbare Datei mit Einträgen beginnt das Protokoll leer', () => {
+  const target = file();
+  fs.mkdirSync(`${target}.entries`); // ein Ordner an ihrer Stelle: weder lesen noch schreiben geht
+  const journal = createJournal({ file: target });
+  assert.deepEqual(journal.recent(), []);
+  journal.add('trotzdem');
+  assert.equal(journal.recent().length, 1);
+});

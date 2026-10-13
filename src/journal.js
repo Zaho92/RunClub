@@ -1,5 +1,6 @@
 // Protokoll: Jede Meldung ist ein Eintrag `{ at, repo, text, kind }`, zu einem Job dazu `job` und `runner`. Die letzten bleiben für die Oberfläche im
-// Speicher, alle stehen als lesbare Zeile in der Datei im Datenordner.
+// Speicher, alle stehen als lesbare Zeile in der Datei im Datenordner. Daneben liegen die letzten Einträge als JSON
+// (`<Datei>.entries`, eine Zeile je Eintrag): Daraus füllt sich der Speicher beim nächsten Start wieder.
 //
 //   at     Zeitpunkt (ISO)
 //   repo   das Projekt, zu dem die Meldung gehört, oder null
@@ -32,13 +33,39 @@ function clean(text) {
   return plain.replace(/ {2,}/g, ' ').trim();
 }
 
+// Ein Eintrag aus rohen Angaben: Die Art stammt aus der festen Liste, alle Texte sind bereinigt. Das gilt für neue
+// Meldungen wie für die aus der Datei, denn die kann von außen verändert sein.
+function shape({ at, repo, text, kind, job, runner }) {
+  const entry = { at, repo: repo ? clean(repo) || null : null, text: clean(text), kind: KINDS.includes(kind) ? kind : 'info' };
+  if (job) entry.job = clean(job);
+  if (job && runner) entry.runner = clean(runner);
+  return entry;
+}
+
+// Eine Zeile der Datei mit den Einträgen zurück zum Eintrag; null, wenn sie keiner ist (halb geschrieben, beschädigt).
+function parse(row) {
+  try {
+    const raw = JSON.parse(row);
+    if (!raw || typeof raw !== 'object' || typeof raw.text !== 'string') return null;
+    return shape({ ...raw, at: new Date(raw.at).toISOString() }); // eine ungültige Zeit wirft
+  } catch { return null; }
+}
+
+const rows = (entries) => entries.map((entry) => `${JSON.stringify(entry)}\n`).join('');
+
 // Die Zeile der Datei aus einem Eintrag: Zeit, Projekt, Meldung.
 const line = (entry) => `${new Date(entry.at).toLocaleString('de-DE')} ${entry.repo ? `${entry.repo}: ` : ''}${entry.text}`;
 
 function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = () => new Date(), echo = () => {} }) {
-  const entries = [];
   const old = `${file}.1`;
-  let count = 0; // Einträge seit dem Start; daran erkennt die Oberfläche, dass etwas dazugekommen ist
+  const saved = `${file}.entries`; // dieselben Einträge als JSON, für den nächsten Start
+  const content = (path) => { try { return fs.readFileSync(path, 'utf8'); } catch { return ''; } };
+
+  // Die Einträge vom letzten Lauf. Was keine ganze Zeile mit einem Eintrag ist, wird übergangen.
+  const before = content(saved);
+  const entries = before.split('\n').map(parse).filter(Boolean).slice(-keep);
+  let count = entries.length; // geladene Einträge und die seit dem Start; daran erkennt die Oberfläche, dass etwas dazugekommen ist
+  let rowCount = entries.length; // Zeilen in der Datei mit den Einträgen, mitgezählt
   let size = 0; // Größe der Datei, mitgezählt
   try { size = fs.statSync(file).size; } catch { /* noch keine Datei */ }
 
@@ -51,19 +78,37 @@ function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = () => new 
     } catch { /* Protokoll ist Beiwerk */ }
   }
 
+  // Die Datei mit den Einträgen wächst nicht unbegrenzt: Sie wird auf die Einträge im Speicher zusammengeschrieben,
+  // erst daneben und dann an ihre Stelle, damit ein Absturz dazwischen die alte nicht halb zurücklässt.
+  function compact() {
+    try {
+      fs.writeFileSync(`${saved}.tmp`, rows(entries));
+      fs.renameSync(`${saved}.tmp`, saved);
+      rowCount = entries.length;
+    } catch { /* beim nächsten Mal wieder versuchen */ }
+  }
+  // Schon beim Start, wenn die Datei mehr oder anderes enthält als das Geladene: Eine halbe letzte Zeile würde sonst
+  // den nächsten Eintrag mit verderben.
+  if (before !== rows(entries)) compact();
+
+  function save(entry) {
+    try {
+      fs.appendFileSync(saved, rows([entry]));
+      rowCount += 1;
+    } catch { /* Protokoll ist Beiwerk */ }
+    if (rowCount >= keep * 2) compact();
+  }
+
   function add(text, { repo = null, kind = 'info', job, runner } = {}) {
-    const entry = { at: now().toISOString(), repo: repo || null, text: clean(text), kind: KINDS.includes(kind) ? kind : 'info' };
-    if (job) entry.job = clean(job);
-    if (job && runner) entry.runner = clean(runner);
+    const entry = shape({ at: now().toISOString(), repo, text, kind, job, runner });
     entries.push(entry);
     if (entries.length > keep) entries.shift();
     count += 1;
     echo(line(entry));
     write(`${line(entry)}\n`);
+    save(entry);
     return entry;
   }
-
-  const content = (path) => { try { return fs.readFileSync(path, 'utf8'); } catch { return ''; } };
 
   return {
     add,
