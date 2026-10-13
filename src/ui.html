@@ -296,7 +296,7 @@ const TEXT = {
     untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
     ago: 'vor {0}', justNow: 'gerade eben', s_run: 'läuft', s_done: 'fertig', s_fail: 'Fehler', s_cancel: 'abgebrochen', s_skip: 'ausgesetzt', s_wait: 'wartet',
     usual: 'üblich {0}', step: 'Schritt {0}/{1}: {2}', waitsFor: 'wartet auf {0}', waitsRunner: 'wartet auf einen Runner', notYet: 'noch nicht angelegt', noGraph: 'Abhängigkeiten unbekannt: die Workflow-Datei ließ sich nicht lesen',
-    lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
+    lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', unservedOne: 'Kein Pool: Ein Job wartet seit {1} auf einen eigenen Runner', unservedMany: 'Kein Pool: {0} Jobs warten seit {1} auf einen eigenen Runner', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
     peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
     reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', github: 'GitHub: {0}',
     runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
@@ -335,7 +335,7 @@ const TEXT = {
     untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
     ago: '{0} ago', justNow: 'just now', s_run: 'running', s_done: 'done', s_fail: 'failed', s_cancel: 'cancelled', s_skip: 'skipped', s_wait: 'waiting',
     usual: 'usually {0}', step: 'Step {0}/{1}: {2}', waitsFor: 'waiting for {0}', waitsRunner: 'waiting for a runner', notYet: 'not created yet', noGraph: 'Dependencies unknown: the workflow file could not be read',
-    lastRun: 'Last run', nothing: 'Nothing has run here yet.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
+    lastRun: 'Last run', nothing: 'Nothing has run here yet.', unservedOne: 'No pool: one job has been waiting {1} for a self-hosted runner', unservedMany: 'No pool: {0} jobs have been waiting {1} for a self-hosted runner', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
     peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
     reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', github: 'GitHub: {0}',
     runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
@@ -661,6 +661,16 @@ const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') +
 const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
+// Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten: je eine Zeile mit dem Angebot, einen Pool anzulegen.
+// Welche Jobs es sind, steht im Tooltip.
+function unservedRows() {
+  return (data.unserved ?? []).map((entry) => {
+    return '<div class="quiet"><a class="who s-wait" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon('wait') + esc(entry.repo.split('/')[1]) + '</a>' +
+      '<div class="what" data-tip="' + esc(entry.jobs.join(', ')) + '">' + esc(t(entry.jobs.length === 1 ? 'unservedOne' : 'unservedMany', entry.jobs.length, span(secondsSince(entry.since)))) + '</div>' +
+      '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
+  }).join('');
+}
+
 function quietRows(entries) {
   return entries.map((entry) => {
     const last = entry.lastRun;
@@ -685,7 +695,7 @@ function renderOverview(entries, single) {
   put(document.getElementById('warn'), warnings(entries));
   const busy = entries.filter((entry) => entry.pipelines.length);
   const idleHead = '<div class="head"><div><h1>' + t('all') + '</h1><div class="sub">' + t('idleAll') + '</div></div></div>';
-  const blocks = single ? projectBlocks(entries[0]) + legend() : (busy.length ? busy.map((entry) => projectBlocks(entry, true)).join('') + legend() : idleHead) + '<div>' + quietRows(entries.filter((entry) => !entry.pipelines.length)) + '</div>';
+  const blocks = single ? projectBlocks(entries[0]) + legend() : (busy.length ? busy.map((entry) => projectBlocks(entry, true)).join('') + legend() : idleHead) + '<div>' + unservedRows() + quietRows(entries.filter((entry) => !entry.pipelines.length)) + '</div>';
   if (put(document.getElementById('runs'), blocks)) {
     watchPlans(main);
     // Schmale Fenster: die Spalte mit dem ersten laufenden oder roten Job in den Blick holen.

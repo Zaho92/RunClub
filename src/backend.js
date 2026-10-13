@@ -32,6 +32,7 @@ const limitRules = require('./limits');
 const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
 const { createRouting, VARIABLE } = require('./routing');
+const { createWaiting, candidates } = require('./waiting');
 const { createJournal, resultKind, resultText } = require('./journal');
 const { createGitHub, STATE: QUOTA } = require('./github');
 
@@ -57,6 +58,7 @@ const GITHUB_ACTIVE_INTERVAL_MS = 8000; // Repos, in denen gerade ein Job läuft
 const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * 60000;
+const WAITING_INTERVAL_MS = 5 * 60000; // so oft wird nach wartenden Läufen ohne Pool gesucht
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
 const SECOND = 1000;
@@ -645,6 +647,7 @@ async function linuxLoop() {
 const github = new Map(); // Repo -> { runners, jobs, runs, error }
 const pipelines = createPipelines({ gh, dataDir: DATA_DIR });
 const routing = createRouting({ gh }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
+const waiting = createWaiting({ gh }); // Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten
 
 // --- Messung: Rechner, Docker-VM und der Verbrauch je Job ---
 
@@ -740,6 +743,13 @@ async function listRepos() {
   return repoList.repos.map((r) => ({ ...r, pool: Boolean(settingsOf(r.repo)) }));
 }
 
+// Nach Läufen suchen, die auf einen eigenen Runner warten, für die es aber keinen Pool gibt (siehe waiting.js).
+// Lässt sich die Liste der Repos nicht lesen, bleibt der letzte Stand.
+function scanWaiting() {
+  if (stopping || !githubApi.mayPoll('wartende Läufe')) return Promise.resolve();
+  return listRepos().then((repos) => waiting.scan(candidates(repos))).catch(() => {});
+}
+
 // --- Was die Oberfläche sieht ---
 
 const limitRange = () => limitRules.bounds({ dockerMemory, dockerCpus });
@@ -806,6 +816,7 @@ function status() {
     },
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
+    unserved: waiting.list(), // Repos ohne Pool mit wartenden Jobs: [{ repo, jobs, since, url }]
     logCount: journal.count(), // das Protokoll selbst holt die Oberfläche, wenn sich die Zahl ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -829,6 +840,7 @@ const actions = {
     if (info.private === false) throw new Error('Das Repo ist öffentlich. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.');
     config.pools.push({ repo: info.full_name, parallel: Math.min(4, Math.max(1, Number(parallel) || 1)), cache: true, paused: false, preload: [] });
     saveConfig();
+    waiting.forget(info.full_name);
     log('Pool angelegt', info.full_name);
     startPool(info.full_name);
     refreshGitHub();
@@ -1054,6 +1066,8 @@ http.createServer(async (request, response) => {
 
 watchQuota();
 setInterval(watchQuota, MINUTE);
+scanWaiting();
+setInterval(scanWaiting, WAITING_INTERVAL_MS);
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
