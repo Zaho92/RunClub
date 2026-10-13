@@ -1,0 +1,90 @@
+// Das Minuten-Kontingent von GitHub Actions: wie viele Minuten das Konto in diesem Monat auf GitHubs eigenen Runnern
+// verbraucht hat. Ist es aufgebraucht, starten Läufe dort nicht mehr (siehe waiting.js); hier sieht man es vorher.
+//
+// Quelle    `users/<konto>/settings/billing/usage/summary` (braucht das Recht `user`) für den laufenden Monat. Gezählt
+//           werden nur Einträge des Produkts Actions mit der Einheit Minuten, je Betriebssystem und zusammen.
+//           `grossQuantity` ist das Verbrauchte, `netQuantity`/`netAmount`, was über das Enthaltene hinaus bezahlt wird.
+// Gewicht   Jede Minute zählt einfach, gleich auf welchem Betriebssystem: So nennt GitHub die Zahlen, und so beschreibt
+//           es heute das Kontingent. Die früheren Faktoren (Windows 2, macOS 10) nennt die Abrechnung nicht mehr.
+// Enthalten Wie viele Minuten der Tarif enthält, sagt die Schnittstelle nicht. Die Zahl ist eine ANNAHME aus dem
+//           Tarifnamen (`user` → `plan.name`); für einen unbekannten Tarif gibt es keine.
+// Zustand   ok | tight (ab 85 % des Enthaltenen) | out (das Enthaltene ist erreicht und nichts wird bezahlt: Die
+//           Ausgabengrenze ist 0, GitHub startet keine Jobs mehr) | unknown (der Tarif ist unbekannt).
+
+const SCOPE = 'user'; // das Recht, ohne das GitHub die Abrechnung nicht herausgibt
+const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', UNKNOWN: 'unknown' };
+const TIGHT = 0.85; // verbrauchter Anteil, ab dem es knapp ist
+// ANNAHME: enthaltene Minuten je Monat und Tarif eines persönlichen Kontos, wie GitHub sie öffentlich nennt
+// (Stand Oktober 2026). Ändert GitHub seine Tarife, ist diese Tabelle anzupassen.
+const INCLUDED = { free: 2000, pro: 3000 };
+const SYSTEMS = ['linux', 'windows', 'macos']; // steckt im Kürzel des Eintrags (`actions_linux`, `actions_macos`, …)
+
+const amount = (value) => { const number = Number(value); return Number.isFinite(number) && number > 0 ? number : 0; };
+
+// Wann der Monat der Abrechnung endet: am Ersten des Folgemonats (UTC). Nennt die Antwort keinen, gilt der laufende.
+function monthEnd(period, now) {
+  const today = new Date(now);
+  const year = Number(period?.year);
+  const month = Number(period?.month); // 1 bis 12
+  const known = Number.isInteger(year) && Number.isInteger(month) && month >= 1 && month <= 12;
+  return new Date(known ? Date.UTC(year, month, 1) : Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1)).toISOString();
+}
+
+// Rechnet aus der Zusammenfassung der Abrechnung und dem Tarifnamen den Stand. Ändert die Antwort nicht.
+// { plan, used, included (oder null), paid (Minuten), cost (US-Dollar), systems: { linux, windows, macos, other },
+//   resetAt (ISO), state, tightAt }; Minuten sind auf ganze gerundet.
+function summarize(summary, plan, now = Date.now()) {
+  const systems = { linux: 0, windows: 0, macos: 0, other: 0 };
+  let paid = 0;
+  let cost = 0;
+  for (const item of Array.isArray(summary?.usageItems) ? summary.usageItems : []) {
+    if (String(item?.product).toLowerCase() !== 'actions' || String(item?.unitType).toLowerCase() !== 'minutes') continue;
+    const sku = String(item.sku ?? '').toLowerCase();
+    systems[SYSTEMS.find((system) => sku.includes(system)) ?? 'other'] += amount(item.grossQuantity);
+    paid += amount(item.netQuantity);
+    cost += amount(item.netAmount);
+  }
+  const used = Object.values(systems).reduce((sum, value) => sum + value, 0);
+  const name = String(plan ?? '').toLowerCase() || null;
+  const included = Object.hasOwn(INCLUDED, name ?? '') ? INCLUDED[name] : null;
+  const state = !included ? STATE.UNKNOWN : used >= included && paid === 0 ? STATE.OUT : used >= included * TIGHT ? STATE.TIGHT : STATE.OK;
+  for (const system of Object.keys(systems)) systems[system] = Math.round(systems[system]);
+  return { plan: name, used: Math.round(used), included, paid: Math.round(paid), cost: Math.round(cost * 100) / 100, systems, resetAt: monthEnd(summary?.timePeriod, now), state, tightAt: TIGHT };
+}
+
+// `gh` wie `call` in github.js. `log(text)` schreibt einen Fehler ins Protokoll.
+function createMinutes({ gh, log = () => {}, now = Date.now }) {
+  let current = null; // { login, …Stand }
+  let failed = false; // die letzte Abfrage ist gescheitert: Gemeldet wird nur die erste in Folge
+  let reading = null; // die laufende Abfrage; es läuft höchstens eine
+
+  async function read(login) {
+    try {
+      const summary = await gh(['api', `users/${encodeURIComponent(login)}/settings/billing/usage/summary`]);
+      const plan = (await gh(['api', 'user']))?.plan?.name;
+      current = { login, ...summarize(summary, plan, now()) };
+      failed = false;
+    } catch (error) {
+      // Es bleibt der letzte Stand; der eines anderen Kontos gilt ohnehin nicht (siehe `view`).
+      if (!failed) log(`Das Minuten-Kontingent von GitHub ließ sich nicht lesen – ${error.message}`);
+      failed = true;
+    }
+  }
+
+  // Den Stand für das Konto holen. Wirft nie.
+  function refresh(login) {
+    reading ??= read(login).finally(() => { reading = null; });
+    return reading;
+  }
+
+  // Der Stand des Kontos, oder null, solange es keinen gibt. Ein Stand aus einem vergangenen Monat gilt nicht mehr.
+  function view(login) {
+    if (!current || current.login !== login || now() >= new Date(current.resetAt).getTime()) return null;
+    const { login: _, ...rest } = current;
+    return { ...rest, systems: { ...rest.systems } };
+  }
+
+  return { refresh, view };
+}
+
+module.exports = { createMinutes, summarize, STATE, SCOPE, TIGHT, INCLUDED };

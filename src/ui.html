@@ -328,6 +328,11 @@ const TEXT = {
     quotaOk: 'Das Limit gilt für dein ganzes GitHub-Konto; auch gh im Terminal und andere Werkzeuge zählen mit. Ab der gepunkteten Marke fragt RunClub seltener ab.',
     quotaTight: 'Bis {0} fragt RunClub seltener ab; Läufe und Restzeiten erscheinen mit Verzögerung. Die Runner arbeiten unverändert.',
     quotaOut: 'Bis {0} fragt RunClub GitHub nicht mehr ab.', quotaOutMore: 'Laufende Jobs arbeiten weiter, die Anzeige bleibt so lange stehen. Die letzten Anfragen sind für neue Runner reserviert; halte bis dahin an, was sonst an deinem Konto zieht (gh, andere Werkzeuge).',
+    minutesTitle: 'GitHub-Minuten', minutesLabel: 'In diesem Monat auf GitHubs Runnern verbrauchte Minuten', minutesReset: 'noch {0} frei · neu ab {1}', minutesResetOnly: 'neu ab {0}', minutesTightShort: 'GitHub-Minuten knapp', minutesOutShort: 'GitHub-Minuten aufgebraucht',
+    minutesParts: 'Davon {0}.', minutesAll: 'Alles auf {0}.', minutesOther: 'andere', minutesAssumed: 'Die {0} enthaltenen Minuten sind für den Tarif {1} angenommen; GitHub nennt sie nicht.', minutesNoPlan: 'GitHub nennt nicht, wie viele Minuten dein Tarif enthält, und für diesen Tarif kennt RunClub keine Zahl. Deshalb fehlt die Bezugsgröße.',
+    minutesPaid: '{0} Minuten gehen über das Enthaltene hinaus und kosten bisher {1}.', minutesTight: 'Das Enthaltene ist fast verbraucht. Danach startet GitHub auf seinen Runnern keine Läufe mehr, solange dort kein Budget gesetzt ist.',
+    minutesOut: 'Die enthaltenen Minuten sind aufgebraucht: Bis zum {0} startet GitHub auf seinen Runnern keine Läufe mehr.', minutesOutMore: 'Hol die Projekte auf deine eigenen Runner („Pool anlegen“ in den Einstellungen) oder setz bei GitHub ein Budget.',
+    minutesNoScope: 'Wie viele Minuten du diesen Monat auf GitHubs Runnern verbraucht hast, kann RunClub mit dem Recht {0} zeigen. Es lässt sich in den Einstellungen unter „GitHub“ ergänzen.', toAuth: 'Zu den Einstellungen',
     projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
     confirmClear: 'Der nächste Lauf von {0} lädt das wieder und ist deshalb langsamer.', confirmRemove: 'Der Pool für {0} wird mit allen Caches entfernt. Auch CI_RUNNER wird entfernt; die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner werden abgebaut. Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
@@ -378,6 +383,11 @@ const TEXT = {
     quotaOk: 'The limit covers your whole GitHub account; gh in the terminal and other tools count too. Past the dotted mark, RunClub polls GitHub less often.',
     quotaTight: 'Until {0} RunClub polls less often; runs and remaining times show up late. Runners keep working as usual.',
     quotaOut: 'Until {0} RunClub stops polling GitHub.', quotaOutMore: 'Running jobs carry on; the display stays frozen until then. The last requests are reserved for new runners; pause whatever else uses your account (gh, other tools).',
+    minutesTitle: 'GitHub minutes', minutesLabel: 'Minutes used on GitHub’s runners this month', minutesReset: '{0} left · starts over on {1}', minutesResetOnly: 'starts over on {0}', minutesTightShort: 'GitHub minutes running low', minutesOutShort: 'GitHub minutes used up',
+    minutesParts: 'Of these, {0}.', minutesAll: 'All on {0}.', minutesOther: 'other', minutesAssumed: 'The {0} included minutes are assumed for the {1} plan; GitHub does not state them.', minutesNoPlan: 'GitHub does not state how many minutes your plan includes, and RunClub knows no figure for this plan. That is why there is no reference value.',
+    minutesPaid: '{0} minutes go beyond the included ones and cost {1} so far.', minutesTight: 'The included minutes are almost used up. After that GitHub starts no more runs on its runners unless a budget is set there.',
+    minutesOut: 'The included minutes are used up: until {0} GitHub starts no more runs on its runners.', minutesOutMore: 'Move the projects to your own runners (“Create pool” in the settings) or set a budget at GitHub.',
+    minutesNoScope: 'With the {0} permission RunClub can show how many minutes you have used on GitHub’s runners this month. You can add it in the settings under “GitHub”.', toAuth: 'Go to settings',
     projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
     confirmClear: 'The next run of {0} downloads this again and is slower for it.', confirmRemove: 'The pool for {0} is removed with all its caches. CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'All runners are taken down. Running jobs are cut off, queued jobs wait until RunClub runs again.',
@@ -557,13 +567,13 @@ function renderRail() {
   // Fehlt die Anmeldung, geht das allem anderen vor: Ohne sie lässt sich an den Limits nichts tun.
   const signIn = authTrouble();
   const trouble = limitTrouble();
-  const quota = quotaTrouble();
+  const usage = usageTrouble();
   const item = (key, title, sub, dot, plain, todo) => '<button class="nav' + (plain ? ' plain' : '') + (todo ? ' todo' : '') + (dot ? ' s-' + dot : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (dot ? icon(dot) : '') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
   document.getElementById('rail').setAttribute('aria-label', t('railLabel'));
   if (window.innerWidth <= NARROW) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, shortRepo(entry.repo), state.text, state.dot); }).join('') +
-    '<div class="railfoot">' + item('usage', t('usage'), !quota ? '' : quota.out ? '<span class="c-fail">' + esc(quota.text) + '</span>' : esc(quota.text), '', true, Boolean(quota?.out)) + item('settings', t('settings'), signIn ? '<span class="c-fail">' + esc(signIn) + '</span>' : trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean(signIn || trouble)) + '</div>');
+    '<div class="railfoot">' + item('usage', t('usage'), !usage ? '' : usage.out ? '<span class="c-fail">' + esc(usage.text) + '</span>' : esc(usage.text), '', true, Boolean(usage?.out)) + item('settings', t('settings'), signIn ? '<span class="c-fail">' + esc(signIn) + '</span>' : trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean(signIn || trouble)) + '</div>');
 }
 
 // --- Netzplan ---
@@ -758,6 +768,13 @@ function seats(entries) {
 // Die einzige Stelle, die die Zustandswörter des Backends kennt (siehe STATE in github.js).
 const quotaState = () => ({ tight: data.quota?.state === 'tight', out: data.quota?.state === 'out' });
 const quotaTrouble = () => { const { tight, out } = quotaState(); return tight || out ? { out, text: t(out ? 'quotaOutShort' : 'quotaTightShort') } : null; };
+// Dasselbe für das Minuten-Kontingent von GitHub Actions (siehe STATE in minutes.js). `out` heißt: GitHub startet auf
+// seinen Runnern nichts mehr. Wer über das Enthaltene hinaus bezahlt, hat sich so entschieden: Das ist nicht knapp.
+const minutesState = () => ({ tight: data.minutes?.state === 'tight' && !data.minutes.paid, out: data.minutes?.state === 'out' });
+const minutesTrouble = () => { const { tight, out } = minutesState(); return tight || out ? { out, text: t(out ? 'minutesOutShort' : 'minutesTightShort') } : null; };
+// Was „Verbrauch“ in der Leiste meldet: eine Zeile, auch wenn beides zutrifft. Aufgebraucht geht vor knapp, bei
+// Gleichstand die Anfragen vor den Minuten, weil ohne Anfragen auch die Anzeige stehen bleibt.
+const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
 // Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
 const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
@@ -829,6 +846,31 @@ function quotaStop() {
     '<div class="note measure' + (tight ? ' strong' : '') + '">' + (out ? '<span class="c-fail">' + t('quotaOut', until) + '</span> <span class="ink">' + t('quotaOutMore') + '</span>' : t(tight ? 'quotaTight' : 'quotaOk', until)) + '</div>');
 }
 
+// Haltestelle „GitHub-Minuten“: was das Konto in diesem Monat auf GitHubs eigenen Runnern verbraucht hat, gebaut wie
+// die GitHub-Anfragen. Die Bezugsgröße ist eine Annahme aus dem Tarif (siehe minutes.js); ohne sie gibt es nur die
+// Kennzahl. Knapp verlangt nichts. Rot ist das Aufgebrauchte, weil es einen Ausweg gibt: eigene Runner oder ein Budget.
+// Fehlt das freiwillige Recht dafür, steht hier nur der Satz mit dem Weg zur Haltestelle „GitHub“ der Einstellungen.
+function minutesStop() {
+  const m = data.minutes;
+  const lacking = data.auth?.optional.find((entry) => entry.purpose === 'minutes');
+  if (!m) return !lacking ? '' : routeStop('minutes', t('minutesTitle'), '', '<div class="row"><span class="rt note">' + t('minutesNoScope', '<code>' + esc(lacking.scope) + '</code>') + '</span><button class="btn" data-view="settings" data-goto="auth">' + t('toAuth') + '</button></div>');
+  const count = (n) => n.toLocaleString(locale());
+  const { tight, out } = minutesState();
+  // Der Monat der Abrechnung wechselt nach Weltzeit.
+  const day = new Date(m.resetAt).toLocaleDateString(locale(), { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const systems = [['Linux', m.systems.linux], ['Windows', m.systems.windows], ['macOS', m.systems.macos], [t('minutesOther'), m.systems.other]].filter(([, value]) => value > 0);
+  const about = [
+    systems.length > 1 ? t('minutesParts', systems.map(([name, value]) => name + ' ' + count(value)).join(', ')) : systems.length ? t('minutesAll', systems[0][0]) : '',
+    m.included ? t('minutesAssumed', count(m.included), esc(m.plan.charAt(0).toUpperCase() + m.plan.slice(1))) : t('minutesNoPlan'),
+    m.paid ? t('minutesPaid', count(m.paid), m.cost.toLocaleString(locale(), { style: 'currency', currency: 'USD' })) : '',
+  ].filter(Boolean).join(' ');
+  return routeStop('minutes', t('minutesTitle'), m.included ? t('minutesReset', count(Math.max(0, m.included - m.used)), day) : t('minutesResetOnly', day),
+    '<div><div class="k">' + t('minutesLabel') + '</div><div class="v' + (out ? ' c-fail' : '') + '">' + count(m.used) + (m.included ? ' <small>' + t('of', count(m.included)) + '</small>' : '') + '</div></div>' +
+    (m.included ? '<div class="um solo">' + fillBar(m.used / m.included, out, m.tightAt) + '</div>' : '') +
+    (out ? '<div class="note measure strong"><span class="c-fail">' + t('minutesOut', day) + '</span> <span class="ink">' + t('minutesOutMore') + '</span></div>' : tight ? '<div class="note measure strong">' + t('minutesTight') + '</div>' : '') +
+    '<div class="note measure">' + about + '</div>');
+}
+
 function renderUsage() {
   const main = document.getElementById('main');
   main.dataset.shape = 'usage';
@@ -866,7 +908,7 @@ function renderUsage() {
   }).join('');
   put(main, '<div class="stack set"><div class="head"><div><h1>' + t('usage') + '</h1></div></div><div class="route">' +
     routeStop('day', t('day'), '', '<div class="trio">' + chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div>') +
-    quotaStop() + projects + '</div></div>');
+    quotaStop() + minutesStop() + projects + '</div></div>');
 }
 
 // Gezeichnete Symbole der Bedienelemente: 16er-Raster, ein Strich, in Textfarbe – nie in einer Zustandsfarbe.

@@ -101,6 +101,14 @@ Richtigkeit:
   nach spätestens fünf Minuten in „Alle Projekte“ als Zeile mit rotem Symbol „Kein Kontingent: …“ mit „Pool anlegen“; nach einem
   gelungenen Lauf oder einem Tag verschwindet sie. Nicht angesehen: Zeile und Symbol. Gezählt werden
   höchstens die fünf jüngsten abgeschlossenen Läufe.
+- **Minuten-Kontingent in „Verbrauch“** (`src/minutes.js`, `watchMinutes` in `src/backend.js`, `minutesStop` in
+  `src/ui.html`): Echt gelesen ist nur die Antwort der Abrechnung für ein Konto im Tarif Free, dessen Minuten
+  aufgebraucht waren (sie steht in `test/minutes.test.js`). Die Zustände in Ordnung und knapp, ein bezahlter
+  Verbrauch, macOS und ein unbekannter Tarif sind nur mit nachgestellten Antworten geprüft; die Oberfläche ist nicht
+  angesehen. Annahmen, die bei Tarifänderungen von GitHub anzupassen sind: die Tabelle der enthaltenen Minuten
+  (`INCLUDED`: Free 2.000, Pro 3.000; die Schnittstelle nennt sie nicht), dass jede Minute einfach zählt, gleich auf
+  welchem Betriebssystem, und dass der Monat am Ersten (UTC) neu beginnt. Offen: ob Minuten größerer Runner
+  (`actions_linux_4_core` und ähnliche, die das Enthaltene nicht deckt) mitzuzählen sind; heute zählen sie mit.
 - **Lauf und Job erneut starten** (`run/rerun`, `job/rerun` in `src/backend.js`; Schaltflächen in `src/ui.html`): nur
   am Code geprüft, kein Aufruf ging an GitHub. Echt prüfen: „Erneut starten“ und „Nur Gescheiterte“ unter dem Kopf des
   letzten Laufs, „Job erneut starten“ in den aufgeklappten Details einer Pill; der Lauf erscheint nach wenigen

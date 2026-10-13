@@ -276,7 +276,7 @@ Zwei Spalten über die volle Fensterhöhe: links die Projektleiste (232 px), rec
 
 Der Kopf eines Laufs stellt Titel und Herkunft links an die Grundlinie der großen Restzeit rechts. Der Netzplan füllt die Breite: Jede Stufe ist eine Spalte (mindestens 180 px, höchstens 280 px), die Spalten stehen mit `clamp(40px, 6vw, 96px)` Abstand nebeneinander und sind senkrecht mittig ausgerichtet, die Pills einer Spalte haben 12 px Abstand. Hat ein Lauf keine Abhängigkeiten, stehen die Jobs in Startreihenfolge zu sechst je Spalte. Im Kompaktmodus hält der Plan 44 px Höhe vor, damit das Aufklappen einer Pill nichts darunter verschiebt. Reicht die Breite nicht, rollt der Plan waagerecht.
 
-Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, die zweite die GitHub-Anfragen, danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der fünf Abschnitte (GitHub, Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
+Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, die zweite die GitHub-Anfragen, die dritte die GitHub-Minuten (mit dem Recht `user`; ohne es steht dort nur ein Satz mit dem Weg in die Einstellungen), danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der fünf Abschnitte (GitHub, Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
 
 Umbrüche:
 - **bis 1100 px:** Das Band wird zweispaltig, der seitliche Abstand des Hauptbereichs sinkt auf 24 px.
@@ -328,7 +328,7 @@ Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunkte
 ### Navigation (Projektleiste)
 - **Eintrag:** Zweizeilig: Name (`ink`, 400) und Zustand in Worten (12 px `muted`), links das Zustandssymbol (16 px). Radius 8 px, Innenabstand 8 px 12 px 8 px 36 px, 4 px Abstand zwischen Einträgen.
 - **Zustände:** Ruhe durchsichtig, überfahren `rail-hover`, gewählt `surface`.
-- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. „Verbrauch“ trägt eine zweite Zeile, wenn die GitHub-Anfragen knapp (`muted`) oder aufgebraucht (`fail-text`) sind. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort. Fehlt die Anmeldung bei GitHub (nicht angemeldet, ein Pflichtrecht fehlt, `gh` ist nicht installiert), steht stattdessen das dort; es geht den Limits vor.
+- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. „Verbrauch“ trägt eine zweite Zeile, wenn die GitHub-Anfragen oder die GitHub-Minuten knapp (`muted`) oder aufgebraucht (`fail-text`) sind. Es bleibt bei einer Zeile, auch wenn beides zutrifft: Aufgebraucht geht vor knapp, sonst die Anfragen vor den Minuten. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort. Fehlt die Anmeldung bei GitHub (nicht angemeldet, ein Pflichtrecht fehlt, `gh` ist nicht installiert), steht stattdessen das dort; es geht den Limits vor.
 - **Schmal:** Eine waagerecht rollende Zeile aus Symbol und Name; der gewählte Eintrag rückt in den Blick.
 
 ### Schaltflächen
@@ -414,6 +414,23 @@ Störung und vergeht von selbst: Der Satz steht dann in `text`, und „Verbrauch
 in `muted`. Erst an der Reserve (2 %), wenn RunClub gar nicht mehr abfragt, wird es rot: Kennzahl, Schiene und der
 erste Satz, der die Uhrzeit nennt, zu der es weitergeht; der Rest des Satzes nennt in `text` den Ausweg. Die Zeile in
 der Leiste ist dann `fail-text`, und in der Übersicht steht ein Warn-Tag mit der Uhrzeit.
+
+### GitHub-Minuten
+Die dritte Haltestelle in „Verbrauch“, gebaut wie die GitHub-Anfragen: was das Konto in diesem Monat auf GitHubs
+eigenen Runnern verbraucht hat. Im Kopf rechts, was noch frei ist und an welchem Tag der Monat neu beginnt. Darunter
+die Kennzahl (`figure`) mit dem Verbrauchten und den enthaltenen Minuten, dieselbe Schiene mit der gepunkteten Marke
+bei 85 % und ein Satz in `muted`: woraus die Zahl besteht (Linux, Windows, macOS, soweit vorhanden), dass die
+enthaltenen Minuten aus dem Tarif angenommen sind, weil GitHub sie nicht nennt, und was über das Enthaltene hinaus
+bezahlt wurde. Kennt RunClub für den Tarif keine Zahl, steht die Kennzahl allein, ohne Bezugsgröße und Schiene.
+- **Knapp** (ab der Marke) ist keine Störung: ein Satz in `text` über dem Satz in `muted`, und die zweite Zeile in der
+  Leiste in `muted`. Wer über das Enthaltene hinaus bezahlt, hat sich so entschieden; das gilt nicht als knapp.
+- **Aufgebraucht** (das Enthaltene ist erreicht, nichts wird bezahlt: GitHub startet dort keine Läufe mehr) ist rot,
+  weil es einen Ausweg gibt: Kennzahl, Schiene und der erste Satz, der den Tag nennt, an dem es weitergeht; der Rest
+  nennt in `text` den Ausweg (Projekte auf die eigenen Runner holen oder bei GitHub ein Budget setzen). Die Zeile in
+  der Leiste ist dann `fail-text`. Ein Warn-Tag in der Übersicht gibt es dafür nicht; dort stehen die betroffenen
+  Repos als Zeilen „Kein Kontingent“.
+- **Ohne das Recht `user`** steht in der Haltestelle nur ein Satz in `muted` mit einer Schaltfläche, die zur
+  Haltestelle „GitHub“ der Einstellungen führt. Das Recht ist freiwillig; rot ist hier nichts.
 
 ### Protokoll
 Die letzte Haltestelle der Einstellungen. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und

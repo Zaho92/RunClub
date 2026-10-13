@@ -40,7 +40,8 @@ const { createJournal } = require('./journal');
 const { createGitHub, STATE: QUOTA } = require('./github');
 const { createSlots } = require('./slots');
 const { createPools } = require('./pools');
-const { createAuth } = require('./auth');
+const { createAuth, STATE: AUTH } = require('./auth');
+const { createMinutes, SCOPE: MINUTES_SCOPE } = require('./minutes');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -71,6 +72,7 @@ const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * MINUTE;
 const WAITING_INTERVAL_MS = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht
+const MINUTES_INTERVAL_MS = 15 * MINUTE; // so oft wird das Minuten-Kontingent gelesen; die Zahl ändert sich langsam
 const RERUN_SETTLE_MS = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
 const LEARNED_DAYS = 14;
@@ -590,8 +592,17 @@ const watchQuota = () => checkQuota().catch(logError(null, 'Anfragelimit'));
 
 // Die Anmeldung bei GitHub ist die von `gh` (siehe auth.js). Nach einem gelungenen Anmelden oder Ergänzen gilt ein
 // anderes Token: das Anfragelimit neu holen und die Repos gleich abfragen.
-const auth = createAuth({ run, timeout: GH_TIMEOUT, log: (text) => log(text), onSuccess: () => { watchQuota(); refreshGitHub(); } });
+const auth = createAuth({ run, timeout: GH_TIMEOUT, log: (text) => log(text), onSuccess: () => { watchQuota(); refreshGitHub(); watchMinutes(); } });
 const watchAuth = () => auth.poll().catch(logError(null, 'Anmeldung bei GitHub'));
+
+// Das Minuten-Kontingent von GitHub Actions (siehe minutes.js): nur mit Anmeldung und dem freiwilligen Recht dafür.
+// Ein Fehler bleibt beim letzten Stand und steht einmal im Protokoll.
+const minutes = createMinutes({ gh, log: (text) => log(text, null, 'error') });
+const minutesLogin = () => { const signedIn = auth.view(); return signedIn.state === AUTH.IN && signedIn.scopes?.includes(MINUTES_SCOPE) ? signedIn.login : null; };
+function watchMinutes() {
+  const login = minutesLogin();
+  return login && !stopping && githubApi.mayPoll('Minuten-Kontingent') ? minutes.refresh(login) : Promise.resolve();
+}
 
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
 let repoList = { at: 0, repos: [] };
@@ -685,6 +696,7 @@ function status() {
     },
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
+    minutes: minutes.view(minutesLogin()), // Minuten-Kontingent von GitHub Actions in diesem Monat: { plan, used, included | null, paid, cost, systems: { linux, windows, macos, other }, resetAt, state, tightAt } oder null (ohne das Recht `user`, oder noch nicht gelesen)
     unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'minutes', runs, since, url }]
     auth: auth.view(), // Anmeldung bei GitHub: { state, login, scopes, missing, optional: [{ scope, purpose }], flow: { kind, state, code, url, error } | null }
     logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
@@ -956,8 +968,9 @@ http.createServer(async (request, response) => {
   console.log(`Öffnen mit: ${access.entry}`);
 });
 
-watchAuth();
+watchAuth().then(watchMinutes); // das Kontingent braucht den Stand der Anmeldung
 setInterval(watchAuth, MINUTE);
+setInterval(watchMinutes, MINUTES_INTERVAL_MS);
 watchQuota();
 setInterval(watchQuota, MINUTE);
 scanWaiting();
