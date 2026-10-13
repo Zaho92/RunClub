@@ -190,9 +190,11 @@
   .pbody > div { overflow: hidden; min-height: 0; }
   .pin { display: flex; flex-direction: column; gap: 14px; margin: 0 16px 0 42px; padding: 14px 0 16px; border-top: 1px solid var(--rule); }
   .rt { flex: 1 1 240px; min-width: 0; }
+  .vary:empty { display: none; }
+  .sl u[hidden] { display: none; }
   .plim { display: flex; flex-direction: column; gap: 10px; }
   .plim b { font-weight: 400; color: var(--ink); }
-  .note .ink { color: var(--text); }
+  .note .ink, .note.over { color: var(--text); }
   .plim .sliders { padding-top: 2px; }
   .crow { display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; column-gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
   .crow small { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
@@ -242,7 +244,7 @@
 <body>
 <div id="app"><nav id="rail"></nav><main id="main"></main></div>
 <div id="tip"></div><div id="toast" role="status"></div>
-<script>
+<script nonce="__NONCE__">
 const TOKEN = '__TOKEN__';
 const TEXT = {
   de: {
@@ -250,18 +252,18 @@ const TEXT = {
     routeOn: 'Die Jobs dieses Repos laufen auf deinen Runnern (CI_RUNNER ist gesetzt).', routeOff: 'CI_RUNNER ist nicht gesetzt: Die Jobs dieses Repos gehen an GitHubs Runner.', routeFixed: 'Die Workflows verlangen fest eigene Runner. Eine Variable ist nicht nötig.',
     routeNone: 'Die Workflows dieses Repos lesen CI_RUNNER nicht. Solange das so ist, gehen die Jobs an GitHubs Runner. In den Workflows gehört in runs-on:', routeTo: 'Auf eigene Runner umschalten', routeBack: 'Zurück zu GitHubs Runnern', confirmBack: 'CI_RUNNER für {0} entfernen? Die Jobs gehen dann an GitHubs Runner.',
     all: 'Alle Projekte', usage: 'Verbrauch', settings: 'Einstellungen', working: '{0} arbeiten · {1} bereit', ready: 'bereit', paused: 'pausiert',
-    running: 'läuft', left: 'noch ca. {0} min', soon: 'gleich fertig', noRunner: 'wartet auf einen Runner', failed: 'Fehler', failedN: '{0} Fehler', finished: 'fertig', cancelled: 'abgebrochen',
+    left: 'noch ca. {0} min', soon: 'gleich fertig', noRunner: 'wartet auf einen Runner', failed: 'Fehler', failedN: '{0} Fehler', finished: 'fertig', cancelled: 'abgebrochen',
     untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
     ago: 'vor {0}', justNow: 'gerade eben', s_run: 'läuft', s_done: 'fertig', s_fail: 'Fehler', s_cancel: 'abgebrochen', s_skip: 'ausgesetzt', s_wait: 'wartet',
     usual: 'üblich {0}', step: 'Schritt {0}/{1}: {2}', waitsFor: 'wartet auf {0}', waitsRunner: 'wartet auf einen Runner', notYet: 'noch nicht angelegt', noGraph: 'Abhängigkeiten unbekannt: die Workflow-Datei ließ sich nicht lesen',
     lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
-    peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', project: 'Projekt',
-    reserve: 'Reserve {0} von {1} vorbereitet', free: 'frei', docker: 'Docker: {0}', github: 'GitHub: {0}',
-    perJob: 'Verbrauch je Job', runs: 'Läufe', usualTime: 'üblich', ramPeak: 'RAM-Spitze', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
+    peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
+    reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', github: 'GitHub: {0}',
+    runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
     wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
     day: 'Die letzten 24 Stunden',
-    projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', keeps: 'Was zwischen den Jobs bleibt', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
-    clear: 'Leeren', forget: 'Vergessen', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
+    projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
+    clear: 'Leeren', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
     confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? CI_RUNNER wird dabei entfernt, die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner und RunClub beenden? Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
     app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'RunClub beenden', log: 'Protokoll',
@@ -273,6 +275,7 @@ const TEXT = {
     limitsSharedNote: 'Es gelten die Limits für alle: Runner {0} GB und {2} Kerne, Docker {1} GB und {3} Kerne.', staleOne: 'Ein freier Runner trägt noch die alten Limits. Er wechselt sonst erst mit seinem nächsten Job.', staleMany: '{0} freie Runner tragen noch die alten Limits. Sie wechseln sonst erst mit ihrem nächsten Job.', budgetLabel: 'Speicher, wenn alle {0} Plätze zugleich arbeiten', budgetOf: 'erlaubt · die Docker-VM hat {0}', vmMark: 'Docker-VM', minSlots: 'Mindestens 1 Platz', maxSlots: 'Höchstens 4 Plätze', addQuick: 'Aus deinem Konto:', addQuickTip: 'Pool für {0} anlegen',
     budgetOverOne: 'Mit vollem Limit passt einer von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.',
     budgetOver: 'Mit vollem Limit passen {0} von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetOver1: 'Schon ein einzelner Job darf mehr belegen, als die Docker-VM hat. Senke die Limits oder gib der Docker-VM mehr Speicher.', budgetOk: 'Auch wenn alle Plätze zugleich arbeiten, bleibt die Docker-VM unter ihrer Grenze.',
+    capNote: 'Speicher von Runner und Docker zusammen: höchstens {0} GB je Job, damit das Limit unter dem Speicher der Docker-VM bleibt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
     memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
     suggestText: 'Vorschlag: Runner {0} GB, Docker {1} GB, je {2} Kerne.', suggestSame: 'Die Limits entsprechen dem Vorschlag.', suggestWhy: 'Aus den Messwerten dieses Projekts: die höchste Spitze mit 50 % Luft. Die gepunktete Marke zeigt den Vorschlag am Regler.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
     firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
@@ -282,18 +285,18 @@ const TEXT = {
     routeOn: 'This repo\'s jobs run on your runners (CI_RUNNER is set).', routeOff: 'CI_RUNNER is not set: this repo\'s jobs go to GitHub\'s runners.', routeFixed: 'The workflows always ask for self-hosted runners. No variable needed.',
     routeNone: 'This repo\'s workflows do not read CI_RUNNER. Until they do, jobs go to GitHub\'s runners. In the workflows, runs-on should be:', routeTo: 'Switch to my runners', routeBack: 'Back to GitHub\'s runners', confirmBack: 'Remove CI_RUNNER for {0}? Jobs will then go to GitHub\'s runners.',
     all: 'All projects', usage: 'Usage', settings: 'Settings', working: '{0} working · {1} ready', ready: 'ready', paused: 'paused',
-    running: 'running', left: 'about {0} min left', soon: 'almost done', noRunner: 'waiting for a runner', failed: 'failed', failedN: '{0} failed', finished: 'done', cancelled: 'cancelled',
+    left: 'about {0} min left', soon: 'almost done', noRunner: 'waiting for a runner', failed: 'failed', failedN: '{0} failed', finished: 'done', cancelled: 'cancelled',
     untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
     ago: '{0} ago', justNow: 'just now', s_run: 'running', s_done: 'done', s_fail: 'failed', s_cancel: 'cancelled', s_skip: 'skipped', s_wait: 'waiting',
     usual: 'usually {0}', step: 'Step {0}/{1}: {2}', waitsFor: 'waiting for {0}', waitsRunner: 'waiting for a runner', notYet: 'not created yet', noGraph: 'Dependencies unknown: the workflow file could not be read',
     lastRun: 'Last run', nothing: 'Nothing has run here yet.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
-    peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', project: 'Project',
-    reserve: 'Reserve {0} of {1} prepared', free: 'free', docker: 'Docker: {0}', github: 'GitHub: {0}',
-    perJob: 'Usage per job', runs: 'Runs', usualTime: 'usual', ramPeak: 'RAM peak', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
+    peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
+    reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', github: 'GitHub: {0}',
+    runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
     wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
     day: 'The last 24 hours',
-    projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', keeps: 'What stays between jobs', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
-    clear: 'Clear', forget: 'Forget', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
+    projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
+    clear: 'Clear', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
     confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'Stop all runners and quit RunClub? Running jobs are cut off, queued jobs wait until RunClub runs again.',
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
     app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit RunClub', log: 'Log',
@@ -305,6 +308,7 @@ const TEXT = {
     limitsSharedNote: 'The shared limits apply: runner {0} GB and {2} cores, Docker {1} GB and {3} cores.', staleOne: 'One idle runner still carries the old limits. Otherwise it changes with its next job.', staleMany: '{0} idle runners still carry the old limits. Otherwise they change with their next job.', budgetLabel: 'Memory when all {0} slots work at once', budgetOf: 'allowed · the Docker VM has {0}', vmMark: 'Docker VM', minSlots: 'At least 1 slot', maxSlots: 'At most 4 slots', addQuick: 'From your account:', addQuickTip: 'Create a pool for {0}',
     budgetOverOne: 'At full limit, one of {1} slots fits into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.',
     budgetOver: 'At full limit, {0} of {1} slots fit into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetOver1: 'A single job may already use more than the Docker VM has. Lower the limits or give the Docker VM more memory.', budgetOk: 'Even with all slots working at once, the Docker VM stays below its limit.',
+    capNote: 'Runner and Docker memory together: at most {0} GB per job, so the limit stays below the Docker VM’s memory.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
     memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
     suggestText: 'Suggestion: runner {0} GB, Docker {1} GB, {2} cores each.', suggestSame: 'The limits match the suggestion.', suggestWhy: 'From this project’s measurements: the highest peak plus 50% headroom. The dotted mark shows the suggestion on the slider.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
     firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
@@ -688,10 +692,15 @@ function renderSettings() {
     const share = (value) => (range.max > range.min ? Math.min(1, Math.max(0, (value - range.min) / (range.max - range.min))) : 0);
     const hint = hints?.[key];
     return '<label class="sl"><span>' + label + '</span><span class="tr" style="--s:' + (hint == null ? 0 : share(hint).toFixed(3)) + '"><input type="range" data-limit="' + key + '" data-repo="' + esc(repo) + '" min="' + range.min + '" max="' + range.max + '" step="' + range.step + '" value="' + values[key] + '" style="--v:' + (share(values[key]) * 100).toFixed(1) + '%">' +
-      (hint == null ? '' : '<u></u>') + '</span><b>' + unit(values[key]) + '</b></label>';
+      '<u' + (hint == null ? ' hidden' : '') + '></u></span><b>' + unit(values[key]) + '</b></label>';
   };
+  // Runner und Docker eines Jobs haben eine gemeinsame Obergrenze. Der Hinweis steht immer da; wer beim Ziehen
+  // darüber kommt, liest stattdessen, was beim Loslassen geschieht.
+  const cap = lv.bounds.memory.total;
+  const capNote = (values) => (cap === undefined ? '' : '<div class="note' + (values.runnerMemory + values.dockerMemory > cap ? ' over' : '') + '">' +
+    (values.runnerMemory + values.dockerMemory > cap ? t('capOver', gbShort(values.runnerMemory + values.dockerMemory), gbShort(cap)) : t('capNote', gbShort(cap))) + '</div>');
   const sliders = (values, hints, repo) => '<div class="sliders">' + slider('runnerMemory', t('memRunner'), lv.bounds.memory, (v) => gbShort(v) + ' GB', values, hints, repo) + slider('dockerMemory', t('memDocker'), lv.bounds.memory, (v) => gbShort(v) + ' GB', values, hints, repo) +
-    slider('runnerCpus', t('cpuRunner'), lv.bounds.cpus, (v) => v, values, hints, repo) + slider('dockerCpus', t('cpuDocker'), lv.bounds.cpus, (v) => v, values, hints, repo) + '</div>';
+    slider('runnerCpus', t('cpuRunner'), lv.bounds.cpus, (v) => v, values, hints, repo) + slider('dockerCpus', t('cpuDocker'), lv.bounds.cpus, (v) => v, values, hints, repo) + '</div>' + capNote(values);
   // Der Vorschlag aus den Messwerten, mit Knopf, solange die gespeicherten Limits davon abweichen.
   const suggested = (hints, saved, repo) => {
     if (!hints) return '<div class="note">' + t('suggestNone') + '</div>';
@@ -726,7 +735,7 @@ function renderSettings() {
     const mine = limitsFor(entry);
     const choice = (text, pressed, values) => '<button data-do="limits/set" data-repo="' + esc(repo) + '"' + attrs(values) + ' aria-pressed="' + pressed + '">' + text + '</button>';
     const limits = !p.limits ? '' : '<div class="plim"><div class="row"><b class="grow">' + t('limitsTitle') + '</b><span class="seg">' + choice(t('limitsShared'), !own, { inherit: '1' }) + choice(t('limitsOwn'), own, Object.fromEntries(LIMIT_KEYS.map((key) => [key, mine[key]]))) + '</span></div>' +
-      (own ? sliders(mine, p.limits.suggestion, repo) + suggested(p.limits.suggestion, p.limits.values, repo) : '<div class="note">' + t('limitsSharedNote', gbShort(mine.runnerMemory), gbShort(mine.dockerMemory), mine.runnerCpus, mine.dockerCpus) + '</div>') + fitNote + '</div>';
+      (own ? sliders(mine, p.limits.suggestion, repo) + suggested(p.limits.suggestion, p.limits.values, repo) : '<div class="note">' + t('limitsSharedNote', gbShort(mine.runnerMemory), gbShort(mine.dockerMemory), mine.runnerCpus, mine.dockerCpus) + '</div>') + '<div class="vary">' + fitNote + '</div></div>';
     const foot = '<div class="row">' + button(p.paused ? 'resume' : 'pause', p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) +
       button('cache', p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
       // Was löscht, steht abgesetzt am rechten Ende.
@@ -754,11 +763,17 @@ function renderSettings() {
   const tooBig = vm > 0 && active.some((entry) => jobBytes(entry) > vm); // schon ein Job allein darf mehr, als die VM hat
   const capAt = vm / (Math.max(total, vm) || 1) * 100;
   const gbClean = (bytes) => { const value = Math.round(bytes / GIB * 10) / 10; return num(value, value % 1 ? 1 : 0) + ' GB'; };
-  // Die Felder füllen sich von links, solange die Plätze mit vollem Limit in die VM passen.
+  // Gefüllt ist, was mit vollem Limit in die VM passt.
+  const fitting = active.map(() => 0); // je Projekt: so viele seiner Plätze passen
   let used = 0;
-  let fits = 0;
-  const cells = (entry) => Array.from({ length: entry.pool.parallel }, () => { used += jobBytes(entry); if (used > vm) return '<i class="out"></i>'; fits += 1; return '<i></i>'; }).join('');
-  const segments = active.map((entry) => '<div class="bseg" style="flex:' + (entry.pool.parallel * jobBytes(entry) / GIB).toFixed(3) + '"><div>' + cells(entry) + '</div><span><b>' + esc(entry.repo.split('/')[1]) + '</b>' + entry.pool.parallel + ' × ' + gbClean(jobBytes(entry)) + '</span></div>').join('');
+  for (const place of active.flatMap((entry, index) => Array.from({ length: entry.pool.parallel }, () => ({ index, bytes: jobBytes(entry) }))).sort((a, b) => a.bytes - b.bytes)) {
+    if (used + place.bytes > vm) break;
+    used += place.bytes;
+    fitting[place.index] += 1;
+  }
+  const fits = fitting.reduce((sum, count) => sum + count, 0);
+  const cells = (entry, index) => Array.from({ length: entry.pool.parallel }, (_, place) => (place < fitting[index] ? '<i></i>' : '<i class="out"></i>')).join('');
+  const segments = active.map((entry, index) => '<div class="bseg" style="flex:' + (entry.pool.parallel * jobBytes(entry) / GIB).toFixed(3) + '"><div>' + cells(entry, index) + '</div><span><b>' + esc(entry.repo.split('/')[1]) + '</b>' + entry.pool.parallel + ' × ' + gbClean(jobBytes(entry)) + '</span></div>').join('');
   const budget = !slots || !vm ? '' : '<div><div class="k">' + t('budgetLabel', slots) + '</div><div class="v' + (tooBig ? ' c-fail' : '') + '">' + gbClean(total) + ' <small>' + t('budgetOf', gbClean(vm)) + '</small></div>' +
     '<div class="budget">' + segments + (total < vm ? '<div style="flex:' + ((vm - total) / GIB).toFixed(3) + '"></div>' : '') + '<div class="bcap' + (capAt > 60 ? ' end' : '') + '" style="left:' + capAt.toFixed(2) + '%"><span>' + t('vmMark') + '</span></div></div>' +
     '<div class="note' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px;max-width:68ch">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + '</div></div>';
@@ -771,7 +786,7 @@ function renderSettings() {
   const planned = !plan ? '<div class="note">' + t('suggestNone') + '</div>' : '<div class="row"><span class="rt note">' +
     '<span class="ink">' + (plan.applied ? t('planApplied') : t('planText', gbShort(plan.shared.runnerMemory), gbShort(plan.shared.dockerMemory), plan.shared.runnerCpus) + (outliers.length ? ' ' + t('planOwn', outliers.join(', ')) : '')) + '</span><br>' + t('planWhy') + '</span>' +
     (plan.applied ? '' : button('gauge', t('suggestApply'), { do: 'limits/plan' })) + '</div>';
-  const limitsAll = budget + sliders(shared, plan?.shared, '') + planned + rebuild;
+  const limitsAll = '<div class="vary">' + budget + '</div>' + sliders(shared, plan?.shared, '') + '<div class="vary">' + planned + '</div><div class="vary">' + rebuild + '</div>';
 
   // --- App und Protokoll ---
   const arow = (title, hint, control) => '<div class="arow"><div><b>' + title + '</b>' + (hint ? '<div class="note">' + hint + '</div>' : '') + '</div>' + control + '</div>';
@@ -796,7 +811,7 @@ function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
   put(main, '<div class="stack empty"><div class="head"><div><h1>' + t('firstTitle') + '</h1><div class="sub">' + t('firstText') + '</div></div></div><div class="row">' +
-    (repoList ?? []).filter((r) => !r.pool).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">+ ' + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
+    (repoList ?? []).filter((r) => !r.pool).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
 
 function render() {
@@ -860,9 +875,10 @@ document.addEventListener('click', async (event) => {
   if (question && !confirm(question)) return;
   for (const key of ['paused', 'cache', 'on', 'inherit']) if (key in body) body[key] = body[key] === '1';
   if ('parallel' in body) body.parallel = Number(body.parallel);
-  el.disabled = true;
+  el.setAttribute('aria-disabled', 'true');
+  document.getElementById('tip').style.display = 'none';
   // Der Knopf bleibt nur beim Beenden gesperrt; sonst ist er nach der Antwort wieder da, auch wenn sich nichts ändert.
-  if (await call(action, body) && action === 'shutdown') toast(t('quitting')); else el.disabled = false;
+  if (await call(action, body) && action === 'shutdown') toast(t('quitting')); else el.removeAttribute('aria-disabled');
 });
 document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
 document.addEventListener('change', async (event) => {

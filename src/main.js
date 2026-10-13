@@ -41,7 +41,7 @@ function showWindow() {
   window.webContents.on('will-navigate', (event, target) => { if (!target.startsWith(home)) event.preventDefault(); });
   // Der Dienst im selben Prozess kann einen Moment später lauschen als das Fenster lädt.
   window.webContents.on('did-fail-load', () => setTimeout(() => { if (window) window.loadURL(url); }, 500));
-  window.webContents.setWindowOpenHandler(({ url: target }) => { if (/^https:\/\//.test(target)) shell.openExternal(target); return { action: 'deny' }; });
+  window.webContents.setWindowOpenHandler(({ url: target }) => { if (target.startsWith('https://github.com/')) shell.openExternal(target); return { action: 'deny' }; });
   window.on('close', (event) => { if (!quitting) { event.preventDefault(); window.hide(); } });
   window.on('closed', () => { window = null; });
 }

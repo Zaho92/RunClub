@@ -39,7 +39,8 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
 | `src/routing.js` | Repo-Variable `CI_RUNNER`: schaltet die Jobs eines Repos auf die eigenen Runner und zurück |
 | `src/access.js` | Wer den lokalen Dienst benutzen darf: Schlüssel je Programmlauf, Cookie, Kopfzeilen der Seite |
-| `src/run.js`, `src/store.js`, `src/images.js` | Programmaufrufe mit Zeitgrenze, Dateien im Datenordner, Regeln für gelernte Abbilder |
+| `src/limits.js` | Limits je Job: Grenzen aus der Docker-VM, Vorschlag aus den Messwerten, Standard und Ausreißer |
+| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js` | Programmaufrufe mit Zeitgrenze, Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare |
 | `src/ui.html` | Oberfläche: Projektleiste, Netzplan je Lauf, Auslastung, Verbrauch, Einstellungen (Deutsch und Englisch) |
 | `src/fonts/` | Schrift Overpass (OFL), liegt in der App, damit sie ohne Internet funktioniert |
 | `linux/` | Abbild der Runner |
@@ -50,7 +51,9 @@ Einstellungen, Gelerntes und Protokoll liegen unter `%APPDATA%\RunClub\data`.
 
 Die Oberfläche und ihre Daten bekommt nur das eigene Fenster: Der Dienst ist unter Docker Desktop auch aus den
 Containern der Jobs erreichbar, deshalb verlangt er einen Schlüssel, der bei jedem Start neu entsteht
-(`access.key` im Datenordner, siehe `src/access.js`).
+(`access.key` im Datenordner, siehe `src/access.js`). Gedacht ist das für das eigene Fenster. Wer die Einstiegsadresse
+stattdessen in einem gewöhnlichen Browser öffnet, sollte wissen: Das Cookie gilt dort für alle Ports auf `localhost`,
+also auch für andere lokale Dienste, und die Adresse mit dem Schlüssel bleibt im Verlauf.
 
 Die Runner trennen Jobs voneinander, sind aber keine Sicherheitsgrenze: Der Docker-Daemon eines Jobs läuft
 privilegiert. Auf ihnen darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.

@@ -37,3 +37,14 @@ test('ein fehlendes Programm endet mit einem Ergebnis statt einem Absturz', asyn
   const result = await run('gibt-es-nicht-runclub', []);
   assert.equal(result.code, -1);
 });
+
+test('auch ein unzulässiger Aufruf endet mit einem Ergebnis', async () => {
+  const result = await run(process.execPath, 'kein Feld');
+  assert.equal(result.code, -1);
+});
+
+test('behält von sehr viel Fehlerausgabe nur das Ende', async () => {
+  const result = await node('process.stderr.write("x".repeat(400000) + "\\nende")');
+  assert.ok(result.stderr.length <= 140000);
+  assert.ok(result.stderr.endsWith('ende'));
+});

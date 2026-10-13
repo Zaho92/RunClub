@@ -9,13 +9,16 @@ const crypto = require('node:crypto');
 
 const COOKIE = 'rc';
 
-// Die Seite lädt nichts von außen und lässt sich nicht in fremde Seiten einbetten.
-const PAGE_HEADERS = {
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+// Die Seite lädt nichts von außen und lässt sich nicht in fremde Seiten einbetten. Skripte laufen nur mit der
+// Kennung dieser einen Antwort (`nonce`): Gelänge einmal ein Name aus GitHub unmaskiert ins HTML, würde er
+// trotzdem nicht ausgeführt. Stile dürfen inline stehen, weil die Seite ihre Maße als `style`-Attribute setzt.
+const pageHeaders = (nonce) => ({
+  'content-security-policy': `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
-};
+});
+const newNonce = () => crypto.randomBytes(16).toString('base64');
 
 function same(a, b) {
   const left = Buffer.from(String(a ?? ''));
@@ -49,4 +52,4 @@ function createAccess({ port, key = crypto.randomBytes(24).toString('hex') }) {
   };
 }
 
-module.exports = { createAccess, PAGE_HEADERS, COOKIE };
+module.exports = { createAccess, pageHeaders, newNonce, COOKIE };

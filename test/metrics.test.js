@@ -58,3 +58,23 @@ test('Jobs dürfen wie eingebaute Eigenschaften heißen', () => {
   assert.deepEqual(metrics.jobsView('wer/was').map((row) => row.job).sort(), ['__proto__', 'constructor', 'toString']);
   assert.deepEqual(metrics.jobsView('constructor'), []);
 });
+
+test('merkt sich je Repo nur eine begrenzte Zahl von Jobnamen', () => {
+  const metrics = fresh();
+  for (let n = 0; n < 130; n += 1) metrics.recordJob('wer/was', { job: 'Test ' + n, result: 'Succeeded', duration: 5, ...metrics.meter().finish() });
+  const names = metrics.jobsView('wer/was').map((row) => row.job);
+  assert.equal(names.length, 100);
+  assert.ok(names.includes('Test 129'));
+  assert.ok(!names.includes('Test 0'));
+});
+
+test('zählt, in wie vielen Läufen gemessen wurde', () => {
+  const metrics = fresh();
+  const meter = metrics.meter();
+  meter.add({ cpu: 1, memory: GB }, { cpu: 1, memory: GB });
+  metrics.recordJob('wer/was', { job: 'a', result: 'Succeeded', duration: 5, ...meter.finish() });
+  metrics.recordJob('wer/was', { job: 'a', result: 'Succeeded', duration: 5, ...metrics.meter().finish() });
+  const [row] = metrics.jobsView('wer/was');
+  assert.equal(row.runs, 2);
+  assert.equal(row.measuredRuns, 1);
+});

@@ -42,20 +42,24 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 - **Sicherheitsdurchgang** dazu: Skill `security-review`. Besonders ansehen: der lokale Dienst (Port 8770, Token und
   Host-Prüfung in `src/backend.js`), alles, was aus GitHub-Antworten in Befehle oder ins HTML gelangt (Repo-, Job- und
   Schrittnamen), und die Abschottung der Runner (privilegierte Container, Volumes, was Jobs schreiben dürfen).
-- Der erste Durchgang über den ganzen Stand lief am 13.10.2026 (beide). Behoben ist, was unten nicht mehr steht;
-  der nächste Durchgang prüft die Änderungen seit diesem Tag.
+- Zwei Durchgänge liefen am 13.10.2026 (jeweils beide): über den ganzen Stand und über die Änderungen danach bis
+  `4af3618`. Behoben ist, was unten nicht mehr steht; der nächste Durchgang prüft die Änderungen seit diesem Commit.
 
-## Aus dem ersten Review noch offen
+## Aus den Reviews noch offen
 
 Sicherheit:
 
 - **Privilegierte Container sind keine Sicherheitsgrenze.** Ein Job kann aus seinem Docker-Daemon in die Docker-VM
   ausbrechen und erreicht dort die Paare und Caches der anderen Repos. Bis das gelöst ist, gibt es Pools nur für private
-  Repos (`pool/add` lehnt öffentliche ab). Grundsätzliche Lösung: Daemon ohne `--privileged` (rootless dind, sysbox oder
+  Repos (`pool/add` lehnt öffentliche ab). Vermutet, nicht geprüft: Unter Docker Desktop mit WSL2 liegt in der VM auch
+  das Windows-Laufwerk; ein ausgebrochener Job käme dann an `access.key` und die Dateien des Nutzers. Der Schlüssel
+  schützt also nur gegen Jobs, die nicht ausbrechen. Grundsätzliche Lösung: Daemon ohne `--privileged` (rootless dind, sysbox oder
   Enhanced Container Isolation von Docker Desktop). Vor einer Veröffentlichung von RunClub klären.
 - **Caches sind zwischen Branches beschreibbar.** Ein Job auf einem Branch kann den NuGet-Ordner und den Build-Cache
   verändern, den ein späterer Job auf `main` benutzt. Möglich: Caches nur für den Standard-Branch beschreibbar einhängen.
   Entscheidung des Nutzers, weil es Läufe auf Branches langsamer macht.
+- **Das Netz je Repo trennt Repos, nicht die Paare eines Repos.** Der Build-Dienst hängt in allen Paar-Netzen seines
+  Repos; ein Build-Schritt könnte Ports erreichen, die ein gleichzeitig laufender Job desselben Repos veröffentlicht.
 - **Abbilder ohne feste Version** (`docker:dind`, `moby/buildkit:latest`, `actions-runner:latest`, `node:24-slim`) laufen
   privilegiert. Per Digest festnageln und gezielt anheben.
 
@@ -78,6 +82,8 @@ Richtigkeit:
 - **Vorrat an Docker-Netzen.** Jedes Paar und jeder Build-Dienst belegt ein eigenes Netz; Docker hält in der
   Voreinstellung rund 30 bereit. Mit vielen Pools oder Plätzen reicht das nicht. Möglich: Netze mit kleinen, selbst
   vergebenen Subnetzen anlegen.
+- **„Runner neu aufbauen“ kann einen Pool anhalten**, wenn gerade ein Cache geleert wird und in der Zwischenzeit ein Job
+  startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
 - Die Endpunkte `slot/restart`, `run/rerun` und `api/ping` ruft die Oberfläche nicht auf: behalten oder entfernen?
 
 Oberfläche:
@@ -85,6 +91,12 @@ Oberfläche:
 - Nach mehr als 24 Stunden Pause zeichnet der Tagesverlauf alte Minuten und meldet eine Spitze „vor x Tagen“.
 
 ## Noch nicht echt ausprobiert
+
+- **Korrekturen aus dem zweiten Review**, alle nur am Code und in einer Testinstanz ohne Pools geprüft:
+  der Build-Dienst zieht neue Limits von selbst nach, sobald im Pool nichts läuft (`renewService`, im Minutentakt);
+  nach einer Unterbrechung von Docker werden liegen gebliebene Paare entfernt (`removeOrphans`); Runner und Docker
+  eines Jobs bleiben zusammen unter dem Speicher der Docker-VM (der Regler springt nach dem Loslassen zurück, wenn
+  die Summe zu hoch war). Im Betrieb beobachten, ob das Protokoll dazu passt.
 
 - **Limits je Projekt und „Runner neu aufbauen“** (Einstellungen → Projekt aufklappen → Limits → „Eigene“). Getestet sind
   nur die Rechenregeln (`test/limits.test.js`). Im Betrieb prüfen: Ein Projekt mit eigenen Werten baut seine Paare damit

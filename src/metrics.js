@@ -11,6 +11,7 @@ const path = require('node:path');
 const RECENT_MAX = 300; // Messpunkte der letzten halben Stunde
 const MINUTES_MAX = 1440;
 const JOB_KEEP = 20; // gemerkte Durchläufe je Job
+const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
 const FIELDS = ['hostCpu', 'hostMemory', 'vmCpu', 'vmMemory'];
 
 const median = (values) => {
@@ -79,6 +80,12 @@ function createMetrics({ dataDir }) {
     const list = ensure(ensure(jobs, repo, () => ({})), String(record.job), () => []);
     list.push({ at: new Date().toISOString(), ...record, job: undefined });
     if (list.length > JOB_KEEP) list.shift();
+    // Zu viele Namen: Die am längsten nicht gelaufenen fallen heraus.
+    const names = Object.keys(jobs[repo]);
+    if (names.length > JOBS_MAX) {
+      const last = (name) => jobs[repo][name].at(-1)?.at ?? '';
+      for (const name of names.sort((a, b) => last(a).localeCompare(last(b))).slice(0, names.length - JOBS_MAX)) delete jobs[repo][name];
+    }
     save();
   }
 
@@ -89,7 +96,7 @@ function createMetrics({ dataDir }) {
     return Object.entries(own(jobs, repo) ?? {}).map(([job, list]) => {
       const measured = list.filter((r) => r.samples > 0);
       return {
-        job, runs: list.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,
+        job, runs: list.length, measuredRuns: measured.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,
         duration: median(list.map((r) => r.duration)), lastDuration: list.at(-1).duration,
         peakMemory: Math.max(0, ...measured.map((r) => r.peakMemory)), peakRunner: Math.max(0, ...measured.map((r) => r.peakRunner)), peakDocker: Math.max(0, ...measured.map((r) => r.peakDocker)),
         cpu: median(measured.map((r) => r.cpu)) ?? 0, peakCpu: Math.max(0, ...measured.map((r) => r.peakCpu)),

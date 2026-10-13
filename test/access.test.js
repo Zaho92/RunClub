@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createAccess, PAGE_HEADERS } = require('../src/access');
+const { createAccess, pageHeaders, newNonce } = require('../src/access');
 
 const access = createAccess({ port: 8770, key: 'geheim' });
 
@@ -39,7 +39,15 @@ test('jeder Programmlauf hat seinen eigenen Schlüssel', () => {
 });
 
 test('die Seite lässt sich nicht einbetten und lädt nichts von außen', () => {
-  assert.match(PAGE_HEADERS['content-security-policy'], /frame-ancestors 'none'/);
-  assert.match(PAGE_HEADERS['content-security-policy'], /default-src 'self'/);
-  assert.equal(PAGE_HEADERS['x-frame-options'], 'DENY');
+  const headers = pageHeaders('abc123');
+  assert.match(headers['content-security-policy'], /frame-ancestors 'none'/);
+  assert.match(headers['content-security-policy'], /default-src 'self'/);
+  assert.equal(headers['x-frame-options'], 'DENY');
+});
+
+test('Skripte laufen nur mit der Kennung der einen Antwort', () => {
+  const policy = pageHeaders('abc123')['content-security-policy'];
+  assert.match(policy, /script-src 'self' 'nonce-abc123';/);
+  assert.doesNotMatch(policy.match(/script-src[^;]*/)[0], /unsafe-inline/);
+  assert.notEqual(newNonce(), newNonce());
 });

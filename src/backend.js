@@ -24,7 +24,8 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { run } = require('./run');
-const { createAccess, PAGE_HEADERS } = require('./access');
+const { createAccess, pageHeaders, newNonce } = require('./access');
+const { orphaned } = require('./pairs');
 const { readJson, writeJson } = require('./store');
 const { permanentPullError, pruneOlder, slug, sameRepo, clashes } = require('./images');
 const limitRules = require('./limits');
@@ -127,11 +128,14 @@ let linuxReady = false;
 let linuxError = null;
 let leftoversRemoved = false;
 
-const cacheVolume = (repo) => `rc-cache-${slug(repo)}`;
-const seedVolume = (repo) => `rc-seed-${slug(repo)}`;
-const buildVolume = (repo) => `rc-build-${slug(repo)}`;
-const buildService = (repo) => `rc-buildkit-${slug(repo)}`;
-const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}`;
+// Caches, Vorlage und Build-Dienst heißen nach dem Repo. Eine zweite Instanz (anderer Port, eigener Datenordner)
+// hängt ihr Kennzeichen an, damit sie der ersten nichts wegnimmt, wenn beide ein Repo gleichen Namens bedienen.
+const INSTANCE = PORT === 8770 ? '' : `-${MARK.split('=')[1]}`;
+const cacheVolume = (repo) => `rc-cache-${slug(repo)}${INSTANCE}`;
+const seedVolume = (repo) => `rc-seed-${slug(repo)}${INSTANCE}`;
+const buildVolume = (repo) => `rc-build-${slug(repo)}${INSTANCE}`;
+const buildService = (repo) => `rc-buildkit-${slug(repo)}${INSTANCE}`;
+const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}${INSTANCE}`;
 const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits); // eigene Limits des Projekts oder die für alle
 const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
@@ -148,7 +152,23 @@ async function prepareLinux() {
   await docker(['pull', '-q', 'moby/buildkit:latest'], { timeout: DOCKER_LONG });
   // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
   // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.
-  if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; }
+  if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; } else await removeOrphans();
+}
+
+// Nach einer Unterbrechung von Docker: War Docker beim Abräumen eines Paars nicht erreichbar, sind dessen Container,
+// Volumes und Netz liegen geblieben. Entfernt wird nur, was zu keinem stehenden Paar mehr gehört.
+const livePairs = new Map(); // Name des Paars -> Repo, vom Beginn des Aufbaus bis zum Abräumen
+async function removeOrphans() {
+  const live = new Set(livePairs.keys());
+  const containers = orphaned(await dockerList(['ps', '-a', '--filter', `label=${MARK}`, '--format', '{{.Names}}']), live);
+  if (containers.length) await docker(['rm', '-f', '-v', ...containers]);
+  const volumes = orphaned(await dockerList(['volume', 'ls', '-q', '--filter', `label=${MARK}`]), live);
+  if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
+  for (const network of orphaned(await dockerList(['network', 'ls', '--filter', `label=${MARK}`, '--format', '{{.Name}}']), live)) {
+    for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
+    await docker(['network', 'rm', network]);
+  }
+  if (containers.length || volumes.length) log(`Reste nach der Unterbrechung entfernt: ${containers.length} Container, ${volumes.length} Volumes`);
 }
 
 // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, bei GitHub angemeldete Runner.
@@ -174,6 +194,24 @@ async function removeRegistrations(repo) {
   } catch (error) { log(`${repo}: Abmelden alter Runner – ${error.message}`); }
 }
 
+// Der Build-Dienst trägt die Limits des Docker-Daemons; mit dieser Kennung ist zu erkennen, ob er noch alte trägt.
+const serviceKey = (repo) => `${limitsOf(repo).dockerCpus}/${limitRules.bytesOf(limitsOf(repo).dockerMemory)}`;
+
+// Legt den Build-Dienst mit den geltenden Limits neu an, sobald im Pool nichts gebaut wird, und hängt ihn wieder in
+// die Netze der stehenden Paare. Die Paare selbst bleiben, wie sie sind.
+async function renewService(pool) {
+  const settings = settingsOf(pool.repo);
+  if (!settings?.cache || !pool.serviceBuilt || pool.serviceBuilt === serviceKey(pool.repo)) return;
+  if (stopping || pool.removed || pool.hold || pool.renewingService || !pool.prepared || !linuxReady) return;
+  if (pool.slots.some((slot) => slot.state === 'arbeitet' || slot.state === 'räumt auf')) return;
+  pool.renewingService = true;
+  try {
+    log(`${pool.repo}: lege den Build-Dienst mit den neuen Limits an`);
+    await prepareCaches(pool.repo);
+    for (const [base, repo] of livePairs) if (repo === pool.repo) await docker(['network', 'connect', '--alias', 'buildkit', base, buildService(pool.repo)]);
+  } finally { pool.renewingService = false; }
+}
+
 // Paket-Cache und Build-Dienst eines Repos bereitstellen.
 async function prepareCaches(repo) {
   const settings = settingsOf(repo);
@@ -189,6 +227,8 @@ async function prepareCaches(repo) {
     '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory,
     '-v', `${buildVolume(repo)}:/var/lib/buildkit`, 'moby/buildkit:latest', '--addr', 'tcp://0.0.0.0:1234']);
   if (service.code !== 0) log(`${repo}: Build-Dienst startet nicht – ${lastLine(service.stderr)}`);
+  const pool = pools.get(repo);
+  if (pool) pool.serviceBuilt = serviceKey(repo);
 }
 
 function wantedImages(repo) {
@@ -285,6 +325,7 @@ async function removePair(repo, base, runnerId) {
   await docker(['volume', 'rm', '-f', `${base}-work`, `${base}-sock`, `${base}-docker`]);
   await docker(['network', 'rm', base]);
   for (const name of [`${base}-runner`, `${base}-dind`]) containerStats.delete(name);
+  livePairs.delete(base);
   if (runnerId) {
     try { await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runnerId}`]); } catch { /* schon weg */ }
   }
@@ -307,6 +348,7 @@ async function provision(pool, cancelled) {
   const base = `rc-${slug(pool.repo)}-${id}`;
   const label = ['--label', MARK];
   const pair = { id, base, copied: new Set(), extras: [], limits };
+  livePairs.set(base, pool.repo);
   const giveUp = async (error) => { await removePair(pool.repo, base, null); if (error) throw error; return null; };
 
   // Docker hat nur einen begrenzten Vorrat an Netzen; ist er erschöpft, sagt es das hier.
@@ -364,11 +406,18 @@ function replenish(pool) {
   }
 }
 
-// Die Reserve verwerfen und neu füllen. Mehrere Aufrufe kurz nacheinander (vier Regler, vier Änderungen) laufen
+// Die Reserve erneuern, soweit sie alte Limits trägt. Mehrere Aufrufe kurz nacheinander (vier Regler, vier Änderungen) laufen
 // nacheinander: Erst wenn die alten Paare samt Netz entfernt sind, entstehen neue.
 function renewReserve(pool) {
   pool.renewing = (pool.renewing ?? Promise.resolve())
-    .then(() => discardReserve(pool))
+    .then(async () => {
+      // Nur was noch mit anderen Limits gebaut ist, geht; eine schon frische Reserve bleibt stehen.
+      const current = limitRules.key(limitsOf(pool.repo));
+      const old = pool.reserve.filter((entry) => entry.built !== current);
+      pool.reserve = pool.reserve.filter((entry) => entry.built === current);
+      for (const entry of old) entry.cancel = true;
+      for (const entry of old) { const pair = await entry.promise; if (pair) await removePair(pool.repo, pair.base, null); }
+    })
     .then(() => replenish(pool))
     .catch((error) => log(`${pool.repo}: ${error.message}`));
   return pool.renewing;
@@ -483,6 +532,8 @@ async function abortIdle(slot) {
     await docker(['rm', '-f', `${base}-runner`]);
     if (slot.base === base) await sleep(1000);
   }
+  // Der Abbruch gilt nicht mehr: Sonst würden die Abbilder dieses Jobs nicht gelernt.
+  if (slot.state === 'arbeitet') slot.aborted = false;
 }
 
 // Die Zahl der Plätze an die Einstellung angleichen.
@@ -517,11 +568,14 @@ async function startPool(repo) {
 }
 
 async function preparePool(pool) {
+  // Ein neuer Pool kann zugleich von `startPool` und von der Schleife in `linuxLoop` erreicht werden.
+  if (pool.preparing) return;
+  pool.preparing = true;
   pool.prepared = false;
   try {
     await prepareCaches(pool.repo);
     await refreshSeed(pool.repo);
-  } catch (error) { log(`${pool.repo}: Vorbereitung – ${error.message}`); } finally { pool.prepared = true; }
+  } catch (error) { log(`${pool.repo}: Vorbereitung – ${error.message}`); } finally { pool.prepared = true; pool.preparing = false; }
   measureSizes(pool);
 }
 
@@ -686,9 +740,8 @@ const limitRange = () => limitRules.bounds({ dockerMemory, dockerCpus });
 function limitPlan() {
   const found = limitRules.plan(config.pools.map((pool) => ({ repo: pool.repo, jobs: metrics.jobsView(pool.repo) })), limitRange());
   if (!found) return null;
-  const applied = limitRules.sameValues(found.shared, limitRules.view(config.limits)) &&
-    config.pools.every((pool) => (found.own[pool.repo] ? limitRules.sameValues(found.own[pool.repo], pool.limits && limitRules.view(limitsOf(pool.repo))) : !pool.limits));
-  return { ...found, applied };
+  const projects = config.pools.map((pool) => ({ repo: pool.repo, own: pool.limits ? limitRules.view(limitsOf(pool.repo)) : null }));
+  return { ...found, applied: limitRules.planApplied(found, limitRules.view(config.limits), projects) };
 }
 
 // Beim Speichern kann die Datei einen Augenblick fehlen; dann gilt der letzte bekannte Stand.
@@ -815,9 +868,10 @@ const actions = {
       saveState();
       metrics.forget(repo);
       github.delete(repo);
-      if (pools.get(repo) === pool) pools.delete(repo);
       log(`${repo}: Pool und seine Caches sind entfernt`);
-    })().catch((error) => log(`${repo}: ${error.message}`));
+    })().catch((error) => log(`${repo}: ${error.message}`))
+      // Auch wenn ein Schritt scheitert, wird der Name wieder frei.
+      .finally(() => { if (pools.get(repo) === pool) pools.delete(repo); });
   },
   // Leert, was zwischen den Jobs bleibt. Freie Paare werden dafür beendet, arbeitende laufen erst zu Ende.
   async 'pool/clear'({ repo, what }) {
@@ -858,22 +912,23 @@ const actions = {
     else { config.limits = { ...config.limits, ...limitRules.normalize(input, config.limits, limitRange()) }; log(`Limits je Job: ${text(config.limits)}`); }
     saveConfig();
     // Vorbereitete Paare tragen noch die alten Limits: verwerfen, die Reserve füllt sich mit den neuen.
-    for (const pool of pools.values()) if (staleCount(pool)) renewReserve(pool);
+    for (const pool of pools.values()) renewReserve(pool);
   },
   // Übernimmt den Vorschlag aus den Messwerten als Ganzes: den Standard für alle und eigene Limits für die Ausreißer.
-  // Projekte, die nicht als Ausreißer gelten, verlieren dabei ihre eigenen Werte.
+  // Gemessene Projekte, die nicht als Ausreißer gelten, verlieren dabei ihre eigenen Werte.
   async 'limits/plan'() {
     if (!linuxReady) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
     const found = limitPlan();
     if (!found) throw new Error('Für einen Vorschlag fehlen noch Messwerte.');
     config.limits = { ...config.limits, ...limitRules.normalize(found.shared, config.limits, limitRange()) };
     for (const pool of config.pools) {
+      if (!found.measured.includes(pool.repo)) continue; // zu wenige Läufe: Was der Nutzer eingestellt hat, bleibt
       if (found.own[pool.repo]) pool.limits = limitRules.normalize(found.own[pool.repo], limitsOf(pool.repo), limitRange()); else delete pool.limits;
     }
     saveConfig();
     const own = Object.keys(found.own);
     log(`Limits aus den Messwerten übernommen: Standard Runner ${config.limits.runnerMemory}, Docker ${config.limits.dockerMemory}${own.length ? `; eigene Limits für ${own.join(', ')}` : ''}`);
-    for (const pool of pools.values()) if (staleCount(pool)) renewReserve(pool);
+    for (const pool of pools.values()) renewReserve(pool);
   },
   // Baut die freien Paare neu auf, damit neue Limits sofort gelten. Arbeitende Paare laufen zu Ende.
   async 'pool/rebuild'({ repo }) {
@@ -910,7 +965,7 @@ async function shutdown() {
   log('Beende die Runner …');
   metrics.save();
   await Promise.all([...pools.values()].flatMap((pool) => pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })));
-  for (const settings of config.pools) await docker(['rm', '-f', buildService(settings.repo)]);
+  for (const settings of config.pools) { await docker(['rm', '-f', buildService(settings.repo)]); await docker(['network', 'rm', buildNetwork(settings.repo)]); }
   await removeLeftovers();
   log('Beendet.');
   hooks.onExit();
@@ -919,13 +974,19 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 process.on('SIGBREAK', shutdown);
 
-const PAGE = () => fs.readFileSync(path.join(__dirname, 'ui.html'), 'utf8').replace('__TOKEN__', TOKEN);
+const PAGE = (nonce) => fs.readFileSync(path.join(__dirname, 'ui.html'), 'utf8').replace('__TOKEN__', TOKEN).replace('__NONCE__', nonce);
 
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
     request.on('data', (chunk) => { body += chunk; if (body.length > 10000) reject(new Error('zu groß')); });
-    request.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch { reject(new Error('kein JSON')); } });
+    request.on('end', () => {
+      try {
+        const data = body ? JSON.parse(body) : {};
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('kein Objekt');
+        resolve(data);
+      } catch { reject(new Error('Der Aufruf ist kein gültiges JSON-Objekt.')); }
+    });
   });
 }
 
@@ -947,8 +1008,9 @@ http.createServer(async (request, response) => {
   }
   if (!access.allowed(request.headers)) return json(403, { error: 'Kein Zugriff. RunClub über das Symbol im Infobereich öffnen.' });
   if (request.method === 'GET' && request.url === '/') {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...PAGE_HEADERS });
-    return response.end(PAGE());
+    const nonce = newNonce();
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...pageHeaders(nonce) });
+    return response.end(PAGE(nonce));
   }
   if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
   if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
@@ -975,7 +1037,9 @@ refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
 setInterval(measure, MEASURE_INTERVAL_MS);
-setInterval(() => { for (const pool of pools.values()) replenish(pool); }, MINUTE);
+setInterval(() => {
+  for (const pool of pools.values()) { replenish(pool); renewService(pool).catch((error) => log(`${pool.repo}: ${error.message}`)); }
+}, MINUTE);
 setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 
 for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
