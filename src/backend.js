@@ -86,11 +86,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const journal = createJournal({ file: LOG_FILE, echo: (line) => console.log(line) });
 // `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` und `about` (bei Jobs `{ job, runner }`) siehe journal.js.
 const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...about });
-// Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll, auf Wunsch mit dem, was gerade versucht wurde.
 // Kennung des Stands für die Oberfläche: Sie ändert sich mit jedem Eintrag und mit jedem Start, damit ein offenes
 // Fenster nach einem Neustart nicht zufällig dieselbe Zahl sieht und das Nachladen auslässt.
 const STARTED = Date.now();
 const logStamp = () => `${STARTED}-${journal.count()}`;
+// Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll, auf Wunsch mit dem, was gerade versucht wurde.
 const logError = (repo, what) => (error) => log(what ? `${what} – ${error.message}` : error.message, repo, 'error');
 
 // --- Einstellungen und Gelerntes ---
@@ -660,12 +660,13 @@ function startStatsFeed() {
   }).then(() => { statsFeed = false; containerStats.clear(); otherStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
 }
 
+const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`; // für Meldungen
+
 // Was die Docker-VM wirklich belegt, liest ein zweiter Dauerlauf in der VM selbst (siehe vmmemory.js); die Summe der
 // Container lässt Kernel und Daemon aus. Das geht nur mit Docker Desktop unter WSL2. Gibt es die Distro nicht, endet
 // der Aufruf ohne Messwert: Dann bleibt es still bei der Summe der Container, bis Docker neu vorbereitet wird.
 // Neu gestartet wird nur von `linuxLoop`, wenn Docker gerade geantwortet hat: Der Aufruf würde eine angehaltene
 // Distro sonst selbst hochfahren.
-const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`;
 const vmProbe = createVmMemory({
   onChange: (tight, sample) => {
     if (tight) log(`Die Docker-VM hat nur noch ${gbText(sample.available)} von ${gbText(sample.total)} Arbeitsspeicher frei.`, null, 'error');
@@ -904,7 +905,7 @@ function status() {
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
     unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool mit wartenden Jobs: [{ repo, jobs, since, url }]
-    logCount: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
+    logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
   };
@@ -1123,7 +1124,7 @@ http.createServer(async (request, response) => {
   }
   if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
   if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
-  if (request.method === 'GET' && request.url === '/api/log') return json(200, { count: logStamp(), entries: journal.recent() });
+  if (request.method === 'GET' && request.url === '/api/log') return json(200, { stamp: logStamp(), entries: journal.recent() });
   // Die ganze Datei zum Speichern oder Kopieren.
   if (request.method === 'GET' && request.url === '/api/log/file') {
     response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': 'attachment; filename="runclub.log"', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });

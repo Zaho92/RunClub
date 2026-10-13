@@ -45,15 +45,15 @@ const alreadyExists = (stderr) => EXISTS.test(String(stderr ?? ''));
 // das Subnetz mit einem bestehenden Netz, kommt ein anderes dran, bis zu `attempts` Mal; jeder andere Fehler
 // endet sofort. Liefert das letzte Ergebnis von Docker, dazu `subnet` und `tries`.
 async function createNetwork(docker, args, { range = rangeFrom(), random = Math.random, attempts = ATTEMPTS } = {}) {
-  let result = { code: -1, stdout: '', stderr: 'kein Versuch' };
+  let result = null;
   let subnet = null;
   let tries = 0;
-  while (tries < attempts) {
+  do {
     subnet = pickSubnet(range, random);
     tries += 1;
     result = await docker(['network', 'create', '--subnet', subnet, ...args]);
     if (result.code === 0 || !OVERLAP.test(String(result.stderr ?? ''))) return { ...result, subnet, tries };
-  }
+  } while (tries < attempts);
   const where = `${address(range.base)}/${range.prefix}`;
   return { ...result, subnet, tries, stderr: `${String(result.stderr ?? '').trim()}\nkein freies Subnetz in ${where} nach ${tries} Versuchen (anderer Bereich: RUNCLUB_SUBNETS)` };
 }

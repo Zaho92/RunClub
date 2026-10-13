@@ -7,7 +7,7 @@
 //
 // Eng ist es, wenn in mehreren Proben in Folge zu wenig frei ist; eine Probe darüber hebt das wieder auf.
 
-const TIGHT = 0.15; // darunter gilt der freie Anteil als zu klein
+const FREE_MIN = 0.15; // darunter gilt der freie Anteil als zu klein
 const TIGHT_SAMPLES = 3; // so viele Proben in Folge, bevor gewarnt wird
 const MAX_AGE_MS = 15000; // ältere Messwerte gelten nicht mehr
 const INTERVAL_S = 2;
@@ -51,7 +51,7 @@ function createVmMemory({ now: clock = Date.now, onChange = () => {} } = {}) {
     block = {};
     if (!sample) return;
     last = { ...sample, at: clock() };
-    low = sample.available / sample.total < TIGHT ? low + 1 : 0;
+    low = sample.available / sample.total < FREE_MIN ? low + 1 : 0;
     if (low >= TIGHT_SAMPLES) turn(true); else if (!low) turn(false);
   }
 
@@ -72,4 +72,4 @@ function createVmMemory({ now: clock = Date.now, onChange = () => {} } = {}) {
   return { line, drop, current, tight: () => Boolean(current()) && tight };
 }
 
-module.exports = { createVmMemory, read, COMMAND, TIGHT, TIGHT_SAMPLES, MAX_AGE_MS };
+module.exports = { createVmMemory, read, COMMAND, MAX_AGE_MS };

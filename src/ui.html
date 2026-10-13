@@ -226,7 +226,7 @@
   .budget { position: relative; display: flex; gap: 8px; margin-top: 30px; }
   .bseg { min-width: 0; }
   .bseg > div { display: flex; gap: 2px; height: 26px; }
-  .bseg i { flex: 1; min-width: 0; background: var(--raised); border: 1px solid var(--cap); border-radius: 6px; }
+  .bseg i { min-width: 0; background: var(--raised); border: 1px solid var(--cap); border-radius: 6px; }
   .bseg i.svc { background: var(--cap); }
   .bseg i.out { background: transparent; border-style: dashed; }
   .bseg span { display: block; padding-top: 6px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -319,7 +319,7 @@ const TEXT = {
     planText: 'Vorschlag: Standard Runner {0} GB, Docker {1} GB, je {2} Kerne.', planOwn: 'Eigene Limits für {0}.', planApplied: 'Die Limits entsprechen dem Vorschlag.',
     planWhy: 'Aus den Messwerten: Der Standard deckt die Projekte mit ähnlichem Bedarf, mit 50 % Luft über der höchsten Spitze. Wer deutlich mehr braucht, bekommt eigene Limits. Die gepunktete Marke zeigt den Vorschlag am Regler.',
     fitFull: 'Ein Job hat sein Limit ausgeschöpft. Er braucht mehr Speicher, sonst bricht er ab.', fitTight: 'Ein Job kam seinem Limit nahe (über {2} %). Mit etwas mehr Speicher bleibt Luft.', fitGenerous: 'Das Limit ist mehr als doppelt so hoch wie der gemessene Bedarf. Das schadet nicht, schützt den Rechner aber weniger.', fitMeasuring: 'Wird noch gemessen ({0} von {1} Läufen); danach gibt es einen Vorschlag.',
-    limitsSharedNote: 'Es gelten die Limits für alle: Runner {0} GB und {2} Kerne, Docker {1} GB und {3} Kerne.', staleOne: 'Ein freier Runner trägt noch die alten Limits. Er wechselt sonst erst mit seinem nächsten Job.', staleMany: '{0} freie Runner tragen noch die alten Limits. Sie wechseln sonst erst mit ihrem nächsten Job.', budgetLabel: 'Speicher, wenn alle {0} Plätze zugleich arbeiten', budgetLabelService: 'Speicher, wenn alle {0} Plätze zugleich arbeiten, mit den Build-Diensten', budgetService: 'Build {0}',budgetOf: 'erlaubt · die Docker-VM hat {0}', vmMark: 'Docker-VM', minSlots: 'Mindestens 1 Platz', maxSlots: 'Höchstens 4 Plätze', addQuick: 'Aus deinem Konto:', addQuickTip: 'Pool für {0} anlegen',
+    limitsSharedNote: 'Es gelten die Limits für alle: Runner {0} GB und {2} Kerne, Docker {1} GB und {3} Kerne.', staleOne: 'Ein freier Runner trägt noch die alten Limits. Er wechselt sonst erst mit seinem nächsten Job.', staleMany: '{0} freie Runner tragen noch die alten Limits. Sie wechseln sonst erst mit ihrem nächsten Job.', budgetLabel: 'Speicher, wenn alle {0} Plätze zugleich arbeiten', budgetLabelService: 'Speicher, wenn alle {0} Plätze zugleich arbeiten, mit den Build-Diensten', budgetService: 'Build {0}', budgetOf: 'erlaubt · die Docker-VM hat {0}', vmMark: 'Docker-VM', minSlots: 'Mindestens 1 Platz', maxSlots: 'Höchstens 4 Plätze', addQuick: 'Aus deinem Konto:', addQuickTip: 'Pool für {0} anlegen',
     budgetOverOne: 'Mit vollem Limit passt einer von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.',
     budgetOver: 'Mit vollem Limit passen {0} von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetOver1: 'Schon ein einzelner Job darf mehr belegen, als die Docker-VM hat. Senke die Limits oder gib der Docker-VM mehr Speicher.', budgetOk: 'Auch wenn alle Plätze zugleich arbeiten, bleibt die Docker-VM unter ihrer Grenze.',
     capNote: 'Speicher von Runner und Docker zusammen: höchstens {0} GB je Job, damit das Limit unter dem Speicher der Docker-VM bleibt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
@@ -358,7 +358,7 @@ const TEXT = {
     planText: 'Suggestion: default runner {0} GB, Docker {1} GB, {2} cores each.', planOwn: 'Own limits for {0}.', planApplied: 'The limits match the suggestion.',
     planWhy: 'From the measurements: the default covers the projects with similar needs, with 50% headroom above the highest peak. A project that needs considerably more gets its own limits. The dotted mark shows the suggestion on the slider.',
     fitFull: 'A job used up its limit. It needs more memory, or it will be cut off.', fitTight: 'A job came close to its limit (over {2}%). A little more memory leaves headroom.', fitGenerous: 'The limit is more than twice the measured need. That does no harm, but protects the machine less.', fitMeasuring: 'Still measuring ({0} of {1} runs); a suggestion follows after that.',
-    limitsSharedNote: 'The shared limits apply: runner {0} GB and {2} cores, Docker {1} GB and {3} cores.', staleOne: 'One idle runner still carries the old limits. Otherwise it changes with its next job.', staleMany: '{0} idle runners still carry the old limits. Otherwise they change with their next job.', budgetLabel: 'Memory when all {0} slots work at once', budgetLabelService: 'Memory when all {0} slots work at once, with the build services', budgetService: 'build {0}',budgetOf: 'allowed · the Docker VM has {0}', vmMark: 'Docker VM', minSlots: 'At least 1 slot', maxSlots: 'At most 4 slots', addQuick: 'From your account:', addQuickTip: 'Create a pool for {0}',
+    limitsSharedNote: 'The shared limits apply: runner {0} GB and {2} cores, Docker {1} GB and {3} cores.', staleOne: 'One idle runner still carries the old limits. Otherwise it changes with its next job.', staleMany: '{0} idle runners still carry the old limits. Otherwise they change with their next job.', budgetLabel: 'Memory when all {0} slots work at once', budgetLabelService: 'Memory when all {0} slots work at once, with the build services', budgetService: 'build {0}', budgetOf: 'allowed · the Docker VM has {0}', vmMark: 'Docker VM', minSlots: 'At least 1 slot', maxSlots: 'At most 4 slots', addQuick: 'From your account:', addQuickTip: 'Create a pool for {0}',
     budgetOverOne: 'At full limit, one of {1} slots fits into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.',
     budgetOver: 'At full limit, {0} of {1} slots fit into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetOver1: 'A single job may already use more than the Docker VM has. Lower the limits or give the Docker VM more memory.', budgetOk: 'Even with all slots working at once, the Docker VM stays below its limit.',
     capNote: 'Runner and Docker memory together: at most {0} GB per job, so the limit stays below the Docker VM’s memory.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
@@ -396,6 +396,7 @@ const span = (s) => (s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 6
 const ago = (iso) => { const s = secondsSince(iso); return s < 45 ? t('justNow') : t('ago', span(s)); };
 const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? t('soon') : t('left', Math.max(1, Math.round(s / 60))); };
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
+const shortRepo = (repo) => repo.split('/')[1]; // der Name ohne den Besitzer
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
 const stateText = (state) => (lang === 'de' ? state : state.split(', ').map((part) => STATES_EN[part] ?? part).join(', '));
 const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
@@ -485,8 +486,8 @@ function renderRail() {
   document.getElementById('rail').setAttribute('aria-label', t('railLabel'));
   if (window.innerWidth <= NARROW) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
-    data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, entry.repo.split('/')[1], state.text, state.dot); }).join('') +
-    '<div class="railfoot">' + item('usage', t('usage'), !quota ? '' : quota.out ? '<span class="c-fail">' + esc(quota.text) + '</span>' : esc(quota.text), '', true, Boolean(quota?.out)) + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(repo.split('/')[1])).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
+    data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, shortRepo(entry.repo), state.text, state.dot); }).join('') +
+    '<div class="railfoot">' + item('usage', t('usage'), !quota ? '' : quota.out ? '<span class="c-fail">' + esc(quota.text) + '</span>' : esc(quota.text), '', true, Boolean(quota?.out)) + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
 }
 
 // --- Netzplan ---
@@ -614,6 +615,7 @@ function chart(id, label, value, of, source, max, format, warn, marks, note) {
     if (!i || at[first + i] - at[first + i - 1] > span / 48) pieces.push([]);
     pieces.at(-1).push(x(at[first + i]).toFixed(1) + ',' + y(v).toFixed(1));
   });
+  for (const points of pieces) if (points.length === 1) { const [px, py] = points[0].split(','); points.push((Number(px) + 1).toFixed(1) + ',' + py); } // ein einzelner Punkt wäre unsichtbar
   const edge = (point) => point.split(',')[0] + ',74';
   const curve = pieces.map((points) => '<polygon points="' + edge(points[0]) + ' ' + points.join(' ') + ' ' + edge(points.at(-1)) + '"/><polyline points="' + points.join(' ') + '"/>').join('');
   const peak = Math.max(...values.slice(first));
@@ -642,7 +644,7 @@ function seats(entries) {
   const rows = [];
   const idle = [];
   for (const entry of entries) {
-    const short = entry.repo.split('/')[1];
+    const short = shortRepo(entry.repo);
     entry.runners.forEach((r, index) => {
       if (!r.state.startsWith('arbeitet')) return;
       rows.push('<tr><td style="white-space:nowrap">' + esc(many ? short + ' ' + (index + 1) : index + 1) + '</td><td class="cut" title="' + esc(r.job?.job ?? '') + '">' + esc(r.job?.job ?? '') + '</td><td class="r">' + mb(r.memory) + '</td><td class="r">' + num(r.cores ?? 0) + '</td></tr>');
@@ -668,24 +670,25 @@ const quotaTrouble = () => { const { tight, out } = quotaState(); return tight |
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
 const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
-// „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
+// Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz.
+const viewHead = (title, sub, cls) => '<div class="head"><div><h1>' + title + '</h1><div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
+
 // Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten: je eine Zeile mit dem Angebot, einen Pool anzulegen.
 // Welche Jobs es sind, steht im Tooltip.
 function unservedRows() {
-  return (data.unserved ?? []).map((entry) => {
-    return '<div class="quiet"><a class="who s-wait" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon('wait') + esc(entry.repo.split('/')[1]) + '</a>' +
+  return (data.unserved ?? []).map((entry) => '<div class="quiet"><a class="who s-wait" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon('wait') + esc(shortRepo(entry.repo)) + '</a>' +
       '<div class="what" data-tip="' + esc(entry.jobs.join(', ')) + '">' + esc(t(entry.jobs.length === 1 ? 'unservedOne' : 'unservedMany', entry.jobs.length, span(secondsSince(entry.since)))) + '</div>' +
-      '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
-  }).join('');
+      '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>').join('');
 }
 
+// „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
 function quietRows(entries) {
   return entries.map((entry) => {
     const last = entry.lastRun;
     const state = entry.pool?.paused ? 'idle' : last ? jobState({ status: 'completed', conclusion: last.conclusion }) : 'idle';
     const jobs = last ? [...last.jobs].sort((a, b) => a.stage - b.stage) : [];
     const mini = jobs.length > 1 ? '<span class="mini">' + jobs.slice(0, 14).map((j) => '<span class="s-' + jobState(j) + '" title="' + esc(j.name) + '">' + icon(jobState(j)) + '</span>').join('<i></i>') + '</span>' : '';
-    return '<div class="quiet"><button class="who s-' + state + '" data-view="' + esc(entry.repo) + '">' + icon(state) + esc(entry.repo.split('/')[1]) + '</button>' +
+    return '<div class="quiet"><button class="who s-' + state + '" data-view="' + esc(entry.repo) + '">' + icon(state) + esc(shortRepo(entry.repo)) + '</button>' +
       '<div class="what">' + (last ? mini + '<a href="' + esc(last.url) + '" target="_blank" rel="noopener">' + esc(last.title || last.workflow) + '</a>' : '<span class="dim">' + t('nothing') + '</span>') + '</div>' +
       '<div class="sub">' + (entry.pool?.paused ? t('paused') : last ? t('s_' + state) + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' : '') + '</div></div>';
   }).join('');
@@ -702,7 +705,7 @@ function renderOverview(entries, single) {
   if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div></div>'; }
   put(document.getElementById('warn'), warnings(entries));
   const busy = entries.filter((entry) => entry.pipelines.length);
-  const idleHead = '<div class="head"><div><h1>' + t('all') + '</h1><div class="sub">' + t('idleAll') + '</div></div></div>';
+  const idleHead = viewHead(t('all'), t('idleAll'));
   const blocks = single ? projectBlocks(entries[0]) + legend() : (busy.length ? busy.map((entry) => projectBlocks(entry, true)).join('') + legend() : idleHead) + '<div>' + unservedRows() + quietRows(entries.filter((entry) => !entry.pipelines.length)) + '</div>';
   if (put(document.getElementById('runs'), blocks)) {
     watchPlans(main);
@@ -751,16 +754,18 @@ function renderUsage() {
     // Der Wert, der die Schiene bestimmt, tritt in der Tabelle hervor.
     const cell = (value, peak) => '<td class="r' + (value > 0 && value === peak ? ' top' : '') + '">' + (value > 0 ? mb(value) : '–') + '</td>';
     // Zwei Workflows können einen Job gleich nennen: Nur dann steht der Workflow dabei.
-    const twice = (j) => j.workflow && u.jobs.some((other) => other !== j && other.job === j.job);
-    const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + (twice(j) ? ' <span class="dim">' + esc(j.workflow) + '</span>' : '') + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
+    // Kommt ein Jobname im Projekt mehrfach vor, steht der Workflow dabei: in der Tabelle gedämpft, im Satz mit Punkt.
+    const sharesName = (j) => j.workflow && u.jobs.some((other) => other !== j && other.job === j.job);
+    const jobLabel = (j, dim) => esc(j.job) + (sharesName(j) ? (dim ? ' <span class="dim">' + esc(j.workflow) + '</span>' : ' · ' + esc(j.workflow)) : '');
+    const rows = u.jobs.map((j) => '<tr><td>' + jobLabel(j, true) + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
     // Was am nächsten an seinem Limit liegt: welcher Job, welche Seite, wie viel.
     const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * tightAt).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
     const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
-      (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', esc(((j) => j.job + (twice(j) ? ' · ' + j.workflow : ''))(u.jobs.find((j) => j[near[3]] === near[1]))), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
+      (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', jobLabel(u.jobs.find((j) => j[near[3]] === near[1])), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
     const body = !rows ? '<div class="note">' + t('noUsage') + '</div>' : peaks +
       '<div class="scroll"><table class="fixed"><tr><th>' + t('job') + '</th><th class="r">' + t('ramRunner') + '</th><th class="r">' + t('ramDocker') + '</th><th class="r">' + t('cpuPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('runs') + '</th></tr>' + rows + '</table></div>' +
       (u.wait ? '<div class="note">' + t('wait', span(u.wait.usual), span(u.wait.longest), u.wait.jobs) + '</div>' : '');
-    return routeStop('p' + index, entry.repo.split('/')[1], u.jobs.length ? t(u.jobs.length === 1 ? 'jobMeasured' : 'jobsMeasured', u.jobs.length) : '', body);
+    return routeStop('p' + index, shortRepo(entry.repo), u.jobs.length ? t(u.jobs.length === 1 ? 'jobMeasured' : 'jobsMeasured', u.jobs.length) : '', body);
   }).join('');
   put(main, '<div class="stack set"><div class="head"><div><h1>' + t('usage') + '</h1></div></div><div class="route">' +
     routeStop('day', t('day'), '', '<div class="trio">' + chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div>') +
@@ -789,7 +794,7 @@ let logOpen = false;
 const LOG_GENERAL = '-'; // als Filter: die Meldungen ohne Projekt
 let logRepo = ''; // das Projekt, auf das das Protokoll gefiltert ist ('' = alle)
 let logData = []; // Einträge { at, repo, text, kind } und bei Jobs { job, runner }, der älteste zuerst
-let logCount = -1; // Stand des Protokolls, zu dem logData gehört
+let logStamp = ''; // Kennung des Stands, zu dem logData gehört (siehe logStamp in backend.js)
 const LOG_SHORT = 8;
 // Ein Symbol bekommt nur, was ein Ergebnis ist. Der Beginn eines Jobs bleibt ohne: Gelb heißt „läuft jetzt“.
 const LOG_STATE = { error: 'fail', done: 'done', fail: 'fail', cancel: 'cancel' };
@@ -884,7 +889,7 @@ function renderSettings() {
       button('cache', p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
       // Was löscht, steht abgesetzt am rechten Ende.
       '<span class="row push">' + button('clear', t('clearAll'), { do: 'pool/clear', repo, what: 'all', confirm: t('confirmClear', repo) }) + button('remove', t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, { cls: 'danger' }) + '</span></div>';
-    return '<div class="proj" data-open="' + open + '"><div class="phead"><button class="popen" data-open-repo="' + esc(repo) + '" aria-expanded="' + open + '" data-tip="' + esc(repo) + '">' + glyph('open') + '<b>' + esc(repo.split('/')[1]) + '</b>' +
+    return '<div class="proj" data-open="' + open + '"><div class="phead"><button class="popen" data-open-repo="' + esc(repo) + '" aria-expanded="' + open + '" data-tip="' + esc(repo) + '">' + glyph('open') + '<b>' + esc(shortRepo(repo)) + '</b>' +
       (p.paused ? '<span class="tag">' + t('paused') + '</span>' : '') + (p.limits?.own ? '<span class="tag">' + t('ownTag') + '</span>' : '') + (fitTag ? '<span class="tag' + (pressing ? ' c-fail' : '') + '">' + fitTag + '</span>' : '') + (p.busy ? '<span class="tag">' + t('rebuilding') + '</span>' : '') +
       '<span class="sz">' + t('cachesSum', p.sizes ? mb(p.sizes.packages + p.sizes.images + p.sizes.build) : '…') + '</span></button>' +
       '<span class="note">' + t('slots') + '</span><span class="stepper">' + button('minus', t('fewer'), { do: 'pool/set', repo, parallel: p.parallel - 1 }, { only: true, why: p.parallel <= 1 ? t('minSlots') : '' }) + '<b>' + p.parallel + '</b>' +
@@ -895,7 +900,7 @@ function renderSettings() {
   const free = (repoList ?? []).filter((r) => r.free);
   const add = '<div class="addrow"><span>' + t('add') + '</span><form id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false">' +
     '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + glyph('plus') + t('addButton') + '</button></form>' +
-    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(r.repo.split('/')[1]) + '</button>').join('') + (free.length ? '</span>' : '') + '</div><div class="note">' + esc(t('addHint')) + '</div>';
+    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(shortRepo(r.repo)) + '</button>').join('') + (free.length ? '</span>' : '') + '</div><div class="note">' + esc(t('addHint')) + '</div>';
 
   // --- Limits je Job: was alle Plätze zusammen dürfen, gemessen an der Docker-VM ---
   // Mit eingeschaltetem Cache läuft je Projekt ein Build-Dienst mit dem Docker-Limit, auch während der Pool pausiert.
@@ -924,7 +929,7 @@ function renderSettings() {
   const cell = (bytes, cls) => '<i' + (cls ? ' class="' + cls + '"' : '') + ' style="flex:' + (bytes / GIB).toFixed(3) + '"></i>';
   const cells = (entry, index) => Array.from({ length: places(entry) }, (_, place) => cell(jobBytes(entry), place < fitting[index] ? '' : 'out')).join('') + (serviceBytes(entry) ? cell(serviceBytes(entry), serviceFits[index] ? 'svc' : 'svc out') : '');
   const caption = (entry) => [places(entry) ? places(entry) + ' × ' + gbClean(jobBytes(entry)) : '', serviceBytes(entry) ? t('budgetService', gbClean(serviceBytes(entry))) : ''].filter(Boolean).join(' + ');
-  const segments = active.map((entry, index) => '<div class="bseg" style="flex:' + (allowed(entry) / GIB).toFixed(3) + '"><div>' + cells(entry, index) + '</div><span><b>' + esc(entry.repo.split('/')[1]) + '</b>' + caption(entry) + '</span></div>').join('');
+  const segments = active.map((entry, index) => '<div class="bseg" style="flex:' + (allowed(entry) / GIB).toFixed(3) + '"><div>' + cells(entry, index) + '</div><span><b>' + esc(shortRepo(entry.repo)) + '</b>' + caption(entry) + '</span></div>').join('');
   const budget = !slots || !vm ? '' : '<div><div class="k">' + t(services ? 'budgetLabelService' : 'budgetLabel', slots) + '</div><div class="v' + (tooBig ? ' c-fail' : '') + '">' + gbClean(total) + ' <small>' + t('budgetOf', gbClean(vm)) + '</small></div>' +
     '<div class="budget">' + segments + (total < vm ? '<div style="flex:' + ((vm - total) / GIB).toFixed(3) + '"></div>' : '') + '<div class="bcap' + (capAt > 60 ? ' end' : '') + '" style="left:' + capAt.toFixed(2) + '%"><span>' + t('vmMark') + '</span></div></div>' +
     '<div class="note measure' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + '</div></div>';
@@ -933,7 +938,7 @@ function renderSettings() {
   const rebuild = !stale ? '' : '<div class="row"><span class="rt note">' + t(stale === 1 ? 'staleOne' : 'staleMany', stale) + '</span>' + button('rebuild', t('rebuild'), { do: 'pool/rebuild' }) + '</div>';
   // Der Vorschlag gilt für alle Projekte zusammen: ein Standard für die Mehrheit, eigene Limits für Ausreißer.
   const plan = lv.plan;
-  const outliers = plan ? withPool.filter((entry) => plan.own[entry.repo]).map((entry) => esc(entry.repo.split('/')[1])) : [];
+  const outliers = plan ? withPool.filter((entry) => plan.own[entry.repo]).map((entry) => esc(shortRepo(entry.repo))) : [];
   const planned = !plan ? '<div class="note">' + t('suggestNone') + '</div>' : '<div class="row"><span class="rt note">' +
     '<span class="ink">' + (plan.applied ? t('planApplied') : t('planText', gbShort(plan.shared.runnerMemory), gbShort(plan.shared.dockerMemory), plan.shared.runnerCpus) + (outliers.length ? ' ' + t('planOwn', outliers.join(', ')) : '')) + '</span><br>' + t('planWhy') + '</span>' +
     (plan.applied ? '' : button('gauge', t('suggestApply'), { do: 'limits/plan' })) + '</div>';
@@ -955,7 +960,7 @@ function renderSettings() {
     // Unter einem Projekt stehen auch allgemeine Fehler; ohne Projektspalte sagt das die Zeile selbst.
     '<span class="lm">' + (logRepo && logRepo !== LOG_GENERAL && !entry.repo ? '<span class="dim">' + t('logGeneral') + ' · </span>' : '') + esc(logText(entry)) + '</span></li>'; };
   // Gezeigt werden die letzten Meldungen; Kopieren und Speichern nehmen die ganze Datei.
-  const log = '<div class="row">' + (logRepos.length > 1 ? '<span class="seg wide" role="group" aria-label="' + t('logFilter') + '">' + logPick('', t('logAll')) + logRepos.map((repo) => logPick(repo, repo.split('/')[1])).join('') + logPick(LOG_GENERAL, t('logGeneral')) + '</span>' : '') +
+  const log = '<div class="row">' + (logRepos.length > 1 ? '<span class="seg wide" role="group" aria-label="' + t('logFilter') + '">' + logPick('', t('logAll')) + logRepos.map((repo) => logPick(repo, shortRepo(repo))).join('') + logPick(LOG_GENERAL, t('logGeneral')) + '</span>' : '') +
     '<span class="row push"><button class="btn" data-log-copy data-tip="' + t('logCopyTip') + '">' + glyph('copy') + t('logCopy') + '</button><a class="btn" href="/api/log/file" download="runclub.log" data-tip="' + t('logSaveTip') + '">' + glyph('save') + t('logSave') + '</a></span></div>' +
     (logShown.length ? '<ul class="log' + (logRepo ? ' noproject' : '') + (logOpen ? ' open' : '') + '"' + (logOpen ? ' tabindex="0"' : '') + '>' + (logOpen ? logShown : logShown.slice(0, LOG_SHORT)).map(logRow).join('') + '</ul>' : logRepo ? '<div class="note">' + t('logNone') + '</div>' : '') +
     (logShown.length > LOG_SHORT ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
@@ -975,7 +980,7 @@ function renderSettings() {
 function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
-  put(main, '<div class="stack empty"><div class="head"><div><h1>' + t('firstTitle') + '</h1><div class="sub">' + t('firstText') + '</div></div></div><div class="row">' +
+  put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText')) + '<div class="row">' +
     (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
 
@@ -1011,8 +1016,10 @@ function tick() {
 // Bis zur ersten Antwort stehen Wortmarke und ein Satz da statt einer leeren Fläche; bleibt die Antwort aus, sagt
 // der Satz das.
 function renderStart(failed) {
-  document.getElementById('rail').innerHTML = '<div class="brand">RunClub</div>';
-  document.getElementById('main').innerHTML = '<div class="stack"><div class="head"><div><h1>' + t('all') + '</h1><div class="sub' + (failed ? ' c-fail' : '') + '">' + t(failed ? 'noAnswer' : 'starting') + '</div></div></div></div>';
+  const main = document.getElementById('main');
+  main.dataset.shape = 'start';
+  put(document.getElementById('rail'), '<div class="brand">RunClub</div>');
+  put(main, '<div class="stack">' + viewHead(t('all'), t(failed ? 'noAnswer' : 'starting'), failed ? 'c-fail' : '') + '</div>');
 }
 
 async function refresh() {
@@ -1020,9 +1027,9 @@ async function refresh() {
   try { data = await (await fetch('/api/status')).json(); } catch { if (data) toast(t('noAnswer')); else renderStart(true); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
   render();
-  if (view === 'settings' && data.logCount !== logCount) loadLog();
+  if (view === 'settings' && data.logStamp !== logStamp) loadLog();
 }
-async function loadLog() { try { const response = await fetch('/api/log'); if (!response.ok) return; const answer = await response.json(); logData = answer.entries; logCount = answer.count; if (view === 'settings') render(); } catch { /* das Protokoll kommt mit der nächsten Abfrage */ } }
+async function loadLog() { try { const response = await fetch('/api/log'); if (!response.ok) return; const answer = await response.json(); logData = answer.entries; logStamp = answer.stamp; if (view === 'settings') render(); } catch { /* das Protokoll kommt mit der nächsten Abfrage */ } }
 async function copyLog() {
   try {
     const response = await fetch('/api/log/file');

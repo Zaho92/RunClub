@@ -321,7 +321,7 @@ Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunkte
 ### Verlaufskurve
 - **Aufbau:** Beschriftung (12 px `muted`), darunter die Kennzahl mit Bezugsgröße, die Kurve (74 px hoch, volle Spaltenbreite), eine Achse mit zwei oder drei Wörtern („vor 30 min“, „Lauf gestartet“, „jetzt“) und eine Zeile mit der Spitze.
 - **Zeichnung:** Linie 2 px in `chart` mit runden Ecken, darunter dieselbe Farbe als Fläche mit 16 % Deckkraft. Hilfslinien 1 px: Obergrenze (`cap`), Mitte (`rule`), Spitze (gepunktet, `chart`), Beginn eines Laufs (senkrecht, gestrichelt, `wait`).
-- **Warnung:** Wird der Speicher knapp, wechseln Linie, Fläche, Kennzahl und Spitzenzeile auf Rot.
+- **Warnung:** Wird der Speicher knapp, wechseln Linie, Fläche, Kennzahl und Spitzenzeile auf Rot, und vor der Spitze steht, wie wenig noch frei ist („nur 0,9 GB frei“). Das gilt für Windows und für die Docker-VM (dort unter 15 % frei, in der VM selbst gemessen).
 - **Mauszeiger:** Fadenkreuz; eine senkrechte Linie in `ink` und ein Tooltip mit Uhrzeit und Wert.
 
 ### Navigation (Projektleiste)
@@ -353,7 +353,7 @@ Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 
 Die letzte Zeile der Liste ist „Projekt hinzufügen“: durchsichtig mit gestricheltem Rand in `cap`, weil hier noch nichts ist.
 
 ### Speicherbalken
-Was alle Plätze zusammen an Arbeitsspeicher dürfen, gemessen an der Docker-VM. Über dem Balken die Kennzahl (`figure`) mit der Bezugsgröße. Der Balken selbst: je Platz ein Feld (26 px hoch, Radius 6 px), nach Projekten gruppiert und darunter beschriftet; die Breite eines Feldes folgt dem Limit seines Projekts. Ein Projekt mit eingeschaltetem Cache trägt am Ende seiner Gruppe ein weiteres Feld für seinen Build-Dienst (Fläche `cap`, so breit wie sein Docker-Limit); die Beschriftung nennt ihn eigens („2 × 8 GB + Build-Dienst 4 GB“). Der Build-Dienst läuft auch, während der Pool pausiert: Ein pausiertes Projekt zeigt dann nur dieses Feld. Die Build-Dienste zählen zuerst, in den Rest passen die Plätze. Felder, die mit vollem Limit in die VM passen, sind gefüllt (`raised`, Rahmen `cap`); die übrigen durchsichtig mit gestricheltem Rand. Eine senkrechte Marke in `track` zeigt die Grenze der VM. Rot wird die Kennzahl erst, wenn schon ein einzelner Job (mit dem Build-Dienst seines Projekts) mehr darf, als die VM hat; dass nicht alle Plätze zugleich hineinpassen, ist der Normalfall und steht als Satz in `muted` darunter, mit der Abhilfe.
+Was alle Plätze zusammen an Arbeitsspeicher dürfen, gemessen an der Docker-VM. Über dem Balken die Kennzahl (`figure`) mit der Bezugsgröße. Der Balken selbst: je Platz ein Feld (26 px hoch, Radius 6 px), nach Projekten gruppiert und darunter beschriftet; die Breite eines Feldes folgt dem Limit seines Projekts. Ein Projekt mit eingeschaltetem Cache trägt am Ende seiner Gruppe ein weiteres Feld für seinen Build-Dienst (Fläche `cap`, so breit wie sein Docker-Limit); die Beschriftung nennt ihn eigens („2 × 8 GB + Build 4 GB“). Der Build-Dienst läuft auch, während der Pool pausiert: Ein pausiertes Projekt zeigt dann nur dieses Feld. Die Build-Dienste zählen zuerst, in den Rest passen die Plätze. Felder, die mit vollem Limit in die VM passen, sind gefüllt (`raised`, Rahmen `cap`); die übrigen durchsichtig mit gestricheltem Rand. Eine senkrechte Marke in `track` zeigt die Grenze der VM. Rot wird die Kennzahl erst, wenn schon ein einzelner Job (mit dem Build-Dienst seines Projekts) mehr darf, als die VM hat; dass nicht alle Plätze zugleich hineinpassen, ist der Normalfall und steht als Satz in `muted` darunter, mit der Abhilfe.
 
 ### Regler
 Schiene 4 px, voll gerundet, links vom Griff `chart`, rechts `edge`; Griff 16 px, rund, `ink`. Links die Beschriftung, rechts der Wert in `ink`. Ein Vorschlag steht als gepunktete senkrechte Marke in `ink` durch die Schiene. Während des Ziehens rechnet der Speicherbalken mit; gespeichert wird beim Loslassen.
@@ -371,6 +371,12 @@ Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 
 Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört, GitHub-Limit erreicht) Schrift `fail-text`, Rahmen `fail-edge`.
 
 ### Tabellen und Zeilen
+In „Verbrauch“ steht je Job eine Zeile; kommt derselbe Jobname in einem Projekt in zwei Workflows vor, steht der Workflow in `muted` hinter dem Namen.
+
+Über den ruhigen Projekten in „Alle Projekte“ stehen im selben Raster die Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten: links das Symbol „wartet“ mit dem Namen (ein Link zu den wartenden Läufen bei GitHub), in der Mitte ein Satz, der mit „Kein Pool:“ beginnt, rechts statt des Alters die Schaltfläche „Pool anlegen“. Welche Jobs warten, steht im Tooltip.
+
+Bis zur ersten Antwort des Dienstes zeigt die Seite die Wortmarke in der Leiste und im Hauptbereich die Überschrift „Alle Projekte“ mit einem Satz darunter („Verbinde mit RunClub …“); bleibt die Antwort aus, steht dort in `fail-text`, dass RunClub nicht antwortet.
+
 Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Projektzeile der Einstellungen ist keine Tabellenzeile, sondern eine aufklappbare Fläche.) Kopfzeile in `muted` 400, Zahlen rechtsbündig. In „Alle Projekte“ steht jedes ruhige Projekt in einer Zeile aus drei Spalten (190 px Name mit Symbol, Titel des letzten Laufs mit einer Kette kleiner Zustandssymbole davor, rechts das Alter).
 
 ### GitHub-Anfragen

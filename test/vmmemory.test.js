@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createVmMemory, read, COMMAND, TIGHT_SAMPLES, MAX_AGE_MS } = require('../src/vmmemory');
+const { createVmMemory, read, COMMAND, MAX_AGE_MS } = require('../src/vmmemory');
 
 const KB = 1024;
 const TOTAL = 16337408; // kB, wie in /proc/meminfo
@@ -73,7 +73,6 @@ test('read lehnt ab, was nicht zusammenpasst', () => {
 
 test('eng ist es erst nach drei knappen Proben in Folge', () => {
   const { vm, changes, probe } = fresh();
-  assert.equal(TIGHT_SAMPLES, 3);
   probe(0.1);
   probe(0.1);
   assert.equal(vm.tight(), false);

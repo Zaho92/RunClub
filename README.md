@@ -44,7 +44,8 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/github.js` | Aufrufe von `gh`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird |
 | `src/journal.js` | Protokoll: Einträge mit Zeit, Projekt, Meldung und Art; die letzten im Speicher und für den nächsten Start in `runclub.log.entries`, alle lesbar in `runclub.log` |
 | `src/subnets.js` | Netze der Paare und Build-Dienste: je ein zufälliges /28 aus einem eigenen Bereich statt aus Dockers knappem Vorrat |
-| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js` | Programmaufrufe mit Zeitgrenze, Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare |
+| `src/waiting.js` | Wartende Läufe ohne Pool: Repos des Kontos, in denen Jobs auf einen eigenen Runner warten |
+| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/units.js` | Programmaufrufe mit Zeitgrenze, Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare, Einheiten für Zeit und Speicher |
 | `src/ui.html` | Oberfläche: Projektleiste, Netzplan je Lauf, Auslastung, Verbrauch, Einstellungen (Deutsch und Englisch) |
 | `src/fonts/` | Schrift Overpass (OFL), liegt in der App, damit sie ohne Internet funktioniert |
 | `linux/` | Abbild der Runner |
