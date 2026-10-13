@@ -253,7 +253,7 @@ function createPipelines({ gh, dataDir }) {
   }
 
   // Was die Oberfläche von einem Job braucht.
-  const present = ({ finishIn, own, elapsed, ...job }, finishAt) => ({ ...job, finishAt, duration: job.status === 'completed' && job.startedAt && job.completedAt ? seconds(job.startedAt, job.completedAt) : null });
+  const present = ({ finishIn, elapsed, ...job }, finishAt) => ({ ...job, finishAt, duration: job.status === 'completed' && job.startedAt && job.completedAt ? seconds(job.startedAt, job.completedAt) : null });
 
   // Der jüngste abgeschlossene Lauf – für die Ansicht, wenn gerade nichts läuft.
   function lastOf(repo) {

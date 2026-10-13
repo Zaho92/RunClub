@@ -5,17 +5,15 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 ## Als Nächstes
 
-1. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
-   anbieten, einen Pool anzulegen. Auf das Anfragelimit achten (5.000 je Stunde; der Stand steht in „Verbrauch“).
-2. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
+1. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
    `docker build` einen echten Ordner braucht.
-3. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
+2. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
    deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
    Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
    Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner unter `%APPDATA%\RunClub` bleibt, wo er ist.
-4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
+3. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
    holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein
@@ -56,22 +54,14 @@ Sicherheit:
 
 Richtigkeit:
 
-- **Anfragelimit, Rest.** Abfragen sind jetzt bedingt (ETag; eine unveränderte Antwort zählt nicht), der Stand steht in
-  „Verbrauch“, und RunClub fragt seltener oder gar nicht mehr ab, wenn es knapp wird (`src/github.js`). Offen: Ein Lauf,
-  dessen Jobs gerade auf GitHubs Runnern arbeiten, ändert sich laufend und kostet weiter im 8-Sekunden-Takt; der
-  schnelle Takt sollte nur für Jobs auf eigenen Runnern gelten. Das zweite Limit von GitHub (403/429 mit
-  `retry-after`, bei zu vielen Abfragen in kurzer Zeit) wird nicht eigens behandelt.
-- **Phantom-Jobs im Netzplan.** Jobs mit Ausdruck im Namen (`Test ${{ matrix.os }}`) und Jobs aus wiederverwendeten
-  Workflows (`uses:`) heißen bei GitHub anders als in der Datei; der angekündigte Job verschwindet dann nie und
-  verlängert die Restzeit (`src/pipeline.js`, `actual()`).
+- **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
+  einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
+  zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
 - **Abmeldungen bleiben liegen**, wenn Windows abgemeldet wird (kein Haken in `src/main.js`) oder ein Job beim Beenden
   noch läuft. Aufgeräumt wird erst beim nächsten Start.
-- **Runner-Abbild veraltet** bei wochenlanger Laufzeit; gebaut wird nur beim Start. Ohne Netz beim Start gibt es gar
-  keine Runner, obwohl ein brauchbares Abbild vorliegt.
 - **Auslastung der Docker-VM** zählt nur die Container (ohne Kernel, Daemon, Seitencache) und warnt nie; `PRODUCT.md`
   verspricht die Warnung. Die Summe „zusammen bis zu“ in „Verbrauch“ lässt den Build-Dienst je Repo aus.
-- **Zwei verschiedene „übliche Dauern“**: `src/metrics.js` nimmt den Median aller Durchläufe, `src/pipeline.js` nur der
-  erfolgreichen. Verbrauch wird nur nach Jobname geführt; gleichnamige Jobs aus zwei Workflows mischen sich.
+- **Verbrauch wird nur nach Jobname geführt**; gleichnamige Jobs aus zwei Workflows mischen sich.
 - **Vorrat an Docker-Netzen.** Jedes Paar und jeder Build-Dienst belegt ein eigenes Netz; Docker hält in der
   Voreinstellung rund 30 bereit. Mit vielen Pools oder Plätzen reicht das nicht. Möglich: Netze mit kleinen, selbst
   vergebenen Subnetzen anlegen.
@@ -79,12 +69,15 @@ Richtigkeit:
   startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
 - Die Endpunkte `slot/restart`, `run/rerun` und `api/ping` ruft die Oberfläche nicht auf: behalten oder entfernen?
 
-Oberfläche:
-
-- Nach mehr als 24 Stunden Pause zeichnet der Tagesverlauf alte Minuten und meldet eine Spitze „vor x Tagen“.
-
 ## Noch nicht echt ausprobiert
 
+- **Wartende Läufe ohne Pool** (`src/waiting.js`): nur gegen ein nachgestelltes GitHub getestet und als Standbild
+  angesehen. Echt prüfen: in einem privaten Repo ohne Pool einen Lauf mit `runs-on: [self-hosted, Linux]` starten;
+  nach spätestens fünf Minuten steht in „Alle Projekte“ die Zeile mit „Pool anlegen“.
+- **Zuordnung im Netzplan** für Matrix-Jobs, Namen mit Ausdruck und aufgerufene Workflows: Die Namensformen von GitHub
+  stammen aus der Dokumentation, nicht aus einem echten Lauf. Die eigenen Workflows nutzen nichts davon.
+- **Tägliches Neubauen des Runner-Abbilds** und der Start ohne Netz mit vorhandenem Abbild: nur am Code geprüft.
+- **Pause auf Bitte von GitHub** (403/429 mit `retry-after`): nur gegen ein nachgestelltes `gh` getestet.
 - **GitHub-Anfragen knapp und aufgebraucht.** Echt gemessen ist nur der Normalfall (bedingte Abfragen zählen nicht; im
   Leerlauf 0 statt rund 36 Anfragen in drei Minuten). Seltener abfragen, nicht mehr abfragen und die Meldungen dazu
   sind nur gegen ein nachgestelltes `gh` getestet (`test/github.test.js`) und als Standbild angesehen.

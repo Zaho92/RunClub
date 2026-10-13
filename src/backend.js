@@ -59,6 +59,7 @@ const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * 60000;
 const WAITING_INTERVAL_MS = 5 * 60000; // so oft wird nach wartenden Läufen ohne Pool gesucht
+const IMAGE_INTERVAL_MS = 24 * 60 * 60000; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
 const SECOND = 1000;
@@ -137,14 +138,31 @@ const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits); // eigene Limits des Projekts oder die für alle
 const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
 
+// Das Runner-Abbild bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
+// nur ganz ohne Abbild geht es nicht.
+async function buildImage() {
+  const build = await docker(['build', '--pull', '-q', '-t', IMAGE, path.join(__dirname, '..', 'linux')], { timeout: DOCKER_LONG });
+  if (build.code === 0) return;
+  const reason = lastLine(build.stderr);
+  if ((await docker(['image', 'inspect', '--format', 'ok', IMAGE])).code !== 0) throw new Error(`Das Runner-Abbild ließ sich nicht bauen: ${reason}`);
+  log(`Das Runner-Abbild ließ sich nicht neu bauen (${reason}); die Runner nutzen das vorhandene.`, null, 'error');
+}
+
+// Bei langer Laufzeit veraltet der Runner im Abbild, und GitHub weist zu alte Runner ab: täglich neu bauen. Neue
+// Paare starten von selbst mit dem neuen Abbild; laufende Jobs berührt das nicht.
+async function refreshImage() {
+  if (stopping || !linuxReady) return;
+  log('Baue das Runner-Abbild neu (tägliche Auffrischung) …');
+  await buildImage();
+}
+
 async function prepareLinux() {
   const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}'], { timeout: 20 * SECOND });
   if (info.code !== 0) throw new Error('Docker ist nicht erreichbar – läuft Docker Desktop?');
   dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
   dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
   log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
-  const build = await docker(['build', '--pull', '-q', '-t', IMAGE, path.join(__dirname, '..', 'linux')], { timeout: DOCKER_LONG });
-  if (build.code !== 0) throw new Error(`Das Runner-Abbild ließ sich nicht bauen: ${lastLine(build.stderr)}`);
+  await buildImage();
   await docker(['pull', '-q', 'docker:dind'], { timeout: DOCKER_LONG });
   await docker(['pull', '-q', 'moby/buildkit:latest'], { timeout: DOCKER_LONG });
   // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
@@ -690,7 +708,7 @@ async function refreshRepo(repo) {
     const runs = (await gh(['api', `repos/${repo}/actions/runs?per_page=20`])).workflow_runs;
     const jobs = (await pipelines.refresh(repo, runs)).flatMap((pipeline) => pipeline.jobs
       .filter((job) => job.status !== 'completed' && job.status !== 'pending')
-      .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
+      .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, own: job.own, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
     github.set(repo, {
       jobs, error: null,
       runs: runs.slice(0, 20).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
@@ -708,11 +726,12 @@ async function refreshGitHub() {
   for (const pool of [...config.pools]) await refreshRepo(pool.repo);
 }
 
-// Wo gerade etwas läuft, öfter nachsehen: Dort ändert sich der Stand im Sekundentakt.
+// Wo gerade etwas auf den eigenen Runnern läuft oder darauf wartet, öfter nachsehen: Dort ändert sich der Stand im
+// Sekundentakt. Jobs auf GitHubs Runnern genügt der ruhige Takt.
 function refreshActive() {
   for (const settings of config.pools) {
     const working = pools.get(settings.repo)?.slots.some((slot) => slot.state === 'arbeitet');
-    if (working || github.get(settings.repo)?.jobs.length) refreshRepo(settings.repo);
+    if (working || github.get(settings.repo)?.jobs.some((job) => job.own)) refreshRepo(settings.repo);
   }
 }
 
@@ -1068,6 +1087,7 @@ watchQuota();
 setInterval(watchQuota, MINUTE);
 scanWaiting();
 setInterval(scanWaiting, WAITING_INTERVAL_MS);
+setInterval(() => refreshImage().catch(logError(null, 'Runner-Abbild')), IMAGE_INTERVAL_MS);
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);

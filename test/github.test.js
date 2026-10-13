@@ -163,3 +163,22 @@ test('ein Inhalt, der wie eine Statuszeile beginnt, bleibt Inhalt', () => {
   assert.equal(parsed.headers.etag, 'W/"echt"');
   assert.equal(parsed.body, body);
 });
+
+test('bittet GitHub um eine Pause, wird bis dahin nicht mehr gelesen', async () => {
+  let time = NOW;
+  const answers = [
+    { code: 1, stderr: 'gh: You have exceeded a secondary rate limit (HTTP 403)', stdout: ['HTTP/2.0 403 Forbidden', 'Retry-After: 90', 'X-Ratelimit-Limit: 5000', 'X-Ratelimit-Remaining: 4000', `X-Ratelimit-Reset: ${RESET}`, '', '{}'].join('\r\n') },
+    { code: 0, stderr: '', stdout: answer(200, '{"a":1}') },
+  ];
+  const calls = [];
+  const github = createGitHub({ run: async (command, args) => { calls.push(args); return answers.shift(); }, now: () => time });
+  await assert.rejects(github.call(['api', 'x']), /secondary rate limit/);
+  assert.equal(stateOf(github), 'out');
+  assert.equal(github.quota().resetAt, new Date(NOW + 90000).toISOString());
+  assert.equal(github.mayPoll('wer/was'), false);
+  await assert.rejects(github.call(['api', 'x']), /Pause/);
+  assert.equal(calls.length, 1);
+  time += 90001;
+  assert.equal(stateOf(github), 'ok');
+  assert.deepEqual(await github.call(['api', 'x']), { a: 1 });
+});

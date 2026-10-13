@@ -4,6 +4,7 @@
 //           bedingt. Hat sich nichts geändert, antwortet GitHub mit 304; das zählt nicht gegen das Limit.
 // Limit     Der Stand kommt aus den Kopfzeilen jeder Antwort und aus `rate_limit` (zählt ebenfalls nicht). Das Limit
 //           gilt für das ganze Konto: Auch `gh` im Terminal und andere Werkzeuge verbrauchen daraus.
+// Pause     Bittet GitHub um Ruhe (403/429 mit `retry-after`, das zweite Limit), wird bis dahin nicht gelesen.
 // Zustand   ok | tight (weniger als 15 % frei: seltener abfragen) | out (nur noch die Reserve: nicht mehr lesen,
 //           der Rest bleibt für das Anmelden neuer Runner) | unknown (kein Stand, oder das Fenster ist abgelaufen
 //           und der neue Stand noch nicht da).
@@ -14,6 +15,7 @@ const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', UNKNOWN: 'unknown' };
 const TIGHT = 0.15; // Anteil, der noch frei ist
 const RESERVE = 0.02;
 const TIGHT_GAP = 60000; // so lange liegt bei knappem Limit zwischen zwei Abfragen derselben Sache
+const PAUSE_MAX = 3600; // Sekunden; länger lässt sich RunClub von einer Antwort nicht anhalten
 const WINDOW_MAX = 24 * 3600000; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
 const CACHE_MAX = 200; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
 
@@ -50,6 +52,7 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
   const cache = new Map(); // Pfad -> { etag, data }, der zuletzt benutzte am Ende
   const polled = new Map(); // Schlüssel -> wann zuletzt abgefragt (nur bei knappem Limit von Belang)
   let quota = null; // { limit, remaining, resetAt (ms) }
+  let pausedUntil = 0; // bis dahin hat GitHub um Ruhe gebeten (`retry-after`)
   let reported = STATE.UNKNOWN; // der Zustand, den refreshQuota zuletzt gemeldet hat
 
   function note(limit, remaining, reset) {
@@ -60,14 +63,21 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
     quota = { limit: values[0], remaining: Math.max(0, values[1]), resetAt };
   }
 
+  const paused = () => now() < pausedUntil;
+  const spent = () => quota.remaining <= quota.limit * RESERVE;
+
   function state() {
     if (!quota || now() >= quota.resetAt) return STATE.UNKNOWN;
-    if (quota.remaining <= quota.limit * RESERVE) return STATE.OUT;
+    if (paused() || spent()) return STATE.OUT;
     return quota.remaining < quota.limit * TIGHT ? STATE.TIGHT : STATE.OK;
   }
 
+  // Wann es weitergeht: am Ende des Fensters; wurde nur um eine Pause gebeten, an deren Ende. Ist beides der Fall,
+  // zählt das spätere.
+  const endsAt = () => (!paused() ? quota.resetAt : spent() ? Math.max(pausedUntil, quota.resetAt) : pausedUntil);
+
   // Das Ende des Fensters als Uhrzeit für Meldungen (die sind deutsch).
-  const until = () => new Date(quota.resetAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const until = () => new Date(endsAt()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
   // Darf das, was `key` benennt (ein Repo), jetzt routinemäßig abgefragt werden? Bei knappem Limit nur in
   // größerem Abstand, bei aufgebrauchtem gar nicht.
@@ -82,11 +92,13 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
   }
 
   async function read(path) {
-    if (state() === STATE.OUT) throw new Error(`Das Anfragelimit von GitHub ist aufgebraucht; weiter um ${until()}.`);
+    if (state() === STATE.OUT) throw new Error(paused() ? `GitHub bittet um eine Pause; weiter um ${until()}.` : `Das Anfragelimit von GitHub ist aufgebraucht; weiter um ${until()}.`);
     const known = cache.get(path);
     const result = await run('gh', ['api', '-i', path, ...(known ? ['-H', `If-None-Match: ${known.etag}`] : [])], { timeout });
     const { status, headers, body } = parseResponse(result.stdout);
     if ((headers['x-ratelimit-resource'] ?? 'core') === 'core') note(headers['x-ratelimit-limit'], headers['x-ratelimit-remaining'], headers['x-ratelimit-reset']);
+    // Das zweite Limit von GitHub (zu viel in kurzer Zeit): Die Antwort nennt, wie lange zu warten ist.
+    if ((status === 403 || status === 429) && Number(headers['retry-after']) > 0) pausedUntil = now() + Math.min(Number(headers['retry-after']), PAUSE_MAX) * 1000;
     if (status === 304 && known) {
       cache.delete(path);
       cache.set(path, known);
@@ -113,7 +125,7 @@ function createGitHub({ run, timeout = 60000, now = () => Date.now() }) {
   }
 
   // `tightAt`: der verbrauchte Anteil, ab dem es knapp ist; die Oberfläche setzt dort ihre Marke.
-  const view = () => (state() === STATE.UNKNOWN ? null : { limit: quota.limit, remaining: quota.remaining, resetAt: new Date(quota.resetAt).toISOString(), state: state(), tightAt: 1 - TIGHT });
+  const view = () => (state() === STATE.UNKNOWN ? null : { limit: quota.limit, remaining: quota.remaining, resetAt: new Date(endsAt()).toISOString(), state: state(), tightAt: 1 - TIGHT });
 
   // Den Stand ausdrücklich holen; nötig, solange sonst nichts abgefragt wird. Liefert den Stand, wenn der Zustand
   // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before` und dem Ende des Fensters als Uhrzeit `until`),
