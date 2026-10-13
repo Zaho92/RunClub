@@ -750,11 +750,13 @@ function renderUsage() {
     const peakDocker = Math.max(0, ...u.jobs.map((j) => j.peakDocker));
     // Der Wert, der die Schiene bestimmt, tritt in der Tabelle hervor.
     const cell = (value, peak) => '<td class="r' + (value > 0 && value === peak ? ' top' : '') + '">' + (value > 0 ? mb(value) : '–') + '</td>';
-    const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
+    // Zwei Workflows können einen Job gleich nennen: Nur dann steht der Workflow dabei.
+    const twice = (j) => j.workflow && u.jobs.some((other) => other !== j && other.job === j.job);
+    const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + (twice(j) ? ' <span class="dim">' + esc(j.workflow) + '</span>' : '') + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
     // Was am nächsten an seinem Limit liegt: welcher Job, welche Seite, wie viel.
     const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * tightAt).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
     const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
-      (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', esc(u.jobs.find((j) => j[near[3]] === near[1]).job), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
+      (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', esc(((j) => j.job + (twice(j) ? ' · ' + j.workflow : ''))(u.jobs.find((j) => j[near[3]] === near[1]))), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
     const body = !rows ? '<div class="note">' + t('noUsage') + '</div>' : peaks +
       '<div class="scroll"><table class="fixed"><tr><th>' + t('job') + '</th><th class="r">' + t('ramRunner') + '</th><th class="r">' + t('ramDocker') + '</th><th class="r">' + t('cpuPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('runs') + '</th></tr>' + rows + '</table></div>' +
       (u.wait ? '<div class="note">' + t('wait', span(u.wait.usual), span(u.wait.longest), u.wait.jobs) + '</div>' : '');

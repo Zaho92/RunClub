@@ -59,7 +59,6 @@ Richtigkeit:
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
 - **Abmeldungen bleiben liegen**, wenn Windows abgemeldet wird (kein Haken in `src/main.js`) oder ein Job beim Beenden
   noch läuft. Aufgeräumt wird erst beim nächsten Start.
-- **Verbrauch wird nur nach Jobname geführt**; gleichnamige Jobs aus zwei Workflows mischen sich.
 - **„Runner neu aufbauen“ kann einen Pool anhalten**, wenn gerade ein Cache geleert wird und in der Zwischenzeit ein Job
   startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
 

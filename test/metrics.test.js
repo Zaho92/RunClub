@@ -142,6 +142,69 @@ test('ohne erfolgreichen Durchlauf bleibt die übliche Dauer der Median aller', 
   assert.equal(metrics.jobsView('wer/was')[0].duration, 20);
 });
 
+// Ein Durchlauf mit `memory` GB Spitze im Runner.
+const record = (metrics, job, workflow, duration, memory) => {
+  const meter = metrics.meter();
+  meter.add({ cpu: 1, memory: memory * GB }, undefined);
+  metrics.recordJob('wer/was', { job, workflow, result: 'Succeeded', duration, ...meter.finish() });
+};
+const rowsOf = (metrics) => Object.fromEntries(metrics.jobsView('wer/was').map((row) => [`${row.workflow}/${row.job}`, row]));
+
+test('gleichnamige Jobs aus zwei Workflows bleiben getrennt', () => {
+  const metrics = fresh();
+  for (const [workflow, duration, memory] of [['CI', 60, 1], ['Release', 600, 4], ['CI', 80, 1], ['Release', 800, 5], ['CI', 70, 2]]) record(metrics, 'test', workflow, duration, memory);
+  record(metrics, 'lint', 'CI', 10, 0.5);
+
+  const rows = metrics.jobsView('wer/was');
+  assert.deepEqual(rows.map((row) => [row.workflow, row.job]), [['Release', 'test'], ['CI', 'test'], ['CI', 'lint']]);
+  const [release, ci] = rows;
+  assert.deepEqual([release.runs, release.duration, release.lastDuration, release.peakRunner], [2, 700, 800, 5 * GB]);
+  assert.deepEqual([ci.runs, ci.duration, ci.lastDuration, ci.peakRunner], [3, 70, 70, 2 * GB]);
+});
+
+test('Durchläufe ohne Workflow zählen zum Workflow mit den meisten bekannten Durchläufen', () => {
+  const metrics = fresh();
+  record(metrics, 'test', undefined, 500, 6); // GitHub hatte noch nicht geantwortet
+  for (const [workflow, duration] of [['Release', 600], ['CI', 60], ['CI', 80]]) record(metrics, 'test', workflow, duration, 1);
+  record(metrics, 'test', '', 70, 1);
+
+  const rows = rowsOf(metrics);
+  assert.deepEqual(Object.keys(rows).sort(), ['CI/test', 'Release/test']);
+  assert.deepEqual([rows['CI/test'].runs, rows['CI/test'].peakRunner, rows['CI/test'].lastDuration], [4, 6 * GB, 70]);
+  assert.deepEqual([rows['Release/test'].runs, rows['Release/test'].peakRunner], [1, 1 * GB]);
+});
+
+test('ohne einen bekannten Workflow bleibt eine Zeile ohne Workflow', () => {
+  const metrics = fresh();
+  record(metrics, 'test', undefined, 60, 1);
+  record(metrics, 'test', '', 80, 2);
+  const rows = metrics.jobsView('wer/was');
+  assert.deepEqual(rows.map((row) => [row.workflow, row.job, row.runs]), [['', 'test', 2]]);
+});
+
+test('gespeicherte Durchläufe ohne das Feld Workflow gehen nicht verloren', () => {
+  const dataDir = tempDir();
+  const run = (duration, workflow) => ({ at: '2026-01-01T00:00:00.000Z', result: 'Succeeded', duration, samples: 1, peakMemory: GB, peakRunner: GB, peakDocker: 0, peakCpu: 1, cpu: 1, ...(workflow === undefined ? {} : { workflow }) });
+  fs.writeFileSync(path.join(dataDir, 'metrics.json'), JSON.stringify({ minutes: [], jobs: { 'nur/alt': { test: [run(10), run(30)] }, 'wer/was': { test: [run(10), run(30)] } } }));
+  const metrics = createMetrics({ dataDir });
+  assert.deepEqual(metrics.jobsView('nur/alt').map((row) => [row.workflow, row.job, row.runs, row.duration]), [['', 'test', 2, 20]]);
+
+  // Sobald der Workflow bekannt ist, tragen die alten Durchläufe seine Zeile mit; die Datei bleibt, wie sie war.
+  record(metrics, 'test', 'CI', 50, 1);
+  assert.deepEqual(metrics.jobsView('wer/was').map((row) => [row.workflow, row.job, row.runs, row.duration]), [['CI', 'test', 3, 30]]);
+  const stored = JSON.parse(fs.readFileSync(path.join(dataDir, 'metrics.json'), 'utf8')).jobs['wer/was'].test;
+  assert.deepEqual(stored.map((entry) => entry.workflow), [undefined, undefined, 'CI']);
+});
+
+test('der häufige Workflow verdrängt die Durchläufe des seltenen nicht', () => {
+  const metrics = fresh();
+  record(metrics, 'test', 'Release', 600, 4);
+  for (let n = 0; n < 30; n += 1) record(metrics, 'test', 'CI', 60, 1);
+  const rows = rowsOf(metrics);
+  assert.equal(rows['CI/test'].runs, 20);
+  assert.equal(rows['Release/test'].runs, 1);
+});
+
 test('gespeicherte Durchläufe ohne Ergebnis stören die übliche Dauer nicht', () => {
   const dataDir = tempDir();
   const run = (duration, result) => ({ at: '2026-01-01T00:00:00.000Z', result, duration, samples: 0 });

@@ -497,13 +497,13 @@ async function serveOneJob(pool, slot) {
       const finished = line.match(/Job (.+) completed with result: (\w+)/);
       if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
       if (started && slot.state !== 'arbeitet') {
-        Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), meter: metrics.meter() });
+        Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
         log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run', { job: started[1], runner: slot.name });
         refreshRepo(pool.repo);
         setTimeout(() => refreshRepo(pool.repo), 4000);
       }
       if (finished && !slot.finished) {
-        if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / 1000), ...slot.meter.finish() });
+        if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], workflow: slot.workflow, result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / 1000), ...slot.meter.finish() });
         slot.meter = null;
         refreshRepo(pool.repo);
         Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
@@ -766,6 +766,8 @@ async function refreshRepo(repo) {
       jobs, error: null,
       runs: runs.slice(0, 20).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
     });
+    // Der Platz merkt sich den Workflow seines Jobs: Am Ende nennt der Runner nur den Jobnamen (siehe metrics.js).
+    for (const slot of pools.get(repo)?.slots ?? []) if (slot.state === 'arbeitet') slot.workflow = jobs.find((job) => job.runner === slot.name)?.workflow || slot.workflow;
   } catch (error) {
     github.set(repo, { ...(github.get(repo) ?? { jobs: [], runs: [] }), error: error.message });
   } finally {

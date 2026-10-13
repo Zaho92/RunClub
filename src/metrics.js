@@ -2,7 +2,9 @@
 //
 // Verlauf   alle paar Sekunden ein Messpunkt für die letzte halbe Stunde (nur im Speicher),
 //           daraus je Minute ein Mittel- und Höchstwert für die letzten 24 Stunden (metrics.json).
-// Je Job    Dauer, Spitzen- und Durchschnittsverbrauch der letzten Durchläufe (metrics.json).
+// Je Job    Dauer, Spitzen- und Durchschnittsverbrauch der letzten Durchläufe (metrics.json), abgelegt unter dem
+//           Jobnamen. Jeder Durchlauf trägt den Namen seines Workflows, soweit er bekannt war: Zwei Workflows
+//           können einen Job gleich nennen, und beim Lesen wird danach getrennt.
 // CPU steht überall in Kernen, Arbeitsspeicher in Bytes.
 
 const fs = require('node:fs');
@@ -11,7 +13,8 @@ const path = require('node:path');
 const RECENT_MAX = 300; // Messpunkte der letzten halben Stunde
 const MINUTES_MAX = 1440;
 const DAY = 24 * 3600000;
-const JOB_KEEP = 20; // gemerkte Durchläufe je Job
+const JOB_KEEP = 20; // gemerkte Durchläufe je Job und Workflow
+const NAME_KEEP = 100; // … und je Jobname über alle Workflows
 const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
 const FIELDS = ['hostCpu', 'hostMemory', 'vmCpu', 'vmMemory'];
 
@@ -85,11 +88,15 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     };
   }
 
-  // `record`: { job, result, duration, ...meter().finish() }
+  // `record`: { job, workflow, result, duration, ...meter().finish() }; `workflow` ist leer, wenn er nicht bekannt war.
   function recordJob(repo, record) {
     const list = ensure(ensure(jobs, repo, () => ({})), String(record.job), () => []);
-    list.push({ at: new Date().toISOString(), ...record, job: undefined });
-    if (list.length > JOB_KEEP) list.shift();
+    const workflow = String(record.workflow ?? '');
+    const same = (run) => (run.workflow ?? '') === workflow;
+    list.push({ at: new Date().toISOString(), ...record, job: undefined, workflow });
+    // Je Workflow gezählt: Sonst verdrängte der häufige Workflow die Durchläufe des seltenen gleichnamigen Jobs.
+    if (list.filter(same).length > JOB_KEEP) list.splice(list.findIndex(same), 1);
+    if (list.length > NAME_KEEP) list.shift();
     // Zu viele Namen: Die am längsten nicht gelaufenen fallen heraus.
     const names = Object.keys(jobs[repo]);
     if (names.length > JOBS_MAX) {
@@ -101,20 +108,36 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
 
   const forget = (repo) => { delete jobs[repo]; save(); };
 
-  // Je Job eine Zeile; die hungrigsten zuerst.
+  // Die Durchläufe eines Jobnamens je Workflow. Wo der Workflow fehlt (ältere Daten, oder GitHub hatte noch nicht
+  // geantwortet), zählt der Durchlauf zum Workflow mit den meisten bekannten Durchläufen; ist keiner bekannt, bleibt
+  // es eine Gruppe ohne Workflow.
+  function byWorkflow(list) {
+    const counts = new Map();
+    for (const run of list) if (run.workflow) counts.set(run.workflow, (counts.get(run.workflow) ?? 0) + 1);
+    const most = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+    const groups = new Map();
+    for (const run of list) {
+      const workflow = run.workflow || most;
+      if (!groups.has(workflow)) groups.set(workflow, []);
+      groups.get(workflow).push(run);
+    }
+    return [...groups];
+  }
+
+  // Je Workflow und Job eine Zeile; die hungrigsten zuerst.
   function jobsView(repo) {
-    return Object.entries(own(jobs, repo) ?? {}).map(([job, list]) => {
+    return Object.entries(own(jobs, repo) ?? {}).flatMap(([job, all]) => byWorkflow(all).map(([workflow, list]) => {
       const measured = list.filter((r) => r.samples > 0);
       // Üblich ist, was ein erfolgreicher Durchlauf braucht (wie in pipeline.js): Ein Abbruch nach Sekunden verfälscht sonst die Dauer.
       // Ohne einen erfolgreichen zählen alle, damit die Spalte nicht leer bleibt.
       const good = list.filter((r) => r.result === 'Succeeded');
       return {
-        job, runs: list.length, measuredRuns: measured.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,
+        job, workflow, runs: list.length, measuredRuns: measured.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,
         duration: median((good.length ? good : list).map((r) => r.duration)), lastDuration: list.at(-1).duration,
         peakMemory: Math.max(0, ...measured.map((r) => r.peakMemory)), peakRunner: Math.max(0, ...measured.map((r) => r.peakRunner)), peakDocker: Math.max(0, ...measured.map((r) => r.peakDocker)),
         cpu: median(measured.map((r) => r.cpu)) ?? 0, peakCpu: Math.max(0, ...measured.map((r) => r.peakCpu)),
       };
-    }).sort((a, b) => b.peakMemory - a.peakMemory);
+    })).sort((a, b) => b.peakMemory - a.peakMemory);
   }
 
   // Die letzte halbe Stunde, je Messgröße eine Reihe.
