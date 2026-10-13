@@ -5,28 +5,22 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 ## Als Nächstes
 
-1. **Popups und Fenster im Stil der App.** Vom Nutzer zweimal gewünscht. Rückfragen: `confirm()` öffnet den nativen
-   Dialog; gebraucht wird eine eigene Rückfrage in der Bildwelt (für Leeren, Entfernen, Zurückschalten, Beenden), die
-   nennt, was passiert, und per Tastatur bedienbar ist. Fenster: Titelleiste und die Knöpfe zum Minimieren, Maximieren
-   und Schließen kommen von Windows; gewünscht ist ein rahmenloses Fenster mit eigener Titelleiste (in Electron
-   `frame: false` oder `titleBarStyle: 'hidden'` mit `titleBarOverlay`, dazu ein ziehbarer Bereich). Schließen muss
-   weiter nur das Fenster verstecken. Das Menü am Symbol im Infobereich bleibt von Windows gezeichnet.
-2. **Protokoll lesbarer und exportierbar.** Wunsch des Nutzers. Im Fenster: Zeitpunkt, Projekt und Meldung getrennt
+1. **Protokoll lesbarer und exportierbar.** Wunsch des Nutzers. Im Fenster: Zeitpunkt, Projekt und Meldung getrennt
    setzen statt als eine Zeile Text, Fehler und Ergebnisse von Jobs kenntlich machen, nach Projekt filtern. Dafür sollte
    das Backend Einträge als `{ at, repo, text, kind }` liefern statt fertiger Zeilen (das hilft auch der Übersetzung,
    siehe „Meldungen des Backends sind nur deutsch“). Export: die ganze Datei `runclub.log` aus dem Datenordner
    speichern oder in die Zwischenablage legen; die Oberfläche zeigt heute nur die letzten 25 Zeilen.
-3. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
+2. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
    anbieten, einen Pool anzulegen. Auf das Anfragelimit achten (5.000 je Stunde; im Leerlauf verbraucht RunClub rund 720).
-4. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
+3. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
    `docker build` einen echten Ordner braucht.
-5. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
+4. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
    deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
    Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
    Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner unter `%APPDATA%\RunClub` bleibt, wo er ist.
-6. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
+5. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
    holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein
@@ -92,6 +86,12 @@ Oberfläche:
 
 ## Noch nicht echt ausprobiert
 
+- **Fenster ohne Titelleiste von Windows.** Am echten Fenster prüfen: Ziehen und Doppelklick am oberen Streifen (auch über
+  der Leiste), Größe ändern an der oberen Kante, Andocken und Maximieren; ob die Knöpfe von Windows bündig mit dem
+  32 px hohen Streifen abschließen; ob die Knöpfe im schmalen Fenster (bis 760 px) die Farbe der Leiste
+  annehmen und beim Verbreitern zurückwechseln (`matchBar` in `src/main.js`).
+- **Die Rückfrage der App** per Tastatur: „Abbrechen“ hat den Fokus mit sichtbarem Ring, Escape bricht ab.
+
 - **Korrekturen aus dem zweiten Review**, alle nur am Code und in einer Testinstanz ohne Pools geprüft:
   der Build-Dienst zieht neue Limits von selbst nach, sobald im Pool nichts läuft (`renewService`, im Minutentakt);
   nach einer Unterbrechung von Docker werden liegen gebliebene Paare entfernt (`removeOrphans`); Runner und Docker
@@ -124,6 +124,14 @@ Oberfläche:
 - **Alte Reste löschen** (nur mit ausdrücklichem Ja): der Ordner `C:\actions-runner\monitor` (das Vorgängerwerkzeug) und die
   Docker-Volumes mit Präfix `qd-` (rund 0,5 GB Caches des Vorgängers).
 
+## Später
+
+- **Schmale Ansicht als eigener Entwurf.** Einschätzung des Nutzers (13.10.2026): RunClub ist ein Werkzeug für den
+  Desktop; die heutige schmale Ansicht (bis 760 px) schiebt nur alles untereinander, der Inhalt trägt dort nicht und
+  ist schlecht bedienbar. Für jetzt genügt das, es gibt keinen Anspruch darauf. Wenn es einmal gebraucht wird, dann als
+  Fenster, das am Rand mitläuft, mit eigenem Inhalt (was läuft, wie lange noch, ist etwas rot) statt der gestauchten
+  Vollansicht. Bis dahin keinen Aufwand in die schmale Ansicht stecken; sie muss nur nicht kaputtgehen.
+
 ## Kleinere Punkte
 
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
@@ -145,4 +153,5 @@ neue Oberfläche „Midnight Transit“ mit Kompakt- und Detailmodus, Deutsch un
 CI_RUNNER wird beim Anlegen und Entfernen eines Pools gesetzt · Tests und CI auf den eigenen Runnern ·
 erstes Code- und Sicherheits-Review mit Korrekturen (Zugriff nur mit Schlüssel, Zeitgrenzen, Docker-Aussetzer) ·
 Einstellungen und Verbrauch als Strecke mit Haltestellen, Limits je Job einstellbar mit Vorschlag aus den Messwerten,
-auch je Projekt; freie Runner lassen sich mit neuen Limits neu aufbauen.
+auch je Projekt; freie Runner lassen sich mit neuen Limits neu aufbauen · eigene Rückfrage statt des Dialogs von
+Windows, Fenster ohne Titelleiste von Windows.

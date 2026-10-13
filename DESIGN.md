@@ -376,6 +376,25 @@ Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Pr
 ### Tooltip und Meldung
 `raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden.
 
+### Rückfrage
+Vor allem, was löscht oder Jobs trifft (leeren, Projekt entfernen, zurückschalten, beenden), fragt die App nach, im
+eigenen Feld statt im Dialog von Windows. Das Feld ist `raised` mit Rahmen 1 px `track`, Radius 8 px wie alles
+Bedienbare, höchstens 440 px breit, mittig über einem Schleier in `rail` mit 72 % Deckkraft; kein Schatten, keine
+Unschärfe. Die Überschrift (Title) ist die Aktion als Frage, darunter steht die Folge als ein Satz, der das Projekt
+nennt. Rechts unten „Abbrechen“ und daneben die Aktion mit ihrem eigenen Wort; rot ist sie nur, wenn sie nicht
+wiederkommt. „Abbrechen“ hat den Fokus, und der Fokusring ist hier immer sichtbar; Escape und ein Klick neben das Feld
+brechen ab. Feld und Schleier erscheinen in 200 ms.
+
+Schaltflächen auf `raised` nehmen die Rahmentöne als Stufen, weil es darüber keine hellere Fläche gibt: Ruhe `edge`
+mit Rahmen `cap`, überfahren `cap` mit Rahmen `track`, gedrückt `raised`.
+
+### Fenster
+Im Fenster der App gibt es keine Titelleiste von Windows. Die obersten 32 px sind über die ganze Breite der Griff zum
+Ziehen und bleiben leer; Leiste und Hauptbereich beginnen darunter auf einer Linie, die Wortmarke auf Höhe der
+Überschrift. Minimieren, Maximieren und Schließen sind die Knöpfe von Windows in den Farben der App (Fläche `ground`,
+Zeichen `text`), damit Andocken und Tastatur wie gewohnt funktionieren. Im schmalen Fenster steht die Wortmarke
+(18 px) im Streifen, der dort die Farbe der Leiste trägt.
+
 ### Fokus
 Jedes bedienbare Element zeigt bei Tastaturbedienung einen 2 px breiten Ring in `chart` mit 2 px Abstand.
 

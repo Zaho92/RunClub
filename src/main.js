@@ -30,7 +30,11 @@ function setAutostart(on) {
 function showWindow() {
   if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); return; }
   window = new BrowserWindow({
-    width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: '#15171b',
+    width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: '#0c1838',
+    // Keine Titelleiste von Windows: Die Seite zeichnet oben einen eigenen Streifen zum Ziehen (`#bar` in ui.html).
+    // Minimieren, Maximieren und Schließen bleiben die Knöpfe von Windows, in den Farben der App; so funktionieren
+    // Andocken und Tastatur wie gewohnt. Die Höhe muss zum Streifen der Seite passen.
+    titleBarStyle: 'hidden', titleBarOverlay: { color: '#0c1838', symbolColor: '#c9d2ea', height: 32 },
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
   });
   // Die Einstiegsadresse trägt den Schlüssel dieses Programmlaufs; damit bekommt nur dieses Fenster die Oberfläche.
@@ -42,6 +46,14 @@ function showWindow() {
   // Der Dienst im selben Prozess kann einen Moment später lauschen als das Fenster lädt.
   window.webContents.on('did-fail-load', () => setTimeout(() => { if (window) window.loadURL(url); }, 500));
   window.webContents.setWindowOpenHandler(({ url: target }) => { if (target.startsWith('https://github.com/')) shell.openExternal(target); return { action: 'deny' }; });
+  // Im schmalen Fenster (bis 760 px, wie in ui.html) trägt der Streifen die Farbe der Leiste; die Knöpfe folgen ihm.
+  const matchBar = () => {
+    if (!window) return;
+    const narrow = window.getContentSize()[0] / window.webContents.getZoomFactor() <= 760;
+    try { window.setTitleBarOverlay({ color: narrow ? '#091230' : '#0c1838', symbolColor: '#c9d2ea', height: 32 }); } catch { /* nur unter Windows */ }
+  };
+  window.on('resize', matchBar);
+  window.webContents.on('did-finish-load', matchBar);
   window.on('close', (event) => { if (!quitting) { event.preventDefault(); window.hide(); } });
   window.on('closed', () => { window = null; });
 }
