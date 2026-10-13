@@ -58,10 +58,6 @@ Richtigkeit:
 - **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
   einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
-- **„Runner neu aufbauen“ mit laufendem Job erfasst keinen Platz, der gerade aufbaut.** Abgebrochen werden nur noch
-  freie Plätze mit alten Limits (dieselbe Regel wie die Anzeige). Ein Platz, der in dem Augenblick ein Paar mit alten
-  Limits aus der Reserve übernimmt, hat noch keine Angabe und bleibt stehen; er zählt danach als „alt“, und ein zweiter
-  Klick ersetzt ihn.
 - **Scheitert `discardReserve` mittendrin**, bleiben die Paare der übrigen verworfenen Einträge stehen, bis der
   nächste Start aufräumt (sie stehen noch in `livePairs`, `removeOrphans` fasst sie deshalb nicht an). Praktisch kaum
   erreichbar, weil `removePair` Fehler von Docker nicht wirft.

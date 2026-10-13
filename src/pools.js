@@ -71,7 +71,7 @@ function createPools({
   // Freie Paare und Reserve, die noch mit anderen Limits gebaut sind als den jetzt geltenden.
   function staleSlots(pool) {
     const current = limitRules.key(limitsOf(pool.repo));
-    return pool.slots.filter((slot) => slot.base && slot.built && slot.built !== current && slot.state !== 'arbeitet' && slot.state !== 'räumt auf');
+    return pool.slots.filter((slot) => (slot.base || slot.building) && slot.built && slot.built !== current && slot.state !== 'arbeitet' && slot.state !== 'räumt auf');
   }
   function staleCount(pool) {
     const current = limitRules.key(limitsOf(pool.repo));

@@ -126,6 +126,9 @@ function createSlots({
     try {
       if (!pair) {
         const entry = pool.reserve.shift();
+        // Schon jetzt steht fest, mit welchen Limits das Paar gebaut ist oder wird: So erkennt „Runner neu aufbauen“
+        // auch einen Platz im Aufbau als veraltet (siehe `staleSlots` in pools.js).
+        slot.built = entry ? entry.built : limitRules.key(limitsOf(pool.repo));
         replenish(pool);
         if (entry) pair = await entry.promise;
         if (!pair) pair = await provision(pool, () => slot.aborted);
@@ -143,7 +146,12 @@ function createSlots({
     try {
       jit = await gh(['api', '-X', 'POST', `repos/${pool.repo}/actions/runners/generate-jitconfig`],
         JSON.stringify({ name: slot.name, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' }));
-    } catch (error) { slot.kept = pair; throw error; }
+    } catch (error) {
+      // Meldet GitHub, dass es den Runner schon gibt (eine frühere Anmeldung kam dort an, die Antwort aber nicht),
+      // hilft ein neuer Versuch mit demselben Namen nicht: Dann geht das Paar, und das nächste trägt einen neuen.
+      if (!/already exists|HTTP 409|HTTP 422/i.test(error.message)) slot.kept = pair;
+      throw error;
+    }
     slot.runnerId = jit.runner?.id ?? null;
     if (slot.aborted) return;
 
@@ -174,14 +182,15 @@ function createSlots({
         }
       },
     });
-    if (slot.aborted) return;
+    // Nach einem Abbruch ist nichts mehr zu melden, außer der Runner hatte doch schon einen Job angenommen (der
+    // Abbruch kam einen Augenblick zu spät); beim Beenden der App gilt auch das nicht.
+    if (slot.aborted && (!slot.job || stopping())) return;
     if (!slot.job) throw new Error(`Runner endete ohne Job (${lastLine(runner.stderr) || `Code ${runner.code}`})`);
     if (!slot.finished) {
       // Der Runner endete mitten im Job, ohne ein Ergebnis zu melden. Dauer und Ergebnis stimmen dann nicht: Die
-      // Messung wird beendet und verworfen statt als Verbrauch gemerkt.
-      slot.meter?.finish();
+      // Messung wird verworfen statt als Verbrauch gemerkt.
       slot.meter = null;
-      slot.jobs += 1;
+      Object.assign(slot, { lastResult: `${slot.job}: ohne Ergebnis`, jobs: slot.jobs + 1 });
       log(`Job „${slot.job}“ endete ohne Ergebnis (${lastLine(runner.stderr) || `Code ${runner.code}`})`, pool.repo, 'error', { job: slot.job });
     }
     await learnImages(pool, slot);
@@ -206,7 +215,7 @@ function createSlots({
           if (!slot.kept) await teardown(slot);
           // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
           // zurück, nachdem er hier gewirkt hat.
-          for (let waited = 0; waited < 60 && slotWanted(pool, slot) && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
+          for (let waited = 0; waited < 60 && slotWanted(pool, slot) && linuxReady() && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
           // Ein behaltenes Paar geht, wenn der Platz nicht gleich weitermacht oder es nicht mehr zu den Limits passt.
           if (slot.aborted || !slotWanted(pool, slot) || !linuxReady() || poolResting(pool) || slot.built !== limitRules.key(limitsOf(pool.repo))) await teardown(slot);
           continue;

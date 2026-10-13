@@ -240,6 +240,18 @@ test('ohne Fehlerausgabe nennt die Meldung den Code; nach der Pause versucht der
 
 const BUILD = [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`, `network connect --alias buildkit ${BASE} rc-buildkit-app`];
 
+test('meldet GitHub, dass es den Runner schon gibt, wird das Paar nicht behalten: derselbe Name hülfe nicht', async () => {
+  const w = world();
+  w.ghFails = 'gh: Already exists - A runner with the name already exists. (HTTP 409)';
+  w.onSleep = () => { if (w.slept.length === 1) w.slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.equal(w.slot.kept ?? null, null);
+  assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]); // abgebaut gleich nach dem Fehler, nicht erst nach der Pause
+  assert.equal(w.slept.length, 1);
+  assert.equal(w.slots.livePairs.size, 0);
+});
+
 test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause wird dasselbe Paar erneut angemeldet', async () => {
   const w = world();
   w.ghFails = 'gh: Forbidden (HTTP 403)';
@@ -319,8 +331,8 @@ test('endet der Runner mitten im Job ohne Ergebnis, steht das im Protokoll, und 
     ['Job „Bauen“ endete ohne Ergebnis (Code 137)', REPO, 'error', { job: 'Bauen' }],
   ]);
   assert.deepEqual(w.recorded, []); // Dauer und Ergebnis stimmen nicht: kein Verbrauch
-  assert.equal(w.metered, 1);
   assert.equal(w.slot.meter, null);
+  assert.equal(w.slot.lastResult, 'Bauen: ohne Ergebnis');
   assert.equal(w.slot.jobs, 1);
   assert.deepEqual(w.learned, ['Bauen']);
   assert.deepEqual(w.calls.slice(-5), [`run ${BASE}-runner`, ...REMOVE]); // die Anmeldung ist verbraucht

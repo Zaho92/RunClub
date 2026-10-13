@@ -464,10 +464,11 @@ test('rebuildIdle mit laufendem Job: Die Reserve wird erneuert, freie Paare mit 
     { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-8', built: old },
     { name: 'frei', state: 'bereit', base: 'rc-app-9', built: old },
     { name: 'frisch', state: 'bereit', base: 'rc-app-7', built: limitRules.key(NEW) }, // trägt schon die neuen Limits: bleibt
-    { name: 'bauend', state: 'startet', building: true }, // noch ohne Paar
+    { name: 'bauend', state: 'startet', building: true }, // baut selbst, mit den neuen Limits: bleibt
+    { name: 'übernimmt', state: 'startet', building: true, built: old }, // übernimmt gerade ein Paar mit alten Limits: geht
   ];
   await w.pools.rebuildIdle(w.pool);
-  assert.deepEqual(w.calls.slice(2), ['abort frei', 'remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'provision 3', 'provision 4']);
+  assert.deepEqual(w.calls.slice(2), ['abort frei', 'abort übernimmt', 'remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'provision 3', 'provision 4']);
   assert.equal(w.pool.hold, false);
   assert.deepEqual(w.slept, []);
 });
