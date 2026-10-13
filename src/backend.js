@@ -29,7 +29,7 @@ const { createAccess, pageHeaders, newNonce } = require('./access');
 const { orphaned } = require('./pairs');
 const { createNetwork, alreadyExists } = require('./subnets');
 const { readJson, writeJson } = require('./store');
-const { permanentPullError, pruneOlder, slug, sameRepo, clashes } = require('./images');
+const { slug, sameRepo, clashes } = require('./images');
 const limitRules = require('./limits');
 const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
@@ -40,6 +40,7 @@ const { createJournal } = require('./journal');
 const { createGitHub, STATE: QUOTA } = require('./github');
 const { createSlots } = require('./slots');
 const { createPools } = require('./pools');
+const { createSeed } = require('./seed');
 const { createAuth, STATE: AUTH } = require('./auth');
 const { createMinutes, SCOPE: MINUTES_SCOPE } = require('./minutes');
 
@@ -75,14 +76,11 @@ const WAITING_INTERVAL_MS = 5 * MINUTE; // so oft wird nach wartenden Läufen oh
 const MINUTES_INTERVAL_MS = 15 * MINUTE; // so oft wird das Minuten-Kontingent gelesen; die Zahl ändert sich langsam
 const RERUN_SETTLE_MS = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
-const LEARNED_DAYS = 14;
-const LEARNED_MAX = 25;
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
 const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
 const DOCKER_MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
 const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
-const IMAGE_NAME = /^[a-z0-9][a-z0-9._/:-]*:[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
 let stopping = false;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -153,7 +151,6 @@ const buildService = (repo) => `rc-buildkit-${slug(repo)}${INSTANCE}`;
 const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}${INSTANCE}`;
 const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits); // eigene Limits des Projekts oder die für alle
-const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / DAY;
 
 // Das Runner-Abbild bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
 // nur ganz ohne Abbild geht es nicht.
@@ -274,92 +271,13 @@ async function prepareCaches(repo) {
   pool.serviceBuilt = failure ? SERVICE_FAILED : serviceKey(repo);
 }
 
-function wantedImages(repo) {
-  const fixed = settingsOf(repo)?.preload ?? [];
-  const learned = Object.entries(state.learned[repo] ?? {})
-    .filter(([, usedAt]) => daysSince(usedAt) <= LEARNED_DAYS)
-    .sort((a, b) => b[1].localeCompare(a[1]))
-    .map(([image]) => image);
-  return [...new Set([...fixed, ...learned])].slice(0, LEARNED_MAX);
-}
-
-// Kopieren darf gleichzeitig laufen, auffrischen nur allein.
-const seedLocks = new Map();
-async function withSeed(repo, exclusive, work) {
-  if (!seedLocks.has(repo)) seedLocks.set(repo, { readers: 0, writing: false });
-  const lock = seedLocks.get(repo);
-  while (lock.writing || (exclusive && lock.readers > 0)) await sleep(500);
-  if (exclusive) lock.writing = true; else lock.readers += 1;
-  try { return await work(); } finally { if (exclusive) lock.writing = false; else lock.readers -= 1; }
-}
-
-function refreshSeed(repo) {
-  return withSeed(repo, true, async () => {
-    const pool = pools.get(repo);
-    const seed = seedVolume(repo);
-    const loader = `${seed}-loader`;
-    const wanted = wantedImages(repo);
-    await docker(['rm', '-f', loader]);
-    if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
-    log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
-    await docker(['volume', 'create', seed]);
-    await docker(['run', '-d', '--label', MARK, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, DIND]);
-    let ready = false;
-    for (let attempt = 0; attempt < 40 && !ready; attempt += 1) {
-      ready = (await docker(['exec', loader, 'docker', 'info', '--format', 'ok'], { timeout: 20 * SECOND })).code === 0;
-      if (!ready) await sleep(1000);
-    }
-    // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
-    if (!ready) { await docker(['rm', '-f', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
-    const present = new Set();
-    const retry = new Set();
-    for (const image of wanted) {
-      const pull = await docker(['exec', loader, 'docker', 'pull', '-q', image], { timeout: DOCKER_LONG });
-      if (pull.code === 0) { present.add(image); continue; }
-      log(`${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`, repo, 'error');
-      // Eine Störung (Netz, Anfragelimit) geht vorüber: Was schon in der Vorlage liegt, bleibt dort.
-      if (!permanentPullError(pull.stderr)) { retry.add(image); continue; }
-      // Was es bei der Registry nicht gibt, hat der Job selbst gebaut oder es ist nicht öffentlich: nicht wieder versuchen.
-      (state.rejected[repo] ??= {})[image] = new Date().toISOString();
-      delete state.learned[repo]?.[image];
-    }
-    const existing = await dockerList(['exec', loader, 'docker', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
-    for (const image of existing) if (retry.has(image)) present.add(image);
-    const obsolete = existing.filter((image) => !present.has(image) && IMAGE_NAME.test(image));
-    if (obsolete.length) await docker(['exec', loader, 'docker', 'rmi', '-f', ...obsolete]);
-    await docker(['exec', loader, 'docker', 'image', 'prune', '-f']);
-    await docker(['stop', loader]);
-    await docker(['rm', loader]);
-    if (pool) pool.seeded = present;
-    pruneOlder(state.rejected[repo], LEARNED_DAYS);
-    pruneOlder(state.learned[repo], LEARNED_DAYS);
-    saveState();
-  });
-}
-
-// Nach einem Job: die Namen der Abbilder festhalten, die er selbst geladen hat.
-const refreshQueued = new Set();
-async function learnImages(pool, slot) {
-  const listing = await docker(['exec', `${slot.base}-dind`, 'docker', '-H', 'unix:///sock/docker.sock', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
-  if (listing.code !== 0) return;
-  const now = new Date().toISOString();
-  const rejected = state.rejected[pool.repo] ?? {};
-  let unknown = false;
-  for (const image of new Set(listing.stdout.split('\n').map((s) => s.trim()))) {
-    if (!IMAGE_NAME.test(image)) continue;
-    if (rejected[image] && daysSince(rejected[image]) <= LEARNED_DAYS) continue;
-    // Was schon aus der Vorlage kam, kann unbenutzt sein: Sein Datum bleibt, damit es nach einer Frist herausfällt
-    // und nur zurückkommt, wenn ein Job es wieder selbst lädt.
-    if (slot.copied?.has(image)) continue;
-    (state.learned[pool.repo] ??= {})[image] = now;
-    if (!pool.seeded.has(image)) unknown = true;
-  }
-  saveState();
-  if (unknown && !refreshQueued.has(pool.repo)) {
-    refreshQueued.add(pool.repo);
-    refreshSeed(pool.repo).catch(logError(pool.repo, 'Vorlage')).finally(() => refreshQueued.delete(pool.repo));
-  }
-}
+// Vorlage und Gelerntes liegen in seed.js: die Namen der Abbilder nach einem Job festhalten, die Vorlage auffrischen.
+const { withSeed, refreshSeed, learnImages } = createSeed({
+  docker, dockerList, log, sleep,
+  mark: MARK, dind: DIND, longTimeout: DOCKER_LONG,
+  settingsOf, seedVolume, poolOf: (repo) => pools.get(repo),
+  state, saveState,
+});
 
 // Der Lebenslauf eines Platzes liegt in slots.js: ein Paar aufbauen, anmelden, einen Job bedienen, abräumen. Was davon
 // hier gebraucht wird, behält seinen Namen. `metrics` entsteht weiter unten und wird deshalb erst beim Gebrauch gelesen;

@@ -216,8 +216,13 @@ Richtigkeit:
     nachgestelltem Docker. Im Betrieb geprüft am 13.10.2026: Start, die Reserve füllt sich, im Demo-Lauf nehmen die
     Plätze Paare aus der Reserve und sie füllt nach, Beenden ohne Reste. Im Betrieb noch nicht geprüft: Limits ändern
     (Reserve erneuert sich), „Runner neu aufbauen“ mit und ohne laufenden Job, Cache leeren, Pool entfernen.
-  - Als Nächstes: Vorlage und Gelerntes (`withSeed`, `refreshSeed`, `learnImages`, `wantedImages`), dann Caches und
-    Build-Dienst (`prepareCaches`, `renewService`; `pools.js` bekommt `prepareCaches` heute hereingereicht), dann die
+  - Erledigt: Vorlage und Gelerntes als `src/seed.js` mit Tests (`wantedImages`, `withSeed`, `refreshSeed`,
+    `learnImages`). Der Code ist unverändert umgezogen (Zeile für Zeile verglichen); anders sind nur die Namen des
+    Hereingereichten (`mark`, `dind`, `longTimeout`, `poolOf`). Getestet gegen ein nachgestelltes Docker. Im Betrieb
+    noch nicht geprüft; wirksam erst nach einem Neustart der App. Dann nachsehen: Nach dem Start steht „Frische die
+    Vorlage auf (n Abbilder) …“ je Projekt im Protokoll, und die Einstellungen zeigen dieselben gelernten Abbilder wie
+    zuvor.
+  - Als Nächstes: Caches und Build-Dienst (`prepareCaches`, `renewService`; `pools.js` bekommt `prepareCaches` heute hereingereicht), dann die
     Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`). `startPool` und `preparePool` bleiben bis
     dahin in `backend.js`, weil sie an Caches und Vorlage hängen.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.

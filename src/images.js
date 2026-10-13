@@ -1,4 +1,4 @@
-// Regeln für die gelernten Abbilder eines Repos (siehe „Abbilder“ in backend.js).
+// Regeln für die gelernten Abbilder eines Repos (siehe „Abbilder“ in backend.js); gelernt und geladen wird in seed.js.
 
 const { DAY } = require('./units');
 

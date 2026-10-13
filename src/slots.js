@@ -4,9 +4,9 @@
 // abbrechen (`abortIdle`) und die Schleife, die das wiederholt (`slotLoop`).
 //
 // Was zum Pool im Ganzen gehört, kommt als Funktion herein: die Reserve (`replenish`, `discardReserve`, beide aus
-// pools.js), aus backend.js die Vorlage (`withSeed`, `learnImages`), die Namen der Caches und des Build-Dienstes, die
-// Einstellungen und Limits eines Repos. Zustand, den beide Seiten brauchen (`stopping`, `linuxReady`,
-// `poolResting`), wird bei jedem Gebrauch frisch erfragt.
+// pools.js), die Vorlage (`withSeed`, `learnImages`, beide aus seed.js), aus backend.js die Namen der Caches und des
+// Build-Dienstes, die Einstellungen und Limits eines Repos. Zustand, den beide Seiten brauchen (`stopping`,
+// `linuxReady`, `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
 //   Pool    { repo, slots, reserve, seeded, removed, … }   (angelegt in `startPool` in backend.js)
 //   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, kept, … }
