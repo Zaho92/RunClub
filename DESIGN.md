@@ -276,7 +276,7 @@ Zwei Spalten über die volle Fensterhöhe: links die Projektleiste (232 px), rec
 
 Der Kopf eines Laufs stellt Titel und Herkunft links an die Grundlinie der großen Restzeit rechts. Der Netzplan füllt die Breite: Jede Stufe ist eine Spalte (mindestens 180 px, höchstens 280 px), die Spalten stehen mit `clamp(40px, 6vw, 96px)` Abstand nebeneinander und sind senkrecht mittig ausgerichtet, die Pills einer Spalte haben 12 px Abstand. Hat ein Lauf keine Abhängigkeiten, stehen die Jobs in Startreihenfolge zu sechst je Spalte. Im Kompaktmodus hält der Plan 44 px Höhe vor, damit das Aufklappen einer Pill nichts darunter verschiebt. Reicht die Breite nicht, rollt der Plan waagerecht.
 
-Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ zeigt dieselben drei Kurven über 24 Stunden und je Projekt eine Tabelle (höchstens 760 px breit, Zahlenspalten 104 px). „Einstellungen“ ist auf 860 px begrenzt; Abschnitte sind durch eine Haarlinie und 22 px getrennt.
+Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der vier Abschnitte (Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
 
 Umbrüche:
 - **bis 1100 px:** Das Band wird zweispaltig, der seitliche Abstand des Hauptbereichs sinkt auf 24 px.
@@ -296,9 +296,9 @@ Das System ist flach. Es gibt keinen Schatten, keinen Verlauf und keine Unschär
 
 Drei Formen, jede mit fester Bedeutung. Die **Pill** (Radius 21 px, die halbe Höhe der geschlossenen Station) ist dem Job vorbehalten; beim Überfahren wächst sie als eine Form mit unverändertem Radius nach unten. Der **Kreis** ist das Zustandssymbol (22 px, in Legende 18 px, in Leiste und Listen 16 px; Rand 2 px). Alles Bedienbare außerhalb des Netzplans (Schaltfläche, Segment, Feld, Eintrag der Leiste) hat **sanft gerundete Ecken** (8 px); Tooltip und Meldung 6 px, Tags sind voll gerundet.
 
-Strecken sind kubische Bézierkurven: Sie verlassen die rechte Mitte des Vorgängers waagerecht und laufen waagerecht in die linke Mitte des Nachfolgers ein (Anfasser 55 % des Abstands, mindestens 30 px), 2,5 px stark mit runden Enden. Gerade oder rechtwinklig geführte Strecken gibt es nicht.
+Strecken sind kubische Bézierkurven: Sie verlassen die rechte Mitte des Vorgängers waagerecht und laufen waagerecht in die linke Mitte des Nachfolgers ein (Anfasser 55 % des Abstands, mindestens 30 px), 2,5 px stark mit runden Enden. Gerade oder rechtwinklig geführte Strecken gibt es im Netzplan nicht. Die einzige gerade Strecke ist die senkrechte Linie der Einstellungen (siehe „Haltestelle“): Dort ist sie Wegweiser durch die Seite, keine Abhängigkeit.
 
-Rahmen sind 1 px. Durchgezogen heißt: ist dran oder war dran. Gestrichelt (Pill) und gepunktet (Strecke) heißt: noch offen. Trennlinien sind 1 px in `rule` und immer waagerecht.
+Rahmen sind 1 px. Durchgezogen heißt: ist dran oder war dran. Gestrichelt (Pill) und gepunktet (Strecke) heißt: noch offen. Trennlinien sind 1 px in `rule` und immer waagerecht; die Linie der Einstellungen ist keine Trennlinie, sondern eine Strecke (2,5 px, `track`).
 
 ## Components
 
@@ -335,8 +335,31 @@ Zurückhaltend und klein; sie gehören zum Einrichten, nicht zum Zustand.
 - **Form:** Radius 8 px, Rahmen 1 px `edge`, Fläche `surface`, 13 px, Innenabstand 5 px 12 px.
 - **Überfahren / gedrückt / gesperrt:** `raised` mit Rahmen `track` (150 ms); gedrückt `edge`; gesperrt 50 % Deckkraft.
 - **Gefährlich:** Schrift `fail-text`, Rahmen `fail-edge`; steht am rechten Ende der Zeile, getrennt von den harmlosen Aktionen.
-- **Schritt:** 30 px breit, für eins mehr und eins weniger neben einer Zahl.
+- **Nur Symbol:** 30 px breit und hoch, für Aktionen, die sich in einer Liste wiederholen (eins mehr, eins weniger, einen Cache leeren). Die Aktion steht als Tooltip der App daran, bei Überfahren und bei Tastaturfokus.
+- **Symbol mit Wort:** für seltene und gefährliche Aktionen; 8 px zwischen Symbol und Wort.
+- **Gesperrt mit Grund:** Kann eine Aktion gerade nicht gelten (höchstens 4 Plätze), bleibt die Schaltfläche überfahrbar und nennt den Grund im Tooltip.
+- Was löscht, steht abgesetzt am rechten Ende der Zeile; nur was nicht wiederkommt (Projekt entfernen, RunClub beenden), ist rot.
 - Eine gefüllte Hauptschaltfläche gibt es nicht.
+
+### Bediensymbole
+Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“.
+
+### Haltestelle
+Die Gliederung der Einstellungen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
+
+### Projektzeile
+Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 8 px. Im Kopf stehen Pfeil, Name, die Summe der Caches in `muted` und rechts die Zahl der Plätze mit eins weniger und eins mehr. Ein Klick auf den Kopf klappt die Zeile nach unten auf (dieselbe Bewegung wie die Pill: `grid-template-rows` 0fr → 1fr in 280 ms, der Pfeil dreht sich); es ist immer nur eine offen. Aufgeklappt, durch eine Haarlinie abgesetzt: wohin die Jobs gehen, die Caches als Zeilen mit Größe und Symbol zum Leeren, darunter die Schaltflächen. Überfahren hebt eine geschlossene Zeile eine Stufe.
+
+Die letzte Zeile der Liste ist „Projekt hinzufügen“: durchsichtig mit gestricheltem Rand in `cap`, weil hier noch nichts ist.
+
+### Speicherbalken
+Was alle Plätze zusammen an Arbeitsspeicher dürfen, gemessen an der Docker-VM. Über dem Balken die Kennzahl (`figure`) mit der Bezugsgröße. Der Balken selbst: je Platz ein Feld (26 px hoch, Radius 6 px), nach Projekten gruppiert und darunter beschriftet. Felder, die mit vollem Limit in die VM passen, sind gefüllt (`raised`, Rahmen `cap`); die übrigen durchsichtig mit gestricheltem Rand. Eine senkrechte Marke in `track` zeigt die Grenze der VM. Rot wird die Kennzahl erst, wenn schon ein einzelner Job mehr darf, als die VM hat; dass nicht alle Plätze zugleich hineinpassen, ist der Normalfall und steht als Satz in `muted` darunter, mit der Abhilfe.
+
+### Regler
+Schiene 4 px, voll gerundet, links vom Griff `chart`, rechts `edge`; Griff 16 px, rund, `ink`. Links die Beschriftung, rechts der Wert in `ink`. Ein Vorschlag steht als gepunktete senkrechte Marke in `ink` durch die Schiene. Während des Ziehens rechnet der Speicherbalken mit; gespeichert wird beim Loslassen.
+
+### Schalter
+Für An und Aus einer einzelnen Einstellung: 38 × 22 px, voll gerundet. Aus: Fläche `rail`, Rahmen `edge`, Griff `muted`. An: Fläche `raised`, Rahmen `track`, Griff `ink`.
 
 ### Segmentschalter
 Zwei Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px). Nicht gewählt: durchsichtig, `muted`. Gewählt: `raised`, `ink`.
@@ -348,10 +371,10 @@ Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 
 Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört) Schrift `fail-text`, Rahmen `fail-edge`.
 
 ### Tabellen und Zeilen
-Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. Kopfzeile in `muted` 400, Zahlen rechtsbündig. In „Alle Projekte“ steht jedes ruhige Projekt in einer Zeile aus drei Spalten (190 px Name mit Symbol, Titel des letzten Laufs mit einer Kette kleiner Zustandssymbole davor, rechts das Alter).
+Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Projektzeile der Einstellungen ist keine Tabellenzeile, sondern eine aufklappbare Fläche.) Kopfzeile in `muted` 400, Zahlen rechtsbündig. In „Alle Projekte“ steht jedes ruhige Projekt in einer Zeile aus drei Spalten (190 px Name mit Symbol, Titel des letzten Laufs mit einer Kette kleiner Zustandssymbole davor, rechts das Alter).
 
 ### Tooltip und Meldung
-`raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px) folgt dem Mauszeiger über einer Kurve; die Meldung steht unten mittig und verschwindet nach fünf Sekunden.
+`raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden.
 
 ### Fokus
 Jedes bedienbare Element zeigt bei Tastaturbedienung einen 2 px breiten Ring in `chart` mit 2 px Abstand.
@@ -375,7 +398,9 @@ Eine Kurve für alles Räumliche: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 
 - **Don't** reines Weiß verwenden; der hellste Ton ist `ink`.
 - **Don't** ein helles Thema anlegen; das System ist nur dunkel (`color-scheme: dark`).
 - **Don't** Schatten, Verläufe oder Unschärfe einsetzen.
-- **Don't** Strecken in einer Zustandsfarbe färben oder gerade beziehungsweise rechtwinklig führen.
+- **Don't** Strecken in einer Zustandsfarbe färben oder im Netzplan gerade beziehungsweise rechtwinklig führen.
+- **Don't** ein Bediensymbol in einer Zustandsfarbe zeichnen oder ein Schriftzeichen (+, −, ×) als Symbol verwenden.
+- **Don't** einen Dauerzustand rot färben, aus dem keine Einstellung herausführt; Rot braucht einen Ausweg.
 - **Don't** einen Lauf als Jobliste mit Statuspunkten in Karten darstellen.
 - **Don't** eine der leuchtenden Zustandsfarben (`run`, `done`, `fail`, `cancel`) als Schmuck oder für etwas anderes als ihren Zustand verwenden.
 - **Don't** Schrift schwerer als 400 setzen (Ausnahme: die Wortmarke) oder Beschriftungen in Versalien sperren.

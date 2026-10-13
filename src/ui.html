@@ -113,12 +113,15 @@
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
   td, th { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
   th { font-weight: 400; color: var(--muted); }
-  table.fixed { table-layout: fixed; max-width: 760px; } table.fixed th.r { width: 104px; }
+  table.fixed { table-layout: fixed; min-width: 640px; } table.fixed th.r { width: 96px; }
+  td.top { color: var(--ink); font-weight: 400; }
   table.set td { vertical-align: middle; } table.set td.r { width: 96px; }
   td.cut { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0; width: 60%; }
   td.r, th.r { text-align: right; padding: 6px 0 6px 12px; white-space: nowrap; }
   .dim { color: var(--muted); }
   .scroll { overflow-x: auto; }
+  .scroll::-webkit-scrollbar { height: 8px; } .scroll::-webkit-scrollbar-button { display: none; } .scroll::-webkit-scrollbar-track { background: transparent; }
+  .scroll::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 999px; }
   .quiet { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; column-gap: 20px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--rule); }
   .quiet a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
   .quiet .who { background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 9px; color: var(--ink); font-weight: 400; min-width: 0; }
@@ -127,26 +130,99 @@
   .mini { display: inline-flex; align-items: center; margin-right: 12px; vertical-align: -3px; } .mini i { width: 9px; height: 2px; background: var(--track); }
   .quiet .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Einstellungen */
+  /* Bedienelemente */
   section + section { border-top: 1px solid var(--rule); padding-top: 22px; }
   .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .grow { flex: 1; min-width: 0; }
-  .btn { background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; transition: background .15s, border-color .15s; }
+  .g { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 30px; background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: 400; white-space: nowrap; transition: background .15s, border-color .15s; }
   .btn:hover { background: var(--raised); border-color: var(--track); }
   .btn:active { background: var(--edge); }
-  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: default; }
+  .btn[aria-disabled="true"]:hover, .btn[aria-disabled="true"]:active { background: var(--surface); border-color: var(--edge); }
+  .btn[aria-expanded] .g { transition: transform .2s var(--ease); }
+  .btn[aria-expanded="true"] .g { transform: rotate(90deg); }
+  .push { margin-left: auto; }
   .btn.danger { color: var(--fail-text); border-color: var(--fail-edge); }
-  .btn.step { width: 30px; padding: 5px 0; text-align: center; }
+  .btn.step, .btn.only { width: 30px; padding: 5px 0; }
+  .stepper { display: inline-flex; align-items: center; gap: 6px; }
+  .stepper b { min-width: 22px; text-align: center; font-weight: 400; color: var(--ink); }
   .seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
-  .seg button { background: none; border: 0; padding: 5px 14px; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .seg button { background: none; border: 0; padding: 5px 14px; cursor: pointer; font-size: 13px; font-weight: 400; color: var(--muted); }
   .seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
   input[type=text] { background: var(--rail); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 12px; min-width: 0; }
   input[type=text]::placeholder { color: var(--muted); }
-  label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-  input[type=checkbox] { accent-color: var(--chart); width: 15px; height: 15px; }
+  input.sw { appearance: none; flex: none; width: 38px; height: 22px; margin: 0; border-radius: 999px; background: var(--rail); border: 1px solid var(--edge); position: relative; cursor: pointer; transition: background .15s, border-color .15s; }
+  input.sw::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .2s var(--ease), background .15s; }
+  input.sw:checked { background: var(--raised); border-color: var(--track); }
+  input.sw:checked::after { transform: translateX(16px); background: var(--ink); }
+  input[type=range] { appearance: none; width: 100%; height: 22px; margin: 0; background: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--chart) var(--v), var(--edge) var(--v)); }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--ink); border: 0; }
+  input[type=range]:disabled { opacity: .5; cursor: default; }
   code { font: 12px Consolas, monospace; color: var(--text); overflow-wrap: anywhere; }
   pre { font: 12px/1.5 Consolas, monospace; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
   .empty { max-width: 52ch; }
+
+  /* Einstellungen: eine Strecke mit einer Haltestelle je Abschnitt */
+  .set { max-width: 860px; }
+  .route { display: flex; flex-direction: column; gap: 44px; padding-left: 44px; }
+  .route section + section { border-top: 0; padding-top: 0; }
+  .stop { position: relative; display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 20px; }
+  .stop:not(:last-child)::before { content: ""; position: absolute; left: -37px; top: 14px; width: 2.5px; height: calc(100% + 44px); background: var(--track); }
+  .stophead { display: flex; align-items: baseline; gap: 16px; padding-bottom: 8px; }
+  .stopdot { position: absolute; left: -44px; top: 4px; width: 17px; height: 17px; padding: 0; border-radius: 50%; background: var(--ground); border: 2.5px solid var(--track); cursor: pointer; transition: border-color .15s, background .15s; }
+  .stopdot::after { content: ""; position: absolute; inset: -10px; }
+  .stopdot:hover { border-color: var(--ink); }
+  .stop.here .stopdot { border-color: var(--ink); background: var(--ink); }
+
+  .proj { background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; transition: background .2s var(--ease), border-color .2s var(--ease); }
+  .proj[data-open="false"]:has(.popen:hover) { background: var(--raised); border-color: var(--track); }
+  .phead { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 12px; padding: 4px 12px 4px 4px; }
+  .popen { display: flex; align-items: center; gap: 12px; min-width: 0; background: none; border: 0; border-radius: 6px; padding: 10px; cursor: pointer; text-align: left; }
+  .popen .g { color: var(--muted); transition: transform .2s var(--ease); }
+  .popen[aria-expanded="true"] .g { transform: rotate(90deg); }
+  .popen b { font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .popen .sz { margin-left: auto; padding-left: 12px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .pbody { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s var(--ease); }
+  .proj[data-open="true"] .pbody { grid-template-rows: 1fr; }
+  .pbody > div { overflow: hidden; min-height: 0; }
+  .pin { display: flex; flex-direction: column; gap: 14px; margin: 0 16px 0 42px; padding: 14px 0 16px; border-top: 1px solid var(--rule); }
+  .rt { flex: 1 1 240px; min-width: 0; }
+  .crow { display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; column-gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+  .crow small { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .addrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; border: 1px dashed var(--cap); border-radius: 8px; padding: 10px 12px 10px 14px; }
+  .addrow form { display: flex; flex: 1 1 340px; gap: 10px; min-width: 0; }
+  .quick { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+
+  .budget { position: relative; display: flex; gap: 8px; margin-top: 30px; }
+  .bseg { min-width: 0; }
+  .bseg > div { display: flex; gap: 2px; height: 26px; }
+  .bseg i { flex: 1; min-width: 0; background: var(--raised); border: 1px solid var(--cap); border-radius: 6px; }
+  .bseg i.out { background: transparent; border-style: dashed; }
+  .bseg span { display: block; padding-top: 6px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bseg b { display: block; font-weight: 400; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+  .bcap { position: absolute; top: -8px; height: 42px; border-left: 2px solid var(--track); }
+  .bcap span { position: absolute; bottom: 100%; left: 0; padding: 0 0 2px 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .bcap.end span { left: auto; right: 0; padding: 0 6px 2px 0; }
+  .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 44px; padding-top: 14px; }
+  .sl { display: grid; grid-template-columns: 124px minmax(0, 1fr) 54px; align-items: center; column-gap: 14px; }
+  .sl .tr { position: relative; display: flex; }
+  .sl u { position: absolute; left: calc(8px + (100% - 16px) * var(--s)); top: 0; height: 22px; margin-left: -1px; border-left: 2px dotted var(--ink); pointer-events: none; }
+  .sl b { text-align: right; font-weight: 400; color: var(--ink); white-space: nowrap; }
+
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 44px; padding: 4px 0 6px; }
+  .um { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; column-gap: 14px; }
+  .um i { position: relative; height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--chart) var(--v), var(--edge) var(--v)); }
+  /* Ab dieser Marke (85 % des Limits) gilt eine Spitze als knapp. */
+  .um i::after { content: ""; position: absolute; left: 85%; top: -4px; height: 12px; border-left: 2px dotted var(--muted); }
+  .um i.tight { background: linear-gradient(to right, var(--fail) var(--v), var(--edge) var(--v)); }
+  .um b { font-weight: 400; color: var(--ink); white-space: nowrap; }
+  .um small { font-size: 13px; color: var(--muted); }
+
+  .arow { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  .arow > div:first-child { flex: 1; min-width: 0; }
+  .arow b { font-weight: 400; color: var(--ink); }
 
   #tip, #toast { position: fixed; z-index: 5; background: var(--raised); color: var(--ink); border: 1px solid var(--track); border-radius: 6px; font-weight: 400; display: none; }
   input { caret-color: var(--chart); }
@@ -155,8 +231,8 @@
 
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
-  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .ax .wide { display: none; } #seats { grid-column: 1 / -1; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } }
-  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .line, .pill .pg, .btn, .plan > svg path { transition: none; } }
+  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .ax .wide { display: none; } #seats { grid-column: 1 / -1; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } .sliders, .meters { grid-template-columns: 1fr; } table.fixed { min-width: 620px; } table.fixed th.r { width: 84px; } .popen .sz { display: none; } .route { gap: 36px; padding-left: 36px; } .stop:not(:last-child)::before { left: -29px; height: calc(100% + 36px); } .stopdot { left: -36px; } .pin { margin: 0 12px 0 14px; } .addrow form { flex-basis: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .line, .pill .pg, .btn, .plan > svg path, .proj, .pbody, .popen .g, .stopdot, input.sw, input.sw::after { transition: none; } }
 </style></head>
 <body>
 <div id="app"><nav id="rail"></nav><main id="main"></main></div>
@@ -177,13 +253,19 @@ const TEXT = {
     peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', project: 'Projekt',
     reserve: 'Reserve {0} von {1} vorbereitet', free: 'frei', docker: 'Docker: {0}', github: 'GitHub: {0}',
     perJob: 'Verbrauch je Job', runs: 'Läufe', usualTime: 'üblich', ramPeak: 'RAM-Spitze', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
-    wait: 'Wartezeit auf einen Runner: üblich {0} s, längste {1} min (letzte {2} Jobs).', peakNote: 'Höchste Spitze: Runner {0}, Docker {1}. Erlaubt sind {2} + {3} je Job.', hitsLimit: 'Ein Job stößt ans Limit.', couldBe: 'Mit 50 % Luft würden {0} + {1} GB reichen.',
-    limits: 'Erlaubt je Job: {0}. Bei {1} Plätzen zusammen bis zu {2}, die Docker-VM hat {3}.', limitsOver: 'Die Limits schützen so nicht vor einer vollen VM.', day: 'Die letzten 24 Stunden',
+    wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
+    day: 'Die letzten 24 Stunden',
     projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', keeps: 'Was zwischen den Jobs bleibt', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', forget: 'Vergessen', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
-    confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? CI_RUNNER wird dabei entfernt, die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner und RunClub beenden? Jobs warten, bis es wieder läuft.',
+    confirmClear: 'Wirklich leeren? Der nächste Lauf lädt alles neu und ist langsamer.', confirmRemove: 'Pool für {0} mit allen Caches entfernen? CI_RUNNER wird dabei entfernt, die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner und RunClub beenden? Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
-    app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'Alles beenden', log: 'Protokoll',
+    app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'RunClub beenden', log: 'Protokoll',
+    cachesSum: 'Caches {0}', projectsSum: '{0} Projekte · {1} Plätze', clearOf: '{0} leeren', forgetImages: 'Gelernte Abbilder vergessen', showAll: 'Alles zeigen', showLess: 'Weniger zeigen', days: 'Tagen', peakTitle: 'Höchste gemessene Spitze eines Jobs', jobsMeasured: '{0} Jobs gemessen', jobMeasured: '1 Job gemessen', toLimits: 'Limits einstellen',
+    limitsTitle: 'Limits je Job', limitsNew: 'gelten für neu gebaute Runner', budgetLabel: 'Speicher, wenn alle {0} Plätze zugleich arbeiten', budgetOf: 'erlaubt · die Docker-VM hat {0}', vmMark: 'Docker-VM', minSlots: 'Mindestens 1 Platz', maxSlots: 'Höchstens 4 Plätze', addQuick: 'Aus deinem Konto:', addQuickTip: 'Pool für {0} anlegen',
+    budgetOverOne: 'Mit vollem Limit passt einer von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.',
+    budgetOver: 'Mit vollem Limit passen {0} von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetOver1: 'Schon ein einzelner Job darf mehr belegen, als die Docker-VM hat. Senke die Limits oder gib der Docker-VM mehr Speicher.', budgetOk: 'Auch wenn alle Plätze zugleich arbeiten, bleibt die Docker-VM unter ihrer Grenze.',
+    memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
+    suggestText: 'Vorschlag aus den Messwerten (gepunktete Marke): Runner {0} GB, Docker {1} GB, je {2} Kerne. Das ist die höchste gemessene Spitze mit 50 % Luft.', suggestSame: 'Die Limits entsprechen dem Vorschlag aus den Messwerten.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
     firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
   en: {
@@ -199,17 +281,23 @@ const TEXT = {
     peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', project: 'Project',
     reserve: 'Reserve {0} of {1} prepared', free: 'free', docker: 'Docker: {0}', github: 'GitHub: {0}',
     perJob: 'Usage per job', runs: 'Runs', usualTime: 'usual', ramPeak: 'RAM peak', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
-    wait: 'Waiting for a runner: usually {0} s, longest {1} min (last {2} jobs).', peakNote: 'Highest peak: runner {0}, Docker {1}. Allowed are {2} + {3} per job.', hitsLimit: 'A job is hitting the limit.', couldBe: 'With 50% headroom, {0} + {1} GB would do.',
-    limits: 'Allowed per job: {0}. With {1} slots up to {2} in total, the Docker VM has {3}.', limitsOver: 'These limits do not protect against a full VM.', day: 'The last 24 hours',
+    wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
+    day: 'The last 24 hours',
     projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', keeps: 'What stays between jobs', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', forget: 'Forget', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
-    confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'Stop all runners and quit RunClub? Jobs wait until it runs again.',
+    confirmClear: 'Really clear? The next run downloads everything again and is slower.', confirmRemove: 'Remove the pool for {0} with all its caches? CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'Stop all runners and quit RunClub? Running jobs are cut off, queued jobs wait until RunClub runs again.',
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
-    app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit everything', log: 'Log',
+    app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit RunClub', log: 'Log',
+    cachesSum: 'Caches {0}', projectsSum: '{0} projects · {1} slots', clearOf: 'Clear {0}', forgetImages: 'Forget learned images', showAll: 'Show all', showLess: 'Show less', days: 'days', peakTitle: 'Highest measured peak of a job', jobsMeasured: '{0} jobs measured', jobMeasured: '1 job measured', toLimits: 'Adjust limits',
+    limitsTitle: 'Limits per job', limitsNew: 'apply to newly built runners', budgetLabel: 'Memory when all {0} slots work at once', budgetOf: 'allowed · the Docker VM has {0}', vmMark: 'Docker VM', minSlots: 'At least 1 slot', maxSlots: 'At most 4 slots', addQuick: 'From your account:', addQuickTip: 'Create a pool for {0}',
+    budgetOverOne: 'At full limit, one of {1} slots fits into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.',
+    budgetOver: 'At full limit, {0} of {1} slots fit into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetOver1: 'A single job may already use more than the Docker VM has. Lower the limits or give the Docker VM more memory.', budgetOk: 'Even with all slots working at once, the Docker VM stays below its limit.',
+    memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
+    suggestText: 'Suggested from the measurements (dotted mark): runner {0} GB, Docker {1} GB, {2} cores each. That is the highest measured peak plus 50% headroom.', suggestSame: 'The limits match the suggestion from the measurements.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
     firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
   },
 };
-const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off' };
+const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off', 'läuft aus': 'retiring' };
 const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* ohne Speicher */ } } };
 let lang = store.get('lang', 'de');
 let mode = store.get('mode', 'compact');
@@ -227,7 +315,7 @@ const gb = (b) => num(b / 1073741824) + ' GB';
 const mb = (b) => (b >= 1073741824 ? gb(b) : Math.round(b / 1048576) + ' MB');
 const clock = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 const secondsSince = (iso) => Math.max(0, (Date.now() - new Date(iso)) / 1000);
-const span = (s) => (s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : s < 129600 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + (lang === 'de' ? ' Tagen' : ' days'));
+const span = (s) => (s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : s < 129600 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' ' + t('days'));
 const ago = (iso) => { const s = secondsSince(iso); return s < 45 ? t('justNow') : t('ago', span(s)); };
 const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? t('soon') : t('left', Math.max(1, Math.round(s / 60))); };
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
@@ -496,70 +584,156 @@ function renderUsage() {
   const main = document.getElementById('main');
   main.dataset.shape = 'usage';
   const m = data.machine;
-  const perJob = limitBytes(m.limits.runnerMemory) + limitBytes(m.limits.dockerMemory);
-  const slots = data.repos.reduce((sum, r) => sum + (r.pool && !r.pool.paused ? r.pool.parallel : 0), 0);
-  const over = m.dockerMemory && perJob * slots > m.dockerMemory;
+  const allowRunner = limitBytes(m.limits.runnerMemory);
+  const allowDocker = limitBytes(m.limits.dockerMemory);
   const day = dayData ?? [];
   const src = (key) => ({ at: day.map((p) => p.at), values: day.map((p) => p[key + 'Max']), span: 24 * 3600000 });
-  const tables = data.repos.map((entry) => {
+  // Die höchste gemessene Spitze eines Projekts, gemessen an dem, was ein Job darf.
+  const meter = (label, peak, allowed) => {
+    const tight = peak > allowed * 0.85;
+    return '<div class="um"><span>' + label + '</span><i' + (tight ? ' class="tight"' : '') + ' style="--v:' + (allowed ? Math.min(100, peak / allowed * 100) : 0).toFixed(1) + '%"></i><b' + (tight ? ' class="c-fail"' : '') + '>' + mb(peak) + ' <small>' + t('of', gb(allowed)) + '</small></b></div>';
+  };
+  const projects = data.repos.map((entry, index) => {
     const u = entry.usage ?? { jobs: [] };
-    const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '</td><td class="r">' + j.runs + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + (j.peakMemory ? mb(j.peakMemory) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td></tr>').join('');
-    const notes = [];
-    if (u.wait) notes.push(t('wait', Math.round(u.wait.usual), clock(u.wait.longest), u.wait.jobs));
     const peakRunner = Math.max(0, ...u.jobs.map((j) => j.peakRunner));
     const peakDocker = Math.max(0, ...u.jobs.map((j) => j.peakDocker));
-    if (peakRunner + peakDocker > 0) {
-      const room = (bytes) => Math.max(1, Math.ceil(bytes * 1.5 / 1073741824 * 2) / 2);
-      const allowRunner = limitBytes(m.limits.runnerMemory);
-      const allowDocker = limitBytes(m.limits.dockerMemory);
-      let note = t('peakNote', mb(peakRunner), mb(peakDocker), gb(allowRunner), gb(allowDocker));
-      if (peakRunner > allowRunner * 0.85 || peakDocker > allowDocker * 0.85) note += ' <span class="c-fail">' + t('hitsLimit') + '</span>';
-      else if (u.jobs.reduce((sum, j) => sum + j.runs, 0) >= 5 && (room(peakRunner) * 1073741824 < allowRunner || room(peakDocker) * 1073741824 < allowDocker)) note += ' ' + t('couldBe', num(room(peakRunner)), num(room(peakDocker)));
-      notes.push(note);
-    }
-    return '<section class="stack" style="gap:10px"><h2>' + esc(entry.repo) + '</h2>' + (rows ? '<div class="scroll"><table class="fixed"><tr><th>' + t('job') + '</th><th class="r">' + t('runs') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('ramPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('cpuPeak') + '</th></tr>' + rows + '</table></div>' : '<div class="note">' + t('noUsage') + '</div>') +
-      notes.map((note) => '<div class="note">' + note + '</div>').join('') + '</section>';
+    // Der Wert, der die Schiene bestimmt, tritt in der Tabelle hervor.
+    const cell = (value, peak) => '<td class="r' + (value > 0 && value === peak ? ' top' : '') + '">' + (value > 0 ? mb(value) : '–') + '</td>';
+    const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
+    // Was am nächsten an seinem Limit liegt: welcher Job, welche Seite, wie viel.
+    const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * 0.85).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
+    const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
+      (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', esc(u.jobs.find((j) => j[near[3]] === near[1]).job), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
+    const body = !rows ? '<div class="note">' + t('noUsage') + '</div>' : peaks +
+      '<div class="scroll"><table class="fixed"><tr><th>' + t('job') + '</th><th class="r">' + t('ramRunner') + '</th><th class="r">' + t('ramDocker') + '</th><th class="r">' + t('cpuPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('runs') + '</th></tr>' + rows + '</table></div>' +
+      (u.wait ? '<div class="note">' + t('wait', span(u.wait.usual), span(u.wait.longest), u.wait.jobs) + '</div>' : '');
+    return routeStop('p' + index, entry.repo.split('/')[1], u.jobs.length ? t(u.jobs.length === 1 ? 'jobMeasured' : 'jobsMeasured', u.jobs.length) : '', body);
   }).join('');
-  put(main, '<div class="stack"><div class="head"><div><h1>' + t('usage') + '</h1><div class="sub">' + t('limits', gb(perJob), slots, gb(perJob * slots), gb(m.dockerMemory)) + (over ? ' <span class="c-fail">' + t('limitsOver') + '</span>' : '') + '</div></div></div>' +
-    '<section class="stack" style="gap:12px"><h2>' + t('day') + '</h2><div class="trio">' +
-    chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div></section>' + tables + '</div>');
+  put(main, '<div class="stack set"><div class="head"><div><h1>' + t('usage') + '</h1></div></div><div class="route">' +
+    routeStop('day', t('day'), '', '<div class="trio">' + chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div>') +
+    projects + '</div></div>');
 }
+
+// Gezeichnete Symbole der Bedienelemente: 16er-Raster, ein Strich, in Textfarbe – nie in einer Zustandsfarbe.
+const GLYPHS = {
+  minus: '<path d="M4 8h8"/>', plus: '<path d="M8 4v8M4 8h8"/>', open: '<path d="M6 4l4 4-4 4"/>',
+  clear: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/>',
+  pause: '<path d="M6 4v8M10 4v8"/>', resume: '<path d="M5.5 4v8l6.5-4z"/>',
+  power: '<path d="M8 2.5v5M4.6 4.8a4.8 4.8 0 1 0 6.8 0"/>',
+  remove: '<circle cx="8" cy="8" r="5.5"/><path d="M6 6l4 4M10 6l-4 4"/>',
+  route: '<path d="M2 8h3.5M5.5 8c3.5 0 3-4 6.5-4h2M5.5 8c3.5 0 3 4 6.5 4h2"/>',
+  cache: '<path d="M8 3l5 2.5-5 2.5-5-2.5zM3 8.5l5 2.5 5-2.5"/>',
+  gauge: '<path d="M2.5 11a5.5 5.5 0 0 1 11 0M8 11l2.5-3.5"/>',
+};
+const glyph = (name, cls) => '<svg class="g' + (cls ? ' ' + cls : '') + '" viewBox="0 0 16 16" aria-hidden="true">' + GLYPHS[name] + '</svg>';
+const GIB = 1073741824;
+const LIMIT_KEYS = ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'];
+let openRepo = store.get('open', ''); // das aufgeklappte Projekt in den Einstellungen
+let logOpen = false;
+let hereStop = view === 'usage' ? 'day' : 'projects'; // die Haltestelle, an der die Seite gerade steht
+// Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt.
+const routeStop = (key, title, side, body) => '<section class="stop' + (hereStop === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
+  '<div class="stophead"><h2 class="grow">' + esc(title) + '</h2>' + (side ? '<span class="note">' + side + '</span>' : '') + '</div>' + body + '</section>';
+let draft = null; // Limits, solange ein Regler bewegt wird: { runnerMemory, … }
 
 function renderSettings() {
   const main = document.getElementById('main');
   main.dataset.shape = 'settings';
-  const button = (text, attrs, cls, label, off) => '<button class="btn' + (cls ? ' ' + cls : '') + '"' + (label ? ' aria-label="' + esc(label) + '" title="' + esc(label) + '"' : '') + (off ? ' disabled' : '') + Object.entries(attrs).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('') + '>' + text + '</button>';
+  const attrs = (values) => Object.entries(values).map(([k, v]) => ' data-' + k + '="' + esc(v) + '"').join('');
+  // Symbol mit Wort. `only` zeigt nur das Symbol; die Aktion steht dann als Tooltip und für Vorleseprogramme daran.
+  // `why` sperrt die Schaltfläche und nennt den Grund im Tooltip.
+  const button = (name, text, values, { cls = '', only = false, why = '' } = {}) => '<button class="btn' + (only ? ' only' : '') + (cls ? ' ' + cls : '') + '"' + (only ? ' aria-label="' + esc(text) + '"' : '') + (only || why ? ' data-tip="' + esc(why || text) + '"' : '') + (why ? ' aria-disabled="true"' : '') + attrs(values) + '>' + glyph(name) + (only ? '' : esc(text)) + '</button>';
   const seg = (name, options, current) => '<span class="seg">' + options.map(([value, text]) => '<button data-set="' + name + '" data-value="' + value + '" aria-pressed="' + (current === value) + '">' + text + '</button>').join('') + '</span>';
-  const pools = data.repos.filter((entry) => entry.pool).map((entry) => {
+  const stop = routeStop;
+
+  // --- Projekte: je Projekt eine Zeile, eine davon aufgeklappt ---
+  const withPool = data.repos.filter((entry) => entry.pool);
+  const projects = withPool.map((entry) => {
     const p = entry.pool;
     const repo = entry.repo;
+    const open = openRepo === repo;
     const size = (key) => (p.sizes ? mb(p.sizes[key]) : '…');
-    const clear = (what, text) => button(text, { do: 'pool/clear', repo, what, confirm: t('confirmClear') });
+    const crow = (title, detail, amount, action) => '<div class="crow"><span>' + title + (detail ? '<small>' + detail + '</small>' : '') + '</span><span>' + amount + '</span>' + action + '</div>';
+    const clear = (what, text) => button('clear', text, { do: 'pool/clear', repo, what, confirm: t('confirmClear') }, { only: true });
     const r = p.routing;
     const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
-    const route = !r ? '' : '<div class="row"><span class="grow note' + (!r.here && r.uses !== 'fixed' ? ' c-fail' : '') + '">' +
+    const route = !r ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' ? ' c-fail' : '') + '">' +
       (r.error ? esc(r.error) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
-      (r.uses === 'fixed' ? '' : r.here ? button(t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button(t('routeTo'), { do: 'pool/routing', repo, on: '1' })) + '</div>';
-    return '<div class="stack" style="gap:8px"><div class="row"><b class="grow" style="font-weight:400;color:var(--ink)">' + esc(repo) + (p.paused ? ' <span class="tag">' + t('paused') + '</span>' : '') + (p.busy ? ' <span class="tag">' + t('rebuilding') + '</span>' : '') + '</b>' +
-      '<span class="dim">' + t('slots') + '</span>' + button('−', { do: 'pool/set', repo, parallel: p.parallel - 1 }, 'step', t('fewer'), p.parallel <= 1) + '<b style="font-weight:400">' + p.parallel + '</b>' + button('+', { do: 'pool/set', repo, parallel: p.parallel + 1 }, 'step', t('more'), p.parallel >= 4) +
-      button(p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) + '</div>' + route +
-      '<table class="set">' + (p.cache ? '<tr><td>' + t('packages') + '</td><td class="r">' + size('packages') + '</td><td class="r">' + clear('packages', t('clear')) + '</td></tr><tr><td>' + t('layers') + '</td><td class="r">' + size('build') + '</td><td class="r">' + clear('build', t('clear')) + '</td></tr>' : '<tr><td colspan="3" class="dim">' + t('cacheIsOff') + '</td></tr>') +
-      '<tr><td>' + t('images', p.images.length) + (p.images.length ? '<div class="dim" style="font-size:12px">' + p.images.map(esc).join(' · ') + '</div>' : '') + '</td><td class="r">' + size('images') + '</td><td class="r">' + clear('images', t('forget')) + '</td></tr></table>' +
-      '<div class="row">' + clear('all', t('clearAll')) + button(p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) + '<span class="grow"></span>' + button(t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, 'danger') + '</div></div>';
+      (r.uses === 'fixed' ? '' : r.here ? button('route', t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button('route', t('routeTo'), { do: 'pool/routing', repo, on: '1' })) + '</div>';
+    const caches = (p.cache ? crow(t('packages'), '', size('packages'), clear('packages', t('clearOf', t('packages')))) + crow(t('layers'), '', size('build'), clear('build', t('clearOf', t('layers'))))
+      : '<div class="crow"><span class="dim">' + t('cacheIsOff') + '</span><span></span><span></span></div>') +
+      crow(t('images', p.images.length), p.images.map(esc).join(' · '), size('images'), clear('images', t('forgetImages')));
+    const foot = '<div class="row">' + button(p.paused ? 'resume' : 'pause', p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) +
+      button('cache', p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
+      // Was löscht, steht abgesetzt am rechten Ende.
+      '<span class="row push">' + button('clear', t('clearAll'), { do: 'pool/clear', repo, what: 'all', confirm: t('confirmClear') }) + button('remove', t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, { cls: 'danger' }) + '</span></div>';
+    return '<div class="proj" data-open="' + open + '"><div class="phead"><button class="popen" data-open-repo="' + esc(repo) + '" aria-expanded="' + open + '" data-tip="' + esc(repo) + '">' + glyph('open') + '<b>' + esc(repo.split('/')[1]) + '</b>' +
+      (p.paused ? '<span class="tag">' + t('paused') + '</span>' : '') + (p.busy ? '<span class="tag">' + t('rebuilding') + '</span>' : '') +
+      '<span class="sz">' + t('cachesSum', p.sizes ? mb(p.sizes.packages + p.sizes.images + p.sizes.build) : '…') + '</span></button>' +
+      '<span class="note">' + t('slots') + '</span><span class="stepper">' + button('minus', t('fewer'), { do: 'pool/set', repo, parallel: p.parallel - 1 }, { only: true, why: p.parallel <= 1 ? t('minSlots') : '' }) + '<b>' + p.parallel + '</b>' +
+      button('plus', t('more'), { do: 'pool/set', repo, parallel: p.parallel + 1 }, { only: true, why: p.parallel >= 4 ? t('maxSlots') : '' }) + '</span></div>' +
+      '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + route + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
   }).join('');
-  const free = (repoList ?? []).filter((r) => !r.pool);
-  const html = '<div class="stack" style="max-width:860px"><div class="head"><div><h1>' + t('settings') + '</h1></div></div>' +
-    (pools ? '<section class="stack" style="gap:26px"><h2>' + t('projects') + '</h2>' + pools + '</section>' : '') +
-    '<section class="stack" style="gap:10px"><h2>' + t('add') + '</h2><form class="row" id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false"><datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + t('addButton') + '</button></form>' +
-    '<div class="row">' + free.slice(0, 6).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">+ ' + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></section>' +
-    '<section class="stack" style="gap:12px"><h2>' + t('app') + '</h2>' + (data.app ? '<label class="check"><input type="checkbox" id="autostart"' + (data.app.autostart ? ' checked' : '') + '> ' + t('autostart') + '</label>' : '') +
-    '<div class="row"><span class="dim" style="width:110px">' + t('view') + '</span>' + seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode) + '<span class="note">' + t('viewHint') + '</span></div>' +
-    '<div class="row"><span class="dim" style="width:110px">' + t('language') + '</span>' + seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang) + '</div>' +
-    '<div class="row">' + button(t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, 'danger') + '</div></section>' +
-    '<section class="stack" style="gap:8px"><h2>' + t('log') + '</h2><pre>' + esc(data.log.join('\n')) + '</pre></section></div>';
-  // Nicht neu aufbauen, solange im Eingabefeld getippt wird.
-  if (document.activeElement?.id === 'addRepo' && main.dataset.html) return;
+  // Vorschläge nur für private Repos: Für öffentliche legt RunClub keinen Pool an.
+  const free = (repoList ?? []).filter((r) => !r.pool && r.private !== false);
+  const add = '<div class="addrow"><span>' + t('add') + '</span><form id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false">' +
+    '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + glyph('plus') + t('addButton') + '</button></form>' +
+    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(r.repo.split('/')[1]) + '</button>').join('') + (free.length ? '</span>' : '') + '</div><div class="note">' + esc(t('addHint')) + '</div>';
+
+  // --- Limits je Job: was alle Plätze zusammen dürfen, gemessen an der Docker-VM ---
+  const m = data.machine;
+  const lv = m.limitsView ?? {
+    values: { runnerMemory: limitBytes(m.limits.runnerMemory) / GIB, dockerMemory: limitBytes(m.limits.dockerMemory) / GIB, runnerCpus: m.limits.runnerCpus, dockerCpus: m.limits.dockerCpus },
+    bounds: { memory: { min: 1, max: 8, step: 0.5 }, cpus: { min: 1, max: m.dockerCpus || 1, step: 1 } }, suggestion: null,
+  };
+  const now = { ...lv.values, ...(draft ?? {}) };
+  const active = withPool.filter((entry) => !entry.pool.paused);
+  const slots = active.reduce((sum, entry) => sum + entry.pool.parallel, 0);
+  const perJob = (now.runnerMemory + now.dockerMemory) * GIB;
+  const total = perJob * slots;
+  const vm = m.dockerMemory;
+  const over = vm > 0 && total > vm;
+  const tooBig = vm > 0 && perJob > vm; // schon ein Job allein darf mehr, als die VM hat
+  const fits = perJob ? Math.floor(vm / perJob) : 0; // so viele Plätze passen mit vollem Limit in die VM
+  const capAt = vm / (Math.max(total, vm) || 1) * 100;
+  const gbClean = (bytes) => { const value = Math.round(bytes / GIB * 10) / 10; return num(value, value % 1 ? 1 : 0) + ' GB'; };
+  let cell = 0;
+  const cells = (count) => Array.from({ length: count }, () => { cell += 1; return cell <= fits ? '<i></i>' : '<i class="out"></i>'; }).join('');
+  const budget = !slots || !vm ? '' : '<div><div class="k">' + t('budgetLabel', slots) + '</div><div class="v' + (tooBig ? ' c-fail' : '') + '">' + gbClean(total) + ' <small>' + t('budgetOf', gbClean(vm)) + '</small></div>' +
+    '<div class="budget">' + active.map((entry) => '<div class="bseg" style="flex:' + entry.pool.parallel + '"><div>' + cells(entry.pool.parallel) + '</div><span><b>' + esc(entry.repo.split('/')[1]) + '</b>' + entry.pool.parallel + ' × ' + gbClean(perJob) + '</span></div>').join('') +
+    (total < vm ? '<div style="flex:' + ((vm - total) / perJob).toFixed(3) + '"></div>' : '') + '<div class="bcap' + (capAt > 60 ? ' end' : '') + '" style="left:' + capAt.toFixed(2) + '%"><span>' + t('vmMark') + '</span></div></div>' +
+    '<div class="note' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px;max-width:68ch">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + '</div></div>';
+  const slider = (key, label, range, unit) => {
+    const share = (value) => (range.max > range.min ? Math.min(1, Math.max(0, (value - range.min) / (range.max - range.min))) : 0);
+    const hint = lv.suggestion?.[key];
+    return '<label class="sl"><span>' + label + '</span><span class="tr" style="--s:' + (hint == null ? 0 : share(hint).toFixed(3)) + '"><input type="range" data-limit="' + key + '" min="' + range.min + '" max="' + range.max + '" step="' + range.step + '" value="' + now[key] + '" style="--v:' + (share(now[key]) * 100).toFixed(1) + '%">' +
+      (hint == null ? '' : '<u></u>') + '</span><b>' + unit(now[key]) + '</b></label>';
+  };
+  const gbShort = (value) => num(value, value % 1 ? 1 : 0);
+  const sliders = '<div class="sliders">' + slider('runnerMemory', t('memRunner'), lv.bounds.memory, (v) => gbShort(v) + ' GB') + slider('dockerMemory', t('memDocker'), lv.bounds.memory, (v) => gbShort(v) + ' GB') +
+    slider('runnerCpus', t('cpuRunner'), lv.bounds.cpus, (v) => v) + slider('dockerCpus', t('cpuDocker'), lv.bounds.cpus, (v) => v) + '</div>';
+  const hint = lv.suggestion;
+  const same = hint && LIMIT_KEYS.every((key) => hint[key] === lv.values[key]);
+  const suggestion = !hint ? '<div class="note">' + t('suggestNone') + '</div>' : '<div class="row"><span class="grow note">' + (same ? t('suggestSame') : t('suggestText', gbShort(hint.runnerMemory), gbShort(hint.dockerMemory), hint.runnerCpus)) + '</span>' +
+    (same ? '' : button('gauge', t('suggestApply'), { do: 'limits/set', ...Object.fromEntries(LIMIT_KEYS.map((key) => [key, hint[key]])) })) + '</div>';
+
+  // --- App und Protokoll ---
+  const arow = (title, hint, control) => '<div class="arow"><div><b>' + title + '</b>' + (hint ? '<div class="note">' + hint + '</div>' : '') + '</div>' + control + '</div>';
+  const app = (data.app ? arow(t('autostart'), '', '<input type="checkbox" class="sw" id="autostart" aria-label="' + t('autostart') + '"' + (data.app.autostart ? ' checked' : '') + '>') : '') +
+    arow(t('view'), t('viewHint'), seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode)) + arow(t('language'), '', seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang)) +
+    '<div class="row" style="padding-top:12px">' + button('power', t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, { cls: 'danger push' }) + '</div>';
+  const log = '<pre>' + esc((logOpen ? data.log : data.log.slice(-3)).join('\n')) + '</pre>' + (data.log.length > 3 ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
+
+  const html = '<div class="stack set"><div class="head"><div><h1>' + t('settings') + '</h1></div></div><div class="route">' +
+    stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add) +
+    stop('limits', t('limitsTitle'), t('limitsNew'), budget + sliders + suggestion) + stop('app', t('app'), '', app) + stop('log', t('log'), '', log) + '</div></div>';
+  // Nicht neu aufbauen, solange im Eingabefeld etwas steht, das noch nicht abgeschickt ist.
+  if (document.activeElement?.id === 'addRepo' && document.activeElement.value && main.dataset.html) return;
   put(main, html);
+  // Regler und Schalter merken sich, was der Nutzer zuletzt eingestellt hat; der gezeigte Stand kommt aus den Daten.
+  for (const el of main.querySelectorAll('input[type=range]')) el.value = el.getAttribute('value');
+  const autostart = document.getElementById('autostart');
+  if (autostart) autostart.checked = autostart.hasAttribute('checked');
 }
 
 function renderEmpty() {
@@ -610,26 +784,81 @@ async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })
 
 document.addEventListener('click', async (event) => {
   const nav = event.target.closest('[data-view]');
-  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; if (view === 'usage') loadDay(); if (view === 'settings') loadRepos(); render(); return; }
+  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; hereStop = view === 'usage' ? 'day' : 'projects'; if (view === 'usage') loadDay(); if (view === 'settings') loadRepos(); render();
+    // Ein Verweis kann eine Haltestelle der Zielansicht nennen.
+    if (nav.dataset.goto) { hereStop = nav.dataset.goto; render(); document.getElementById('stop-' + hereStop)?.scrollIntoView({ block: 'start' }); }
+    return; }
   const set = event.target.closest('[data-set]');
   if (set) { if (set.dataset.set === 'mode') mode = set.dataset.value; else lang = set.dataset.value; store.set(set.dataset.set, set.dataset.value); document.getElementById('main').dataset.shape = ''; render(); return; }
   const pick = event.target.closest('[data-pick]');
-  if (pick) { pick.disabled = true; addPool(pick.dataset.pick); return; }
+  if (pick) { pick.disabled = true; if (!await addPool(pick.dataset.pick)) pick.disabled = false; return; }
+  const opener = event.target.closest('[data-open-repo]');
+  if (opener) { openRepo = openRepo === opener.dataset.openRepo ? '' : opener.dataset.openRepo; store.set('open', openRepo); render(); return; }
+  const dot = event.target.closest('[data-stop]');
+  if (dot) { document.getElementById('stop-' + dot.dataset.stop)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); return; }
+  if (event.target.closest('[data-log]')) { logOpen = !logOpen; render(); return; }
   const el = event.target.closest('button[data-do]');
-  if (!el) return;
+  if (!el || el.getAttribute('aria-disabled') === 'true') return;
   const { do: action, confirm: question, ...body } = el.dataset;
   if (question && !confirm(question)) return;
   for (const key of ['paused', 'cache', 'on']) if (key in body) body[key] = body[key] === '1';
   if ('parallel' in body) body.parallel = Number(body.parallel);
   el.disabled = true;
-  if (await call(action, body) && action === 'shutdown') toast(t('quitting'));
+  // Der Knopf bleibt nur beim Beenden gesperrt; sonst ist er nach der Antwort wieder da, auch wenn sich nichts ändert.
+  if (await call(action, body) && action === 'shutdown') toast(t('quitting')); else el.disabled = false;
 });
-document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) input.value = ''; });
-document.addEventListener('change', (event) => { if (event.target.id === 'autostart') call('app/autostart', { on: event.target.checked }); });
+document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
+document.addEventListener('change', async (event) => {
+  if (event.target.id === 'autostart') { call('app/autostart', { on: event.target.checked }); return; }
+  if (!event.target.dataset?.limit || !draft) return;
+  // Der Regler ist losgelassen: speichern und den Entwurf erst fallen lassen, wenn der neue Stand da ist.
+  const sent = draft;
+  if (await call('limits/set', sent)) await refresh();
+  if (draft === sent) draft = null;
+  render();
+});
+// Solange ein Regler bewegt wird, rechnet der Balken darüber mit.
+document.addEventListener('input', (event) => {
+  const key = event.target.dataset?.limit;
+  if (!key) return;
+  draft = { ...(draft ?? {}), [key]: Number(event.target.value) };
+  render();
+});
+// Die Haltestelle, an der die Einstellungen gerade stehen, tritt hervor.
+document.getElementById('main').addEventListener('scroll', (event) => {
+  if (view !== 'settings' && view !== 'usage') return;
+  const main = event.currentTarget;
+  const stops = [...main.querySelectorAll('.stop')];
+  const top = main.getBoundingClientRect().top;
+  let current = stops[0];
+  for (const el of stops) if (el.getBoundingClientRect().top - top < 160) current = el;
+  if (main.scrollTop + main.clientHeight >= main.scrollHeight - 4) current = stops.at(-1);
+  const key = current?.id.slice(5);
+  if (key && key !== hereStop) { hereStop = key; render(); }
+}, { passive: true });
+
+// Der Tooltip der App: am Mauszeiger oder, bei Tastaturbedienung, über dem Element.
+function showTip(text, x, y) {
+  const tip = document.getElementById('tip');
+  tip.textContent = text;
+  tip.style.display = 'block';
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - tip.offsetWidth - 8, x)) + 'px';
+  tip.style.top = Math.max(8, y) + 'px';
+}
+document.addEventListener('focusin', (event) => {
+  const el = event.target.closest ? event.target.closest('[data-tip]') : null;
+  if (!el || !el.matches(':focus-visible')) return;
+  const box = el.getBoundingClientRect();
+  showTip(el.dataset.tip, box.left, box.top - 32);
+});
+document.addEventListener('focusout', () => { document.getElementById('tip').style.display = 'none'; });
+document.addEventListener('mouseleave', () => { document.getElementById('tip').style.display = 'none'; });
 
 // Verlauf unter dem Mauszeiger: Zeitpunkt und Wert, dazu eine Linie an der Stelle.
 document.addEventListener('mousemove', (event) => {
   const tip = document.getElementById('tip');
+  const hinted = event.target.closest ? event.target.closest('[data-tip]') : null;
+  if (hinted) { showTip(hinted.dataset.tip, event.clientX + 12, event.clientY - 34); return; }
   const svg = event.target.closest ? event.target.closest('svg.chart') : null;
   const source = svg && charts[svg.dataset.chart];
   if (!source || !source.at.length) { tip.style.display = 'none'; return; }
@@ -649,6 +878,6 @@ document.addEventListener('mousemove', (event) => {
 window.addEventListener('resize', () => document.querySelectorAll('.plan').forEach(drawLinks));
 document.fonts?.ready.then(() => document.querySelectorAll('.plan').forEach(drawLinks));
 
-refresh(); loadRepos();
+refresh(); loadRepos(); if (view === 'usage') loadDay();
 setInterval(refresh, 3000); setInterval(tick, 1000); setInterval(() => { if (view === 'usage') loadDay(); }, 60000);
 </script></body></html>
