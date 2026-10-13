@@ -58,6 +58,12 @@ Richtigkeit:
 - **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
   einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
+- **Aus dem Umzug nach `src/slots.js`, noch offen.** Scheitert das Anmelden eines Runners dauerhaft (403,
+  Anfragelimit), baut der Platz jede Minute ein Paar aus der Reserve ab, und die Reserve baut nach. Endet ein Runner
+  mitten im Job ohne Abschlusszeile, gibt es kein Ergebnis im Protokoll und keinen Verbrauch, und die Messung des
+  Platzes bleibt stehen. Ein Abbruch im Leerlauf (`abortIdle`) während der Wartezeit nach einem Fehler setzt nur ein
+  Kennzeichen, das der nächste Versuch zurücksetzt; es wirkt nur, weil Pause, Anhalten und Auslaufen die Schleife
+  ohnehin stoppen.
 - **Abmeldungen bleiben liegen**, wenn ein Job beim Beenden oder Abmelden noch läuft: Sein Runner bleibt bei GitHub
   eingetragen, bis der nächste Start aufräumt. Freie Runner werden beim Abmelden von Windows jetzt abgemeldet.
 
@@ -147,8 +153,9 @@ Richtigkeit:
   dem Review: `createPools({ docker, gh, config, state, log, sleep })` als Modul, `backend.js` wird Verdrahtung mit
   einem `start()`.
   - Erledigt: der Lebenslauf eines Platzes als `src/slots.js` mit Tests (`provision`, `serveOneJob`, `teardown`,
-    `removePair`, `slotLoop`, `abortIdle`, `slotWanted`, `livePairs`). Der Code ist unverändert umgezogen; im echten
-    Betrieb ist der Umbau noch nicht geprüft (ein Job, ein Abbruch im Leerlauf, Beenden der App).
+    `removePair`, `slotLoop`, `abortIdle`, `slotWanted`, `livePairs`). Der Code ist unverändert umgezogen (Zeile für
+    Zeile gegengelesen) und am 13.10.2026 im Betrieb geprüft: Demo-Lauf mit Fehler, Plätze verringern, pausieren,
+    Beenden ohne Reste.
   - Als Nächstes: die Reserve und das Anhalten eines Pools (`replenish`, `renewReserve`, `discardReserve`,
     `reserveSize`, `staleCount`, `reconcile`, `quiesce`, `withPoolAtRest`, `rebuildIdle`), sie hängen an `slots.js`
     und am Build-Dienst. Dann Vorlage und Gelerntes (`withSeed`, `refreshSeed`, `learnImages`), dann die

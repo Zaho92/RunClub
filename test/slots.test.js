@@ -404,6 +404,12 @@ test('teardown: ohne Paar geschieht nichts; ohne Job wird abgemeldet, nach einem
   w.ghFails = 'gh: Not Found (HTTP 404)'; // schon weg: kein Fehler
   await w.slots.teardown({ repo: REPO, base: BASE, runnerId: 77, job: null });
   assert.deepEqual(w.calls, [...REMOVE, UNREGISTER]);
+  assert.deepEqual(w.logs, []);
+
+  // Alles andere bleibt bei GitHub stehen und gehört ins Protokoll.
+  w.ghFails = 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.';
+  await w.slots.teardown({ repo: REPO, base: BASE, runnerId: 77, job: null });
+  assert.deepEqual(w.logs, [['Runner ließ sich bei GitHub nicht abmelden – Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.', REPO, 'error']]);
 });
 
 test('ein Platz ist nur gewollt, solange das Programm läuft, der Pool besteht und der Platz nicht ausläuft', () => {

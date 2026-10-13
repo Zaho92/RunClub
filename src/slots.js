@@ -50,7 +50,11 @@ function createSlots({
     for (const name of [`${base}-runner`, `${base}-dind`]) forgetStats(name);
     livePairs.delete(base);
     if (runnerId) {
-      try { await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runnerId}`]); } catch { /* schon weg */ }
+      // 404 heißt: schon weg (der Runner meldet sich nach seinem Job selbst ab). Alles andere bleibt bei GitHub als
+      // toter Eintrag stehen, bis der nächste Start aufräumt, und gehört deshalb ins Protokoll.
+      try { await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runnerId}`]); } catch (error) {
+        if (!/HTTP 404/.test(error.message)) log(`Runner ließ sich bei GitHub nicht abmelden – ${error.message}`, repo, 'error');
+      }
     }
   }
 
