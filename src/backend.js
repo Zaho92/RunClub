@@ -572,6 +572,15 @@ async function quiesce(pool) {
   while (pool.reserve.length || pool.slots.some((slot) => slot.base || slot.building)) await sleep(500);
 }
 
+// Die freien Runner eines Pools neu aufbauen. Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits
+// des Docker-Daemons. Ob ein Job läuft, entscheidet sich erst, wenn der Pool nicht mehr anderweitig angehalten ist
+// (ein Cache wird geleert): Startet in der Wartezeit ein Job, würde der Pool sonst bis zu dessen Ende stillstehen.
+async function rebuildIdle(pool) {
+  while (pool.hold) await sleep(500);
+  if (pool.slots.some((slot) => slot.state === 'arbeitet')) return Promise.all([renewReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]);
+  return withPoolAtRest(pool, () => prepareCaches(pool.repo));
+}
+
 async function withPoolAtRest(pool, work) {
   while (pool.hold) await sleep(500);
   pool.hold = true;
@@ -984,10 +993,7 @@ const actions = {
     for (const pool of repo ? [pools.get(repo)] : [...pools.values()]) {
       if (pool.removed || !staleCount(pool)) continue;
       log('Baue die freien Runner mit den neuen Limits auf', pool.repo);
-      const working = pool.slots.some((slot) => slot.state === 'arbeitet');
-      // Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits des Docker-Daemons.
-      (working ? Promise.all([renewReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]) : withPoolAtRest(pool, () => prepareCaches(pool.repo)))
-        .catch(logError(pool.repo));
+      rebuildIdle(pool).catch(logError(pool.repo));
     }
   },
   async shutdown() { setTimeout(shutdown, 100); },
