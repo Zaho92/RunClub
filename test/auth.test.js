@@ -72,8 +72,8 @@ test('angemeldet ohne das freiwillige Recht: nichts fehlt, eines lässt sich erg
 });
 
 test('fehlt ein Pflichtrecht, steht es unter `missing`; mit allen Rechten bleibt nichts offen', async () => {
-  const { auth, world } = fake(hosts('gist, read:org, repo'));
-  assert.deepEqual((await auth.refresh()).missing, ['workflow']);
+  const { auth, world } = fake(hosts('gist, read:org'));
+  assert.deepEqual((await auth.refresh()).missing, ['repo']);
   world.status = ok(WITH_USER);
   const view = await auth.refresh();
   assert.deepEqual([view.missing, view.optional], [[], []]);
@@ -128,7 +128,7 @@ test('anmelden: der Aufruf antwortet mit Code und Adresse, und nach der Bestäti
   const view = await begun;
   assert.deepEqual(view.flow, { kind: 'login', state: 'waiting', code: CODE, url: DEVICE, error: null });
   assert.equal(view.state, 'out');
-  assert.deepEqual(flowCalls(), [{ command: 'gh', args: ['auth', 'login', '--hostname', 'github.com', '--web', '--git-protocol', 'https', '-s', 'repo,workflow'], input: '\n', timeout: 15 * MINUTE }]);
+  assert.deepEqual(flowCalls(), [{ command: 'gh', args: ['auth', 'login', '--hostname', 'github.com', '--web', '--git-protocol', 'https', '-s', 'repo'], input: '\n', timeout: 15 * MINUTE }]);
   // Höchstens ein Ablauf zugleich.
   await assert.rejects(auth.login(), /läuft schon/);
   await assert.rejects(auth.logout(), /abbrechen/);
@@ -157,13 +157,16 @@ test('nur eine Adresse bei GitHub wird übernommen; sonst gilt die bekannte', as
   await env.auth.cancel();
 });
 
-test('bleibt der Code aus, antwortet der Aufruf trotzdem bald; der Ablauf läuft weiter', async () => {
+test('bleibt der Code aus, scheitert der Ablauf bald, statt stumm zu warten', async () => {
   const env = fake(SIGNED_OUT);
   await env.auth.refresh();
   const view = await env.auth.login();
-  assert.equal(view.flow.state, 'starting');
-  env.prompt();
-  assert.equal(env.auth.view().flow.code, CODE);
+  assert.equal(view.flow.state, 'failed');
+  assert.match(view.flow.error, /keinen Einmalcode/);
+  assert.equal(view.flow.code, null);
+  // Danach ist ein neuer Versuch möglich.
+  await start(env, () => env.auth.login());
+  assert.equal(env.auth.view().flow.state, 'waiting');
   await env.auth.cancel();
 });
 
@@ -231,7 +234,7 @@ test('fehlende Pflichtrechte werden zusammen ergänzt', async () => {
   const env = fake(hosts('gist, read:org'));
   await env.auth.refresh();
   await start(env, () => env.auth.grant());
-  assert.deepEqual(env.flowCalls()[0].args, ['auth', 'refresh', '-h', 'github.com', '-s', 'repo,workflow']);
+  assert.deepEqual(env.flowCalls()[0].args, ['auth', 'refresh', '-h', 'github.com', '-s', 'repo']);
   await env.auth.cancel();
 });
 
@@ -305,4 +308,11 @@ test('mit einem echten Programm: abbrechen beendet es', async () => {
   await auth.cancel();
   assert.equal(auth.view().flow.state, 'cancelled');
   assert.ok(Date.now() - started < 4000);
+});
+
+test('ein Fehler beim Prüfen der Anmeldung (kein Netz, Störung) meldet niemanden ab; ein abgelehntes Token schon', () => {
+  const host = (entry) => JSON.stringify({ hosts: { 'github.com': [{ active: true, host: 'github.com', login: 'Zaho92', ...entry }] } });
+  assert.equal(parseHosts(host({ state: 'error', error: 'Get "https://api.github.com/": dial tcp: lookup api.github.com: no such host' })), null);
+  assert.equal(parseHosts(host({ state: 'error', error: 'HTTP 503' })), null);
+  assert.deepEqual(parseHosts(host({ state: 'error', error: 'HTTP 401: Bad credentials (https://api.github.com/)' })), { state: 'out', login: null, scopes: null });
 });

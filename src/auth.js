@@ -16,17 +16,20 @@ const { SECOND, MINUTE } = require('./units');
 const HOST = 'github.com';
 const STATE = { UNKNOWN: 'unknown', MISSING: 'missing', OUT: 'out', IN: 'in' };
 const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
-const REQUIRED = ['repo', 'workflow']; // ohne sie kann RunClub nicht arbeiten
+// Ohne sie kann RunClub nicht arbeiten. `repo` genügt für alles, was es tut: Runner an- und abmelden, Läufe lesen und
+// erneut starten, die Variable CI_RUNNER setzen. Mehr wird nicht verlangt (`gh` ergänzt von sich aus `read:org` und `gist`).
+const REQUIRED = ['repo'];
 // Freiwillige Rechte mit ihrem Zweck; den Satz dazu bildet die Oberfläche. `minutes`: das Minuten-Kontingent zeigen.
 const OPTIONAL = [{ scope: 'user', purpose: 'minutes' }];
 const FLOW_TIMEOUT = 15 * MINUTE; // so lange gilt auch der Einmalcode bei GitHub
-const START_WAIT = 10 * SECOND; // so lange wartet ein Aufruf höchstens darauf, dass der Code da ist
+const START_WAIT = 20 * SECOND; // kommt bis dahin kein Code, gilt der Ablauf als gescheitert
 const RECHECK = 10 * MINUTE; // so oft wird ein guter Stand im laufenden Betrieb nachgelesen
 const DEVICE_URL = 'https://github.com/login/device';
 const CODE = /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/;
 const ADDRESS = /(https:\/\/github\.com\/[\w/.-]*)/; // nur GitHub selbst: Die Oberfläche macht daraus einen Link
 const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/; // nichts, was `gh` als Option lesen könnte
+const INVALID = /401|bad credentials|invalid|expired|revoked/i; // so begründet `gh` ein Token, das nicht mehr gilt
 
 const signedOut = () => ({ state: STATE.OUT, login: null, scopes: null });
 // Ein Token ohne lesbare Rechte (etwa ein fein abgestuftes) hat `scopes: null`: Dann gilt nichts als fehlend.
@@ -42,7 +45,9 @@ function parseHosts(stdout) {
   const entry = entries.find((found) => found?.active) ?? entries[0];
   if (!entry) return signedOut();
   if (entry.state === 'timeout') return null;
-  if (entry.state !== 'success') return signedOut(); // das Token gilt nicht mehr
+  // Abgemeldet heißt nur: GitHub hat das Token abgelehnt. Jeder andere Fehler (kein Netz, Anfragelimit, Störung bei
+  // GitHub) sagt nichts über die Anmeldung; dann bleibt der letzte Stand.
+  if (entry.state !== 'success') return INVALID.test(String(entry.error ?? '')) ? signedOut() : null;
   return { state: STATE.IN, login: String(entry.login ?? '') || null, scopes: scopeList(entry.scopes) };
 }
 
@@ -85,7 +90,7 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
 
   // Den Stand lesen. Hat er sich geändert, ist die Meldung eines gescheiterten Ablaufs überholt.
   function refresh() {
-    reading ??= read().then((found) => {
+    reading ??= read().catch(() => null).then((found) => { // auch ein Fehler beim Lesen gibt das nächste Lesen frei
       reading = null;
       readAt = now();
       if (found && JSON.stringify(found) !== JSON.stringify(current)) {
@@ -115,7 +120,7 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
   function begin(kind, args) {
     if (running()) throw new Error('Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.');
     const controller = new AbortController();
-    const mine = { kind, state: FLOW.STARTING, code: null, url: null, error: null, controller, ended: null };
+    const mine = { kind, state: FLOW.STARTING, code: null, url: null, error: null, controller, ended: null, settled: false, silent: false };
     flow = mine;
     let show;
     const shown = new Promise((resolve) => { show = resolve; });
@@ -133,12 +138,17 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
     };
     // Die leere Zeile beantwortet die Rückfrage, mit der `gh` sonst auf die Eingabetaste wartet.
     mine.ended = run('gh', args, { input: '\n', timeout: flowTimeout, signal: controller.signal, onLine: onText, onErrLine: onText }).then(async (result) => {
+      // `gh` ist zu Ende: Ab jetzt gibt es nichts mehr abzubrechen (siehe `cancel`).
+      mine.settled = true;
       // Erst den neuen Stand lesen, dann den Ablauf beenden: sonst stünde kurz „gelungen“ neben „nicht angemeldet“.
-      await fresh();
+      await fresh().catch(() => {});
       const code = mine.code;
       mine.code = null;
       mine.url = null;
-      if (mine.state !== FLOW.CANCELLED) {
+      if (mine.silent) {
+        mine.state = FLOW.FAILED;
+        mine.error = ['gh hat keinen Einmalcode ausgegeben.', result.aborted ? '' : reason(result)].filter(Boolean).join(' ');
+      } else if (mine.state !== FLOW.CANCELLED) {
         mine.state = result.code === 0 ? FLOW.DONE : FLOW.FAILED;
         if (result.code !== 0) mine.error = result.timedOut ? `Nicht innerhalb von ${Math.round(flowTimeout / MINUTE)} Minuten bestätigt.` : reason(result, code);
       }
@@ -150,7 +160,12 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
     });
     let timer;
     const patience = new Promise((resolve) => { timer = setTimeout(resolve, startWait); timer.unref?.(); });
-    return Promise.race([shown, patience]).then(() => { clearTimeout(timer); return view(); });
+    return Promise.race([shown, patience]).then(async () => {
+      clearTimeout(timer);
+      // Ohne Code gibt es nichts zu bestätigen: Der Ablauf scheitert jetzt, statt eine Viertelstunde stumm zu warten.
+      if (mine.state === FLOW.STARTING && !mine.settled) { mine.silent = true; controller.abort(); await mine.ended; }
+      return view();
+    });
   }
 
   async function login() {
@@ -168,10 +183,12 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
     return begin('scope', ['auth', 'refresh', '-h', HOST, '-s', scopes.join(',')]);
   }
 
-  // Beendet das wartende `gh`. Antwortet, wenn es beendet ist.
+  // Beendet das wartende `gh`. Antwortet, wenn es beendet ist. Ist `gh` schon zu Ende und wird nur noch der neue
+  // Stand gelesen, gibt es nichts mehr abzubrechen: Die Bestätigung im Browser gilt dann.
   async function cancel() {
     if (!running()) return;
     const mine = flow;
+    if (mine.settled) { await mine.ended; return; }
     mine.state = FLOW.CANCELLED;
     mine.code = null;
     mine.url = null;
@@ -188,7 +205,8 @@ function createAuth({ run, log = () => {}, onSuccess = () => {}, now = Date.now,
     await fresh();
     if (result.code !== 0) throw new Error(reason(result));
     flow = null;
-    log(`Bei GitHub abgemeldet (${login}).`);
+    // Kennt `gh` ein weiteres Konto, nutzt es nach dem Abmelden von selbst dieses.
+    log(current.state === STATE.IN ? `Bei GitHub abgemeldet (${login}). gh nutzt jetzt das Konto ${current.login}.` : `Bei GitHub abgemeldet (${login}).`);
   }
 
   return { view, refresh, poll, login, grant, cancel, logout };
