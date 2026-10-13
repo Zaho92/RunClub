@@ -83,6 +83,20 @@ Richtigkeit:
 - **Wartende Läufe ohne Pool** (`src/waiting.js`): nur gegen ein nachgestelltes GitHub getestet und als Standbild
   angesehen. Echt prüfen: in einem privaten Repo ohne Pool einen Lauf mit `runs-on: [self-hosted, Linux]` starten;
   nach spätestens fünf Minuten steht in „Alle Projekte“ die Zeile mit „Pool anlegen“.
+- **Läufe, die am Kontingent von GitHub gescheitert sind** (`src/waiting.js`): Die Form von Job und Anmerkung stammt
+  aus einem echten Lauf (38468791627 in `Zaho92/RunClub`), die Suche selbst ist nur gegen ein nachgestelltes GitHub
+  getestet. Echt prüfen: Ein privates Repo ohne Pool, dessen Lauf in den letzten 24 Stunden so gescheitert ist, steht
+  nach spätestens fünf Minuten in „Alle Projekte“ als rote Zeile „Kein Kontingent: …“ mit „Pool anlegen“; nach einem
+  gelungenen Lauf oder einem Tag verschwindet sie. Nicht angesehen: Zeile, Symbol und roter Satz. Gezählt werden
+  höchstens die fünf jüngsten abgeschlossenen Läufe.
+- **Lauf und Job erneut starten** (`run/rerun`, `job/rerun` in `src/backend.js`; Schaltflächen in `src/ui.html`): nur
+  am Code geprüft, kein Aufruf ging an GitHub. Echt prüfen: „Erneut starten“ und „Nur Gescheiterte“ unter dem Kopf des
+  letzten Laufs, „Job erneut starten“ in den aufgeklappten Details einer Pill; der Lauf erscheint nach wenigen
+  Sekunden wieder als laufend, im Protokoll steht die Meldung, und eine Absage von GitHub kommt als Meldung unten an.
+  Am Bild prüfen: Die Schaltfläche des Jobs sitzt rechts in den Details, ohne Text zu verdecken oder aus der
+  gerundeten Fläche zu ragen (kompakt und im Detailmodus, auch bei einer gescheiterten Pill mit langem Schrittnamen);
+  die Pill bleibt aufgeklappt, solange der Zeiger auf der Schaltfläche steht; das Symbol ist vom „Runner neu
+  aufbauen“ zu unterscheiden.
 - **Zuordnung im Netzplan** für Matrix-Jobs, Namen mit Ausdruck und aufgerufene Workflows: Die Namensformen von GitHub
   stammen aus der Dokumentation, nicht aus einem echten Lauf. Die eigenen Workflows nutzen nichts davon.
 - **Tägliches Neubauen des Runner-Abbilds** und der Start ohne Netz mit vorhandenem Abbild: nur am Code geprüft.

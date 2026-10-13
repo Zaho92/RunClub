@@ -157,6 +157,21 @@
   .push { margin-left: auto; }
   .btn.danger { color: var(--fail-text); border-color: var(--fail-edge); }
   .btn.step, .btn.only { width: 30px; padding: 5px 0; }
+  /* „Job erneut starten“: Die Schaltfläche steckt nicht im Link der Pill, sondern steht neben ihm im selben Rahmen
+     (.job) und erscheint rechts in den aufgeklappten Details. Über ihr verhält sich die Pill wie überfahren. Sie liegt
+     auf `raised` und nimmt deshalb die Rahmentöne als Stufen, wie die Schaltflächen der Rückfrage. */
+  .job { position: relative; }
+  .job:hover > .pill, .job:has(:focus-visible) > .pill { background: var(--raised); border-color: var(--track); z-index: 3; }
+  .job:hover > .pill.lined .line, .job:has(:focus-visible) > .pill.lined .line { opacity: 0; }
+  .job:hover > .pill .more, .job:has(:focus-visible) > .pill .more { grid-template-rows: 1fr; opacity: 1; transition-delay: .08s; }
+  .job .more > div { padding-right: 46px; }
+  .job .more p:last-child { padding-bottom: 19px; }
+  .job > .rejob { position: absolute; z-index: 4; right: 6px; top: 40px; opacity: 0; pointer-events: none; background: var(--edge); border-color: var(--cap); transition: opacity .12s linear, background .15s, border-color .15s; }
+  .job:has(.lined) > .rejob { top: 35px; }
+  .job:hover > .rejob, .job:has(:focus-visible) > .rejob { opacity: 1; pointer-events: auto; transition-delay: .08s, 0s, 0s; }
+  .job > .rejob:hover { background: var(--cap); border-color: var(--track); }
+  .job > .rejob:active { background: var(--raised); }
+  .job:hover > .rejob[aria-disabled="true"], .job:has(:focus-visible) > .rejob[aria-disabled="true"] { opacity: .5; background: var(--edge); border-color: var(--cap); }
   .stepper { display: inline-flex; align-items: center; gap: 6px; }
   .stepper b { min-width: 22px; text-align: center; font-weight: 400; color: var(--ink); }
   .seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
@@ -279,7 +294,7 @@
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
   @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } .nav.todo b::after { content: " •"; color: var(--fail-text); } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .ax .wide { display: none; } #seats { grid-column: 1 / -1; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } .shell #app { grid-template-rows: 32px auto minmax(0, 1fr); } .shell #bar { grid-column: 1; background: var(--rail); padding: 0 14px; font-weight: 600; font-size: 18px; line-height: 34px; color: var(--ink); } .shell #bar::before { content: "RunClub"; } .shell #rail { grid-row: 2; padding-top: 4px; } .shell #rail::before, .shell .brand { display: none; } .shell #main { grid-row: 3; } .sliders, .meters { grid-template-columns: 1fr; } table.fixed { min-width: 620px; } table.fixed th.r { width: 84px; } .popen .sz { display: none; } .popen { flex-wrap: wrap; row-gap: 4px; } .popen .tag { white-space: nowrap; } .route { gap: 36px; padding-left: 36px; } .stop:not(:last-child)::before { left: -29px; height: calc(100% + 36px); } .stopdot { left: -36px; } .pin { margin: 0 12px 0 14px; } .addrow form { flex-basis: 100%; } }
-  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .line, .pill .pg, .btn, .plan > svg path, dialog[open], dialog[open]::backdrop, .proj, .pbody, .popen .g, .stopdot, input.sw, input.sw::after { transition: none; } dialog[open], dialog[open]::backdrop { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .line, .pill .pg, .btn, .job > .rejob, .plan > svg path, dialog[open], dialog[open]::backdrop, .proj, .pbody, .popen .g, .stopdot, input.sw, input.sw::after { transition: none; } dialog[open], dialog[open]::backdrop { animation: none; } }
 </style></head>
 <body>
 <div id="app"><div id="bar"></div><nav id="rail"></nav><main id="main"></main></div>
@@ -297,7 +312,9 @@ const TEXT = {
     untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
     ago: 'vor {0}', justNow: 'gerade eben', s_run: 'läuft', s_done: 'fertig', s_fail: 'Fehler', s_cancel: 'abgebrochen', s_skip: 'ausgesetzt', s_wait: 'wartet',
     usual: 'üblich {0}', step: 'Schritt {0}/{1}: {2}', waitsFor: 'wartet auf {0}', waitsRunner: 'wartet auf einen Runner', notYet: 'noch nicht angelegt', noGraph: 'Abhängigkeiten unbekannt: die Workflow-Datei ließ sich nicht lesen',
-    lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', unservedOne: 'Kein Pool: Ein Job wartet seit {1} auf einen eigenen Runner', unservedMany: 'Kein Pool: {0} Jobs warten seit {1} auf einen eigenen Runner', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
+    lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', unservedOne: 'Kein Pool: Ein Job wartet seit {1} auf einen eigenen Runner', unservedMany: 'Kein Pool: {0} Jobs warten seit {1} auf einen eigenen Runner',
+    quotaOne: 'Kein Kontingent: Seit {1} ist ein Lauf nicht gestartet, weil die Minuten bei GitHub aufgebraucht sind', quotaMany: 'Kein Kontingent: Seit {1} sind {0} Läufe nicht gestartet, weil die Minuten bei GitHub aufgebraucht sind', quotaTip: 'Mit einem Pool laufen die Jobs auf diesem Rechner und brauchen keine Minuten von GitHub.',
+    rerun: 'Erneut starten', rerunFailed: 'Nur Gescheiterte', rerunJob: 'Job erneut starten', rerunTip: 'Alle Jobs dieses Laufs noch einmal ausführen', rerunFailedTip: 'Nur die gescheiterten Jobs noch einmal ausführen; die gelungenen behalten ihr Ergebnis', rerunDone: 'Erneut gestartet. Bei GitHub dauert es einen Augenblick, bis der Lauf wieder erscheint.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
     peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
     reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', github: 'GitHub: {0}',
     runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
@@ -336,7 +353,9 @@ const TEXT = {
     untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
     ago: '{0} ago', justNow: 'just now', s_run: 'running', s_done: 'done', s_fail: 'failed', s_cancel: 'cancelled', s_skip: 'skipped', s_wait: 'waiting',
     usual: 'usually {0}', step: 'Step {0}/{1}: {2}', waitsFor: 'waiting for {0}', waitsRunner: 'waiting for a runner', notYet: 'not created yet', noGraph: 'Dependencies unknown: the workflow file could not be read',
-    lastRun: 'Last run', nothing: 'Nothing has run here yet.', unservedOne: 'No pool: one job has been waiting {1} for a self-hosted runner', unservedMany: 'No pool: {0} jobs have been waiting {1} for a self-hosted runner', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
+    lastRun: 'Last run', nothing: 'Nothing has run here yet.', unservedOne: 'No pool: one job has been waiting {1} for a self-hosted runner', unservedMany: 'No pool: {0} jobs have been waiting {1} for a self-hosted runner',
+    quotaOne: 'No minutes: in the last {1}, one run did not start because the GitHub minutes are used up', quotaMany: 'No minutes: in the last {1}, {0} runs did not start because the GitHub minutes are used up', quotaTip: 'With a pool the jobs run on this machine and need no GitHub minutes.',
+    rerun: 'Re-run', rerunFailed: 'Failed only', rerunJob: 'Re-run job', rerunTip: 'Run all jobs of this run again', rerunFailedTip: 'Run only the failed jobs again; the successful ones keep their result', rerunDone: 'Re-run started. It takes GitHub a moment to show the run again.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
     peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
     reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', github: 'GitHub: {0}',
     runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
@@ -508,7 +527,8 @@ function columnsOf(pipeline) {
   return columns.filter(Boolean);
 }
 
-function pill(j) {
+// `again`: das Repo, wenn sich die Jobs dieses Laufs erneut starten lassen (der Lauf ist abgeschlossen), sonst leer.
+function pill(j, again) {
   const state = jobState(j);
   const bit = (text) => (text ? '<span class="bit">' + esc(text) + '</span>' : '');
   const lines = [];
@@ -528,12 +548,16 @@ function pill(j) {
   }
   const full = lines.filter(Boolean);
   const lined = Boolean(full.length) && (mode === 'detail' || state === 'fail');
-  return '<a class="pill s-' + state + (lined ? ' lined' : '') + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
+  const link = '<a class="pill s-' + state + (lined ? ' lined' : '') + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
     '<span class="n">' + esc(j.name) + '</span>' + time + (lined ? '<span class="line">' + full[0] + '</span>' : '') + '<div class="more"><div>' + full.map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
     (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
+  // Die Pill ist ein Link; die Schaltfläche steht deshalb neben ihr, nicht in ihr.
+  if (!again || !j.id || j.status !== 'completed') return link;
+  return '<div class="job">' + link + '<button class="btn only rejob" data-do="job/rerun" data-repo="' + esc(again) + '" data-id="' + esc(j.id) + '" aria-label="' + esc(t('rerunJob')) + '" data-tip="' + esc(t('rerunJob')) + '">' + glyph('rerun') + '</button></div>';
 }
 
-function runBlock(pipeline, running, repo) {
+// `repo` steht im Kopf, wenn `named`. Ein abgeschlossener Lauf trägt unter dem Kopf, was sich erneut starten lässt.
+function runBlock(pipeline, running, repo, named) {
   const jobs = pipeline.jobs;
   const done = jobs.filter((j) => j.status === 'completed').length;
   const failed = jobs.filter((j) => jobState(j) === 'fail').length;
@@ -547,9 +571,12 @@ function runBlock(pipeline, running, repo) {
     big = '<b class="small ' + word[1] + '">' + t(word[0]) + '</b>';
     sub = '<span data-ago="' + esc(pipeline.updatedAt) + '"></span> · ' + t('took', clock(secondsSince(pipeline.startedAt) - secondsSince(pipeline.updatedAt)));
   }
-  const meta = [repo ? esc(repo) : '', esc(pipeline.workflow), esc(pipeline.branch || pipeline.event), running ? '<span data-running="' + esc(pipeline.startedAt) + '"></span>' : t('lastRun')].filter(Boolean).join(' · ');
-  return '<div class="stack" style="gap:14px"><div class="head"><div><h1>' + esc(pipeline.title || pipeline.workflow) + '</h1><div class="sub"><a href="' + esc(pipeline.url) + '" target="_blank" rel="noopener">' + meta + '</a></div></div><div class="eta">' + big + '<div class="sub">' + sub + '</div></div></div>' +
-    '<div class="planwrap"><div class="plan' + (mode === 'detail' ? ' detail' : '') + '"><svg aria-hidden="true"></svg>' + columnsOf(pipeline).map((column) => '<div class="col">' + column.map(pill).join('') + '</div>').join('') + '</div></div>' +
+  const again = !running && repo && pipeline.id ? repo : '';
+  const rerun = (text, tip, only) => '<button class="btn" data-do="run/rerun" data-repo="' + esc(repo) + '" data-id="' + esc(pipeline.id) + '"' + (only ? ' data-failed-only="1"' : '') + ' data-tip="' + esc(t(tip)) + '">' + (only ? '' : glyph('rerun')) + t(text) + '</button>';
+  const acts = again ? '<div class="row">' + rerun('rerun', 'rerunTip') + (failed || pipeline.conclusion === 'failure' ? rerun('rerunFailed', 'rerunFailedTip', true) : '') + '</div>' : '';
+  const meta = [named ? esc(repo) : '', esc(pipeline.workflow), esc(pipeline.branch || pipeline.event), running ? '<span data-running="' + esc(pipeline.startedAt) + '"></span>' : t('lastRun')].filter(Boolean).join(' · ');
+  return '<div class="stack" style="gap:14px"><div class="head"><div><h1>' + esc(pipeline.title || pipeline.workflow) + '</h1><div class="sub"><a href="' + esc(pipeline.url) + '" target="_blank" rel="noopener">' + meta + '</a></div></div><div class="eta">' + big + '<div class="sub">' + sub + '</div></div></div>' + acts +
+    '<div class="planwrap"><div class="plan' + (mode === 'detail' ? ' detail' : '') + '"><svg aria-hidden="true"></svg>' + columnsOf(pipeline).map((column) => '<div class="col">' + column.map((j) => pill(j, again)).join('') + '</div>').join('') + '</div></div>' +
     (pipeline.graph ? '' : '<div class="note">' + t('noGraph') + '</div>') + '</div>';
 }
 
@@ -583,7 +610,8 @@ function watchPlans(root) {
 // Beim Überfahren einer Pill ihre Strecken hervorheben, die übrigen zurücknehmen.
 let traced = null;
 function trace(event) {
-  const pill = event.target.closest ? event.target.closest('.pill') : null;
+  // Die Schaltfläche neben einer Pill (siehe .job) zählt zu ihr.
+  const pill = event.target.closest ? event.target.closest('.pill') ?? event.target.closest('.job')?.querySelector('.pill') ?? null : null;
   const active = pill && (event.type === 'mouseover' || event.type === 'focusin');
   traced = active ? pill : null;
   for (const plan of document.querySelectorAll('.plan')) {
@@ -673,12 +701,17 @@ const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker
 // Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz.
 const viewHead = (title, sub, cls) => '<div class="head"><div><h1>' + title + '</h1><div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
 
-// Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten: je eine Zeile mit dem Angebot, einen Pool anzulegen.
-// Welche Jobs es sind, steht im Tooltip.
+// Repos ohne Pool, in denen nichts vorankommt: je eine Zeile mit dem Angebot, einen Pool anzulegen. Entweder warten
+// Jobs auf einen eigenen Runner (welche, steht im Tooltip), oder Läufe sind nicht gestartet, weil die Minuten bei
+// GitHub aufgebraucht sind. Das ist eine Störung mit Ausweg und deshalb rot; der Tooltip nennt den Ausweg.
 function unservedRows() {
-  return (data.unserved ?? []).map((entry) => '<div class="quiet"><a class="who s-wait" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon('wait') + esc(shortRepo(entry.repo)) + '</a>' +
-      '<div class="what" data-tip="' + esc(entry.jobs.join(', ')) + '">' + esc(t(entry.jobs.length === 1 ? 'unservedOne' : 'unservedMany', entry.jobs.length, span(secondsSince(entry.since)))) + '</div>' +
-      '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>').join('');
+  return (data.unserved ?? []).map((entry) => {
+    const quota = entry.reason === 'quota';
+    const count = quota ? entry.runs : entry.jobs.length;
+    return '<div class="quiet"><a class="who s-' + (quota ? 'fail' : 'wait') + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(quota ? 'fail' : 'wait') + esc(shortRepo(entry.repo)) + '</a>' +
+      '<div class="what' + (quota ? ' c-fail' : '') + '" data-tip="' + esc(quota ? t('quotaTip') : entry.jobs.join(', ')) + '">' + esc(t((quota ? 'quota' : 'unserved') + (count === 1 ? 'One' : 'Many'), count, span(secondsSince(entry.since)))) + '</div>' +
+      '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
+  }).join('');
 }
 
 // „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
@@ -695,8 +728,8 @@ function quietRows(entries) {
 }
 
 function projectBlocks(entry, withRepo) {
-  if (entry.pipelines.length) return entry.pipelines.map((p) => runBlock(p, true, withRepo ? entry.repo : '')).join('');
-  if (entry.lastRun) return runBlock(entry.lastRun, false);
+  if (entry.pipelines.length) return entry.pipelines.map((p) => runBlock(p, true, entry.repo, withRepo)).join('');
+  if (entry.lastRun) return runBlock(entry.lastRun, false, entry.repo);
   return '<div class="head"><div><h1>' + esc(entry.repo) + '</h1><div class="sub">' + t('nothing') + '</div></div></div>';
 }
 
@@ -783,6 +816,8 @@ const GLYPHS = {
   cache: '<path d="M8 3l5 2.5-5 2.5-5-2.5zM3 8.5l5 2.5 5-2.5"/>',
   gauge: '<path d="M2.5 11a5.5 5.5 0 0 1 11 0M8 11l2.5-3.5"/>',
   rebuild: '<path d="M12.6 8a4.6 4.6 0 1 1-1.5-3.4M12.6 2.6v2.6H10"/>',
+  // Erneut starten: der Bogen zurück an den Anfang, darin das Dreieck für „los“. Gilt für Lauf und Job.
+  rerun: '<path d="M3.4 8a4.6 4.6 0 1 0 1.5-3.4M3.4 2.6v2.6H6M7 6.2v3.6l3-1.8z"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   save: '<path d="M8 2.5v8M4.8 7.4L8 10.5l3.2-3.1M3 13.5h10"/>',
 };
@@ -1068,12 +1103,15 @@ document.addEventListener('click', async (event) => {
   // Die Überschrift ist die Aktion selbst, als Frage; die Schaltfläche zum Bestätigen wiederholt sie.
   const label = el.getAttribute('aria-label') || el.textContent.trim();
   if (question && !await ask({ title: label + '?', text: question, ok: label, danger: el.classList.contains('danger') })) return;
-  for (const key of ['paused', 'cache', 'on', 'inherit']) if (key in body) body[key] = body[key] === '1';
+  for (const key of ['paused', 'cache', 'on', 'inherit', 'failedOnly']) if (key in body) body[key] = body[key] === '1';
   if ('parallel' in body) body.parallel = Number(body.parallel);
   el.setAttribute('aria-disabled', 'true');
   document.getElementById('tip').style.display = 'none';
   // Der Knopf bleibt nur beim Beenden gesperrt; sonst ist er nach der Antwort wieder da, auch wenn sich nichts ändert.
-  if (await call(action, body) && action === 'shutdown') toast(t('quitting')); else el.removeAttribute('aria-disabled');
+  const done = await call(action, body);
+  if (done && action === 'shutdown') { toast(t('quitting')); return; }
+  el.removeAttribute('aria-disabled');
+  if (done && action.endsWith('/rerun')) toast(t('rerunDone')); // bei GitHub erscheint der Lauf erst nach einem Augenblick wieder
 });
 document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
 document.addEventListener('change', async (event) => {

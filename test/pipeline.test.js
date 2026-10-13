@@ -213,3 +213,16 @@ test('viele Ausdrücke im Namen werden nicht zum teuren Muster', async () => {
   // Ausdrücke direkt hintereinander zählen als einer und passen weiter.
   assert.equal(matcherOf({ name: 'Test ${{ a }}${{ b }}' }).test('Test ubuntu 20'), true);
 });
+
+test('Lauf und Job tragen ihre Kennung von GitHub, damit sie sich erneut starten lassen; ein angekündigter Job hat keine', async () => {
+  const { runs } = setup([]);
+  const gh = async (args) => ({ jobs: args[1].includes('runs/1/') ? [{ ...done('Kurz', 10), id: 71 }, { ...done('Lang', 100), id: 72 }] : [{ ...done('Kurz', 10), id: 115542192486 }] });
+  const withIds = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  await withIds.refresh(REPO, runs);
+  const [active] = withIds.view(REPO, 4);
+  assert.equal(active.id, 2);
+  assert.deepEqual(active.jobs.map((j) => [j.name, j.id]), [['Kurz', 115542192486], ['Lang', null]]);
+  const last = withIds.lastOf(REPO);
+  assert.equal(last.id, 1);
+  assert.deepEqual(last.jobs.map((j) => [j.name, j.id]), [['Kurz', 71], ['Lang', 72]]);
+});

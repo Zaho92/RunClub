@@ -162,13 +162,13 @@ function createPipelines({ gh, dataDir }) {
       const current = steps.find((step) => step.status === 'in_progress');
       const failed = steps.find((step) => step.conclusion === 'failure');
       return {
-        name: job.name, status: job.status, conclusion: job.conclusion, runner: job.runner_name || null, own: (job.labels ?? []).some((label) => String(label).toLowerCase() === 'self-hosted'),
+        id: job.id ?? null, name: job.name, status: job.status, conclusion: job.conclusion, runner: job.runner_name || null, own: (job.labels ?? []).some((label) => String(label).toLowerCase() === 'self-hosted'),
         startedAt: job.started_at, completedAt: job.completed_at, url: job.html_url, estimate: estimate(repo, run.name, job.name), needs: [],
         step: current ? { name: current.name, number: current.number, total: steps.length } : failed ? { name: failed.name, number: failed.number, total: steps.length, failed: true } : null,
       };
     });
     const present = new Map(jobs.map((job) => [job.name, job]));
-    const pending = (name) => ({ name, status: 'pending', conclusion: null, runner: null, own: true, startedAt: null, completedAt: null, url: run.html_url, estimate: estimate(repo, run.name, name), needs: [], step: null });
+    const pending = (name) => ({ id: null, name, status: 'pending', conclusion: null, runner: null, own: true, startedAt: null, completedAt: null, url: run.html_url, estimate: estimate(repo, run.name, name), needs: [], step: null });
     if (definition) {
       // Ein Job der Datei kann als mehrere Jobs laufen (Matrix, Aufruf) und dort anders heißen: siehe matcherOf.
       // Jeder echte Job gehört zu höchstens einem Job der Datei: zu dem, der genau so heißt, sonst zu dem mit dem

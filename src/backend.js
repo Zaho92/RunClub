@@ -70,6 +70,7 @@ const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * MINUTE;
 const WAITING_INTERVAL_MS = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht
+const RERUN_SETTLE_MS = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
@@ -498,7 +499,7 @@ async function linuxLoop() {
 const github = new Map(); // Repo -> { runners, jobs, runs, error }
 const pipelines = createPipelines({ gh, dataDir: DATA_DIR });
 const routing = createRouting({ gh }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
-const waiting = createWaiting({ gh }); // Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten
+const waiting = createWaiting({ gh }); // Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten oder Läufe am Kontingent von GitHub scheitern
 
 // --- Messung: Rechner, Docker-VM und der Verbrauch je Job ---
 
@@ -602,7 +603,8 @@ async function listRepos() {
   return repoList.repos.map((r) => { const pool = Boolean(settingsOf(r.repo)); return { ...r, pool, free: !pool && r.private !== false }; });
 }
 
-// Nach Läufen suchen, die auf einen eigenen Runner warten, für die es aber keinen Pool gibt (siehe waiting.js).
+// Nach Läufen suchen, für die es keinen Pool gibt und die deshalb auf einen eigenen Runner warten oder am
+// aufgebrauchten Kontingent von GitHub gescheitert sind (siehe waiting.js).
 // Lässt sich die Liste der Repos nicht lesen, bleibt der letzte Stand.
 function scanWaiting() {
   // Bei knappem Limit nur jede dritte Runde.
@@ -677,7 +679,7 @@ function status() {
     },
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
-    unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool mit wartenden Jobs: [{ repo, jobs, since, url }]
+    unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'quota', runs, since, url }]
     logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -785,6 +787,20 @@ const actions = {
     if (!settingsOf(repo)) throw new Error('Diesen Pool gibt es nicht.');
     await routing.set(repo, Boolean(on));
     log(`${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen an GitHubs Runner'}`, repo);
+  },
+  // Einen abgeschlossenen Lauf oder Job von Hand erneut starten; das löscht nichts. Bei GitHub erscheint er erst nach
+  // einem Augenblick wieder als laufend, deshalb wird das Repo kurz danach neu abgefragt.
+  async 'run/rerun'({ repo, id, failedOnly }) {
+    if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Error('Diesen Lauf gibt es nicht.');
+    await gh(['api', '-X', 'POST', `repos/${repo}/actions/runs/${id}/${failedOnly ? 'rerun-failed-jobs' : 'rerun'}`]);
+    log(`Lauf ${id} erneut gestartet${failedOnly ? ' (nur die gescheiterten Jobs)' : ''}`, repo);
+    setTimeout(() => { if (!stopping) refreshRepo(repo); }, RERUN_SETTLE_MS);
+  },
+  async 'job/rerun'({ repo, id }) {
+    if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Error('Diesen Job gibt es nicht.');
+    await gh(['api', '-X', 'POST', `repos/${repo}/actions/jobs/${id}/rerun`]);
+    log(`Job ${id} erneut gestartet`, repo);
+    setTimeout(() => { if (!stopping) refreshRepo(repo); }, RERUN_SETTLE_MS);
   },
   // Speicher in GB, Kerne als Anzahl. Arbeitende und schon bereite Paare behalten ihre Limits bis zum nächsten Aufbau.
   // Mit `repo` gelten sie nur für dieses Projekt; `inherit` nimmt dessen eigene Werte wieder weg.

@@ -311,6 +311,7 @@ Die Signaturkomponente; ein Job im Netzplan, als Ganzes ein Link zum Job bei Git
 - **Fehler:** Rahmen `fail-edge`; eine zweite, gekürzte Zeile nennt in beiden Modi in `fail-text` den Schritt, an dem es scheiterte.
 - **Wartet / ausgesetzt:** Durchsichtig, Rahmen gestrichelt, Name `muted`; die Zeit ist eine Schätzung („ca. 2:19“).
 - **Detailmodus:** Jede Pill trägt eine zweite, auf eine Zeile gekürzte Detailzeile; die Überlagerung setzt dann unter der ersten Zeile an.
+- **Erneut starten:** Ein abgeschlossener Job eines abgeschlossenen Laufs trägt rechts in seinen aufgeklappten Details die Schaltfläche „Job erneut starten“ (nur Symbol, 30 px, Radius 8 px; auf `raised` mit den Rahmentönen als Stufen wie in der Rückfrage). Sie ist kein Teil des Links, sondern steht neben der Pill im selben Rahmen und erscheint mit den Details, bei Überfahren und bei Tastaturfokus; in der Tastaturfolge kommt sie direkt nach ihrer Pill. Steht der Zeiger auf ihr, bleibt die Pill aufgeklappt. Die geschlossene Pill ändert sich nicht.
 
 ### Zustandssymbol
 Ein Kreis mit einer Zeichnung aus einem 16er-Raster, Strich 2,2 mit runden Enden. Läuft: gefülltes Dreieck auf `run`. Fertig: Haken auf `done`. Fehler: Kreuz auf `fail`. Abgebrochen: gefülltes Quadrat auf `cancel`. Ausgesetzt: Strich im leeren Ring `skip`. Wartet: Punkt im leeren Ring `wait`. Ein leerer Ring ohne Zeichnung steht in der Leiste für ein Projekt, in dem nichts läuft. Die Legende unter dem Netzplan zeigt alle sechs mit ihrem Wort.
@@ -337,12 +338,13 @@ Zurückhaltend und klein; sie gehören zum Einrichten, nicht zum Zustand.
 - **Gefährlich:** Schrift `fail-text`, Rahmen `fail-edge`; steht am rechten Ende der Zeile, getrennt von den harmlosen Aktionen.
 - **Nur Symbol:** 30 px breit und hoch, für Aktionen, die sich in einer Liste wiederholen (eins mehr, eins weniger, einen Cache leeren). Die Aktion steht als Tooltip der App daran, bei Überfahren und bei Tastaturfokus.
 - **Symbol mit Wort:** für seltene und gefährliche Aktionen; 8 px zwischen Symbol und Wort.
+- **Am Lauf:** Unter dem Kopf eines abgeschlossenen Laufs, linksbündig mit dem Titel, steht „Erneut starten“ (Symbol mit Wort; der ganze Lauf), nach einem Fehler daneben „Nur Gescheiterte“ (nur Wort, weil es dieselbe Aktion enger fasst). Sie stehen unter dem Kopf und nicht in ihm, damit Titel und Restzeit auf einer Grundlinie bleiben. Erneut starten löscht nichts und fragt deshalb nicht nach; eine Meldung bestätigt es, weil der Lauf bei GitHub erst nach einem Augenblick wieder erscheint. Ein laufender Lauf trägt keine Schaltflächen.
 - **Gesperrt mit Grund:** Kann eine Aktion gerade nicht gelten (höchstens 4 Plätze), bleibt die Schaltfläche überfahrbar und nennt den Grund im Tooltip.
 - Was löscht, steht abgesetzt am rechten Ende der Zeile; nur was nicht wiederkommt (Projekt entfernen, RunClub beenden), ist rot.
 - Eine gefüllte Hauptschaltfläche gibt es nicht.
 
 ### Bediensymbole
-Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“.
+Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“. Der Bogen im Uhrzeigersinn heißt „Runner neu aufbauen“; der Bogen zurück an den Anfang mit dem Dreieck darin heißt „erneut starten“, für den Lauf wie für den einzelnen Job.
 
 ### Haltestelle
 Die Gliederung der Einstellungen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
@@ -374,6 +376,8 @@ Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für �
 In „Verbrauch“ steht je Job eine Zeile; kommt derselbe Jobname in einem Projekt in zwei Workflows vor, steht der Workflow in `muted` hinter dem Namen.
 
 Über den ruhigen Projekten in „Alle Projekte“ stehen im selben Raster die Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten: links das Symbol „wartet“ mit dem Namen (ein Link zu den wartenden Läufen bei GitHub), in der Mitte ein Satz, der mit „Kein Pool:“ beginnt, rechts statt des Alters die Schaltfläche „Pool anlegen“. Welche Jobs warten, steht im Tooltip.
+
+Dieselbe Zeile steht für ein Repo ohne Pool, dessen Läufe in den letzten 24 Stunden nicht gestartet sind, weil die Minuten bei GitHub aufgebraucht sind: links das Symbol „Fehler“ mit dem Namen (ein Link zu den gescheiterten Läufen bei GitHub), in der Mitte in `fail-text` ein Satz, der mit „Kein Kontingent:“ beginnt und sagt, seit wann und wie viele Läufe, rechts „Pool anlegen“. Das ist rot, weil es einen Ausweg gibt: Mit einem Pool brauchen die Jobs keine Minuten; der Tooltip des Satzes sagt das. Warten in dem Repo zugleich Jobs auf einen eigenen Runner, steht nur die Zeile „Kein Pool“.
 
 Bis zur ersten Antwort des Dienstes zeigt die Seite die Wortmarke in der Leiste und im Hauptbereich die Überschrift „Alle Projekte“ mit einem Satz darunter („Verbinde mit RunClub …“); bleibt die Antwort aus, steht dort in `fail-text`, dass RunClub nicht antwortet.
 
