@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createWaiting, candidates, wantsOwnRunner, neverStarted, quotaNote } = require('../src/waiting');
+const { createWaiting, candidates, wantsOwnRunner, neverStarted, minutesNote } = require('../src/waiting');
 
 const NOW = new Date('2026-10-13T12:00:00Z').getTime();
 const daysAgo = (days) => new Date(NOW - days * 24 * 3600000).toISOString();
@@ -114,12 +114,12 @@ test('ein Job gilt als nie gestartet, wenn er ohne Schritte gescheitert ist; die
   assert.equal(neverStarted({ conclusion: 'failure' }), true);
   assert.equal(neverStarted({ conclusion: 'failure', steps: [{ name: 'Set up job', conclusion: 'failure' }] }), false);
   assert.equal(neverStarted({ conclusion: 'cancelled', steps: [] }), false);
-  assert.equal(quotaNote([QUOTA_NOTE, NOTICE]), true);
-  assert.equal(quotaNote([NOTICE]), false);
-  assert.equal(quotaNote([{ ...QUOTA_NOTE, annotation_level: 'notice' }]), false);
-  assert.equal(quotaNote([{ annotation_level: 'failure', message: 'Process completed with exit code 1.' }]), false);
-  assert.equal(quotaNote([]), false);
-  assert.equal(quotaNote(null), false);
+  assert.equal(minutesNote([QUOTA_NOTE, NOTICE]), true);
+  assert.equal(minutesNote([NOTICE]), false);
+  assert.equal(minutesNote([{ ...QUOTA_NOTE, annotation_level: 'notice' }]), false);
+  assert.equal(minutesNote([{ annotation_level: 'failure', message: 'Process completed with exit code 1.' }]), false);
+  assert.equal(minutesNote([]), false);
+  assert.equal(minutesNote(null), false);
 });
 
 test('findet Läufe, die am Kontingent gescheitert sind: Anzahl, ältester Zeitpunkt, Link; je Lauf eine Abfrage der Anmerkungen', async () => {
@@ -128,7 +128,7 @@ test('findet Läufe, die am Kontingent gescheitert sind: Anzahl, ältester Zeitp
     done(11, 'failure', '2026-10-13T08:00:00Z', [unstarted(110)]),
   ] });
   const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
-  assert.deepEqual(await waiting.scan(['wer/a']), [{ repo: 'wer/a', reason: 'quota', runs: 2, since: '2026-10-13T08:00:00Z', url: 'https://github.com/wer/a/actions?query=is%3Afailure' }]);
+  assert.deepEqual(await waiting.scan(['wer/a']), [{ repo: 'wer/a', reason: 'minutes', runs: 2, since: '2026-10-13T08:00:00Z', url: 'https://github.com/wer/a/actions?query=is%3Afailure' }]);
   assert.deepEqual(github.calls.filter((path) => path.includes('annotations')), ['repos/wer/a/check-runs/120/annotations', 'repos/wer/a/check-runs/110/annotations']);
   // Der Pfad der Abfrage bleibt von Runde zu Runde gleich, sonst griffe die bedingte Abfrage nicht.
   assert.ok(github.calls.includes('repos/wer/a/actions/runs?status=completed&per_page=5'));

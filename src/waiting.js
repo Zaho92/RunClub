@@ -18,7 +18,7 @@ const RUNS_MAX = 5; // Läufe je Repo und Zustand, deren Jobs angesehen werden
 const DONE_MAX = 5; // jüngste abgeschlossene Läufe je Repo, die auf ein aufgebrauchtes Kontingent angesehen werden
 const VERDICTS_MAX = 400; // gemerkte Urteile über abgeschlossene Läufe
 const OPEN = ['queued', 'in_progress']; // Zustände eines Laufs, in denen einer seiner Jobs warten kann
-const REASON = { RUNNER: 'runner', QUOTA: 'quota' }; // warum in einem Repo ohne Pool nichts läuft
+const REASON = { RUNNER: 'runner', MINUTES: 'minutes' }; // warum in einem Repo ohne Pool nichts läuft
 // So begründet GitHub in der Anmerkung einen nicht gestarteten Job (Zahlung gescheitert oder Ausgabengrenze erreicht).
 const NOT_STARTED = /job was not started because.*(payments have failed|spending limit)/i;
 
@@ -41,11 +41,11 @@ function wantsOwnRunner(job) {
 // Ist der Job gescheitert, ohne dass ein Runner ihn je angefasst hat? Nur dann lohnt der Blick in die Anmerkungen.
 const neverStarted = (job) => job.conclusion === 'failure' && !(job.steps ?? []).length;
 // Nennen die Anmerkungen eines Jobs das Kontingent als Grund?
-const quotaNote = (annotations) => (Array.isArray(annotations) ? annotations : []).some((note) => note.annotation_level === 'failure' && NOT_STARTED.test(String(note.message)));
+const minutesNote = (annotations) => (Array.isArray(annotations) ? annotations : []).some((note) => note.annotation_level === 'failure' && NOT_STARTED.test(String(note.message)));
 
 function createWaiting({ gh, now = Date.now }) {
   // Je Repo ein Eintrag, der älteste zuerst: { repo, reason: 'runner', jobs: [Name, …], since (ISO), url } oder
-  // { repo, reason: 'quota', runs: Anzahl, since (ISO), url }.
+  // { repo, reason: 'minutes', runs: Anzahl, since (ISO), url }.
   let found = [];
   // "Repo/Lauf@Stand" -> am Kontingent gescheitert? Ein abgeschlossener Lauf ändert sich nur durch erneutes Starten.
   const verdicts = new Map();
@@ -66,7 +66,7 @@ function createWaiting({ gh, now = Date.now }) {
     const key = `${repo}/${run.id}@${run.updated_at}`;
     if (!verdicts.has(key)) {
       const job = ((await gh(['api', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`])).jobs ?? []).find(neverStarted);
-      verdicts.set(key, Boolean(job) && quotaNote(await gh(['api', `repos/${repo}/check-runs/${job.id}/annotations`])));
+      verdicts.set(key, Boolean(job) && minutesNote(await gh(['api', `repos/${repo}/check-runs/${job.id}/annotations`])));
       if (verdicts.size > VERDICTS_MAX) verdicts.delete(verdicts.keys().next().value);
     }
     return verdicts.get(key);
@@ -80,7 +80,7 @@ function createWaiting({ gh, now = Date.now }) {
     const hit = [];
     for (const run of failed) if (await outOfQuota(repo, run)) hit.push(run);
     if (!hit.length) return null;
-    return { repo, reason: REASON.QUOTA, runs: hit.length, since: hit.map((run) => run.created_at).sort()[0], url: `https://github.com/${repo}/actions?query=is%3Afailure` };
+    return { repo, reason: REASON.MINUTES, runs: hit.length, since: hit.map((run) => run.created_at).sort()[0], url: `https://github.com/${repo}/actions?query=is%3Afailure` };
   }
 
   // Sieht die Repos der Reihe nach an. Für ein Repo, das sich gerade nicht lesen lässt (kein Netz, Anfragelimit),
@@ -100,4 +100,4 @@ function createWaiting({ gh, now = Date.now }) {
   return { scan, list: () => found, forget: (repo) => { found = found.filter((entry) => entry.repo !== repo); } };
 }
 
-module.exports = { createWaiting, candidates, wantsOwnRunner, neverStarted, quotaNote, REASON };
+module.exports = { createWaiting, candidates, wantsOwnRunner, neverStarted, minutesNote, REASON };

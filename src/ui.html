@@ -313,7 +313,7 @@ const TEXT = {
     ago: 'vor {0}', justNow: 'gerade eben', s_run: 'läuft', s_done: 'fertig', s_fail: 'Fehler', s_cancel: 'abgebrochen', s_skip: 'ausgesetzt', s_wait: 'wartet',
     usual: 'üblich {0}', step: 'Schritt {0}/{1}: {2}', waitsFor: 'wartet auf {0}', waitsRunner: 'wartet auf einen Runner', notYet: 'noch nicht angelegt', noGraph: 'Abhängigkeiten unbekannt: die Workflow-Datei ließ sich nicht lesen',
     lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', unservedOne: 'Kein Pool: Ein Job wartet seit {1} auf einen eigenen Runner', unservedMany: 'Kein Pool: {0} Jobs warten seit {1} auf einen eigenen Runner',
-    quotaOne: 'Kein Kontingent: Seit {1} ist ein Lauf nicht gestartet, weil die Minuten bei GitHub aufgebraucht sind', quotaMany: 'Kein Kontingent: Seit {1} sind {0} Läufe nicht gestartet, weil die Minuten bei GitHub aufgebraucht sind', quotaTip: 'Mit einem Pool laufen die Jobs auf diesem Rechner und brauchen keine Minuten von GitHub.',
+    minutesOne: 'Kein Kontingent: Ein Lauf ist seit {1} nicht gestartet', minutesMany: 'Kein Kontingent: {0} Läufe sind seit {1} nicht gestartet', minutesTip: 'Die Minuten bei GitHub sind aufgebraucht. Mit einem Pool laufen die Jobs auf diesem Rechner und brauchen keine.',
     rerun: 'Erneut starten', rerunFailed: 'Nur Gescheiterte', rerunJob: 'Job erneut starten', rerunTip: 'Alle Jobs dieses Laufs noch einmal ausführen', rerunFailedTip: 'Nur die gescheiterten Jobs noch einmal ausführen; die gelungenen behalten ihr Ergebnis', rerunDone: 'Erneut gestartet. Bei GitHub dauert es einen Augenblick, bis der Lauf wieder erscheint.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
     peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
     reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', github: 'GitHub: {0}',
@@ -354,7 +354,7 @@ const TEXT = {
     ago: '{0} ago', justNow: 'just now', s_run: 'running', s_done: 'done', s_fail: 'failed', s_cancel: 'cancelled', s_skip: 'skipped', s_wait: 'waiting',
     usual: 'usually {0}', step: 'Step {0}/{1}: {2}', waitsFor: 'waiting for {0}', waitsRunner: 'waiting for a runner', notYet: 'not created yet', noGraph: 'Dependencies unknown: the workflow file could not be read',
     lastRun: 'Last run', nothing: 'Nothing has run here yet.', unservedOne: 'No pool: one job has been waiting {1} for a self-hosted runner', unservedMany: 'No pool: {0} jobs have been waiting {1} for a self-hosted runner',
-    quotaOne: 'No minutes: in the last {1}, one run did not start because the GitHub minutes are used up', quotaMany: 'No minutes: in the last {1}, {0} runs did not start because the GitHub minutes are used up', quotaTip: 'With a pool the jobs run on this machine and need no GitHub minutes.',
+    minutesOne: 'No minutes: one run has not started in the last {1}', minutesMany: 'No minutes: {0} runs have not started in the last {1}', minutesTip: 'The GitHub minutes are used up. With a pool the jobs run on this machine and need none.',
     rerun: 'Re-run', rerunFailed: 'Failed only', rerunJob: 'Re-run job', rerunTip: 'Run all jobs of this run again', rerunFailedTip: 'Run only the failed jobs again; the successful ones keep their result', rerunDone: 'Re-run started. It takes GitHub a moment to show the run again.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
     peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
     reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', github: 'GitHub: {0}',
@@ -706,10 +706,10 @@ const viewHead = (title, sub, cls) => '<div class="head"><div><h1>' + title + '<
 // GitHub aufgebraucht sind. Das ist eine Störung mit Ausweg und deshalb rot; der Tooltip nennt den Ausweg.
 function unservedRows() {
   return (data.unserved ?? []).map((entry) => {
-    const quota = entry.reason === 'quota';
-    const count = quota ? entry.runs : entry.jobs.length;
-    return '<div class="quiet"><a class="who s-' + (quota ? 'fail' : 'wait') + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(quota ? 'fail' : 'wait') + esc(shortRepo(entry.repo)) + '</a>' +
-      '<div class="what' + (quota ? ' c-fail' : '') + '" data-tip="' + esc(quota ? t('quotaTip') : entry.jobs.join(', ')) + '">' + esc(t((quota ? 'quota' : 'unserved') + (count === 1 ? 'One' : 'Many'), count, span(secondsSince(entry.since)))) + '</div>' +
+    const minutes = entry.reason === 'minutes'; // sonst: Jobs warten auf einen eigenen Runner
+    const count = minutes ? entry.runs : entry.jobs.length;
+    return '<div class="quiet"><a class="who s-' + (minutes ? 'fail' : 'wait') + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(minutes ? 'fail' : 'wait') + esc(shortRepo(entry.repo)) + '</a>' +
+      '<div class="what" data-tip="' + esc(minutes ? t('minutesTip') : entry.jobs.join(', ')) + '">' + esc(t((minutes ? 'minutes' : 'unserved') + (count === 1 ? 'One' : 'Many'), count, span(secondsSince(entry.since)))) + '</div>' +
       '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
   }).join('');
 }
