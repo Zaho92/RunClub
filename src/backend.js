@@ -40,6 +40,7 @@ const { createJournal } = require('./journal');
 const { createGitHub, STATE: QUOTA } = require('./github');
 const { createSlots } = require('./slots');
 const { createPools } = require('./pools');
+const { createAuth } = require('./auth');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -587,6 +588,11 @@ async function checkQuota() {
 }
 const watchQuota = () => checkQuota().catch(logError(null, 'Anfragelimit'));
 
+// Die Anmeldung bei GitHub ist die von `gh` (siehe auth.js). Nach einem gelungenen Anmelden oder Ergänzen gilt ein
+// anderes Token: das Anfragelimit neu holen und die Repos gleich abfragen.
+const auth = createAuth({ run, timeout: GH_TIMEOUT, log: (text) => log(text), onSuccess: () => { watchQuota(); refreshGitHub(); } });
+const watchAuth = () => auth.poll().catch(logError(null, 'Anmeldung bei GitHub'));
+
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
 let repoList = { at: 0, repos: [] };
 async function listRepos() {
@@ -680,6 +686,7 @@ function status() {
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
     unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'minutes', runs, since, url }]
+    auth: auth.view(), // Anmeldung bei GitHub: { state, login, scopes, missing, optional: [{ scope, purpose }], flow: { kind, state, code, url, error } | null }
     logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -845,6 +852,12 @@ const actions = {
       rebuildIdle(pool).catch(logError(pool.repo));
     }
   },
+  // Anmelden und Ergänzen antworten, sobald der Einmalcode im Stand steht; bestätigt wird im Browser (siehe auth.js).
+  // `scope` nennt ein freiwilliges Recht; ohne Angabe werden die fehlenden Pflichtrechte ergänzt.
+  async 'auth/login'() { await auth.login(); },
+  async 'auth/scope'({ scope }) { await auth.grant(scope === undefined ? undefined : String(scope)); },
+  async 'auth/cancel'() { await auth.cancel(); },
+  async 'auth/logout'() { await auth.logout(); },
   async shutdown() { setTimeout(shutdown, 100); },
 };
 
@@ -857,6 +870,7 @@ async function shutdown() {
   stopping = true;
   log('Beende die Runner …');
   metrics.save();
+  auth.cancel().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, endet mit
   await Promise.all([...pools.values()].flatMap((pool) => pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })));
   for (const settings of config.pools) { await docker(['rm', '-f', buildService(settings.repo)]); await docker(['network', 'rm', buildNetwork(settings.repo)]); }
   await removeLeftovers();
@@ -942,6 +956,8 @@ http.createServer(async (request, response) => {
   console.log(`Öffnen mit: ${access.entry}`);
 });
 
+watchAuth();
+setInterval(watchAuth, MINUTE);
 watchQuota();
 setInterval(watchQuota, MINUTE);
 scanWaiting();

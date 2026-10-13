@@ -268,6 +268,10 @@
   .arow { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
   .arow > div:first-child { flex: 1; min-width: 0; }
   .arow b { font-weight: 400; color: var(--ink); }
+  /* Anmeldung bei GitHub: der Einmalcode als Kennzahl, mit einem Klick als Ganzes markiert. */
+  .v.code { user-select: all; }
+  .note a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+  .note a:hover { color: var(--ink); }
 
   /* Rückfrage: schwebt wie Tooltip und Meldung, eine Stufe über der Fläche, mit Rahmen statt Schatten. */
   dialog { width: min(440px, calc(100vw - 48px)); padding: 22px 24px 20px; background: var(--raised); color: var(--text); border: 1px solid var(--track); border-radius: 8px; }
@@ -342,6 +346,15 @@ const TEXT = {
     capNote: 'Speicher von Runner und Docker zusammen: höchstens {0} GB je Job, damit das Limit unter dem Speicher der Docker-VM bleibt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
     memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
     suggestText: 'Vorschlag: Runner {0} GB, Docker {1} GB, je {2} Kerne.', suggestSame: 'Die Limits entsprechen dem Vorschlag.', suggestWhy: 'Aus den Messwerten dieses Projekts: die höchste Spitze mit 50 % Luft. Die gepunktete Marke zeigt den Vorschlag am Regler.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
+    authIn: 'Angemeldet als {0}', authWhat: 'RunClub darf in deinen Repos Runner an- und abmelden, Läufe lesen und erneut starten und CI_RUNNER setzen.', authSame: 'Es ist dieselbe Anmeldung, die gh im Terminal nutzt.', authUnreadable: 'Welche Rechte diese Anmeldung hat, lässt sich nicht lesen.',
+    authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach ist auch gh im Terminal abgemeldet. RunClub kann keine neuen Runner mehr anmelden; laufende Jobs arbeiten zu Ende.',
+    authOut: 'Nicht bei GitHub angemeldet', authOutMore: 'Ohne Anmeldung kann RunClub keine Runner anmelden und keine Läufe lesen. Sie gilt danach auch für gh im Terminal.',
+    authNoGh: 'gh ist nicht installiert', authNoGhMore: 'RunClub spricht über die GitHub CLI (gh) mit GitHub. Es gibt sie unter {0}. Nach der Installation RunClub neu starten.',
+    authScope: 'GitHub-Recht fehlt', authScopeMore: 'Der Anmeldung fehlt: {0}. RunClub braucht das, um Runner anzumelden und Läufe zu lesen und erneut zu starten.', authGrant: 'Recht ergänzen',
+    authWhy_minutes: 'Mit dem Recht {0} könnte RunClub zeigen, wie viele Minuten dein Konto bei GitHub noch hat. Das ist freiwillig.',
+    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst; der Code gilt 15 Minuten.',
+    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', authCopied: 'Der Code liegt in der Zwischenablage.', authCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
+    authFirstText: 'RunClub meldet Runner in deinen Repos an und liest deren Läufe. Dafür braucht es einmal deine Anmeldung bei GitHub; sie gilt danach auch für gh im Terminal.',
     starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
   en: {
@@ -383,6 +396,15 @@ const TEXT = {
     capNote: 'Runner and Docker memory together: at most {0} GB per job, so the limit stays below the Docker VM’s memory.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
     memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
     suggestText: 'Suggestion: runner {0} GB, Docker {1} GB, {2} cores each.', suggestSame: 'The limits match the suggestion.', suggestWhy: 'From this project’s measurements: the highest peak plus 50% headroom. The dotted mark shows the suggestion on the slider.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
+    authIn: 'Signed in as {0}', authWhat: 'RunClub may register and remove runners in your repos, read and re-run runs, and set CI_RUNNER.', authSame: 'It is the same sign-in gh uses in the terminal.', authUnreadable: 'The permissions of this sign-in cannot be read.',
+    authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'This signs gh in the terminal out as well. RunClub can no longer register new runners; running jobs finish.',
+    authOut: 'Not signed in to GitHub', authOutMore: 'Without a sign-in RunClub cannot register runners or read runs. It then applies to gh in the terminal as well.',
+    authNoGh: 'gh is not installed', authNoGhMore: 'RunClub talks to GitHub through the GitHub CLI (gh). Get it at {0}. Restart RunClub after installing.',
+    authScope: 'GitHub permission missing', authScopeMore: 'The sign-in lacks: {0}. RunClub needs it to register runners and to read and re-run runs.', authGrant: 'Add permission',
+    authWhy_minutes: 'With the {0} permission RunClub could show how many minutes your GitHub account has left. This is optional.',
+    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub notices by itself; the code is valid for 15 minutes.',
+    authOpen: 'Open GitHub', authCopy: 'Copy code', authCopied: 'The code is on the clipboard.', authCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
+    authFirstText: 'RunClub registers runners in your repos and reads their runs. For that it needs your GitHub sign-in once; it then applies to gh in the terminal as well.',
     starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
   },
 };
@@ -496,9 +518,44 @@ function limitTrouble() {
   return repos.length ? { text: t(full.length ? 'tagFull' : 'tagTight'), repos: repos.map((entry) => entry.repo) } : null;
 }
 
+// --- Anmeldung bei GitHub ---
+
+// Was an der Anmeldung zu tun ist, als kurzer Satz für Leiste und Warn-Tag; sonst null. Nicht angemeldet, ein fehlendes
+// Pflichtrecht und ein fehlendes gh sind Störungen mit Ausweg und deshalb rot. Ein fehlendes freiwilliges Recht ist
+// keine. Die Zustandswörter kommen vom Backend (siehe STATE und FLOW in auth.js).
+function authTrouble() {
+  const a = data.auth;
+  return !a ? null : a.state === 'missing' ? t('authNoGh') : a.state === 'out' ? t('authOut') : a.state === 'in' && a.missing.length ? t('authScope') : null;
+}
+
+// Der Inhalt der Haltestelle „GitHub“: wer angemeldet ist und was RunClub darf, oder der laufende Ablauf mit dem
+// Einmalcode. `first`: als erster Schritt ohne Projekte; dort sagt schon die Überschrift, dass die Anmeldung fehlt.
+function authBody(first) {
+  const a = data.auth;
+  const flow = a.flow;
+  const act = (action, text, values = '') => '<button class="btn" data-do="' + action + '"' + values + '>' + esc(text) + '</button>';
+  // Eine Zeile wie im Abschnitt App: Titel, Satz darunter, rechts die Schaltfläche. `alarm` färbt den Titel rot.
+  const line = (title, hint, control, alarm) => '<div class="arow"><div>' + (title ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + '</div></div>' + (control ?? '') + '</div>';
+  const codes = (scopes) => scopes.map((scope) => '<code>' + esc(scope) + '</code>').join(', ');
+  if (flow?.state === 'starting') return line('', t('authStarting'), act('auth/cancel', t('cancel')));
+  if (flow?.state === 'waiting') return '<div><div class="k">' + t('authCode') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + t('authEnter') + '</div>' +
+    '<div class="row"><a class="btn" href="' + esc(flow.url) + '" target="_blank" rel="noopener">' + t('authOpen') + '</a><button class="btn" data-copy="' + esc(flow.code) + '">' + glyph('copy') + t('authCopy') + '</button><span class="row push">' + act('auth/cancel', t('cancel')) + '</span></div>';
+  const failed = flow?.state === 'failed' ? '<div class="note c-fail">' + esc(t(flow.kind === 'login' ? 'authFailed' : 'authScopeFailed', flow.error)) + '</div>' : '';
+  // Der Link führt zu GitHub: Nur solche öffnet das Fenster der App im Browser (siehe main.js).
+  if (a.state === 'missing') return line(t('authNoGh'), t('authNoGhMore', '<a href="https://github.com/cli/cli#installation" target="_blank" rel="noopener">github.com/cli/cli</a>'), '', true);
+  if (a.state === 'out') return failed + (first ? '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true));
+  if (a.state !== 'in') return '<div class="note">' + t('authChecking') + '</div>';
+  // Abmelden trifft Jobs und fragt deshalb nach; rot ist es nicht, weil sich wieder anmelden lässt.
+  return failed + line(t('authIn', a.login ?? ''), [a.missing.length ? '' : t(a.scopes ? 'authWhat' : 'authUnreadable'), t('authSame')].filter(Boolean).join(' '), act('auth/logout', t('authLogout'), ' data-confirm="' + esc(t('authConfirmOut')) + '"')) +
+    (a.missing.length ? line(t('authScope'), t('authScopeMore', codes(a.missing)), act('auth/scope', t('authGrant')), true) : '') +
+    a.optional.map((entry) => line('', t('authWhy_' + entry.purpose, codes([entry.scope])), act('auth/scope', t('authGrant'), ' data-scope="' + esc(entry.scope) + '"'))).join('');
+}
+
 function renderRail() {
   const runners = data.repos.flatMap((r) => r.runners);
   const count = (state) => runners.filter((r) => r.state.startsWith(state)).length;
+  // Fehlt die Anmeldung, geht das allem anderen vor: Ohne sie lässt sich an den Limits nichts tun.
+  const signIn = authTrouble();
   const trouble = limitTrouble();
   const quota = quotaTrouble();
   const item = (key, title, sub, dot, plain, todo) => '<button class="nav' + (plain ? ' plain' : '') + (todo ? ' todo' : '') + (dot ? ' s-' + dot : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (dot ? icon(dot) : '') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
@@ -506,7 +563,7 @@ function renderRail() {
   if (window.innerWidth <= NARROW) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, shortRepo(entry.repo), state.text, state.dot); }).join('') +
-    '<div class="railfoot">' + item('usage', t('usage'), !quota ? '' : quota.out ? '<span class="c-fail">' + esc(quota.text) + '</span>' : esc(quota.text), '', true, Boolean(quota?.out)) + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
+    '<div class="railfoot">' + item('usage', t('usage'), !quota ? '' : quota.out ? '<span class="c-fail">' + esc(quota.text) + '</span>' : esc(quota.text), '', true, Boolean(quota?.out)) + item('settings', t('settings'), signIn ? '<span class="c-fail">' + esc(signIn) + '</span>' : trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean(signIn || trouble)) + '</div>');
 }
 
 // --- Netzplan ---
@@ -703,7 +760,7 @@ const quotaState = () => ({ tight: data.quota?.state === 'tight', out: data.quot
 const quotaTrouble = () => { const { tight, out } = quotaState(); return tight || out ? { out, text: t(out ? 'quotaOutShort' : 'quotaTightShort') } : null; };
 // Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
-const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz.
 const viewHead = (title, sub, cls) => '<div class="head"><div><h1>' + title + '</h1><div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
@@ -849,9 +906,13 @@ function logTime(iso) {
   return at.toDateString() === new Date().toDateString() ? at.toLocaleTimeString(locale())
     : at.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' }) + ' ' + hourMinute(at);
 }
-let hereStop = view === 'usage' ? 'day' : 'projects'; // die Haltestelle, an der die Seite gerade steht
+// Die erste Haltestelle einer Ansicht. In den Einstellungen ist das „GitHub“; ein Backend, das die Anmeldung noch nicht
+// meldet (die Seite ist neuer als das laufende Programm), hat sie nicht.
+const firstStop = () => (view === 'usage' ? 'day' : data?.auth ? 'auth' : 'projects');
+let hereStop = ''; // die Haltestelle, an der die Seite gerade steht; leer heißt: an der ersten
+const here = () => hereStop || firstStop();
 // Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt.
-const routeStop = (key, title, side, body) => '<section class="stop' + (hereStop === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
+const routeStop = (key, title, side, body) => '<section class="stop' + (here() === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
   '<div class="stophead"><h2 class="grow">' + esc(title) + '</h2>' + (side ? '<span class="note">' + side + '</span>' : '') + '</div>' + body + '</section>';
 let draft = null; // Limits, solange ein Regler bewegt wird: { repo ('' = für alle), values: { runnerMemory, … } }
 
@@ -1007,8 +1068,10 @@ function renderSettings() {
     (logShown.length ? '<ul class="log' + (logRepo ? ' noproject' : '') + (logOpen ? ' open' : '') + '"' + (logOpen ? ' tabindex="0"' : '') + '>' + (logOpen ? logShown : logShown.slice(0, LOG_SHORT)).map(logRow).join('') + '</ul>' : logRepo ? '<div class="note">' + t('logNone') + '</div>' : '') +
     (logShown.length > LOG_SHORT ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
 
+  // „GitHub“ steht vorn: Die Anmeldung ist die Voraussetzung für alles danach, und die Strecke liest sich so in der
+  // Reihenfolge des Einrichtens. Ist alles in Ordnung, sind es zwei Zeilen.
   const html = '<div class="stack set"><div class="head"><div><h1>' + t('settings') + '</h1></div></div><div class="route">' +
-    stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add) +
+    (data.auth ? stop('auth', 'GitHub', '', authBody()) : '') + stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add) +
     stop('limits', t('limitsTitle'), t('limitsNew'), limitsAll) + stop('app', t('app'), '', app) + stop('log', t('log'), !logShown.length ? '' : logShown.length === 1 ? t('logSideOne') : !logOpen && logShown.length > LOG_SHORT ? t('logSideOf', LOG_SHORT, logShown.length) : t('logSide', logShown.length), log) + '</div></div>';
   // Nicht neu aufbauen, solange im Eingabefeld etwas steht, das noch nicht abgeschickt ist.
   if (document.activeElement?.id === 'addRepo' && document.activeElement.value && main.dataset.html) return;
@@ -1022,6 +1085,8 @@ function renderSettings() {
 function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
+  // Ohne Anmeldung lässt sich kein Projekt anlegen: Dann ist sie der erste Schritt.
+  if (authTrouble()) { put(main, '<div class="stack empty">' + viewHead(t('authLogin'), t('authFirstText')) + authBody(true) + '</div>'); return; }
   put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText')) + '<div class="row">' +
     (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
@@ -1066,8 +1131,11 @@ function renderStart(failed) {
 
 async function refresh() {
   const before = data?.ui;
+  const signedIn = data?.auth?.state;
   try { data = await (await fetch('/api/status')).json(); } catch { if (data) toast(t('noAnswer')); else renderStart(true); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
+  // Frisch angemeldet: Die Repos des Kontos ließen sich bisher nicht lesen.
+  if (signedIn && signedIn !== 'in' && data.auth?.state === 'in') loadRepos();
   render();
   if (view === 'settings' && data.logStamp !== logStamp) loadLog();
 }
@@ -1087,7 +1155,7 @@ async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })
 
 document.addEventListener('click', async (event) => {
   const nav = event.target.closest('[data-view]');
-  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; hereStop = view === 'usage' ? 'day' : 'projects'; if (view === 'usage') loadDay(); if (view === 'settings') { loadRepos(); loadLog(); const trouble = limitTrouble(); if (trouble && !trouble.repos.includes(openRepo)) openRepo = trouble.repos[0]; }
+  if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; hereStop = ''; if (view === 'usage') loadDay(); if (view === 'settings') { loadRepos(); loadLog(); const trouble = limitTrouble(); if (trouble && !trouble.repos.includes(openRepo)) openRepo = trouble.repos[0]; }
     render();
     // Ein Verweis kann eine Haltestelle der Zielansicht nennen.
     if (nav.dataset.goto) { hereStop = nav.dataset.goto; render(); document.getElementById('stop-' + hereStop)?.scrollIntoView({ block: 'start' }); }
@@ -1104,6 +1172,8 @@ document.addEventListener('click', async (event) => {
   const logPick = event.target.closest('[data-log-repo]');
   if (logPick) { logRepo = logPick.dataset.logRepo; render(); return; }
   if (event.target.closest('[data-log-copy]')) { copyLog(); return; }
+  const copy = event.target.closest('[data-copy]');
+  if (copy) { try { await navigator.clipboard.writeText(copy.dataset.copy); toast(t('authCopied')); } catch { toast(t('authCopyFailed')); } return; }
   const el = event.target.closest('button[data-do]');
   if (!el || el.getAttribute('aria-disabled') === 'true') return;
   const { do: action, confirm: question, ...body } = el.dataset;
@@ -1149,7 +1219,7 @@ document.getElementById('main').addEventListener('scroll', (event) => {
   for (const el of stops) if (el.getBoundingClientRect().top - top < 160) current = el;
   if (main.scrollTop + main.clientHeight >= main.scrollHeight - 4) current = stops.at(-1);
   const key = current?.id.slice(5);
-  if (key && key !== hereStop) { hereStop = key; render(); }
+  if (key && key !== here()) { hereStop = key; render(); }
 }, { passive: true });
 
 // Der Tooltip der App: am Mauszeiger oder, bei Tastaturbedienung, über dem Element.

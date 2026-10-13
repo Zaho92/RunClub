@@ -66,6 +66,18 @@ Richtigkeit:
 
 ## Noch nicht echt ausprobiert
 
+- **Anmeldung bei GitHub in der App** (`src/auth.js`, Aktionen `auth/…` in `src/backend.js`, Haltestelle „GitHub“ in
+  `src/ui.html`): Anmelden, Abmelden und das Ergänzen eines Rechts sind nur gegen ein nachgestelltes `gh` getestet
+  (`test/auth.test.js`); kein `gh auth login`, `refresh` oder `logout` lief dafür echt. Echt gelesen ist nur der Stand
+  (`gh auth status --json hosts`, gh 2.96.0). Die Oberfläche ist nicht angesehen. Echt prüfen, bei ruhenden Runnern:
+  „Recht ergänzen“ für `user` (der Einmalcode erscheint, „GitHub öffnen“ geht im Browser auf, nach der Bestätigung
+  verschwindet die Zeile von selbst, im Protokoll steht nichts dazu), „Abbrechen“ (danach läuft kein `gh` mehr),
+  dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und als wer; der Code steht nirgends).
+  Offen ist dabei: ob `gh auth login --web` ohne Terminal wirklich ohne weitere Rückfrage durchläuft, was
+  `gh auth status --json hosts` ohne Anmeldung und mit abgelaufenem Token schreibt (angenommen: `{"hosts":{}}` und
+  `state` ungleich `success`), ob `gh auth status` gegen das Anfragelimit zählt (deshalb wird ein guter Stand nur alle
+  zehn Minuten nachgelesen), und wie die App dasteht, solange niemand angemeldet ist: Die Abfragen der Repos scheitern
+  dann weiter im gewohnten Takt und zeigen ihre Fehler als Warn-Tags.
 - **Abmelden von Windows** (`watchSession` in `src/main.js`, `release` in `src/backend.js`): nur am Code geprüft. Nach
   einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
   Rechners stehen geblieben sind.
@@ -162,6 +174,11 @@ Richtigkeit:
 ## Offene Entscheidungen des Nutzers
 
 - **Lizenz.** RunClub soll später veröffentlicht werden (Entscheidung des Nutzers, 13.10.2026); bis dahin eine wählen.
+- **Eigene OAuth-App „RunClub“ zur Veröffentlichung.** Entschieden vom Nutzer: Bis dahin nutzt RunClub die
+  Anmeldung von `gh` (dieselbe wie im Terminal; Abmelden in der App meldet deshalb auch `gh` ab). Zur Veröffentlichung
+  ist eine eigene OAuth-App vorgesehen, mit eigener Anmeldung getrennt von `gh`, eigenem Namen auf der
+  Bestätigungsseite von GitHub und nur den Rechten, die RunClub braucht. `src/auth.js` ist die Stelle dafür; die
+  Oberfläche (Einmalcode, Bestätigung im Browser) bleibt dieselbe. Noch nicht begonnen.
 
 ## Später
 

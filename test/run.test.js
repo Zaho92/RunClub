@@ -33,6 +33,33 @@ test('beendet ein Programm, das nicht antwortet', async () => {
   assert.ok(Date.now() - started < 10000);
 });
 
+test('liefert die Zeilen der Fehlerausgabe einzeln, auch eine letzte ohne Zeilenende, und sammelt sie trotzdem', async () => {
+  const lines = [];
+  const result = await node('console.error("eins"); console.error("zwei"); process.stderr.write("ohne Ende")', { onErrLine: (line) => { lines.push(line); if (line === 'eins') throw new Error('kaputt'); } });
+  assert.equal(result.code, 0);
+  assert.deepEqual(lines, ['eins', 'zwei', 'ohne Ende']);
+  assert.equal(result.stderr, 'eins\nzwei\nohne Ende');
+  assert.equal(result.aborted, undefined);
+});
+
+// Die Zeile kommt an, während das Programm noch läuft: Erst sie löst hier den Abbruch aus.
+test('ein Programm lässt sich von außen beenden', async () => {
+  const controller = new AbortController();
+  const started = Date.now();
+  const result = await node('console.error("bereit"); setTimeout(() => {}, 60000)', { signal: controller.signal, timeout: 30000, onErrLine: () => controller.abort() });
+  assert.deepEqual({ code: result.code, timedOut: result.timedOut, aborted: result.aborted }, { code: -1, timedOut: false, aborted: true });
+  assert.match(result.stderr, /abgebrochen/);
+  assert.ok(Date.now() - started < 10000);
+});
+
+test('ein schon ausgelöstes Signal beendet das Programm sofort, und die Zeitgrenze gilt daneben weiter', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  assert.equal((await node('setTimeout(() => {}, 60000)', { signal: controller.signal })).aborted, true);
+  const late = await node('setTimeout(() => {}, 60000)', { signal: new AbortController().signal, timeout: 300 });
+  assert.deepEqual({ timedOut: late.timedOut, aborted: late.aborted }, { timedOut: true, aborted: undefined });
+});
+
 test('ein fehlendes Programm endet mit einem Ergebnis statt einem Absturz', async () => {
   const result = await run('gibt-es-nicht-runclub', []);
   assert.equal(result.code, -1);

@@ -239,13 +239,13 @@ Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, i
 
 **Die Strecken-bleiben-blau-Regel.** Strecken tragen nie eine Zustandsfarbe. Sie sind `track`, gepunktet `track-open`, solange das Ziel noch nicht dran ist, und `ink`, wenn die Pill an ihrem Ende überfahren wird. Der Zustand steht an der Station, nicht auf der Linie.
 
-**Die Rot-ist-Störung-Regel.** Rot bedeutet, dass etwas das Eingreifen des Nutzers verlangt: ein Fehler im Lauf, ein voller Speicher, eine Aktion, die etwas löscht. Für nichts anderes.
+**Die Rot-ist-Störung-Regel.** Rot bedeutet, dass etwas das Eingreifen des Nutzers verlangt: ein Fehler im Lauf, ein voller Speicher, eine fehlende Anmeldung bei GitHub, eine Aktion, die etwas löscht. Für nichts anderes.
 
 ## Typography
 
 **Display Font:** Overpass (mit „Segoe UI“, system-ui, sans-serif), als variable Schrift lokal ausgeliefert (`src/fonts/overpass-latin.woff2`, Strichstärken 100–900)
 **Body Font:** Overpass (dieselbe Familie)
-**Label/Mono Font:** Consolas, monospace, nur für Code (der Ausdruck für `runs-on` in den Einstellungen)
+**Label/Mono Font:** Consolas, monospace, nur für Code (der Ausdruck für `runs-on` und die Namen der GitHub-Rechte in den Einstellungen)
 
 **Character:** Eine einzige Familie, deren Herkunft aus der Verkehrsbeschilderung zur Bildwelt passt. Die Hierarchie entsteht aus Größe und Farbe, kaum aus Gewicht: Lauftext in 300, Namen und Überschriften in 400, die große Restzeit in 200.
 
@@ -276,7 +276,7 @@ Zwei Spalten über die volle Fensterhöhe: links die Projektleiste (232 px), rec
 
 Der Kopf eines Laufs stellt Titel und Herkunft links an die Grundlinie der großen Restzeit rechts. Der Netzplan füllt die Breite: Jede Stufe ist eine Spalte (mindestens 180 px, höchstens 280 px), die Spalten stehen mit `clamp(40px, 6vw, 96px)` Abstand nebeneinander und sind senkrecht mittig ausgerichtet, die Pills einer Spalte haben 12 px Abstand. Hat ein Lauf keine Abhängigkeiten, stehen die Jobs in Startreihenfolge zu sechst je Spalte. Im Kompaktmodus hält der Plan 44 px Höhe vor, damit das Aufklappen einer Pill nichts darunter verschiebt. Reicht die Breite nicht, rollt der Plan waagerecht.
 
-Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, die zweite die GitHub-Anfragen, danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der vier Abschnitte (Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
+Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, die zweite die GitHub-Anfragen, danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der fünf Abschnitte (GitHub, Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
 
 Umbrüche:
 - **bis 1100 px:** Das Band wird zweispaltig, der seitliche Abstand des Hauptbereichs sinkt auf 24 px.
@@ -328,7 +328,7 @@ Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunkte
 ### Navigation (Projektleiste)
 - **Eintrag:** Zweizeilig: Name (`ink`, 400) und Zustand in Worten (12 px `muted`), links das Zustandssymbol (16 px). Radius 8 px, Innenabstand 8 px 12 px 8 px 36 px, 4 px Abstand zwischen Einträgen.
 - **Zustände:** Ruhe durchsichtig, überfahren `rail-hover`, gewählt `surface`.
-- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. „Verbrauch“ trägt eine zweite Zeile, wenn die GitHub-Anfragen knapp (`muted`) oder aufgebraucht (`fail-text`) sind. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort.
+- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. „Verbrauch“ trägt eine zweite Zeile, wenn die GitHub-Anfragen knapp (`muted`) oder aufgebraucht (`fail-text`) sind. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort. Fehlt die Anmeldung bei GitHub (nicht angemeldet, ein Pflichtrecht fehlt, `gh` ist nicht installiert), steht stattdessen das dort; es geht den Limits vor.
 - **Schmal:** Eine waagerecht rollende Zeile aus Symbol und Name; der gewählte Eintrag rückt in den Blick.
 
 ### Schaltflächen
@@ -348,6 +348,28 @@ Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kr
 
 ### Haltestelle
 Die Gliederung der Einstellungen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
+
+### GitHub (Anmeldung)
+Die erste Haltestelle der Einstellungen, weil die Anmeldung die Voraussetzung für alles danach ist und die Strecke sich
+so in der Reihenfolge des Einrichtens liest. Es ist die Anmeldung von `gh`, dieselbe wie im Terminal. Der Inhalt sind
+Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, rechts die Schaltfläche, Haarlinie darunter.
+- **Angemeldet:** „Angemeldet als …“, darunter in einem Satz, was RunClub darf (keine Liste von Kürzeln), rechts
+  „Abmelden“. Abmelden fragt nach, weil es Jobs trifft und auch `gh` im Terminal abmeldet; rot ist es nicht, weil sich
+  wieder anmelden lässt. Fehlt ein freiwilliges Recht, folgt eine Zeile ohne Titel mit dem Satz, wofür es gebraucht
+  würde, und „Recht ergänzen“. Das ist keine Störung und bleibt `muted`. Der Name eines Rechts steht in Mono.
+- **Störung mit Ausweg:** Nicht angemeldet, ein fehlendes Pflichtrecht und ein fehlendes `gh` sind rot: der Titel der
+  Zeile in `fail-text`, der Satz darunter in `text`, rechts der Ausweg („Bei GitHub anmelden“, „Recht ergänzen“). Fehlt
+  `gh`, gibt es keine Schaltfläche, nur den Satz mit dem Link, wo es `gh` gibt. Dazu trägt „Einstellungen“ in der Leiste
+  die zweite Zeile in `fail-text`, und in der Übersicht steht ein Warn-Tag. Ein gescheiterter Ablauf steht als Satz in
+  `fail-text` über den Zeilen, mit der Meldung von `gh`.
+- **Während eines Ablaufs** (Anmelden oder Ergänzen) ersetzt er die Zeilen: die Beschriftung „Einmalcode“ (Label,
+  `muted`), darunter der Code als Kennzahl (`figure`, `ink`; ein Klick markiert ihn ganz), ein Satz in `text`, was zu tun
+  ist, und eine Zeile Schaltflächen: „GitHub öffnen“ (ein Link, der im Browser aufgeht), „Code kopieren“ (Symbol mit
+  Wort) und abgesetzt am rechten Ende „Abbrechen“. Rot ist hier nichts. Bis der Code da ist, steht nur ein Satz in
+  `muted` mit „Abbrechen“.
+- **Ohne Projekte** steht bei fehlender Anmeldung statt „Noch kein Projekt“ der Schritt „Bei GitHub anmelden“:
+  Überschrift, ein Satz, die Schaltfläche; während des Ablaufs derselbe Einmalcode. Dass hier noch niemand angemeldet
+  ist, ist der Anfang und keine Störung: Rot ist dort nur ein fehlendes `gh` oder Recht und ein gescheiterter Ablauf.
 
 ### Projektzeile
 Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 8 px. Im Kopf stehen Pfeil, Name, die Summe der Caches in `muted` und rechts die Zahl der Plätze mit eins weniger und eins mehr. Ein Klick auf den Kopf klappt die Zeile nach unten auf (dieselbe Bewegung wie die Pill: `grid-template-rows` 0fr → 1fr in 280 ms, der Pfeil dreht sich); es ist immer nur eine offen. Aufgeklappt, durch eine Haarlinie abgesetzt: wohin die Jobs gehen, die Limits des Projekts (Segmentschalter „Wie alle“ oder „Eigene“; mit eigenen Werten dieselben vier Regler wie im Abschnitt Limits), die Caches als Zeilen mit Größe und Symbol zum Leeren, darunter die Schaltflächen. Ein Projekt mit eigenen Limits trägt im Kopf das Tag „eigene Limits“. Passen die Limits nicht zum gemessenen Bedarf, steht das ebenfalls als Tag im Kopf und als Satz bei den Limits: „Limit erreicht“ und „Limit knapp“ (über 85 %) als Warnung in Rot, „Limit großzügig“ (mehr als das Doppelte des Bedarfs) gedämpft. Überfahren hebt eine geschlossene Zeile eine Stufe.
@@ -370,7 +392,7 @@ Wenige Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px), meist z
 Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 px 12 px, Platzhalter `muted`, Schreibmarke `chart`.
 
 ### Tag
-Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört, GitHub-Limit erreicht) Schrift `fail-text`, Rahmen `fail-edge`.
+Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört, nicht bei GitHub angemeldet, GitHub-Limit erreicht) Schrift `fail-text`, Rahmen `fail-edge`.
 
 ### Tabellen und Zeilen
 In „Verbrauch“ steht je Job eine Zeile; kommt derselbe Jobname in einem Projekt in zwei Workflows vor, steht der Workflow in `muted` hinter dem Namen.
