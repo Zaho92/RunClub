@@ -13,7 +13,7 @@ Was noch ansteht: `TODO.md`. Wofür die App da ist: `PRODUCT.md`. Wie sie aussie
 
 ## Die laufende App
 
-- Die App läuft meist und bedient echte CI-Jobs. `src/ui.html` wird bei jedem Laden der Seite frisch gelesen; Änderungen an den anderen Dateien in `src/` brauchen einen Neustart der App.
+- Die App läuft meist und bedient echte CI-Jobs. `src/ui.html` wird bei jedem Laden der Seite frisch gelesen; Änderungen an den anderen Dateien in `src/` brauchen einen Neustart der App. Liest die Seite ein neues Feld aus `/api/status`, bricht sie deshalb an der laufenden App, bis diese neu gestartet ist: solche Änderungen erst mit dem Neustart zusammen abschließen.
 - Der Dienst antwortet nur mit dem Schlüssel des laufenden Programms als Cookie: `curl -b "rc=$(cat "$APPDATA/RunClub/data/access.key")" http://localhost:8770/api/status`. Ohne Schlüssel gibt es nur `/api/ping` und die Schriften.
 - Neustart nur, wenn kein Runner „arbeitet“ (siehe `/api/status`): `POST /api/shutdown` mit demselben Cookie und dem Token aus der Seite (`const TOKEN` in `GET /`) als Kopfzeile `x-rc-token`, dann über die Startmenü-Verknüpfung starten. Beim Beenden werden alle Runner abgebaut.
 - Nie zwei Instanzen mit denselben Pools: Sie melden sich gegenseitig die Runner bei GitHub ab. Zum Ausprobieren `RUNCLUB_DATA` auf einen leeren Ordner und `RUNCLUB_PORT` auf einen anderen Port setzen (`npm run backend`); eine solche Instanz räumt nur ab, was ihr eigenes Kennzeichen trägt, und hängt es an die Namen ihrer Caches und Build-Dienste.
