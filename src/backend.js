@@ -679,7 +679,7 @@ function status() {
     },
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
-    unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'quota', runs, since, url }]
+    unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'minutes', runs, since, url }]
     logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -687,6 +687,14 @@ function status() {
 }
 
 // --- Was die Oberfläche auslösen kann ---
+
+// Einen Lauf oder Job eines Repos mit Pool bei GitHub erneut starten (`path` unter `actions/`) und danach, wenn GitHub
+// den neuen Versuch angelegt hat, die Läufe des Repos neu abfragen.
+async function rerun(repo, id, path, unknown) {
+  if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Error(unknown);
+  await gh(['api', '-X', 'POST', `repos/${repo}/actions/${path}`]);
+  setTimeout(() => { if (!stopping) refreshRepo(repo); }, RERUN_SETTLE_MS);
+}
 
 const actions = {
   async 'pool/add'({ repo, parallel }) {
@@ -791,16 +799,12 @@ const actions = {
   // Einen abgeschlossenen Lauf oder Job von Hand erneut starten; das löscht nichts. Bei GitHub erscheint er erst nach
   // einem Augenblick wieder als laufend, deshalb wird das Repo kurz danach neu abgefragt.
   async 'run/rerun'({ repo, id, failedOnly }) {
-    if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Error('Diesen Lauf gibt es nicht.');
-    await gh(['api', '-X', 'POST', `repos/${repo}/actions/runs/${id}/${failedOnly ? 'rerun-failed-jobs' : 'rerun'}`]);
+    await rerun(repo, id, `runs/${id}/${failedOnly ? 'rerun-failed-jobs' : 'rerun'}`, 'Diesen Lauf gibt es nicht.');
     log(`Lauf ${id} erneut gestartet${failedOnly ? ' (nur die gescheiterten Jobs)' : ''}`, repo);
-    setTimeout(() => { if (!stopping) refreshRepo(repo); }, RERUN_SETTLE_MS);
   },
   async 'job/rerun'({ repo, id }) {
-    if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Error('Diesen Job gibt es nicht.');
-    await gh(['api', '-X', 'POST', `repos/${repo}/actions/jobs/${id}/rerun`]);
+    await rerun(repo, id, `jobs/${id}/rerun`, 'Diesen Job gibt es nicht.');
     log(`Job ${id} erneut gestartet`, repo);
-    setTimeout(() => { if (!stopping) refreshRepo(repo); }, RERUN_SETTLE_MS);
   },
   // Speicher in GB, Kerne als Anzahl. Arbeitende und schon bereite Paare behalten ihre Limits bis zum nächsten Aufbau.
   // Mit `repo` gelten sie nur für dieses Projekt; `inherit` nimmt dessen eigene Werte wieder weg.

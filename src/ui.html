@@ -528,6 +528,12 @@ function columnsOf(pipeline) {
 }
 
 // `again`: das Repo, wenn sich die Jobs dieses Laufs erneut starten lassen (der Lauf ist abgeschlossen), sonst leer.
+// Läufe und Jobs, die eben erneut gestartet wurden ("Repo/Kennung" -> wann): Ihre Schaltflächen bleiben gesperrt, bis
+// GitHub den neuen Versuch zeigt und sie damit verschwinden; ein zweiter Klick brächte nur eine Absage.
+const restarted = new Map();
+const RESTART_HOLD_MS = 60000;
+const held = (repo, id) => (Date.now() - (restarted.get(repo + '/' + id) ?? 0) < RESTART_HOLD_MS ? ' aria-disabled="true"' : '');
+
 function pill(j, again) {
   const state = jobState(j);
   const bit = (text) => (text ? '<span class="bit">' + esc(text) + '</span>' : '');
@@ -552,8 +558,9 @@ function pill(j, again) {
     '<span class="n">' + esc(j.name) + '</span>' + time + (lined ? '<span class="line">' + full[0] + '</span>' : '') + '<div class="more"><div>' + full.map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
     (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
   // Die Pill ist ein Link; die Schaltfläche steht deshalb neben ihr, nicht in ihr.
-  if (!again || !j.id || j.status !== 'completed') return link;
-  return '<div class="job">' + link + '<button class="btn only rejob" data-do="job/rerun" data-repo="' + esc(again) + '" data-id="' + esc(j.id) + '" aria-label="' + esc(t('rerunJob')) + '" data-tip="' + esc(t('rerunJob')) + '">' + glyph('rerun') + '</button></div>';
+  // Ein ausgesetzter Job lief nie: Da gibt es nichts erneut zu starten.
+  if (!again || !j.id || j.status !== 'completed' || state === 'skip') return link;
+  return '<div class="job">' + link + '<button class="btn only rejob" data-do="job/rerun" data-repo="' + esc(again) + '" data-id="' + esc(j.id) + '"' + held(again, j.id) + ' aria-label="' + esc(t('rerunJob')) + '" data-tip="' + esc(t('rerunJob')) + '">' + glyph('rerun') + '</button></div>';
 }
 
 // `repo` steht im Kopf, wenn `named`. Ein abgeschlossener Lauf trägt unter dem Kopf, was sich erneut starten lässt.
@@ -572,8 +579,8 @@ function runBlock(pipeline, running, repo, named) {
     sub = '<span data-ago="' + esc(pipeline.updatedAt) + '"></span> · ' + t('took', clock(secondsSince(pipeline.startedAt) - secondsSince(pipeline.updatedAt)));
   }
   const again = !running && repo && pipeline.id ? repo : '';
-  const rerun = (text, tip, only) => '<button class="btn" data-do="run/rerun" data-repo="' + esc(repo) + '" data-id="' + esc(pipeline.id) + '"' + (only ? ' data-failed-only="1"' : '') + ' data-tip="' + esc(t(tip)) + '">' + (only ? '' : glyph('rerun')) + t(text) + '</button>';
-  const acts = again ? '<div class="row">' + rerun('rerun', 'rerunTip') + (failed || pipeline.conclusion === 'failure' ? rerun('rerunFailed', 'rerunFailedTip', true) : '') + '</div>' : '';
+  const rerun = (text, tip, only) => '<button class="btn" data-do="run/rerun" data-repo="' + esc(repo) + '" data-id="' + esc(pipeline.id) + '"' + (only ? ' data-failed-only="1"' : '') + held(repo, pipeline.id) + ' data-tip="' + esc(t(tip)) + '">' + (only ? '' : glyph('rerun')) + t(text) + '</button>';
+  const acts = again ? '<div class="row">' + rerun('rerun', 'rerunTip') + (failed || ['failure', 'cancelled', 'timed_out'].includes(pipeline.conclusion) ? rerun('rerunFailed', 'rerunFailedTip', true) : '') + '</div>' : '';
   const meta = [named ? esc(repo) : '', esc(pipeline.workflow), esc(pipeline.branch || pipeline.event), running ? '<span data-running="' + esc(pipeline.startedAt) + '"></span>' : t('lastRun')].filter(Boolean).join(' · ');
   return '<div class="stack" style="gap:14px"><div class="head"><div><h1>' + esc(pipeline.title || pipeline.workflow) + '</h1><div class="sub"><a href="' + esc(pipeline.url) + '" target="_blank" rel="noopener">' + meta + '</a></div></div><div class="eta">' + big + '<div class="sub">' + sub + '</div></div></div>' + acts +
     '<div class="planwrap"><div class="plan' + (mode === 'detail' ? ' detail' : '') + '"><svg aria-hidden="true"></svg>' + columnsOf(pipeline).map((column) => '<div class="col">' + column.map((j) => pill(j, again)).join('') + '</div>').join('') + '</div></div>' +
@@ -703,13 +710,13 @@ const viewHead = (title, sub, cls) => '<div class="head"><div><h1>' + title + '<
 
 // Repos ohne Pool, in denen nichts vorankommt: je eine Zeile mit dem Angebot, einen Pool anzulegen. Entweder warten
 // Jobs auf einen eigenen Runner (welche, steht im Tooltip), oder Läufe sind nicht gestartet, weil die Minuten bei
-// GitHub aufgebraucht sind. Das ist eine Störung mit Ausweg und deshalb rot; der Tooltip nennt den Ausweg.
+// GitHub aufgebraucht sind. Das ist eine Störung mit Ausweg: Das Symbol ist rot, der Tooltip nennt den Ausweg.
 function unservedRows() {
   return (data.unserved ?? []).map((entry) => {
-    const minutes = entry.reason === 'minutes'; // sonst: Jobs warten auf einen eigenen Runner
-    const count = minutes ? entry.runs : entry.jobs.length;
-    return '<div class="quiet"><a class="who s-' + (minutes ? 'fail' : 'wait') + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(minutes ? 'fail' : 'wait') + esc(shortRepo(entry.repo)) + '</a>' +
-      '<div class="what" data-tip="' + esc(minutes ? t('minutesTip') : entry.jobs.join(', ')) + '">' + esc(t((minutes ? 'minutes' : 'unserved') + (count === 1 ? 'One' : 'Many'), count, span(secondsSince(entry.since)))) + '</div>' +
+    // Je Grund: Zustandssymbol, Stamm der Textschlüssel, wie viele es sind, was der Tooltip sagt.
+    const row = entry.reason === 'minutes' ? { state: 'fail', text: 'minutes', count: entry.runs, tip: t('minutesTip') } : { state: 'wait', text: 'unserved', count: entry.jobs.length, tip: entry.jobs.join(', ') };
+    return '<div class="quiet"><a class="who s-' + row.state + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(row.state) + esc(shortRepo(entry.repo)) + '</a>' +
+      '<div class="what" data-tip="' + esc(row.tip) + '">' + esc(t(row.text + (row.count === 1 ? 'One' : 'Many'), row.count, span(secondsSince(entry.since)))) + '</div>' +
       '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
   }).join('');
 }
@@ -1107,11 +1114,12 @@ document.addEventListener('click', async (event) => {
   if ('parallel' in body) body.parallel = Number(body.parallel);
   el.setAttribute('aria-disabled', 'true');
   document.getElementById('tip').style.display = 'none';
-  // Der Knopf bleibt nur beim Beenden gesperrt; sonst ist er nach der Antwort wieder da, auch wenn sich nichts ändert.
+  // Der Knopf bleibt beim Beenden und nach einem erneuten Start gesperrt; sonst ist er nach der Antwort wieder da,
+  // auch wenn sich nichts ändert.
   const done = await call(action, body);
   if (done && action === 'shutdown') { toast(t('quitting')); return; }
+  if (done && action.endsWith('/rerun')) { restarted.set(body.repo + '/' + body.id, Date.now()); toast(t('rerunDone')); render(); return; } // bei GitHub erscheint der Lauf erst nach einem Augenblick wieder
   el.removeAttribute('aria-disabled');
-  if (done && action.endsWith('/rerun')) toast(t('rerunDone')); // bei GitHub erscheint der Lauf erst nach einem Augenblick wieder
 });
 document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
 document.addEventListener('change', async (event) => {

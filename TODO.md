@@ -87,7 +87,7 @@ Richtigkeit:
   aus einem echten Lauf (38468791627 in `Zaho92/RunClub`), die Suche selbst ist nur gegen ein nachgestelltes GitHub
   getestet. Echt prüfen: Ein privates Repo ohne Pool, dessen Lauf in den letzten 24 Stunden so gescheitert ist, steht
   nach spätestens fünf Minuten in „Alle Projekte“ als Zeile mit rotem Symbol „Kein Kontingent: …“ mit „Pool anlegen“; nach einem
-  gelungenen Lauf oder einem Tag verschwindet sie. Nicht angesehen: Zeile, Symbol und roter Satz. Gezählt werden
+  gelungenen Lauf oder einem Tag verschwindet sie. Nicht angesehen: Zeile und Symbol. Gezählt werden
   höchstens die fünf jüngsten abgeschlossenen Läufe.
 - **Lauf und Job erneut starten** (`run/rerun`, `job/rerun` in `src/backend.js`; Schaltflächen in `src/ui.html`): nur
   am Code geprüft, kein Aufruf ging an GitHub. Echt prüfen: „Erneut starten“ und „Nur Gescheiterte“ unter dem Kopf des

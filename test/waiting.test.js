@@ -103,9 +103,9 @@ test('ein Repo, das nicht mehr angesehen wird, fällt aus dem Stand', async () =
 // --- Am Kontingent gescheitert ---
 // Vorlage ist der Lauf 38468791627 in Zaho92/RunClub: ein Job ohne Schritte und ohne Runner, der nach zwei Sekunden
 // als gescheitert endet, und zwei Anmerkungen an seinem Check-Run.
-const QUOTA_NOTE = { path: '.github', blob_href: 'https://github.com/wer/a/blob/e302c12/.github', start_line: 1, start_column: null, end_line: 1, end_column: null, annotation_level: 'failure', title: '', message: "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings", raw_details: '' };
-const NOTICE = { ...QUOTA_NOTE, annotation_level: 'notice', message: '"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"' };
-const unstarted = (id, notes = [QUOTA_NOTE, NOTICE]) => ({ id, name: 'Syntax und Tests', status: 'completed', conclusion: 'failure', created_at: '2026-10-13T11:00:00Z', started_at: '2026-10-13T11:00:00Z', completed_at: '2026-10-13T11:00:02Z', steps: [], labels: ['ubuntu-latest'], runner_id: 0, runner_name: '', notes });
+const MINUTES_NOTE = { path: '.github', blob_href: 'https://github.com/wer/a/blob/e302c12/.github', start_line: 1, start_column: null, end_line: 1, end_column: null, annotation_level: 'failure', title: '', message: "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings", raw_details: '' };
+const NOTICE = { ...MINUTES_NOTE, annotation_level: 'notice', message: '"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"' };
+const unstarted = (id, notes = [MINUTES_NOTE, NOTICE]) => ({ id, name: 'Syntax und Tests', status: 'completed', conclusion: 'failure', created_at: '2026-10-13T11:00:00Z', started_at: '2026-10-13T11:00:00Z', completed_at: '2026-10-13T11:00:02Z', steps: [], labels: ['ubuntu-latest'], runner_id: 0, runner_name: '', notes });
 const done = (id, conclusion, created_at, jobs = [], updated_at = created_at) => ({ id, state: 'completed', status: 'completed', conclusion, created_at, updated_at, jobs });
 const at = (now) => () => now;
 
@@ -114,9 +114,9 @@ test('ein Job gilt als nie gestartet, wenn er ohne Schritte gescheitert ist; die
   assert.equal(neverStarted({ conclusion: 'failure' }), true);
   assert.equal(neverStarted({ conclusion: 'failure', steps: [{ name: 'Set up job', conclusion: 'failure' }] }), false);
   assert.equal(neverStarted({ conclusion: 'cancelled', steps: [] }), false);
-  assert.equal(minutesNote([QUOTA_NOTE, NOTICE]), true);
+  assert.equal(minutesNote([MINUTES_NOTE, NOTICE]), true);
   assert.equal(minutesNote([NOTICE]), false);
-  assert.equal(minutesNote([{ ...QUOTA_NOTE, annotation_level: 'notice' }]), false);
+  assert.equal(minutesNote([{ ...MINUTES_NOTE, annotation_level: 'notice' }]), false);
   assert.equal(minutesNote([{ annotation_level: 'failure', message: 'Process completed with exit code 1.' }]), false);
   assert.equal(minutesNote([]), false);
   assert.equal(minutesNote(null), false);
@@ -131,7 +131,7 @@ test('findet Läufe, die am Kontingent gescheitert sind: Anzahl, ältester Zeitp
   assert.deepEqual(await waiting.scan(['wer/a']), [{ repo: 'wer/a', reason: 'minutes', runs: 2, since: '2026-10-13T08:00:00Z', url: 'https://github.com/wer/a/actions?query=is%3Afailure' }]);
   assert.deepEqual(github.calls.filter((path) => path.includes('annotations')), ['repos/wer/a/check-runs/120/annotations', 'repos/wer/a/check-runs/110/annotations']);
   // Der Pfad der Abfrage bleibt von Runde zu Runde gleich, sonst griffe die bedingte Abfrage nicht.
-  assert.ok(github.calls.includes('repos/wer/a/actions/runs?status=completed&per_page=5'));
+  assert.ok(github.calls.includes('repos/wer/a/actions/runs?status=completed&per_page=15'));
 });
 
 test('zählt nur, was das Kontingent als Grund nennt: kein echter Fehler, kein alter Lauf, nichts vor dem letzten gelungenen Lauf', async () => {
@@ -166,7 +166,7 @@ test('ein bekannter Lauf kostet in der nächsten Runde keine Abfrage; erneut ges
   await waiting.scan(['wer/a']);
   github.calls.length = 0;
   assert.equal((await waiting.scan(['wer/a'])).length, 1);
-  assert.deepEqual(github.calls, ['repos/wer/a/actions/runs?status=queued&per_page=5', 'repos/wer/a/actions/runs?status=in_progress&per_page=5', 'repos/wer/a/actions/runs?status=completed&per_page=5']);
+  assert.deepEqual(github.calls, ['repos/wer/a/actions/runs?status=queued&per_page=5', 'repos/wer/a/actions/runs?status=in_progress&per_page=5', 'repos/wer/a/actions/runs?status=completed&per_page=15']);
 
   // Erneut gestartet und diesmal echt gescheitert: derselbe Lauf mit neuem Stand.
   runs['wer/a'] = [done(12, 'failure', '2026-10-13T11:00:00Z', [{ id: 121, name: 'Syntax und Tests', conclusion: 'failure', steps: [{ name: 'npm test', conclusion: 'failure' }] }], '2026-10-13T11:40:00Z')];
@@ -180,4 +180,35 @@ test('nach einem Tag fällt ein am Kontingent gescheiterter Lauf heraus', async 
   assert.equal((await waiting.scan(['wer/a'])).length, 1);
   now += 24 * 3600000;
   assert.deepEqual(await waiting.scan(['wer/a']), []);
+});
+
+test('ein erneut gestarteter Lauf zählt ab seinem letzten Beginn, nicht ab dem Anlegen', async () => {
+  const rerun = { ...done(21, 'failure', '2026-10-11T08:00:00Z', [unstarted(210)], '2026-10-13T11:05:00Z'), run_started_at: '2026-10-13T11:00:00Z' };
+  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': [rerun] }).gh, now: at(NOW) });
+  assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => [entry.reason, entry.since]), [['minutes', '2026-10-13T11:00:00Z']]);
+});
+
+test('gezählt wird je Workflow: Ein anderer, der gelingt, verdeckt den Fehler nicht; der eigene Erfolg danach schon', async () => {
+  const runs = [
+    { ...done(33, 'success', '2026-10-13T11:30:00Z'), workflow_id: 2 }, // ein anderer Workflow läuft durch
+    { ...done(32, 'failure', '2026-10-13T11:00:00Z', [unstarted(320)]), workflow_id: 1 },
+    { ...done(31, 'success', '2026-10-13T10:00:00Z'), workflow_id: 1 },
+    { ...done(30, 'failure', '2026-10-13T09:00:00Z', [unstarted(300)]), workflow_id: 1 }, // vor dem Erfolg: überholt
+  ];
+  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': runs }).gh, now: at(NOW) });
+  assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => [entry.runs, entry.since]), [[1, '2026-10-13T11:00:00Z']]);
+});
+
+test('auch andere Wortlaute der Abrechnung werden erkannt, ein sonstiger Grund nicht', () => {
+  const note = (message) => [{ ...MINUTES_NOTE, message }];
+  assert.equal(minutesNote(note('The job was not started because your account is locked due to a billing issue.')), true);
+  assert.equal(minutesNote(note('The job was not started because the budget for Actions has been reached.')), true);
+  assert.equal(minutesNote(note('The job was not started because no runner matched the labels.')), false);
+});
+
+test('gelesen werden die Anmerkungen aller nicht gestarteten Jobs, bis eine trifft', async () => {
+  const github = fakeGitHub({ 'wer/a': [done(41, 'failure', '2026-10-13T11:00:00Z', [unstarted(410, [NOTICE]), unstarted(411)])] });
+  const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
+  assert.equal((await waiting.scan(['wer/a'])).length, 1);
+  assert.deepEqual(github.calls.filter((path) => path.includes('annotations')), ['repos/wer/a/check-runs/410/annotations', 'repos/wer/a/check-runs/411/annotations']);
 });
