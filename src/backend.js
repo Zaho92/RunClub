@@ -25,7 +25,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { run, lastLine } = require('./run');
 const { SECOND, MINUTE, DAY, GB } = require('./units');
-const { createAccess, pageHeaders, newNonce } = require('./access');
+const { createAccess, pageHeaders, newNonce, same } = require('./access');
 const { orphaned } = require('./pairs');
 const { readJson, writeJson } = require('./store');
 const { slug, sameRepo, clashes } = require('./images');
@@ -41,7 +41,7 @@ const { createSlots } = require('./slots');
 const { createPools } = require('./pools');
 const { createSeed } = require('./seed');
 const { createCaches } = require('./caches');
-const { createAuth, STATE: AUTH } = require('./auth');
+const { createAuth } = require('./auth');
 const { createMinutes, SCOPE: MINUTES_SCOPE } = require('./minutes');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
@@ -73,7 +73,6 @@ const MEASURE_INTERVAL_MS = 2000;
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * MINUTE;
 const WAITING_INTERVAL_MS = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht
-const MINUTES_INTERVAL_MS = 15 * MINUTE; // so oft wird das Minuten-Kontingent gelesen; die Zahl ändert sich langsam
 const RERUN_SETTLE_MS = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Betrieb neu gebaut
 const GH_TIMEOUT = MINUTE;
@@ -468,18 +467,21 @@ async function checkQuota() {
 }
 const watchQuota = () => checkQuota().catch(logError(null, 'Anfragelimit'));
 
-// Die Anmeldung bei GitHub ist die von `gh` (siehe auth.js). Nach einem gelungenen Anmelden oder Ergänzen gilt ein
-// anderes Token: das Anfragelimit neu holen und die Repos gleich abfragen.
-const auth = createAuth({ run, timeout: GH_TIMEOUT, log: (text) => log(text), onSuccess: () => { watchQuota(); refreshGitHub(); watchMinutes(); } });
+// Die Anmeldung bei GitHub ist die von `gh` (siehe auth.js). Gilt ein anderes Token (nach einem gelungenen Anmelden
+// oder Ergänzen, oder weil `gh` nach dem Abmelden ein weiteres Konto nutzt): das Anfragelimit neu holen, die Repos
+// gleich abfragen und das Minuten-Kontingent neu lesen.
+const auth = createAuth({ run, timeout: GH_TIMEOUT, log: (text) => log(text), onAccount: () => { watchQuota(); refreshGitHub(); watchMinutes(true); } });
 const watchAuth = () => auth.poll().catch(logError(null, 'Anmeldung bei GitHub'));
 
 // Das Minuten-Kontingent von GitHub Actions (siehe minutes.js): nur mit Anmeldung und dem freiwilligen Recht dafür.
-// Ein Fehler bleibt beim letzten Stand und steht einmal im Protokoll.
+// Wann wieder gelesen wird, entscheidet minutes.js; `atOnce` liest sofort. Ein Fehler steht einmal im Protokoll.
 const minutes = createMinutes({ gh, log: (text) => log(text, null, 'error') });
-const minutesLogin = () => { const signedIn = auth.view(); return signedIn.state === AUTH.IN && signedIn.scopes?.includes(MINUTES_SCOPE) ? signedIn.login : null; };
-function watchMinutes() {
+const minutesLogin = () => auth.loginWith(MINUTES_SCOPE);
+function watchMinutes(atOnce = false) {
   const login = minutesLogin();
-  return login && !stopping && githubApi.mayPoll('Minuten-Kontingent') ? minutes.refresh(login) : Promise.resolve();
+  // Ist das Anfragelimit knapp, höchstens im Abstand, den github.js dafür vorsieht; ist es aufgebraucht, gar nicht.
+  if (!login || stopping || !githubApi.mayPoll('GitHub-Minuten')) return Promise.resolve();
+  return atOnce ? minutes.refresh(login) : minutes.poll(login);
 }
 
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
@@ -574,9 +576,9 @@ function status() {
     },
     repos: [...repos.values()],
     quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
-    minutes: minutes.view(minutesLogin()), // Minuten-Kontingent von GitHub Actions in diesem Monat: { plan, used, included | null, paid, cost, systems: { linux, windows, macos, other }, resetAt, state, tightAt } oder null (ohne das Recht `user`, oder noch nicht gelesen)
+    minutes: minutes.view(minutesLogin()), // Minuten-Kontingent von GitHub Actions in diesem Monat: { plan | null, used, included | null, paid, cost, systems: { linux, windows, macos, other }, resetAt, state, tightAt, plans }; solange es keinen Stand gibt, nur { state: 'reading' | 'failed' }; null ohne Anmeldung oder ohne das Recht dafür
     unserved: waiting.list().filter((entry) => !settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'minutes', runs, since, url }]
-    auth: auth.view(), // Anmeldung bei GitHub: { state, login, scopes, missing, optional: [{ scope, purpose }], flow: { kind, state, code, url, error } | null }
+    auth: auth.view(), // Anmeldung bei GitHub: { state, login, scopes, missing, optional: [{ scope, purpose }], flow: { kind, scopes, state, code, url, why, error } | null }
     logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -760,7 +762,7 @@ async function shutdown() {
   stopping = true;
   log('Beende die Runner …');
   metrics.save();
-  auth.cancel().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, endet mit
+  auth.close().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, bliebe sonst zurück
   await Promise.all([...pools.values()].flatMap((pool) => pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })));
   for (const settings of config.pools) { await docker(['rm', '-f', buildService(settings.repo)]); await docker(['network', 'rm', buildNetwork(settings.repo)]); }
   await removeLeftovers();
@@ -774,7 +776,7 @@ async function release() {
   if (stopping) return;
   stopping = true; // Beenden bleibt danach möglich: `shutdown` achtet nur auf sich selbst
   metrics.save();
-  auth.cancel().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, bliebe sonst zurück
+  auth.close().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, bliebe sonst zurück
   const idle = [...pools.values()].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job));
   await Promise.all(idle.map((slot) => gh(['api', '-X', 'DELETE', `repos/${slot.repo}/actions/runners/${slot.runnerId}`]).catch(() => {})));
 }
@@ -821,7 +823,7 @@ http.createServer(async (request, response) => {
     return response.end(PAGE(nonce));
   }
   if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
-  if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
+  if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.dayMinutes());
   if (request.method === 'GET' && request.url === '/api/log') return json(200, { stamp: logStamp(), entries: journal.recent() });
   // Die ganze Datei zum Speichern oder Kopieren.
   if (request.method === 'GET' && request.url === '/api/log/file') {
@@ -835,7 +837,7 @@ http.createServer(async (request, response) => {
     const name = request.url.slice(5);
     const action = Object.hasOwn(actions, name) ? actions[name] : Object.hasOwn(hooks.actions, name) ? hooks.actions[name] : null;
     if (!action) return json(404, { error: 'unbekannt' });
-    if (request.headers['x-rc-token'] !== TOKEN) return json(403, { error: 'Die Seite ist veraltet – bitte neu laden.' });
+    if (!same(request.headers['x-rc-token'], TOKEN)) return json(403, { error: 'Die Seite ist veraltet – bitte neu laden.' });
     try { await action(await readBody(request)); return json(200, { ok: true }); } catch (error) { return json(400, { error: error.message }); }
   }
   return json(404, { error: 'unbekannt' });
@@ -847,9 +849,10 @@ http.createServer(async (request, response) => {
   console.log(`Öffnen mit: ${access.entry}`);
 });
 
-watchAuth().then(watchMinutes); // das Kontingent braucht den Stand der Anmeldung
-setInterval(watchAuth, MINUTE);
-setInterval(watchMinutes, MINUTES_INTERVAL_MS);
+// Das Minuten-Kontingent braucht den Stand der Anmeldung: beide im selben Takt, die Anmeldung zuerst.
+const watchAccount = () => watchAuth().then(() => watchMinutes());
+watchAccount();
+setInterval(watchAccount, MINUTE);
 watchQuota();
 setInterval(watchQuota, MINUTE);
 scanWaiting();

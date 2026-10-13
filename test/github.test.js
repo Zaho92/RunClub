@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createGitHub, parseResponse } = require('../src/github');
+const { createGitHub, parseResponse, GH_ENV } = require('../src/github');
 
 // Der Zustand, wie die Oberfläche ihn bekommt; ohne Stand unbekannt.
 const stateOf = (github) => github.quota()?.state ?? 'unknown';
@@ -15,7 +15,7 @@ const answer = (status, body, { etag, remaining = 4000 } = {}) => [
 // Ein nachgestelltes `gh`: beantwortet die Aufrufe der Reihe nach und merkt sich, was gefragt wurde.
 function fake(answers) {
   const calls = [];
-  const run = async (command, args, options) => { calls.push({ args, input: options.input }); return { code: 0, stdout: '', stderr: '', ...answers.shift() }; };
+  const run = async (command, args, options) => { calls.push({ args, input: options.input }); assert.equal(options.env, GH_ENV); return { code: 0, stdout: '', stderr: '', ...answers.shift() }; };
   return { calls, github: createGitHub({ run, now: () => NOW }) };
 }
 
@@ -202,4 +202,15 @@ test('der Abstand bei knappem Limit lässt sich je Sache größer wählen', asyn
   assert.equal(github.mayPoll('wartende Läufe', 300000), false);
   time += 200000;
   assert.equal(github.mayPoll('wartende Läufe', 300000), true);
+});
+
+test('gh läuft ohne Token, Host und Mitschreiben aus der Umgebung, bei jedem Aufruf', async () => {
+  const seen = [];
+  const github = createGitHub({ run: async (command, args, options) => { seen.push(options.env); return { code: 0, stderr: '', stdout: args.includes('-i') ? answer(200, '{}') : '{}' }; }, now: () => NOW });
+  await github.call(['api', 'user']);
+  await github.call(['api', '-X', 'POST', 'repos/wer/App/actions/runs/1/rerun']);
+  await github.refreshQuota();
+  assert.deepEqual(seen, [GH_ENV, GH_ENV, GH_ENV]);
+  for (const name of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN', 'GH_HOST', 'GH_DEBUG', 'DEBUG']) assert.equal(GH_ENV[name], '');
+  assert.ok(Object.isFrozen(GH_ENV));
 });

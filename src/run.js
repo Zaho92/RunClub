@@ -8,8 +8,12 @@
 //             `stderr` wird trotzdem gesammelt
 //   timeout   Millisekunden, nach denen das Programm beendet wird; 0 heißt ohne Grenze
 //   signal    ein AbortSignal, das das Programm von außen beendet; das Ergebnis trägt dann `aborted: true`
+//
+// Ein Programm ohne Pfad (`gh`, `docker`, `wsl`) wird unter Windows selbst über PATH gesucht (siehe `locate`).
 
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 // Ein Job kann beliebig viel schreiben. Behalten wird nur, was gebraucht wird: das Ende der Fehlerausgabe und
 // eine angefangene Zeile bis zu einer vernünftigen Länge.
@@ -17,11 +21,29 @@ const KEEP = 64 * 1024;
 const LINE_MAX = 1024 * 1024;
 const GRACE = 5000; // so lange darf ein beendetes Programm seine Ausgabe noch offen halten
 
+// Wo das Programm liegt. Windows sucht einen Namen ohne Pfad zuerst im Arbeitsverzeichnis und erst dann in PATH: Ein
+// dort abgelegtes `gh.exe` bekäme sonst die Anmeldung samt Einmalcode. Deshalb wird der Name hier nur über die
+// Ordner aus PATH aufgelöst (nur vollständige Pfade). Liefert den Pfad, den Namen unverändert (er trägt schon einen
+// Pfad, oder es ist kein Windows) oder null, wenn es das Programm in PATH nicht gibt.
+const EXTENSIONS = ['.exe', '.com']; // was sich ohne Kommandozeile starten lässt
+function locate(command, { platform = process.platform, env = process.env, exists = fs.existsSync } = {}) {
+  if (platform !== 'win32' || /[\\/]/.test(command)) return command;
+  const names = path.win32.extname(command) ? [command] : EXTENSIONS.map((extension) => command + extension);
+  const folders = String(env.PATH ?? env.Path ?? '').split(';').map((folder) => folder.trim().replace(/^"|"$/g, '')).filter((folder) => path.win32.isAbsolute(folder));
+  for (const folder of folders) {
+    for (const name of names) { const found = path.win32.join(folder, name); if (exists(found)) return found; }
+  }
+  return null;
+}
+
 function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0 } = {}) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(command, args, { windowsHide: true, env: env ? { ...process.env, ...env } : process.env });
+      const program = locate(command);
+      // Dieselbe Meldung, mit der auch der Start eines fehlenden Programms scheitert.
+      if (!program) { resolve({ code: -1, stdout: '', stderr: `spawn ${command} ENOENT`, timedOut: false }); return; }
+      child = spawn(program, args, { windowsHide: true, env: env ? { ...process.env, ...env } : process.env });
     } catch (error) { resolve({ code: -1, stdout: '', stderr: String(error.message), timedOut: false }); return; }
     let stdout = '';
     let stderr = '';
@@ -72,4 +94,4 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
 // Die letzte Zeile dessen, was ein Programm als Fehler schreibt; der Hinweis auf `--help` zählt nicht.
 const lastLine = (text) => String(text ?? '').trim().split('\n').map((line) => line.trim()).filter((line) => line && !/^Run '.*--help' for more information/.test(line)).pop() ?? '';
 
-module.exports = { run, lastLine };
+module.exports = { run, locate, lastLine };

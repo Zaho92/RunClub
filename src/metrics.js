@@ -145,7 +145,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) { // `now`: die Uhr i
   // Die letzte halbe Stunde, je Messgröße eine Reihe.
   const series = () => ({ at: recent.map((p) => p.at), ...Object.fromEntries(FIELDS.map((field) => [field, recent.map((p) => Math.round(p[field] * 100) / 100)])) });
 
-  return { sample, meter, recordJob, forget, jobsView, series, minutes: () => { prune(clock()); return minutes; }, save };
+  return { sample, meter, recordJob, forget, jobsView, series, dayMinutes: () => { prune(clock()); return minutes; }, save };
 }
 
 module.exports = { createMetrics };

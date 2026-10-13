@@ -47,9 +47,9 @@ test('aus den Messpunkten einer Minute werden Mittel- und Höchstwert', () => {
   metrics.sample(point(2), start);
   metrics.sample(point(4), start + 30000);
   metrics.sample(point(0), start + 60000); // neue Minute schließt die alte ab
-  assert.equal(metrics.minutes().length, 1);
-  assert.equal(metrics.minutes()[0].vmCpu, 3);
-  assert.equal(metrics.minutes()[0].vmCpuMax, 4);
+  assert.equal(metrics.dayMinutes().length, 1);
+  assert.equal(metrics.dayMinutes()[0].vmCpu, 3);
+  assert.equal(metrics.dayMinutes()[0].vmCpuMax, 4);
   assert.deepEqual(metrics.series().vmCpu, [2, 4, 0]);
 });
 
@@ -89,20 +89,20 @@ test('Minuten, die älter als 24 Stunden sind, fallen heraus', () => {
   metrics.sample(point);
   time = start + 60000;
   metrics.sample(point); // schließt die erste Minute ab
-  assert.deepEqual(metrics.minutes().map((entry) => entry.at), [start]);
+  assert.deepEqual(metrics.dayMinutes().map((entry) => entry.at), [start]);
 
   // Genau 24 Stunden alt gehört noch auf die Achse, eine Minute später nicht mehr.
   time = start + 24 * HOUR;
-  assert.equal(metrics.minutes().length, 1);
+  assert.equal(metrics.dayMinutes().length, 1);
   time = start + 24 * HOUR + 60000;
-  assert.equal(metrics.minutes().length, 0);
+  assert.equal(metrics.dayMinutes().length, 0);
 
   // Nach 30 Stunden Pause: Die Minute vor der Pause wird noch abgeschlossen, zählt aber nicht mehr.
   time = start + 30 * HOUR;
   metrics.sample(point);
   time += 60000;
   metrics.sample(point);
-  assert.deepEqual(metrics.minutes().map((entry) => entry.at), [start + 30 * HOUR]);
+  assert.deepEqual(metrics.dayMinutes().map((entry) => entry.at), [start + 30 * HOUR]);
 });
 
 test('alte Minuten aus der Datei werden weder geliefert noch wieder gespeichert', () => {
@@ -115,7 +115,7 @@ test('alte Minuten aus der Datei werden weder geliefert noch wieder gespeichert'
   fs.writeFileSync(file, JSON.stringify({ minutes: [minute(old), minute(old + 60000), minute(young)], jobs: { 'wer/was': { a: [{ at: '2026-01-01T00:00:00.000Z', result: 'Succeeded', duration: 5, samples: 0 }] } } }));
 
   const metrics = createMetrics({ dataDir, now: () => end });
-  assert.deepEqual(metrics.minutes().map((entry) => entry.at), [young]);
+  assert.deepEqual(metrics.dayMinutes().map((entry) => entry.at), [young]);
   metrics.save();
   const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
   assert.deepEqual(stored.minutes.map((entry) => entry.at), [young]);
@@ -219,7 +219,7 @@ test('eine Datei in falscher Form verhindert den Start nicht', () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
     fs.writeFileSync(path.join(dataDir, 'metrics.json'), content);
     const metrics = createMetrics({ dataDir });
-    assert.deepEqual(metrics.minutes(), []);
+    assert.deepEqual(metrics.dayMinutes(), []);
     assert.deepEqual(metrics.jobsView('wer/was'), []);
   }
 });
@@ -228,5 +228,5 @@ test('Minuten aus der Zukunft fallen heraus (die Uhr wurde zurückgestellt)', ()
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
   const now = Date.UTC(2026, 9, 13, 12, 0, 0);
   fs.writeFileSync(path.join(dataDir, 'metrics.json'), JSON.stringify({ minutes: [{ at: now - 60000 }, { at: now + 3600000 }], jobs: {} }));
-  assert.deepEqual(createMetrics({ dataDir, now: () => now }).minutes().map((entry) => entry.at), [now - 60000]);
+  assert.deepEqual(createMetrics({ dataDir, now: () => now }).dayMinutes().map((entry) => entry.at), [now - 60000]);
 });

@@ -19,6 +19,11 @@ const TIGHT_GAP = MINUTE; // so lange liegt bei knappem Limit zwischen zwei Abfr
 const PAUSE_MAX_S = 3600; // Sekunden; länger lässt sich RunClub von einer Antwort nicht anhalten
 const WINDOW_MAX = DAY; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
 const CACHE_MAX = 500; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
+// RunClub arbeitet mit der Anmeldung von `gh` bei github.com (siehe auth.js). Was `gh` aus der Umgebung läse, gilt
+// deshalb nicht: ein Token, das die Anmeldung umgeht, ein anderer Host, und das Mitschreiben des Verkehrs samt Token
+// auf die Fehlerausgabe (deren letzte Zeile als Fehlermeldung in die Oberfläche geht). Ein leerer Wert zählt für `gh`
+// wie ein fehlender. Der Hinweis auf eine neue Version von `gh` stünde sonst ebenfalls als letzte Zeile da.
+const GH_ENV = Object.freeze({ GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '', GH_HOST: '', GH_DEBUG: '', DEBUG: '', GH_NO_UPDATE_NOTIFIER: '1' });
 
 // Friert eine Antwort samt allem darin ein.
 function deepFreeze(value) {
@@ -49,11 +54,12 @@ function parseResponse(text) {
   }
 }
 
-function createGitHub({ run, timeout = MINUTE, now = Date.now }) {
+function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   const cache = new Map(); // Pfad -> { etag, data }, der zuletzt benutzte am Ende
   const polled = new Map(); // Schlüssel -> wann zuletzt abgefragt (nur bei knappem Limit von Belang)
   let quota = null; // { limit, remaining, resetAt (ms) }
   let pausedUntil = 0; // bis dahin hat GitHub um Ruhe gebeten (`retry-after`)
+  const run = (args, input) => start('gh', args, { input, timeout, env: GH_ENV });
   let reported = STATE.UNKNOWN; // der Zustand, den refreshQuota zuletzt gemeldet hat
 
   function note(limit, remaining, reset) {
@@ -97,7 +103,7 @@ function createGitHub({ run, timeout = MINUTE, now = Date.now }) {
   async function read(path) {
     if (state() === STATE.OUT) throw new Error(paused() ? `GitHub bittet um eine Pause; weiter um ${until()}.` : `Das Anfragelimit von GitHub ist aufgebraucht; weiter um ${until()}.`);
     const known = cache.get(path);
-    const result = await run('gh', ['api', '-i', path, ...(known ? ['-H', `If-None-Match: ${known.etag}`] : [])], { timeout });
+    const result = await run(['api', '-i', path, ...(known ? ['-H', `If-None-Match: ${known.etag}`] : [])]);
     const { status, headers, body } = parseResponse(result.stdout);
     if ((headers['x-ratelimit-resource'] ?? 'core') === 'core') note(headers['x-ratelimit-limit'], headers['x-ratelimit-remaining'], headers['x-ratelimit-reset']);
     // Das zweite Limit von GitHub (zu viel in kurzer Zeit): Die Antwort nennt, wie lange zu warten ist.
@@ -122,7 +128,7 @@ function createGitHub({ run, timeout = MINUTE, now = Date.now }) {
   // dieselbe bei 304 an den nächsten geht. Schreiben geht immer durch, auch bei aufgebrauchtem Limit.
   async function call(args, input) {
     if (input === undefined && args.length === 2 && args[0] === 'api') return read(args[1]);
-    const result = await run('gh', input === undefined ? args : [...args, '--input', '-'], { input, timeout });
+    const result = await run(input === undefined ? args : [...args, '--input', '-'], input);
     if (result.code !== 0) throw new Error(lastLine(result.stderr) || `gh endete mit ${result.code}`);
     return result.stdout.trim() ? JSON.parse(result.stdout) : null;
   }
@@ -134,7 +140,7 @@ function createGitHub({ run, timeout = MINUTE, now = Date.now }) {
   // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before` und dem Ende des Fensters als Uhrzeit `until`),
   // sonst null.
   async function refreshQuota() {
-    const result = await run('gh', ['api', 'rate_limit'], { timeout });
+    const result = await run(['api', 'rate_limit']);
     if (result.code === 0) {
       try { const core = JSON.parse(result.stdout).resources.core; note(core.limit, core.remaining, core.reset); } catch { /* dann bleibt der letzte Stand */ }
     }
@@ -148,4 +154,4 @@ function createGitHub({ run, timeout = MINUTE, now = Date.now }) {
   return { call, refreshQuota, mayPoll, quota: view };
 }
 
-module.exports = { createGitHub, parseResponse, STATE };
+module.exports = { createGitHub, parseResponse, deepFreeze, STATE, GH_ENV };

@@ -14,7 +14,8 @@ RunClub nutzt die Anmeldung von `gh`, dieselbe wie im Terminal, und braucht daf�
 freiwilligen Recht `user` zeigt es zusätzlich das Minuten-Kontingent des Kontos. Anmelden geht in
 der App (Einstellungen → GitHub: Einmalcode, Bestätigung im Browser) oder wie bisher im Terminal
 (`gh auth login`). Dort lässt sich auch ein fehlendes Recht ergänzen und wieder abmelden; Abmelden meldet
-auch `gh` im Terminal ab.
+auch `gh` im Terminal ab. Ein Token oder ein anderer Host aus der Umgebung (`GH_TOKEN`, `GITHUB_TOKEN`, `GH_HOST`)
+gilt für RunClub nicht: Es arbeitet nur mit der Anmeldung von `gh` bei github.com.
 
 Die Jobs eines Repos müssen auf eigene Runner zeigen: `runs-on: [self-hosted, Linux]`. Wer umschaltbar bleiben
 will, liest das Ziel aus einer Repo-Variablen:
@@ -51,13 +52,13 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/routing.js` | Repo-Variable `CI_RUNNER`: schaltet die Jobs eines Repos auf die eigenen Runner und zurück |
 | `src/access.js` | Wer den lokalen Dienst benutzen darf: Schlüssel je Programmlauf, Cookie, Kopfzeilen der Seite |
 | `src/limits.js` | Limits je Job: Grenzen aus der Docker-VM, Vorschlag aus den Messwerten, Standard und Ausreißer |
-| `src/github.js` | Aufrufe von `gh`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird |
+| `src/github.js` | Aufrufe von `gh`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird, die Umgebung, mit der `gh` läuft |
 | `src/auth.js` | Anmeldung bei GitHub über `gh auth`: Stand lesen (Konto, Rechte, was fehlt), Anmelden und Ergänzen eines Rechts mit Einmalcode führen, abbrechen, abmelden |
-| `src/minutes.js` | Minuten-Kontingent von GitHub Actions: Verbrauch des Monats aus der Abrechnung des Kontos (je Betriebssystem, bezahlt), enthaltene Minuten als Annahme je Tarif, Zustand knapp oder aufgebraucht |
+| `src/minutes.js` | Minuten-Kontingent von GitHub Actions: Verbrauch des Monats aus der Abrechnung des Kontos (je Betriebssystem, bezahlt), enthaltene Minuten als Annahme je Tarif, Zustand knapp, aufgebraucht oder bezahlt, wann wieder gelesen wird |
 | `src/journal.js` | Protokoll: Einträge mit Zeit, Projekt, Meldung und Art; die letzten im Speicher und für den nächsten Start in `runclub.log.entries`, alle lesbar in `runclub.log` |
 | `src/subnets.js` | Netze der Paare und Build-Dienste: je ein zufälliges /28 aus einem eigenen Bereich statt aus Dockers knappem Vorrat |
 | `src/waiting.js` | Läufe ohne Pool, die nicht vorankommen: Repos des Kontos, in denen Jobs auf einen eigenen Runner warten oder Läufe am aufgebrauchten Kontingent von GitHub gescheitert sind |
-| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/units.js` | Programmaufrufe mit Zeitgrenze und Abbruch von außen, Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare, Einheiten für Zeit und Speicher |
+| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/units.js` | Programmaufrufe mit Zeitgrenze und Abbruch von außen (das Programm wird unter Windows nur in PATH gesucht), Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare, Einheiten für Zeit und Speicher |
 | `src/ui.html` | Oberfläche: Projektleiste, Netzplan je Lauf, Auslastung, Verbrauch, Einstellungen (Deutsch und Englisch) |
 | `src/fonts/` | Schrift Overpass (OFL), liegt in der App, damit sie ohne Internet funktioniert |
 | `linux/` | Abbild der Runner |

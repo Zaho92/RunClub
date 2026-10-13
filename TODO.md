@@ -33,6 +33,9 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
   `4af3618` und über die bis `eba81c1` (Protokoll, GitHub-Anfragen). Behoben ist, was unten nicht mehr steht; der
   nächste Durchgang prüft die Änderungen danach. Über die Korrekturen aus dem dritten lief ein Abschluss-Review; was es
   fand, ist ebenfalls behoben (im Commit nach `eba81c1`), aber nicht noch einmal gegengelesen.
+- Ein vierter Durchgang lief am 14.10.2026 über die Kontingent-Anzeige und die Korrekturen der Anmeldung
+  (`19ae429..ab8212c`): Richtigkeit, Standards, Sicherheit und der Gutachter der Oberfläche. Alle Befunde sind
+  behoben; der nächste Durchgang prüft `src/seed.js`, `src/caches.js` und was danach kommt.
 
 ## Aus den Reviews noch offen
 
@@ -70,12 +73,21 @@ Richtigkeit:
   `src/ui.html`): „Recht ergänzen“ für `user` hat der Nutzer am 14.10.2026 echt benutzt (Einmalcode, Bestätigung im
   Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Anmelden, Abmelden und
   Abbrechen sind nur gegen ein nachgestelltes `gh` getestet (`test/auth.test.js`). Echt prüfen, bei ruhenden Runnern:
-  „Abbrechen“ (danach läuft kein `gh` mehr), dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und als wer; der Code steht nirgends).
-  Offen ist dabei: ob `gh auth login --web` ohne Terminal wirklich ohne weitere Rückfrage durchläuft, was
-  `gh auth status --json hosts` ohne Anmeldung und mit abgelaufenem Token schreibt (angenommen: `{"hosts":{}}` und
-  `state` ungleich `success`), ob `gh auth status` gegen das Anfragelimit zählt (deshalb wird ein guter Stand nur alle
-  zehn Minuten nachgelesen), und wie die App dasteht, solange niemand angemeldet ist: Die Abfragen der Repos scheitern
-  dann weiter im gewohnten Takt und zeigen ihre Fehler als Warn-Tags.
+  „Abbrechen“ (danach läuft kein `gh` mehr; ist `gh` über einen Zwischenstarter wie den von scoop installiert, beendet
+  das Abbrechen womöglich nur diesen), dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und
+  als wer; der Code steht nirgends).
+  Offen ist dabei: ob `gh auth login --web` ohne Terminal und ohne `--git-protocol` wirklich ohne weitere Rückfrage
+  durchläuft (die Option ist entfallen, damit die Einstellung des Nutzers in `gh` bleibt), was
+  `gh auth status --json hosts` ohne Anmeldung und mit abgelaufenem Token schreibt (angenommen: `{"hosts":{}}`, und
+  für ein abgelehntes Token `state: "error"` mit „HTTP 401“ oder „Bad credentials“ in `error`; nur das meldet ab,
+  jeder andere Fehler lässt den Stand stehen. Nennt `gh` ein abgelaufenes Token anders, bliebe der Stand
+  „angemeldet“, und die Abfragen der Repos zeigten ihre Fehler), ob `gh auth status` gegen das Anfragelimit zählt
+  (deshalb wird ein guter Stand nur alle zehn Minuten nachgelesen), und wie die App dasteht, solange niemand
+  angemeldet ist: Die Abfragen der Repos scheitern dann weiter im gewohnten Takt und zeigen ihre Fehler als Warn-Tags.
+  Ebenfalls nur gegen ein nachgestelltes `gh` geprüft: dass `gh` mit leeren Umgebungsvariablen (`GH_TOKEN`, `GH_HOST`,
+  `GH_DEBUG` und verwandte, siehe `GH_ENV` in `src/github.js`) so arbeitet, als fehlten sie.
+  Bekannt und hingenommen: Wird die App hart beendet (Absturz, Task-Manager), bleibt ein wartendes `gh` bis zu einer
+  Viertelstunde stehen; eine Bestätigung im Browser gilt dann trotzdem.
 - **Abmelden von Windows** (`watchSession` in `src/main.js`, `release` in `src/backend.js`): nur am Code geprüft. Nach
   einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
   Rechners stehen geblieben sind.
@@ -96,17 +108,26 @@ Richtigkeit:
 - **Läufe, die am Kontingent von GitHub gescheitert sind** (`src/waiting.js`): Die Form von Job und Anmerkung stammt
   aus einem echten Lauf (38468791627 in `Zaho92/RunClub`), die Suche selbst ist nur gegen ein nachgestelltes GitHub
   getestet. Echt prüfen: Ein privates Repo ohne Pool, dessen Lauf in den letzten 24 Stunden so gescheitert ist, steht
-  nach spätestens fünf Minuten in „Alle Projekte“ als Zeile mit rotem Symbol „Kein Kontingent: …“ mit „Pool anlegen“; nach einem
+  nach spätestens fünf Minuten in „Alle Projekte“ als Zeile mit rotem Symbol „Keine GitHub-Minuten: …“ mit „Pool anlegen“; nach einem
   gelungenen Lauf oder einem Tag verschwindet sie. Nicht angesehen: Zeile und Symbol. Gezählt werden
-  höchstens die fünf jüngsten abgeschlossenen Läufe.
+  höchstens die jüngsten abgeschlossenen Läufe (`DONE_MAX` in `src/waiting.js`).
 - **Minuten-Kontingent in „Verbrauch“** (`src/minutes.js`, `watchMinutes` in `src/backend.js`, `minutesStop` in
-  `src/ui.html`): Echt gelesen ist nur die Antwort der Abrechnung für ein Konto im Tarif Free, dessen Minuten
-  aufgebraucht waren (sie steht in `test/minutes.test.js`). Die Zustände in Ordnung und knapp, ein bezahlter
-  Verbrauch, macOS und ein unbekannter Tarif sind nur mit nachgestellten Antworten geprüft; die Oberfläche ist nicht
+  `src/ui.html`; in der Oberfläche „GitHub-Minuten“): Echt gelesen ist nur die Antwort der Abrechnung für ein Konto im
+  Tarif Free, dessen Minuten aufgebraucht waren (ihre Einträge stehen in `test/minutes.test.js`), und zwar ohne die
+  Angabe von Jahr und Monat, mit der seit dem Review gefragt wird (`?year=&month=`). Die Zustände in Ordnung, knapp
+  und bezahlt, macOS und ein unbekannter Tarif sind nur mit nachgestellten Antworten geprüft und als Standbild
   angesehen. Annahmen, die bei Tarifänderungen von GitHub anzupassen sind: die Tabelle der enthaltenen Minuten
-  (`INCLUDED`: Free 2.000, Pro 3.000; die Schnittstelle nennt sie nicht), dass jede Minute einfach zählt, gleich auf
-  welchem Betriebssystem, und dass der Monat am Ersten (UTC) neu beginnt. Offen: ob Minuten größerer Runner
-  (`actions_linux_4_core` und ähnliche, die das Enthaltene nicht deckt) mitzuzählen sind; heute zählen sie mit.
+  (`INCLUDED` in `src/minutes.js`; die Schnittstelle nennt sie nicht, und die echte Antwort zeigte 2.097 verbrauchte
+  Minuten ohne Berechnung, also mehr als die angenommenen 2.000), dass jede Minute einfach zählt, gleich auf welchem
+  Betriebssystem, und dass der Monat am Ersten (UTC) neu beginnt. Offen:
+  - ob Minuten größerer Runner (`actions_linux_4_core` und ähnliche, die das Enthaltene nicht deckt) mitzuzählen
+    sind; heute zählen sie mit. Ebenso zählt jedes unbekannte Kürzel als „andere“ mit.
+  - ob sich das Budget lesen lässt. Heute sieht RunClub nur, ob schon etwas berechnet wurde: „aufgebraucht“ heißt
+    deshalb „ohne Budget startet nichts mehr“, und wer bezahlt, erfährt nicht, ob sein Budget erreicht ist.
+  - ob für die Abrechnung das Recht `read:user` genügte. Verlangt wird `user`, das auch das Ändern des Profils
+    erlaubt (die Oberfläche sagt das).
+  - Im Betrieb nachsehen: Nach einem Start ohne Netz kommt die Haltestelle binnen einer Minute nach der Anmeldung;
+    scheitert die Abfrage, steht dort „ließ sich nicht lesen“ und der Grund einmal im Protokoll.
 - **Lauf und Job erneut starten** (`run/rerun`, `job/rerun` in `src/backend.js`; Schaltflächen in `src/ui.html`): nur
   am Code geprüft, kein Aufruf ging an GitHub. Echt prüfen: „Erneut starten“ und „Nur Gescheiterte“ unter dem Kopf des
   letzten Laufs, „Job erneut starten“ in den aufgeklappten Details einer Pill; der Lauf erscheint nach wenigen
@@ -227,6 +248,10 @@ Richtigkeit:
     und die Namen des Hereingereichten. Im Betrieb noch nicht geprüft; wirksam erst nach einem Neustart der App. Dann
     nachsehen: `docker ps` zeigt je Projekt mit Cache einen `rc-buildkit-…`, und ein Demo-Lauf baut sein Abbild über
     den Build-Dienst.
+  - Seit dem Review der Kontingent-Anzeige sucht `src/run.js` Programme ohne Pfad (`gh`, `docker`, `wsl`) unter
+    Windows selbst in den Ordnern aus PATH und nie im Arbeitsverzeichnis (`locate`). Geprüft am echten Rechner für
+    alle drei; wirksam erst nach einem Neustart der App. Liegt eines davon nur als `.cmd` vor, findet RunClub es nicht
+    mehr (das ließ sich auch vorher nicht starten).
   - Als Nächstes: die Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`, `removeLeftovers`), danach
     `startPool`, `preparePool` und `measureSizes`, die an Caches und Vorlage hängen.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.

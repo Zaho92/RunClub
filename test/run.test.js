@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { run } = require('../src/run');
+const { run, locate } = require('../src/run');
 
 const node = (script, options) => run(process.execPath, ['-e', script], options);
 
@@ -74,4 +74,22 @@ test('behält von sehr viel Fehlerausgabe nur das Ende', async () => {
   const result = await node('process.stderr.write("x".repeat(400000) + "\\nende")');
   assert.ok(result.stderr.length <= 140000);
   assert.ok(result.stderr.endsWith('ende'));
+});
+
+test('unter Windows wird ein Programm ohne Pfad nur in den Ordnern aus PATH gesucht, nie im Arbeitsverzeichnis', () => {
+  const there = new Set(['C:\\Tools\\gh.exe', 'D:\\Alt\\gh.com', 'D:\\Alt\\docker.exe', 'C:\\Tools\\skript.cmd', 'gh.exe', '.\\gh.exe']);
+  const seek = (command, PATH = '.;;relativ;"C:\\Tools";D:\\Alt') => locate(command, { platform: 'win32', env: { PATH }, exists: (file) => there.has(file) });
+  assert.equal(seek('gh'), 'C:\\Tools\\gh.exe');
+  assert.equal(seek('gh', 'D:\\Alt;C:\\Tools'), 'D:\\Alt\\gh.com');
+  assert.equal(seek('docker'), 'D:\\Alt\\docker.exe');
+  assert.equal(seek('docker.exe'), 'D:\\Alt\\docker.exe');
+  assert.equal(seek('skript'), null); // eine Stapeldatei lässt sich nicht ohne Kommandozeile starten
+  assert.equal(seek('fehlt'), null);
+  assert.equal(seek('gh', '.;relativ'), null); // liegt nur im Arbeitsverzeichnis
+  assert.equal(locate('gh', { platform: 'win32', env: { Path: 'C:\\Tools' }, exists: (file) => there.has(file) }), 'C:\\Tools\\gh.exe');
+  assert.equal(locate('gh', { platform: 'win32', env: {}, exists: () => true }), null);
+  // Mit Pfad und außerhalb von Windows bleibt der Name, wie er ist.
+  assert.equal(seek('C:\\Anders\\gh.exe'), 'C:\\Anders\\gh.exe');
+  assert.equal(seek('./gh'), './gh');
+  assert.equal(locate('gh', { platform: 'linux', env: { PATH: '/usr/bin' }, exists: () => false }), 'gh');
 });

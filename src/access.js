@@ -20,6 +20,7 @@ const pageHeaders = (nonce) => ({
 });
 const newNonce = () => crypto.randomBytes(16).toString('base64');
 
+// Vergleicht zwei Geheimnisse, ohne dass die Dauer verrät, wie weit sie übereinstimmen.
 function same(a, b) {
   const left = Buffer.from(String(a ?? ''));
   const right = Buffer.from(String(b ?? ''));
@@ -52,4 +53,4 @@ function createAccess({ port, key = crypto.randomBytes(24).toString('hex') }) {
   };
 }
 
-module.exports = { createAccess, pageHeaders, newNonce, COOKIE };
+module.exports = { createAccess, pageHeaders, newNonce, same, COOKIE };
