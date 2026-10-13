@@ -44,9 +44,10 @@ function normalize(input, current, range) {
 // Vorschlag aus den Messwerten: die höchste gemessene Spitze mit 50 % Luft, auf halbe GB gerundet.
 // `jobs`: Zeilen aus `metrics.jobsView` aller Repos. Ohne genug Durchläufe gibt es keinen Vorschlag.
 const SUGGEST_RUNS = 5;
+const runsOf = (jobs) => jobs.filter((job) => job.peakMemory > 0).reduce((sum, job) => sum + job.runs, 0);
 function suggest(jobs, range) {
   const measured = jobs.filter((job) => job.peakMemory > 0);
-  if (measured.reduce((sum, job) => sum + job.runs, 0) < SUGGEST_RUNS) return null;
+  if (runsOf(jobs) < SUGGEST_RUNS) return null;
   const peak = (field) => Math.max(0, ...measured.map((job) => job[field] ?? 0));
   const memory = (bytes) => Math.min(range.memory.max, Math.max(range.memory.min, Math.ceil(bytes * 1.5 / GB * 2) / 2));
   // Die Kerne sind nur zusammen gemessen: Runner und Docker bekommen dieselbe Zahl.
@@ -54,4 +55,50 @@ function suggest(jobs, range) {
   return { runnerMemory: memory(peak('peakRunner')), dockerMemory: memory(peak('peakDocker')), runnerCpus: cpus, dockerCpus: cpus };
 }
 
-module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, GB };
+// Was für ein Projekt gilt: seine eigenen Limits, sonst die für alle.
+const effective = (shared, own) => ({ ...shared, ...(own ?? {}) });
+// Kennung eines Satzes von Limits: Daran ist zu erkennen, ob ein Paar noch mit anderen gebaut wurde.
+const key = (limits) => [limits.runnerCpus, bytesOf(limits.runnerMemory), limits.dockerCpus, bytesOf(limits.dockerMemory)].join('/');
+
+// Ein Vorschlag für alle Projekte zusammen: ein Standard, der die Projekte mit ähnlichem Bedarf deckt, und eigene
+// Limits nur für Ausreißer. Ein Durchschnitt taugt dafür nicht – ein Limit unter dem Bedarf bricht den Job ab.
+// Ausreißer ist, wer deutlich mehr Speicher braucht als das mittlere Projekt: über das Anderthalbfache und
+// mindestens 1 GB mehr. `projects`: [{ repo, jobs }] mit Zeilen aus `metrics.jobsView`.
+const OUTLIER_FACTOR = 1.5;
+const OUTLIER_GB = 1;
+function plan(projects, range) {
+  const needs = projects.map((project) => ({ repo: project.repo, need: suggest(project.jobs, range) })).filter((entry) => entry.need);
+  if (!needs.length) return null;
+  const memory = (need) => need.runnerMemory + need.dockerMemory;
+  const sorted = needs.map((entry) => memory(entry.need)).sort((a, b) => a - b);
+  const middle = sorted.length % 2 ? sorted[sorted.length >> 1] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  const outlier = (entry) => memory(entry.need) > middle * OUTLIER_FACTOR && memory(entry.need) - middle >= OUTLIER_GB;
+  const usual = needs.filter((entry) => !outlier(entry));
+  const most = (field) => Math.max(...usual.map((entry) => entry.need[field]));
+  return {
+    shared: { runnerMemory: most('runnerMemory'), dockerMemory: most('dockerMemory'), runnerCpus: most('runnerCpus'), dockerCpus: most('dockerCpus') },
+    own: Object.fromEntries(needs.filter(outlier).map((entry) => [entry.repo, entry.need])),
+  };
+}
+
+// Wie gut die geltenden Limits (`values`, Speicher in GB) zu einem Projekt passen:
+//   'full'       eine Spitze hat das Limit ausgeschöpft – der Job braucht mehr
+//   'tight'      eine Spitze kam ihm nahe (über 85 %); das zählt schon nach einem einzigen Lauf
+//   'generous'   das Limit ist mehr als doppelt so hoch wie der Bedarf (erst mit genug Läufen)
+//   'measuring'  noch zu wenige Läufe für ein Urteil
+//   'ok'
+const TIGHT = 0.85;
+const FULL = 0.97;
+function rate(jobs, values, range) {
+  const runs = runsOf(jobs);
+  const share = Math.max(0, ...jobs.map((job) => Math.max((job.peakRunner ?? 0) / (values.runnerMemory * GB), (job.peakDocker ?? 0) / (values.dockerMemory * GB))));
+  if (share >= FULL) return { state: 'full', runs };
+  if (share > TIGHT) return { state: 'tight', runs };
+  const need = suggest(jobs, range);
+  if (!need) return { state: 'measuring', runs };
+  return { state: values.runnerMemory + values.dockerMemory > 2 * (need.runnerMemory + need.dockerMemory) ? 'generous' : 'ok', runs };
+}
+
+const sameValues = (a, b) => ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'].every((field) => a?.[field] === b?.[field]);
+
+module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, rate, sameValues, effective, key, SUGGEST_RUNS, GB };

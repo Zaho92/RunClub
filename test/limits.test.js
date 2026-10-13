@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bytesOf, memoryText, bounds, view, normalize, suggest, GB } = require('../src/limits');
+const { bytesOf, memoryText, bounds, view, normalize, suggest, plan, rate, sameValues, effective, key, GB } = require('../src/limits');
 
 const range = bounds({ dockerMemory: 9.7 * GB, dockerCpus: 12 });
 const current = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' };
@@ -43,4 +43,51 @@ test('ohne genug Messwerte gibt es keinen Vorschlag', () => {
   assert.equal(suggest([], range), null);
   assert.equal(suggest([{ runs: 4, peakMemory: GB, peakRunner: GB, peakDocker: GB, peakCpu: 1 }], range), null);
   assert.equal(suggest([{ runs: 9, peakMemory: 0, peakRunner: 0, peakDocker: 0, peakCpu: 0 }], range), null);
+});
+
+test('eigene Limits eines Projekts gehen vor, sonst gelten die für alle', () => {
+  assert.deepEqual(effective(current, undefined), current);
+  assert.deepEqual(effective(current, { runnerCpus: 10, runnerMemory: '6g', dockerCpus: 2, dockerMemory: '1g' }), { runnerCpus: 10, runnerMemory: '6g', dockerCpus: 2, dockerMemory: '1g' });
+});
+
+test('die Kennung unterscheidet Limits, nicht ihre Schreibweise', () => {
+  assert.equal(key(current), key({ runnerCpus: 6, runnerMemory: '4096m', dockerCpus: 6, dockerMemory: '4g' }));
+  assert.notEqual(key(current), key({ ...current, dockerMemory: '1g' }));
+});
+
+// Ein Projekt mit einem Job, dessen Spitzen in GB angegeben sind.
+const project = (repo, runner, docker, runs = 6) => ({ repo, jobs: [{ runs, peakMemory: (runner + docker) * GB, peakRunner: runner * GB, peakDocker: docker * GB, peakCpu: 2 }] });
+
+test('der Standard deckt die Projekte mit ähnlichem Bedarf, der Ausreißer bekommt eigene Limits', () => {
+  const found = plan([project('a/klein', 0.2, 0.1), project('a/mittel', 0.4, 0.1), project('a/auch', 0.3, 0.2), project('a/hungrig', 2.3, 0.5)], range);
+  assert.deepEqual(found.shared, { runnerMemory: 1, dockerMemory: 1, runnerCpus: 2, dockerCpus: 2 });
+  assert.deepEqual(found.own, { 'a/hungrig': { runnerMemory: 3.5, dockerMemory: 1, runnerCpus: 2, dockerCpus: 2 } });
+});
+
+test('wer nur etwas mehr braucht, bleibt beim Standard und hebt ihn an', () => {
+  const found = plan([project('a/eins', 1.0, 0.3), project('a/zwei', 1.3, 0.3), project('a/drei', 1.5, 0.6)], range);
+  assert.deepEqual(found.own, {});
+  assert.deepEqual(found.shared, { runnerMemory: 2.5, dockerMemory: 1, runnerCpus: 2, dockerCpus: 2 });
+});
+
+test('Projekte ohne genug Läufe zählen nicht mit, und ohne Messwerte gibt es keinen Vorschlag', () => {
+  assert.equal(plan([project('a/neu', 3, 1, 2)], range), null);
+  const found = plan([project('a/neu', 6, 2, 2), project('a/alt', 0.5, 0.2)], range);
+  assert.deepEqual(found, { shared: { runnerMemory: 1, dockerMemory: 1, runnerCpus: 2, dockerCpus: 2 }, own: {} });
+});
+
+test('schätzt ein, wie gut die Limits zu einem Projekt passen', () => {
+  const limits = { runnerMemory: 4, dockerMemory: 4, runnerCpus: 6, dockerCpus: 6 };
+  assert.deepEqual(rate(project('a/b', 3.95, 0.2, 1).jobs, limits, range), { state: 'full', runs: 1 });
+  assert.deepEqual(rate(project('a/b', 3.5, 0.2, 1).jobs, limits, range), { state: 'tight', runs: 1 });
+  assert.deepEqual(rate(project('a/b', 0.2, 3.6, 1).jobs, limits, range), { state: 'tight', runs: 1 });
+  assert.deepEqual(rate(project('a/b', 1, 0.2, 3).jobs, limits, range), { state: 'measuring', runs: 3 });
+  assert.deepEqual(rate(project('a/b', 0.5, 0.2, 8).jobs, limits, range), { state: 'generous', runs: 8 });
+  assert.deepEqual(rate(project('a/b', 2, 1.5, 8).jobs, limits, range), { state: 'ok', runs: 8 });
+  assert.deepEqual(rate([], limits, range), { state: 'measuring', runs: 0 });
+});
+
+test('vergleicht Limits Wert für Wert', () => {
+  assert.equal(sameValues({ runnerMemory: 1, dockerMemory: 1, runnerCpus: 2, dockerCpus: 2 }, { dockerCpus: 2, runnerCpus: 2, dockerMemory: 1, runnerMemory: 1 }), true);
+  assert.equal(sameValues({ runnerMemory: 1, dockerMemory: 1, runnerCpus: 2, dockerCpus: 2 }, undefined), false);
 });
