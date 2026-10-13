@@ -222,9 +222,13 @@ Richtigkeit:
     noch nicht geprüft; wirksam erst nach einem Neustart der App. Dann nachsehen: Nach dem Start steht „Frische die
     Vorlage auf (n Abbilder) …“ je Projekt im Protokoll, und die Einstellungen zeigen dieselben gelernten Abbilder wie
     zuvor.
-  - Als Nächstes: Caches und Build-Dienst (`prepareCaches`, `renewService`; `pools.js` bekommt `prepareCaches` heute hereingereicht), dann die
-    Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`). `startPool` und `preparePool` bleiben bis
-    dahin in `backend.js`, weil sie an Caches und Vorlage hängen.
+  - Erledigt: Caches und Build-Dienst als `src/caches.js` mit Tests (`prepareCaches`, `renewService`). Der Code ist
+    unverändert umgezogen (Zeile für Zeile verglichen); anders sind nur `stopping()` und `linuxReady()` als Abfrage
+    und die Namen des Hereingereichten. Im Betrieb noch nicht geprüft; wirksam erst nach einem Neustart der App. Dann
+    nachsehen: `docker ps` zeigt je Projekt mit Cache einen `rc-buildkit-…`, und ein Demo-Lauf baut sein Abbild über
+    den Build-Dienst.
+  - Als Nächstes: die Docker-Überwachung (`linuxLoop`, `prepareLinux`, `removeOrphans`, `removeLeftovers`), danach
+    `startPool`, `preparePool` und `measureSizes`, die an Caches und Vorlage hängen.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.
 
 ## Erledigt (zur Einordnung)

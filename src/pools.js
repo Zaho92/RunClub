@@ -15,7 +15,7 @@ const limitRules = require('./limits');
 //   log(text, repo, kind), sleep(ms)
 //   settingsOf(repo), limitsOf(repo), stopping(), linuxReady()
 //   provision(pool, cancelled), removePair(repo, base, runnerId), slotLoop(pool, slot), abortIdle(slot)   aus slots.js
-//   prepareCaches(repo)     Paket-Cache und Build-Dienst eines Repos neu bereitstellen
+//   prepareCaches(repo)     Paket-Cache und Build-Dienst eines Repos neu bereitstellen (aus caches.js)
 function createPools({
   log, sleep,
   settingsOf, limitsOf, stopping, linuxReady,
