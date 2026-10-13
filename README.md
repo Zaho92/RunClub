@@ -37,6 +37,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/backend.js` | Pools, Reserve, Caches, GitHub-Abfragen, lokaler Dienst für die Oberfläche |
 | `src/pipeline.js` | Läufe mit ihren Jobs, Abhängigkeiten aus der Workflow-Datei (`needs`), übliche Dauer, Restzeit |
 | `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
+| `src/vmmemory.js` | Belegung der Docker-VM aus `/proc/meminfo` (mit Kernel und Daemon), Regel für die Warnung, wenn kaum noch Speicher frei ist |
 | `src/routing.js` | Repo-Variable `CI_RUNNER`: schaltet die Jobs eines Repos auf die eigenen Runner und zurück |
 | `src/access.js` | Wer den lokalen Dienst benutzen darf: Schlüssel je Programmlauf, Cookie, Kopfzeilen der Seite |
 | `src/limits.js` | Limits je Job: Grenzen aus der Docker-VM, Vorschlag aus den Messwerten, Standard und Ausreißer |

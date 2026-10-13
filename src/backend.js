@@ -32,6 +32,7 @@ const { permanentPullError, pruneOlder, slug, sameRepo, clashes } = require('./i
 const limitRules = require('./limits');
 const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
+const { createVmMemory, COMMAND: VM_COMMAND } = require('./vmmemory');
 const { createRouting, VARIABLE } = require('./routing');
 const { createWaiting, candidates } = require('./waiting');
 const { createJournal, resultKind, resultText } = require('./journal');
@@ -653,6 +654,28 @@ function startStatsFeed() {
   }).then(() => { statsFeed = false; containerStats.clear(); otherStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
 }
 
+// Was die Docker-VM wirklich belegt, liest ein zweiter Dauerlauf in der VM selbst (siehe vmmemory.js); die Summe der
+// Container lässt Kernel und Daemon aus. Das geht nur mit Docker Desktop unter WSL2. Gibt es die Distro nicht, endet
+// der Aufruf ohne Messwert: Dann bleibt es still bei der Summe der Container, bis Docker neu vorbereitet wird.
+// Neu gestartet wird nur von `linuxLoop`, wenn Docker gerade geantwortet hat: Der Aufruf würde eine angehaltene
+// Distro sonst selbst hochfahren.
+const gib = (bytes) => `${(bytes / 1073741824).toFixed(1).replace('.', ',')} GB`;
+const vmProbe = createVmMemory({
+  onChange: (tight, sample) => {
+    if (tight) log(`Die Docker-VM hat nur noch ${gib(sample.available)} von ${gib(sample.total)} Arbeitsspeicher frei.`, null, 'error');
+    else log(sample ? `Die Docker-VM hat wieder ${gib(sample.available)} Arbeitsspeicher frei.` : 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.');
+  },
+});
+let vmFeed = false; // es läuft höchstens einer
+let vmFeedMissing = false; // der letzte Versuch brachte keinen Messwert
+function startVmFeed() {
+  if (vmFeed || vmFeedMissing || stopping) return;
+  vmFeed = true;
+  let seen = false;
+  run('wsl', ['-d', 'docker-desktop', 'sh', '-c', VM_COMMAND], { onLine: (line) => { vmProbe.line(line); seen ||= Boolean(vmProbe.current()); } })
+    .then(() => { vmFeed = false; vmFeedMissing = !seen; vmProbe.drop(); });
+}
+
 // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
 async function linuxLoop() {
   let misses = 0;
@@ -665,6 +688,8 @@ async function linuxLoop() {
         linuxError = null;
         misses = 0;
         startStatsFeed();
+        vmFeedMissing = false;
+        startVmFeed();
         for (const pool of pools.values()) await preparePool(pool);
       } catch (error) {
         if (linuxError !== error.message) log(error.message, null, 'error');
@@ -680,7 +705,7 @@ async function linuxLoop() {
       }
       await sleep(5000);
       continue;
-    } else misses = 0;
+    } else { misses = 0; startVmFeed(); }
     await sleep(linuxReady ? 30000 : 15000);
   }
 }
@@ -695,7 +720,9 @@ const waiting = createWaiting({ gh }); // Repos ohne Pool, in denen Jobs auf ein
 // --- Messung: Rechner, Docker-VM und der Verbrauch je Job ---
 
 const metrics = createMetrics({ dataDir: DATA_DIR });
-const usage = { hostCpu: 0, vmCpu: 0, vmMemory: 0, otherCpu: 0, otherMemory: 0 }; // CPU in Kernen
+// CPU in Kernen. `vmMemory` und `otherMemory` sind die Summen der eigenen und der fremden Container; `vmUsed` ist die
+// Belegung der Docker-VM im Ganzen: gemessen in der VM, solange der Messwert frisch ist, sonst die beiden Summen.
+const usage = { hostCpu: 0, vmCpu: 0, vmMemory: 0, vmUsed: 0, otherCpu: 0, otherMemory: 0 };
 let hostTicks = null;
 let measureRound = 0;
 
@@ -712,13 +739,14 @@ function measure() {
   }
   const sum = (entries, field) => [...entries].reduce((total, entry) => total + entry[field], 0);
   Object.assign(usage, { vmCpu: sum(containerStats.values(), 'cpu'), vmMemory: sum(containerStats.values(), 'memory'), otherCpu: sum(otherStats.values(), 'cpu'), otherMemory: sum(otherStats.values(), 'memory') });
+  usage.vmUsed = vmProbe.current()?.used ?? usage.vmMemory + usage.otherMemory;
 
   for (const pool of pools.values()) {
     for (const slot of pool.slots) if (slot.meter && slot.base) slot.meter.add(containerStats.get(`${slot.base}-runner`), containerStats.get(`${slot.base}-dind`));
   }
   measureRound += 1;
   if (measureRound % SAMPLE_EVERY === 0) {
-    metrics.sample({ hostCpu: usage.hostCpu, hostMemory: os.totalmem() - os.freemem(), vmCpu: usage.vmCpu + usage.otherCpu, vmMemory: usage.vmMemory + usage.otherMemory });
+    metrics.sample({ hostCpu: usage.hostCpu, hostMemory: os.totalmem() - os.freemem(), vmCpu: usage.vmCpu + usage.otherCpu, vmMemory: usage.vmUsed });
   }
 }
 const githubBusy = new Set(); // Repos, deren Abfrage gerade läuft
@@ -855,7 +883,8 @@ function status() {
     at: new Date().toISOString(),
     machine: {
       cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, dockerMemory, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet'),
-      usage, limits: config.limits, series: metrics.series(),
+      usage, vmTight: vmProbe.tight() ? { free: vmProbe.current().available } : null, // die Docker-VM hat kaum noch Arbeitsspeicher frei
+      limits: config.limits, series: metrics.series(),
       limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },
     },
     repos: [...repos.values()],

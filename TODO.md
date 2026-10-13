@@ -59,14 +59,21 @@ Richtigkeit:
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
 - **Abmeldungen bleiben liegen**, wenn Windows abgemeldet wird (kein Haken in `src/main.js`) oder ein Job beim Beenden
   noch läuft. Aufgeräumt wird erst beim nächsten Start.
-- **Auslastung der Docker-VM** zählt nur die Container (ohne Kernel, Daemon, Seitencache) und warnt nie; `PRODUCT.md`
-  verspricht die Warnung. Die Summe „zusammen bis zu“ in „Verbrauch“ lässt den Build-Dienst je Repo aus.
 - **Verbrauch wird nur nach Jobname geführt**; gleichnamige Jobs aus zwei Workflows mischen sich.
 - **„Runner neu aufbauen“ kann einen Pool anhalten**, wenn gerade ein Cache geleert wird und in der Zwischenzeit ein Job
   startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
 
 ## Noch nicht echt ausprobiert
 
+- **Belegung der Docker-VM aus der VM selbst und die Warnung** (`src/vmmemory.js`, `startVmFeed` in `src/backend.js`).
+  Getestet sind das Lesen und die Regel (unter 15 % frei in drei Proben in Folge). Nur am Code geprüft: der Dauerlauf
+  `wsl -d docker-desktop` (startet er, liefert er alle 2 s, endet er mit der App), das stille Ausbleiben ohne die
+  Distro, der Neustart nach einem Neustart von Docker, die beiden Meldungen im Protokoll und die rote Kennzahl mit
+  „nur x frei“ im Auslastungsband. Im Betrieb prüfen: Die Kurve „Docker-VM · Arbeitsspeicher“ liegt nach dem Neustart
+  der App höher als zuvor (im Leerlauf rund 1,9 statt 1,1 GB) und macht dabei einen Sprung im Verlauf.
+- **Build-Dienst im Speicherbalken** (Einstellungen → Limits): nur am Code geprüft, nicht angesehen. Am Bild prüfen:
+  das Feld des Build-Diensts hebt sich von den Plätzen ab, die Beschriftung „2 × 8 GB + Build-Dienst 4 GB“ passt
+  unter schmale Gruppen, und ein pausiertes Projekt mit Cache zeigt nur dieses Feld.
 - **Wartende Läufe ohne Pool** (`src/waiting.js`): nur gegen ein nachgestelltes GitHub getestet und als Standbild
   angesehen. Echt prüfen: in einem privaten Repo ohne Pool einen Lauf mit `runs-on: [self-hosted, Linux]` starten;
   nach spätestens fünf Minuten steht in „Alle Projekte“ die Zeile mit „Pool anlegen“.
