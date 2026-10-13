@@ -26,6 +26,7 @@ const crypto = require('node:crypto');
 const { run, lastLine } = require('./run');
 const { createAccess, pageHeaders, newNonce } = require('./access');
 const { orphaned } = require('./pairs');
+const { createNetwork, alreadyExists } = require('./subnets');
 const { readJson, writeJson } = require('./store');
 const { permanentPullError, pruneOlder, slug, sameRepo, clashes } = require('./images');
 const limitRules = require('./limits');
@@ -241,11 +242,16 @@ async function prepareCaches(repo) {
     'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
   await docker(['volume', 'create', buildVolume(repo)]);
   // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
-  await docker(['network', 'create', buildNetwork(repo)]);
-  const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no', '--network', buildNetwork(repo),
-    '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory,
-    '-v', `${buildVolume(repo)}:/var/lib/buildkit`, 'moby/buildkit:latest', '--addr', 'tcp://0.0.0.0:1234']);
-  if (service.code !== 0) log(`Build-Dienst startet nicht – ${lastLine(service.stderr)}`, repo, 'error');
+  // Es bleibt stehen, solange das Repo einen Cache hat; dass es schon da ist, ist deshalb kein Fehler.
+  const network = await createNetwork(docker, [buildNetwork(repo)]);
+  if (network.code !== 0 && !alreadyExists(network.stderr)) {
+    log(`Netz für den Build-Dienst lässt sich nicht anlegen – ${lastLine(network.stderr)}`, repo, 'error');
+  } else {
+    const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no', '--network', buildNetwork(repo),
+      '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory,
+      '-v', `${buildVolume(repo)}:/var/lib/buildkit`, 'moby/buildkit:latest', '--addr', 'tcp://0.0.0.0:1234']);
+    if (service.code !== 0) log(`Build-Dienst startet nicht – ${lastLine(service.stderr)}`, repo, 'error');
+  }
   const pool = pools.get(repo);
   if (pool) pool.serviceBuilt = serviceKey(repo);
 }
@@ -370,8 +376,8 @@ async function provision(pool, cancelled) {
   livePairs.set(base, pool.repo);
   const giveUp = async (error) => { await removePair(pool.repo, base, null); if (error) throw error; return null; };
 
-  // Docker hat nur einen begrenzten Vorrat an Netzen; ist er erschöpft, sagt es das hier.
-  const network = await docker(['network', 'create', ...label, base]);
+  // Eigenes kleines Subnetz statt eines aus Dockers knappem Vorrat (siehe subnets.js).
+  const network = await createNetwork(docker, [...label, base]);
   if (network.code !== 0) return giveUp(new Error(`Netz lässt sich nicht anlegen: ${lastLine(network.stderr)}`));
   for (const volume of ['work', 'sock', 'docker']) await docker(['volume', 'create', ...label, `${base}-${volume}`]);
 

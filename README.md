@@ -42,6 +42,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/limits.js` | Limits je Job: Grenzen aus der Docker-VM, Vorschlag aus den Messwerten, Standard und Ausreißer |
 | `src/github.js` | Aufrufe von `gh`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird |
 | `src/journal.js` | Protokoll: Einträge mit Zeit, Projekt, Meldung und Art; die letzten im Speicher und für den nächsten Start in `runclub.log.entries`, alle lesbar in `runclub.log` |
+| `src/subnets.js` | Netze der Paare und Build-Dienste: je ein zufälliges /28 aus einem eigenen Bereich statt aus Dockers knappem Vorrat |
 | `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js` | Programmaufrufe mit Zeitgrenze, Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare |
 | `src/ui.html` | Oberfläche: Projektleiste, Netzplan je Lauf, Auslastung, Verbrauch, Einstellungen (Deutsch und Englisch) |
 | `src/fonts/` | Schrift Overpass (OFL), liegt in der App, damit sie ohne Internet funktioniert |
@@ -50,6 +51,10 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 
 Einstellungen, Gelerntes und Protokoll liegen unter `%APPDATA%\RunClub\data`.
 `npm run backend` startet nur den Dienst, ohne Fenster (Daten dann in `data/`); die Adresse zum Öffnen steht dann in der Konsole.
+
+Umgebungsvariablen: `RUNCLUB_DATA` (Datenordner), `RUNCLUB_PORT` (Port des Dienstes, sonst 8770) und
+`RUNCLUB_SUBNETS` (Bereich, aus dem die Netze der Runner ihr Subnetz bekommen, sonst `10.213.0.0/16`; von /8 bis /24.
+Nötig nur, wenn der Bereich schon vergeben ist, etwa durch ein VPN).
 
 Die Oberfläche und ihre Daten bekommt nur das eigene Fenster: Der Dienst ist unter Docker Desktop auch aus den
 Containern der Jobs erreichbar, deshalb verlangt er einen Schlüssel, der bei jedem Start neu entsteht

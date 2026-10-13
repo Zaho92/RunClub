@@ -62,9 +62,6 @@ Richtigkeit:
 - **Auslastung der Docker-VM** zählt nur die Container (ohne Kernel, Daemon, Seitencache) und warnt nie; `PRODUCT.md`
   verspricht die Warnung. Die Summe „zusammen bis zu“ in „Verbrauch“ lässt den Build-Dienst je Repo aus.
 - **Verbrauch wird nur nach Jobname geführt**; gleichnamige Jobs aus zwei Workflows mischen sich.
-- **Vorrat an Docker-Netzen.** Jedes Paar und jeder Build-Dienst belegt ein eigenes Netz; Docker hält in der
-  Voreinstellung rund 30 bereit. Mit vielen Pools oder Plätzen reicht das nicht. Möglich: Netze mit kleinen, selbst
-  vergebenen Subnetzen anlegen.
 - **„Runner neu aufbauen“ kann einen Pool anhalten**, wenn gerade ein Cache geleert wird und in der Zwischenzeit ein Job
   startet: Der Pool nimmt dann bis zu dessen Ende keine weiteren Jobs an (`withPoolAtRest`). Selten.
 
@@ -88,6 +85,11 @@ Richtigkeit:
   32 px hohen Streifen abschließen; ob die Knöpfe im schmalen Fenster (bis 760 px) die Farbe der Leiste
   annehmen und beim Verbreitern zurückwechseln (`matchBar` in `src/main.js`).
 - **Die Rückfrage der App** per Tastatur: „Abbrechen“ hat den Fokus mit sichtbarem Ring, Escape bricht ab.
+- **Netze mit eigenem Subnetz** (`src/subnets.js`). Getestet sind die Rechnung und die Wiederholung gegen ein
+  nachgestelltes Docker; an echten Paaren zu sehen ist es erst nach dem nächsten Neustart der App:
+  `docker network inspect <Paar>` zeigt dann ein /28 aus 10.213.x. Bestehende Netze behalten ihr altes Subnetz, auch
+  die der Build-Dienste (`rc-buildnet-…`), solange das Repo seinen Cache behält. Im Protokoll nachsehen, ob „Netz
+  lässt sich nicht anlegen“ ausbleibt.
 
 - **Korrekturen aus dem zweiten Review**, alle nur am Code und in einer Testinstanz ohne Pools geprüft:
   der Build-Dienst zieht neue Limits von selbst nach, sobald im Pool nichts läuft (`renewService`, im Minutentakt);
