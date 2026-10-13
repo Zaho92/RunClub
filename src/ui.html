@@ -177,7 +177,7 @@
   .log { list-style: none; margin: 0; padding: 0; }
   .log.open { max-height: 496px; overflow-y: auto; }
   .log li { display: grid; grid-template-columns: 92px 128px 16px minmax(0, 1fr); column-gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); }
-  .log.one li { grid-template-columns: 92px 16px minmax(0, 1fr); }
+  .log.noproject li { grid-template-columns: 92px 16px minmax(0, 1fr); }
   .log time, .log .lp { font-size: 13px; font-weight: 400; color: var(--muted); }
   .log time { white-space: nowrap; } .log .lp { overflow-wrap: anywhere; }
   .log .ic { width: 16px; height: 16px; align-self: start; margin-top: 2px; } .log .ic svg { width: 10px; height: 10px; }
@@ -214,7 +214,8 @@
   .sl u[hidden] { display: none; }
   .plim { display: flex; flex-direction: column; gap: 10px; }
   .plim b { font-weight: 400; color: var(--ink); }
-  .note .ink, .note.over { color: var(--text); }
+  .note .ink, .note.strong { color: var(--text); }
+  .note.measure { max-width: 68ch; }
   .plim .sliders { padding-top: 2px; }
   .crow { display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; align-items: center; column-gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
   .crow small { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
@@ -240,10 +241,11 @@
 
   .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 44px; padding: 4px 0 6px; }
   .um { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; column-gap: 14px; }
+  .um.solo { grid-template-columns: minmax(0, 1fr); }
   .um i { position: relative; height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--chart) var(--v), var(--edge) var(--v)); }
-  /* Ab dieser Marke (85 % des Limits) gilt eine Spitze als knapp. */
-  .um i::after { content: ""; position: absolute; left: 85%; top: -4px; height: 12px; border-left: 2px dotted var(--muted); }
-  .um i.tight { background: linear-gradient(to right, var(--fail) var(--v), var(--edge) var(--v)); }
+  /* Ab dieser Marke gilt es als knapp; wo sie sitzt, sagt das Backend (`tightAt`). */
+  .um i::after { content: ""; position: absolute; left: var(--mark); top: -4px; height: 12px; border-left: 2px dotted var(--muted); }
+  .um i.alarm { background: linear-gradient(to right, var(--fail) var(--v), var(--edge) var(--v)); }
   .um b { font-weight: 400; color: var(--ink); white-space: nowrap; }
   .um small { font-size: 13px; color: var(--muted); }
 
@@ -253,7 +255,7 @@
 
   /* Rückfrage: schwebt wie Tooltip und Meldung, eine Stufe über der Fläche, mit Rahmen statt Schatten. */
   dialog { width: min(440px, calc(100vw - 48px)); padding: 22px 24px 20px; background: var(--raised); color: var(--text); border: 1px solid var(--track); border-radius: 8px; }
-  dialog::backdrop { background: rgba(9, 18, 48, .72); }
+  dialog::backdrop { background: color-mix(in srgb, var(--rail) 72%, transparent); }
   dialog[open] { animation: rise .2s var(--ease); }
   dialog[open]::backdrop { animation: veil .2s linear; }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
@@ -310,12 +312,12 @@ const TEXT = {
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
     app: 'App', autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'RunClub beenden', log: 'Protokoll',
     logAll: 'Alle', logFilter: 'Protokoll nach Projekt filtern', logCopy: 'Kopieren', logSave: 'Speichern', logCopyTip: 'Die ganze Datei runclub.log in die Zwischenablage legen', logSaveTip: 'Die ganze Datei runclub.log speichern',
-    logCopied: 'Das ganze Protokoll liegt in der Zwischenablage ({0} Zeilen).', logCopyFailed: 'Das Protokoll ließ sich nicht kopieren.', logNone: 'Unter den letzten Meldungen ist keine dazu. Die ganze Datei gibt es über „Speichern“.', logSide: 'die letzten {0} Meldungen', logSideOne: 'eine Meldung', logSideOf: '{0} von {1} Meldungen', logGeneral: 'Allgemein',
+    logCopied: 'Das ganze Protokoll liegt in der Zwischenablage ({0} Zeilen).', logCopyFailed: 'Das Protokoll ließ sich nicht kopieren.', logNone: 'Unter den letzten Meldungen ist keine dazu. Die ganze Datei gibt es über „Speichern“.', logSide: 'die letzten {0} Meldungen', logSideOne: 'eine Meldung', logSideOf: '{0} von {1} Meldungen', logGeneral: 'Allgemein', logJobRun: 'Job „{0}“ läuft auf {1}', logJobEnd: 'Job „{0}“ – {1}',
     cachesSum: 'Caches {0}', projectsSum: '{0} Projekte · {1} Plätze', clearOf: '{0} leeren', forgetImages: 'Gelernte Abbilder vergessen', cancel: 'Abbrechen', showAll: 'Alles zeigen', showLess: 'Weniger zeigen', days: 'Tagen', peakTitle: 'Höchste gemessene Spitze eines Jobs', jobsMeasured: '{0} Jobs gemessen', jobMeasured: '1 Job gemessen', toLimits: 'Limits einstellen',
     limitsTitle: 'Limits je Job', limitsNew: 'für alle Projekte ohne eigene Werte', limitsShared: 'Wie alle', limitsOwn: 'Eigene', ownTag: 'eigene Limits', rebuild: 'Runner neu aufbauen', tagFull: 'Limit erreicht', tagTight: 'Limit knapp', tagGenerous: 'Limit großzügig',
     planText: 'Vorschlag: Standard Runner {0} GB, Docker {1} GB, je {2} Kerne.', planOwn: 'Eigene Limits für {0}.', planApplied: 'Die Limits entsprechen dem Vorschlag.',
     planWhy: 'Aus den Messwerten: Der Standard deckt die Projekte mit ähnlichem Bedarf, mit 50 % Luft über der höchsten Spitze. Wer deutlich mehr braucht, bekommt eigene Limits. Die gepunktete Marke zeigt den Vorschlag am Regler.',
-    fitFull: 'Ein Job hat sein Limit ausgeschöpft. Er braucht mehr Speicher, sonst bricht er ab.', fitTight: 'Ein Job kam seinem Limit nahe (über 85 %). Mit etwas mehr Speicher bleibt Luft.', fitGenerous: 'Das Limit ist mehr als doppelt so hoch wie der gemessene Bedarf. Das schadet nicht, schützt den Rechner aber weniger.', fitMeasuring: 'Wird noch gemessen ({0} von {1} Läufen); danach gibt es einen Vorschlag.',
+    fitFull: 'Ein Job hat sein Limit ausgeschöpft. Er braucht mehr Speicher, sonst bricht er ab.', fitTight: 'Ein Job kam seinem Limit nahe (über {2} %). Mit etwas mehr Speicher bleibt Luft.', fitGenerous: 'Das Limit ist mehr als doppelt so hoch wie der gemessene Bedarf. Das schadet nicht, schützt den Rechner aber weniger.', fitMeasuring: 'Wird noch gemessen ({0} von {1} Läufen); danach gibt es einen Vorschlag.',
     limitsSharedNote: 'Es gelten die Limits für alle: Runner {0} GB und {2} Kerne, Docker {1} GB und {3} Kerne.', staleOne: 'Ein freier Runner trägt noch die alten Limits. Er wechselt sonst erst mit seinem nächsten Job.', staleMany: '{0} freie Runner tragen noch die alten Limits. Sie wechseln sonst erst mit ihrem nächsten Job.', budgetLabel: 'Speicher, wenn alle {0} Plätze zugleich arbeiten', budgetOf: 'erlaubt · die Docker-VM hat {0}', vmMark: 'Docker-VM', minSlots: 'Mindestens 1 Platz', maxSlots: 'Höchstens 4 Plätze', addQuick: 'Aus deinem Konto:', addQuickTip: 'Pool für {0} anlegen',
     budgetOverOne: 'Mit vollem Limit passt einer von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.',
     budgetOver: 'Mit vollem Limit passen {0} von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetOver1: 'Schon ein einzelner Job darf mehr belegen, als die Docker-VM hat. Senke die Limits oder gib der Docker-VM mehr Speicher.', budgetOk: 'Auch wenn alle Plätze zugleich arbeiten, bleibt die Docker-VM unter ihrer Grenze.',
@@ -349,12 +351,12 @@ const TEXT = {
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
     app: 'App', autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit RunClub', log: 'Log',
     logAll: 'All', logFilter: 'Filter the log by project', logCopy: 'Copy', logSave: 'Save', logCopyTip: 'Put the whole file runclub.log on the clipboard', logSaveTip: 'Save the whole file runclub.log',
-    logCopied: 'The whole log is on the clipboard ({0} lines).', logCopyFailed: 'The log could not be copied.', logNone: 'None of the recent messages match. “Save” gives you the whole file.', logSide: 'the last {0} messages', logSideOne: 'one message', logSideOf: '{0} of {1} messages', logGeneral: 'General',
+    logCopied: 'The whole log is on the clipboard ({0} lines).', logCopyFailed: 'The log could not be copied.', logNone: 'None of the recent messages match. “Save” gives you the whole file.', logSide: 'the last {0} messages', logSideOne: 'one message', logSideOf: '{0} of {1} messages', logGeneral: 'General', logJobRun: 'Job “{0}” is running on {1}', logJobEnd: 'Job “{0}” – {1}',
     cachesSum: 'Caches {0}', projectsSum: '{0} projects · {1} slots', clearOf: 'Clear {0}', forgetImages: 'Forget learned images', cancel: 'Cancel', showAll: 'Show all', showLess: 'Show less', days: 'days', peakTitle: 'Highest measured peak of a job', jobsMeasured: '{0} jobs measured', jobMeasured: '1 job measured', toLimits: 'Adjust limits',
     limitsTitle: 'Limits per job', limitsNew: 'for all projects without their own', limitsShared: 'Shared', limitsOwn: 'Own', ownTag: 'own limits', rebuild: 'Rebuild runners', tagFull: 'limit reached', tagTight: 'limit tight', tagGenerous: 'limit generous',
     planText: 'Suggestion: default runner {0} GB, Docker {1} GB, {2} cores each.', planOwn: 'Own limits for {0}.', planApplied: 'The limits match the suggestion.',
     planWhy: 'From the measurements: the default covers the projects with similar needs, with 50% headroom above the highest peak. A project that needs considerably more gets its own limits. The dotted mark shows the suggestion on the slider.',
-    fitFull: 'A job used up its limit. It needs more memory, or it will be cut off.', fitTight: 'A job came close to its limit (over 85%). A little more memory leaves headroom.', fitGenerous: 'The limit is more than twice the measured need. That does no harm, but protects the machine less.', fitMeasuring: 'Still measuring ({0} of {1} runs); a suggestion follows after that.',
+    fitFull: 'A job used up its limit. It needs more memory, or it will be cut off.', fitTight: 'A job came close to its limit (over {2}%). A little more memory leaves headroom.', fitGenerous: 'The limit is more than twice the measured need. That does no harm, but protects the machine less.', fitMeasuring: 'Still measuring ({0} of {1} runs); a suggestion follows after that.',
     limitsSharedNote: 'The shared limits apply: runner {0} GB and {2} cores, Docker {1} GB and {3} cores.', staleOne: 'One idle runner still carries the old limits. Otherwise it changes with its next job.', staleMany: '{0} idle runners still carry the old limits. Otherwise they change with their next job.', budgetLabel: 'Memory when all {0} slots work at once', budgetOf: 'allowed · the Docker VM has {0}', vmMark: 'Docker VM', minSlots: 'At least 1 slot', maxSlots: 'At most 4 slots', addQuick: 'From your account:', addQuickTip: 'Create a pool for {0}',
     budgetOverOne: 'At full limit, one of {1} slots fits into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.',
     budgetOver: 'At full limit, {0} of {1} slots fit into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetOver1: 'A single job may already use more than the Docker VM has. Lower the limits or give the Docker VM more memory.', budgetOk: 'Even with all slots working at once, the Docker VM stays below its limit.',
@@ -365,6 +367,8 @@ const TEXT = {
   },
 };
 const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off', 'läuft aus': 'retiring' };
+// Bis zu dieser Breite gilt das Fenster als schmal; dieselbe Grenze steht im CSS (`max-width: 760px`) und in main.js.
+const NARROW = 760;
 const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* ohne Speicher */ } } };
 // Im Fenster der App zeichnet die Seite den Streifen zum Ziehen selbst.
 if (/Electron/.test(navigator.userAgent)) document.documentElement.classList.add('shell');
@@ -379,7 +383,10 @@ const charts = {}; // Kennung -> { at, values, span, format } für die Anzeige u
 
 const t = (key, ...args) => (TEXT[lang][key] ?? key).replace(/\{(\d)\}/g, (_, i) => args[i]);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const num = (n, digits = 1) => n.toFixed(digits).replace('.', lang === 'de' ? ',' : '.');
+// Zahlen, Zeiten und Daten in der Schreibweise der gewählten Sprache.
+const locale = () => (lang === 'de' ? 'de-DE' : 'en-GB');
+const hourMinute = (date) => new Date(date).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+const num = (n, digits = 1) => n.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
 const gb = (b) => num(b / 1073741824) + ' GB';
 const mb = (b) => (b >= 1073741824 ? gb(b) : Math.round(b / 1048576) + ' MB');
 const clock = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -472,12 +479,13 @@ function renderRail() {
   const runners = data.repos.flatMap((r) => r.runners);
   const count = (state) => runners.filter((r) => r.state.startsWith(state)).length;
   const trouble = limitTrouble();
+  const quota = quotaTrouble();
   const item = (key, title, sub, dot, plain, todo) => '<button class="nav' + (plain ? ' plain' : '') + (todo ? ' todo' : '') + (dot ? ' s-' + dot : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (dot ? icon(dot) : '') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
   document.getElementById('rail').setAttribute('aria-label', t('railLabel'));
-  if (window.innerWidth < 760) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
+  if (window.innerWidth <= NARROW) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, entry.repo.split('/')[1], state.text, state.dot); }).join('') +
-    '<div class="railfoot">' + item('usage', t('usage'), !quotaTrouble() ? '' : data.github.state === 'out' ? '<span class="c-fail">' + esc(quotaTrouble()) + '</span>' : esc(quotaTrouble()), '', true, data.github?.state === 'out') + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(repo.split('/')[1])).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
+    '<div class="railfoot">' + item('usage', t('usage'), !quota ? '' : quota.out ? '<span class="c-fail">' + esc(quota.text) + '</span>' : esc(quota.text), '', true, Boolean(quota?.out)) + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(repo.split('/')[1])).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
 }
 
 // --- Netzplan ---
@@ -644,9 +652,13 @@ function seats(entries) {
 // --- Ansichten ---
 
 // Das Anfragelimit des GitHub-Kontos, wenn es knapp oder aufgebraucht ist; sonst null.
-const quotaClock = (iso) => new Date(iso).toLocaleTimeString(lang === 'de' ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
-const quotaTrouble = () => { const q = data.github; return q && (q.state === 'tight' || q.state === 'out') ? t(q.state === 'out' ? 'quotaOutShort' : 'quotaTightShort') : null; };
-const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), data.github?.state === 'out' ? t('quotaOutTag', quotaClock(data.github.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+// `out` heißt: RunClub fragt gar nicht mehr ab. Nur das ist eine Störung und rot.
+// Die einzige Stelle, die die Zustandswörter des Backends kennt (siehe STATE in github.js).
+const quotaState = () => ({ tight: data.quota?.state === 'tight', out: data.quota?.state === 'out' });
+const quotaTrouble = () => { const { tight, out } = quotaState(); return tight || out ? { out, text: t(out ? 'quotaOutShort' : 'quotaTightShort') } : null; };
+// Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
+const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
+const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
 function quietRows(entries) {
@@ -677,26 +689,26 @@ function renderOverview(entries, single) {
   if (put(document.getElementById('runs'), blocks)) {
     watchPlans(main);
     // Schmale Fenster: die Spalte mit dem ersten laufenden oder roten Job in den Blick holen.
-    if (window.innerWidth < 760) main.querySelector('.pill.s-fail, .pill.s-run')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    if (window.innerWidth <= NARROW) main.querySelector('.pill.s-fail, .pill.s-run')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
   put(document.getElementById('charts'), bandCharts(entries.flatMap((entry) => entry.pipelines.map((p) => new Date(p.startedAt).getTime()))));
   put(document.getElementById('seats'), seats(entries));
 }
 
 // Haltestelle „GitHub-Anfragen“: Kennzahl und Schiene zeigen das Verbrauchte, wie bei den Speicherspitzen mit der
-// Marke bei 85 %; ab dort fragt RunClub seltener ab. Was noch frei ist und wann es weitergeht, steht im Kopf.
+// Marke, ab der es knapp ist; ab dort fragt RunClub seltener ab. Was noch frei ist und wann es weitergeht, steht im Kopf.
 // Rot ist nur das erreichte Limit: Knapp verlangt nichts und vergeht von selbst.
 function quotaStop() {
-  const q = data.github;
+  const q = data.quota;
   if (!q) return '';
-  const count = (n) => n.toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB');
-  const out = q.state === 'out';
-  const until = quotaClock(q.resetAt);
+  const count = (n) => n.toLocaleString(locale());
+  const { tight, out } = quotaState();
+  const until = hourMinute(q.resetAt);
   const minutes = Math.max(1, Math.round((new Date(q.resetAt) - Date.now()) / 60000));
   return routeStop('github', t('quotaTitle'), t('quotaReset', count(q.remaining), until, minutes),
     '<div><div class="k">' + t('quotaLabel') + '</div><div class="v' + (out ? ' c-fail' : '') + '">' + count(q.limit - q.remaining) + ' <small>' + t('quotaOf', count(q.limit)) + '</small></div></div>' +
-    '<div class="um" style="grid-template-columns:minmax(0,1fr)"><i' + (out ? ' class="tight"' : '') + ' style="--v:' + ((q.limit - q.remaining) / q.limit * 100).toFixed(1) + '%"></i></div>' +
-    '<div class="note' + (q.state === 'tight' ? ' over' : '') + '" style="max-width:68ch">' + (out ? '<span class="c-fail">' + t('quotaOut', until) + '</span> <span class="ink">' + t('quotaOutMore') + '</span>' : t(q.state === 'tight' ? 'quotaTight' : 'quotaOk', until)) + '</div>');
+    '<div class="um solo">' + fillBar((q.limit - q.remaining) / q.limit, out, q.tightAt) + '</div>' +
+    '<div class="note measure' + (tight ? ' strong' : '') + '">' + (out ? '<span class="c-fail">' + t('quotaOut', until) + '</span> <span class="ink">' + t('quotaOutMore') + '</span>' : t(tight ? 'quotaTight' : 'quotaOk', until)) + '</div>');
 }
 
 function renderUsage() {
@@ -706,9 +718,10 @@ function renderUsage() {
   const day = dayData ?? [];
   const src = (key) => ({ at: day.map((p) => p.at), values: day.map((p) => p[key + 'Max']), span: 24 * 3600000 });
   // Die höchste gemessene Spitze eines Projekts, gemessen an dem, was ein Job darf.
+  const tightAt = m.limitsView.tightAt; // ab diesem Anteil am Limit gilt eine Spitze als knapp
   const meter = (label, peak, allowed) => {
-    const tight = peak > allowed * 0.85;
-    return '<div class="um"><span>' + label + '</span><i' + (tight ? ' class="tight"' : '') + ' style="--v:' + (allowed ? Math.min(100, peak / allowed * 100) : 0).toFixed(1) + '%"></i><b' + (tight ? ' class="c-fail"' : '') + '>' + mb(peak) + ' <small>' + t('of', gb(allowed)) + '</small></b></div>';
+    const tight = peak > allowed * tightAt;
+    return '<div class="um"><span>' + label + '</span>' + fillBar(allowed ? peak / allowed : 0, tight, tightAt) + '<b' + (tight ? ' class="c-fail"' : '') + '>' + mb(peak) + ' <small>' + t('of', gb(allowed)) + '</small></b></div>';
   };
   const projects = data.repos.map((entry, index) => {
     const u = entry.usage ?? { jobs: [] };
@@ -721,7 +734,7 @@ function renderUsage() {
     const cell = (value, peak) => '<td class="r' + (value > 0 && value === peak ? ' top' : '') + '">' + (value > 0 ? mb(value) : '–') + '</td>';
     const rows = u.jobs.map((j) => '<tr><td>' + esc(j.job) + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
     // Was am nächsten an seinem Limit liegt: welcher Job, welche Seite, wie viel.
-    const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * 0.85).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
+    const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * tightAt).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
     const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
       (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', esc(u.jobs.find((j) => j[near[3]] === near[1]).job), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
     const body = !rows ? '<div class="note">' + t('noUsage') + '</div>' : peaks +
@@ -753,18 +766,21 @@ const GIB = 1073741824;
 const LIMIT_KEYS = ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'];
 let openRepo = store.get('open', ''); // das aufgeklappte Projekt in den Einstellungen
 let logOpen = false;
-let logRepo = ''; // das Projekt, auf das das Protokoll gefiltert ist ('' = alle, '-' = Meldungen ohne Projekt)
-let logData = []; // Einträge { at, repo, text, kind }, der älteste zuerst
+const LOG_GENERAL = '-'; // als Filter: die Meldungen ohne Projekt
+let logRepo = ''; // das Projekt, auf das das Protokoll gefiltert ist ('' = alle)
+let logData = []; // Einträge { at, repo, text, kind } und bei Jobs { job, runner }, der älteste zuerst
 let logCount = -1; // Stand des Protokolls, zu dem logData gehört
 const LOG_SHORT = 8;
 // Ein Symbol bekommt nur, was ein Ergebnis ist. Der Beginn eines Jobs bleibt ohne: Gelb heißt „läuft jetzt“.
 const LOG_STATE = { error: 'fail', done: 'done', fail: 'fail', cancel: 'cancel' };
+// Meldungen zu einem Job bildet die Oberfläche in ihrer Sprache aus Jobname, Runner und Art; alles andere ist der
+// Satz des Backends.
+const logText = (entry) => (!entry.job ? entry.text : entry.kind === 'run' ? t('logJobRun', entry.job, entry.runner) : LOG_STATE[entry.kind] ? t('logJobEnd', entry.job, t('s_' + LOG_STATE[entry.kind])) : entry.text);
 // Von heute genügt die Uhrzeit; Älteres nennt den Tag und spart dafür die Sekunden.
 function logTime(iso) {
   const at = new Date(iso);
-  const locale = lang === 'de' ? 'de-DE' : 'en-GB';
-  return at.toDateString() === new Date().toDateString() ? at.toLocaleTimeString(locale)
-    : at.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' }) + ' ' + at.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  return at.toDateString() === new Date().toDateString() ? at.toLocaleTimeString(locale())
+    : at.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' }) + ' ' + hourMinute(at);
 }
 let hereStop = view === 'usage' ? 'day' : 'projects'; // die Haltestelle, an der die Seite gerade steht
 // Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt.
@@ -805,7 +821,7 @@ function renderSettings() {
   // Runner und Docker eines Jobs haben eine gemeinsame Obergrenze. Der Hinweis steht immer da; wer beim Ziehen
   // darüber kommt, liest stattdessen, was beim Loslassen geschieht.
   const cap = lv.bounds.memory.total;
-  const capNote = (values) => (cap === undefined ? '' : '<div class="note' + (values.runnerMemory + values.dockerMemory > cap ? ' over' : '') + '">' +
+  const capNote = (values) => (cap === undefined ? '' : '<div class="note' + (values.runnerMemory + values.dockerMemory > cap ? ' strong' : '') + '">' +
     (values.runnerMemory + values.dockerMemory > cap ? t('capOver', gbShort(values.runnerMemory + values.dockerMemory), gbShort(cap)) : t('capNote', gbShort(cap))) + '</div>');
   const sliders = (values, hints, repo) => '<div class="sliders">' + slider('runnerMemory', t('memRunner'), lv.bounds.memory, (v) => gbShort(v) + ' GB', values, hints, repo) + slider('dockerMemory', t('memDocker'), lv.bounds.memory, (v) => gbShort(v) + ' GB', values, hints, repo) +
     slider('runnerCpus', t('cpuRunner'), lv.bounds.cpus, (v) => v, values, hints, repo) + slider('dockerCpus', t('cpuDocker'), lv.bounds.cpus, (v) => v, values, hints, repo) + '</div>' + capNote(values);
@@ -839,7 +855,7 @@ function renderSettings() {
     const fit = p.limits?.fit ?? { state: 'ok' };
     const pressing = fit.state === 'full' || fit.state === 'tight';
     const fitTag = { full: t('tagFull'), tight: t('tagTight'), generous: t('tagGenerous') }[fit.state];
-    const fitNote = fit.state === 'ok' ? '' : '<div class="note' + (pressing ? ' c-fail' : '') + '">' + t({ full: 'fitFull', tight: 'fitTight', generous: 'fitGenerous', measuring: 'fitMeasuring' }[fit.state], fit.runs, lv.needRuns ?? 5) + '</div>';
+    const fitNote = fit.state === 'ok' ? '' : '<div class="note' + (pressing ? ' c-fail' : '') + '">' + t({ full: 'fitFull', tight: 'fitTight', generous: 'fitGenerous', measuring: 'fitMeasuring' }[fit.state], fit.runs, lv.needRuns ?? 5, Math.round(lv.tightAt * 100)) + '</div>';
     const mine = limitsFor(entry);
     const choice = (text, pressed, values) => '<button data-do="limits/set" data-repo="' + esc(repo) + '"' + attrs(values) + ' aria-pressed="' + pressed + '">' + text + '</button>';
     const limits = !p.limits ? '' : '<div class="plim"><div class="row"><b class="grow">' + t('limitsTitle') + '</b><span class="seg">' + choice(t('limitsShared'), !own, { inherit: '1' }) + choice(t('limitsOwn'), own, Object.fromEntries(LIMIT_KEYS.map((key) => [key, mine[key]]))) + '</span></div>' +
@@ -884,7 +900,7 @@ function renderSettings() {
   const segments = active.map((entry, index) => '<div class="bseg" style="flex:' + (entry.pool.parallel * jobBytes(entry) / GIB).toFixed(3) + '"><div>' + cells(entry, index) + '</div><span><b>' + esc(entry.repo.split('/')[1]) + '</b>' + entry.pool.parallel + ' × ' + gbClean(jobBytes(entry)) + '</span></div>').join('');
   const budget = !slots || !vm ? '' : '<div><div class="k">' + t('budgetLabel', slots) + '</div><div class="v' + (tooBig ? ' c-fail' : '') + '">' + gbClean(total) + ' <small>' + t('budgetOf', gbClean(vm)) + '</small></div>' +
     '<div class="budget">' + segments + (total < vm ? '<div style="flex:' + ((vm - total) / GIB).toFixed(3) + '"></div>' : '') + '<div class="bcap' + (capAt > 60 ? ' end' : '') + '" style="left:' + capAt.toFixed(2) + '%"><span>' + t('vmMark') + '</span></div></div>' +
-    '<div class="note' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px;max-width:68ch">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + '</div></div>';
+    '<div class="note measure' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + '</div></div>';
   // Freie Runner tragen ihre Limits bis zum nächsten Job; wer nicht warten will, baut sie neu auf.
   const stale = withPool.reduce((sum, entry) => sum + (entry.pool.limits?.stale ?? 0), 0);
   const rebuild = !stale ? '' : '<div class="row"><span class="rt note">' + t(stale === 1 ? 'staleOne' : 'staleMany', stale) + '</span>' + button('rebuild', t('rebuild'), { do: 'pool/rebuild' }) + '</div>';
@@ -901,16 +917,20 @@ function renderSettings() {
   const app = (data.app ? arow(t('autostart'), '', '<input type="checkbox" class="sw" id="autostart" aria-label="' + t('autostart') + '"' + (data.app.autostart ? ' checked' : '') + '>') : '') +
     arow(t('view'), t('viewHint'), seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode)) + arow(t('language'), '', seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang)) +
     '<div class="row" style="padding-top:12px">' + button('power', t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, { cls: 'danger push' }) + '</div>';
-  if (logRepo && logRepo !== '-' && !withPool.some((entry) => entry.repo === logRepo)) logRepo = '';
+  // Filtern lässt sich nach jedem Projekt mit Pool und nach jedem, von dem noch Meldungen da sind (ein entfernter Pool).
+  const logRepos = [...new Set([...withPool.map((entry) => entry.repo), ...logData.map((entry) => entry.repo).filter(Boolean)])];
+  if (logRepo && logRepo !== LOG_GENERAL && !logRepos.includes(logRepo)) logRepo = '';
   // Zu einem Projekt gehören auch die allgemeinen Fehler: Dort steht oft die Ursache (Docker antwortet nicht).
-  const logShown = logData.filter((entry) => !logRepo || (logRepo === '-' ? !entry.repo : entry.repo === logRepo || (!entry.repo && entry.kind === 'error'))).reverse();
+  const logShown = logData.filter((entry) => !logRepo || (logRepo === LOG_GENERAL ? !entry.repo : entry.repo === logRepo || (!entry.repo && entry.kind === 'error'))).reverse();
   const logPick = (repo, text) => '<button data-log-repo="' + esc(repo) + '" aria-pressed="' + (logRepo === repo) + '">' + esc(text) + '</button>';
-  const logRow = (entry) => '<li' + (LOG_STATE[entry.kind] ? ' class="s-' + LOG_STATE[entry.kind] + '"' : '') + '><time datetime="' + esc(entry.at) + '" data-tip="' + esc(new Date(entry.at).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB')) + '">' + logTime(entry.at) + '</time>' +
-    (logRepo ? '' : '<span class="lp"' + (entry.repo ? ' data-tip="' + esc(entry.repo) + '"' : '') + '>' + esc((entry.repo ?? '').split('/').pop()) + '</span>') + (LOG_STATE[entry.kind] ? icon(LOG_STATE[entry.kind]) : '<span></span>') + '<span class="lm">' + esc(entry.text) + '</span></li>';
+  const logRow = (entry) => { const state = LOG_STATE[entry.kind]; return '<li' + (state ? ' class="s-' + state + '"' : '') + '><time datetime="' + esc(entry.at) + '" data-tip="' + esc(new Date(entry.at).toLocaleString(locale())) + '">' + logTime(entry.at) + '</time>' +
+    (logRepo ? '' : '<span class="lp"' + (entry.repo ? ' data-tip="' + esc(entry.repo) + '"' : '') + '>' + esc((entry.repo ?? '').split('/').pop()) + '</span>') + (state ? icon(state) : '<span></span>') +
+    // Unter einem Projekt stehen auch allgemeine Fehler; ohne Projektspalte sagt das die Zeile selbst.
+    '<span class="lm">' + (logRepo && logRepo !== LOG_GENERAL && !entry.repo ? '<span class="dim">' + t('logGeneral') + ' · </span>' : '') + esc(logText(entry)) + '</span></li>'; };
   // Gezeigt werden die letzten Meldungen; Kopieren und Speichern nehmen die ganze Datei.
-  const log = '<div class="row">' + (withPool.length > 1 ? '<span class="seg wide" role="group" aria-label="' + t('logFilter') + '">' + logPick('', t('logAll')) + withPool.map((entry) => logPick(entry.repo, entry.repo.split('/')[1])).join('') + logPick('-', t('logGeneral')) + '</span>' : '') +
+  const log = '<div class="row">' + (logRepos.length > 1 ? '<span class="seg wide" role="group" aria-label="' + t('logFilter') + '">' + logPick('', t('logAll')) + logRepos.map((repo) => logPick(repo, repo.split('/')[1])).join('') + logPick(LOG_GENERAL, t('logGeneral')) + '</span>' : '') +
     '<span class="row push"><button class="btn" data-log-copy data-tip="' + t('logCopyTip') + '">' + glyph('copy') + t('logCopy') + '</button><a class="btn" href="/api/log/file" download="runclub.log" data-tip="' + t('logSaveTip') + '">' + glyph('save') + t('logSave') + '</a></span></div>' +
-    (logShown.length ? '<ul class="log' + (logRepo ? ' one' : '') + (logOpen ? ' open' : '') + '"' + (logOpen ? ' tabindex="0"' : '') + '>' + (logOpen ? logShown : logShown.slice(0, LOG_SHORT)).map(logRow).join('') + '</ul>' : logRepo ? '<div class="note">' + t('logNone') + '</div>' : '') +
+    (logShown.length ? '<ul class="log' + (logRepo ? ' noproject' : '') + (logOpen ? ' open' : '') + '"' + (logOpen ? ' tabindex="0"' : '') + '>' + (logOpen ? logShown : logShown.slice(0, LOG_SHORT)).map(logRow).join('') + '</ul>' : logRepo ? '<div class="note">' + t('logNone') + '</div>' : '') +
     (logShown.length > LOG_SHORT ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
 
   const html = '<div class="stack set"><div class="head"><div><h1>' + t('settings') + '</h1></div></div><div class="route">' +
@@ -1078,7 +1098,7 @@ document.addEventListener('mousemove', (event) => {
   let line = svg.querySelector('.cross');
   if (!line) { line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); line.setAttribute('class', 'cross'); line.setAttribute('y1', 0); line.setAttribute('y2', 74); svg.appendChild(line); }
   line.setAttribute('x1', x); line.setAttribute('x2', x);
-  tip.textContent = new Date(source.at[index]).toLocaleTimeString(lang === 'de' ? 'de-DE' : 'en-GB', source.span > 3600000 ? { hour: '2-digit', minute: '2-digit' } : undefined) + ' · ' + source.format(source.values[index]);
+  tip.textContent = (source.span > 3600000 ? hourMinute(source.at[index]) : new Date(source.at[index]).toLocaleTimeString(locale())) + ' · ' + source.format(source.values[index]);
   tip.style.display = 'block';
   tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 8, event.clientX + 12) + 'px';
   tip.style.top = (event.clientY - 34) + 'px';

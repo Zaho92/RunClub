@@ -8,6 +8,12 @@ const path = require('node:path');
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const TRAY_ICON = path.join(__dirname, '..', 'build', 'tray.png');
 const HIDDEN = process.argv.includes('--hidden');
+// Farben und Grenze der Oberfläche, die auch das Fenster braucht; maßgeblich ist ui.html (`--ground`, `--rail`, `--text`,
+// `NARROW`).
+const GROUND = '#0c1838';
+const RAIL = '#091230';
+const TEXT = '#c9d2ea';
+const NARROW = 760;
 
 if (!app.requestSingleInstanceLock()) app.exit(0);
 
@@ -27,14 +33,17 @@ function setAutostart(on) {
   refreshTray();
 }
 
+// Die Knöpfe von Windows über dem Streifen der Seite: in der Farbe des Grundes, im schmalen Fenster der Leiste.
+const overlay = (narrow) => ({ color: narrow ? RAIL : GROUND, symbolColor: TEXT, height: 32 });
+
 function showWindow() {
   if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); return; }
   window = new BrowserWindow({
-    width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: '#0c1838',
+    width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: GROUND,
     // Keine Titelleiste von Windows: Die Seite zeichnet oben einen eigenen Streifen zum Ziehen (`#bar` in ui.html).
     // Minimieren, Maximieren und Schließen bleiben die Knöpfe von Windows, in den Farben der App; so funktionieren
     // Andocken und Tastatur wie gewohnt. Die Höhe muss zum Streifen der Seite passen.
-    titleBarStyle: 'hidden', titleBarOverlay: { color: '#0c1838', symbolColor: '#c9d2ea', height: 32 },
+    titleBarStyle: 'hidden', titleBarOverlay: overlay(false),
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
   });
   // Die Einstiegsadresse trägt den Schlüssel dieses Programmlaufs; damit bekommt nur dieses Fenster die Oberfläche.
@@ -46,11 +55,11 @@ function showWindow() {
   // Der Dienst im selben Prozess kann einen Moment später lauschen als das Fenster lädt.
   window.webContents.on('did-fail-load', () => setTimeout(() => { if (window) window.loadURL(url); }, 500));
   window.webContents.setWindowOpenHandler(({ url: target }) => { if (target.startsWith('https://github.com/')) shell.openExternal(target); return { action: 'deny' }; });
-  // Im schmalen Fenster (bis 760 px, wie in ui.html) trägt der Streifen die Farbe der Leiste; die Knöpfe folgen ihm.
+  // Im schmalen Fenster trägt der Streifen die Farbe der Leiste; die Knöpfe folgen ihm.
   const matchBar = () => {
     if (!window) return;
-    const narrow = window.getContentSize()[0] / window.webContents.getZoomFactor() <= 760;
-    try { window.setTitleBarOverlay({ color: narrow ? '#091230' : '#0c1838', symbolColor: '#c9d2ea', height: 32 }); } catch { /* nur unter Windows */ }
+    const narrow = window.getContentSize()[0] / window.webContents.getZoomFactor() <= NARROW;
+    try { window.setTitleBarOverlay(overlay(narrow)); } catch { /* nur unter Windows */ }
   };
   window.on('resize', matchBar);
   window.webContents.on('did-finish-load', matchBar);

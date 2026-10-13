@@ -376,7 +376,7 @@ Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Pr
 ### GitHub-Anfragen
 Die zweite Haltestelle in „Verbrauch“: der Stand des Anfragelimits des GitHub-Kontos in dieser Stunde. Im Kopf rechts,
 was noch frei ist und wann das Fenster wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und der
-Bezugsgröße, eine Schiene über die volle Breite mit derselben Größe und der gepunkteten Marke bei 85 % (dieselbe
+Bezugsgröße, eine Schiene über die volle Breite mit derselben Größe und der gepunkteten Marke, ab der es knapp ist (dieselbe
 Schiene wie bei den Speicherspitzen) und ein Satz in `muted`. Ab der Marke fragt RunClub seltener ab. Das ist keine
 Störung und vergeht von selbst: Der Satz steht dann in `text`, und „Verbrauch“ trägt in der Leiste eine zweite Zeile
 in `muted`. Erst an der Reserve (2 %), wenn RunClub gar nicht mehr abfragt, wird es rot: Kennzahl, Schiene und der
@@ -391,7 +391,8 @@ gescheitert, Job abgebrochen, Fehler. Der Beginn eines Jobs bleibt ohne Symbol, 
 Text einer Fehlerzeile bleibt in `text`; das rote Symbol trägt den Zustand, denn ein Fehler von vor Stunden verlangt
 nichts mehr. Darüber links der Filter als Segmentschalter (Alle, je Projekt, Allgemein; nur bei mehr als einem
 Projekt), rechts „Kopieren“ und „Speichern“, die beide die ganze Datei nehmen. Auf ein Projekt gefiltert entfällt die
-Projektspalte, und die allgemeinen Fehler bleiben dabei, weil dort oft die Ursache steht. Eingeklappt acht Zeilen;
+Projektspalte, und die allgemeinen Fehler bleiben dabei, weil dort oft die Ursache steht; sie tragen dann „Allgemein“ in
+`muted` vor dem Text. Meldungen zu einem Job bildet die Oberfläche in ihrer Sprache. Eingeklappt acht Zeilen;
 aufgeklappt rollt die Liste in sich (höchstens 496 px), damit „Weniger zeigen“ erreichbar bleibt.
 
 ### Tooltip und Meldung

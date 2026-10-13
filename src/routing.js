@@ -45,6 +45,8 @@ function createRouting({ gh }) {
   async function set(repo, on) {
     // Immer frisch lesen: Die Variable kann inzwischen von Hand gesetzt oder entfernt worden sein.
     const current = await check(repo);
+    // Ohne den Stand der Variable (GitHub nicht erreichbar, Anfragelimit) wäre alles Weitere geraten.
+    if (current.error) throw new Error(current.error);
     if (on) {
       const body = JSON.stringify({ name: VARIABLE, value: VALUE });
       if (current.value == null) await gh(['api', '-X', 'POST', `repos/${repo}/actions/variables`], body);

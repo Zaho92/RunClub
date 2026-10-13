@@ -109,7 +109,7 @@ function planApplied(found, shared, projects) {
 //   'generous'   das Limit ist mehr als doppelt so hoch wie der Bedarf (erst mit genug Läufen)
 //   'measuring'  noch zu wenige Läufe für ein Urteil
 //   'ok'
-const TIGHT = 0.85;
+const TIGHT = 0.85; // geht auch an die Oberfläche: Dort sitzt die Marke auf der Schiene
 const FULL = 0.97;
 function rate(jobs, values, range) {
   const runs = runsOf(jobs);
@@ -122,4 +122,4 @@ function rate(jobs, values, range) {
   return { state: values.runnerMemory + values.dockerMemory > 2 * (need.runnerMemory + need.dockerMemory) ? 'generous' : 'ok', runs };
 }
 
-module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, SUGGEST_RUNS, GB };
+module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, SUGGEST_RUNS, TIGHT, GB };

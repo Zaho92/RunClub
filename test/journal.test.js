@@ -19,6 +19,13 @@ test('ein Eintrag trägt Zeit, Projekt, Meldung und Art getrennt', () => {
   assert.equal(journal.count(), 2);
 });
 
+test('eine Meldung zu einem Job trägt Namen und Runner getrennt', () => {
+  const journal = createJournal({ file: file(), now: () => at });
+  assert.deepEqual(journal.add('Job „Tests“ läuft auf pc-linux-1', { repo: 'wer/was', kind: 'run', job: 'Tests', runner: 'pc-linux-1' }),
+    { at: at.toISOString(), repo: 'wer/was', text: 'Job „Tests“ läuft auf pc-linux-1', kind: 'run', job: 'Tests', runner: 'pc-linux-1' });
+  assert.deepEqual(Object.keys(journal.add('Job „Tests“ – fertig', { repo: 'wer/was', kind: 'done', job: 'Tests' })), ['at', 'repo', 'text', 'kind', 'job']);
+});
+
 test('die Datei bekommt je Eintrag eine lesbare Zeile', () => {
   const target = file();
   const journal = createJournal({ file: target, now: () => at });
@@ -29,7 +36,9 @@ test('die Datei bekommt je Eintrag eine lesbare Zeile', () => {
 });
 
 test('eine mehrzeilige Meldung bleibt in der Datei eine Zeile', () => {
-  assert.equal(line({ at: at.toISOString(), repo: null, text: 'erste\r\n  zweite' }), '13.10.2026, 15:34:28 erste zweite');
+  const journal = createJournal({ file: file(), now: () => at });
+  assert.equal(line(journal.add('erste\r\n  zweite')), '13.10.2026, 15:34:28 erste zweite');
+  assert.equal(journal.read(), '13.10.2026, 15:34:28 erste zweite\n');
 });
 
 test('im Speicher bleiben nur die letzten Einträge, gezählt werden alle', () => {
@@ -51,20 +60,52 @@ test('das Ergebnis des Runners wird zur Art des Eintrags', () => {
   assert.equal(resultKind('Skipped'), 'info');
 });
 
-test('das Ergebnis steht in den Worten der Oberfläche im Text', () => {
+test('das Ergebnis steht als deutsches Wort im Satz für die Datei', () => {
   assert.equal(resultText('Succeeded'), 'fertig');
   assert.equal(resultText('Failed'), 'Fehler');
   assert.equal(resultText('Canceled'), 'abgebrochen');
   assert.equal(resultText('Skipped'), 'Skipped');
 });
 
-test('eine zu große Datei wird beim Start beiseitegelegt', () => {
+test('eine zu große Datei wird beiseitegelegt, beim Start wie im Betrieb; der Export nimmt beide', () => {
   const target = file();
-  fs.writeFileSync(target, 'x'.repeat(2 * 1048576 + 1));
-  const journal = createJournal({ file: target });
-  journal.add('neu');
-  assert.equal(fs.statSync(`${target}.1`).size, 2 * 1048576 + 1);
-  assert.match(journal.read(), /^\S+ \S+ neu\n$/);
+  fs.writeFileSync(target, 'alt\n'.repeat(30));
+  const journal = createJournal({ file: target, fileMax: 100, now: () => at });
+  journal.add('eins'); // die Datei vom Start ist zu groß: Sie geht beiseite
+  assert.equal(fs.readFileSync(`${target}.1`, 'utf8'), 'alt\n'.repeat(30));
+  for (let i = 0; i < 2; i += 1) journal.add('x'.repeat(40)); // wächst im Betrieb wieder über die Grenze
+  journal.add('zwei');
+  assert.match(fs.readFileSync(`${target}.1`, 'utf8'), /eins\n/);
+  assert.equal(fs.readFileSync(target, 'utf8'), '13.10.2026, 15:34:28 zwei\n');
+  assert.equal(journal.read(), fs.readFileSync(`${target}.1`, 'utf8') + fs.readFileSync(target, 'utf8'));
+});
+
+test('Steuerzeichen und Richtungswechsel aus Namen von außen werden zu Leerzeichen', () => {
+  const journal = createJournal({ file: file() });
+  const nasty = ['Job', String.fromCharCode(0x1b), '[2J', String.fromCharCode(0x202e), 'x', String.fromCharCode(0x2028), 'y\tz'].join('');
+  assert.equal(journal.add(nasty).text, 'Job [2J x y z');
+});
+
+test('eine überlange Meldung wird gekürzt', () => {
+  const entry = createJournal({ file: file() }).add('x'.repeat(5000));
+  assert.equal(entry.text.length, 2002);
+  assert.ok(entry.text.endsWith(' …'));
+});
+
+test('die Kürzung zerteilt kein Zeichen aus zwei Hälften', () => {
+  const face = String.fromCodePoint(0x1f600);
+  const entry = createJournal({ file: file() }).add('x'.repeat(1999) + face + face);
+  assert.equal(entry.text, `${'x'.repeat(1999)}${face} …`);
+});
+
+test('lässt sich die volle Datei nicht beiseitelegen, wird trotzdem weitergeschrieben', () => {
+  const target = file();
+  fs.writeFileSync(target, 'alt\n'.repeat(30));
+  fs.mkdirSync(`${target}.1`); // ein Ordner an der Stelle der alten Datei: Umbenennen scheitert
+  fs.writeFileSync(path.join(`${target}.1`, 'belegt'), '');
+  const journal = createJournal({ file: target, fileMax: 100, now: () => at });
+  journal.add('trotzdem');
+  assert.ok(fs.readFileSync(target, 'utf8').endsWith('13.10.2026, 15:34:28 trotzdem\n'));
 });
 
 test('ohne schreibbare Datei geht nichts kaputt', () => {

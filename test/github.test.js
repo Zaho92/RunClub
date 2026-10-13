@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createGitHub, parseResponse } = require('../src/github');
 
+// Der Zustand, wie die Oberfläche ihn bekommt; ohne Stand unbekannt.
+const stateOf = (github) => github.quota()?.state ?? 'unknown';
 const NOW = 1791900000000;
 const RESET = NOW / 1000 + 600; // das Fenster endet in zehn Minuten
 
@@ -37,6 +39,14 @@ test('die zweite Abfrage ist bedingt, und bei 304 gilt die gemerkte Antwort', as
   assert.deepEqual(calls[1].args, ['api', '-i', 'repos/a/b/actions/runs', '-H', 'If-None-Match: W/"eins"']);
 });
 
+test('eine gemerkte Antwort lässt sich vom Aufrufer nicht verändern', async () => {
+  const { github } = fake([{ stdout: answer(200, '{"runs":[{"id":1},{"id":2}]}', { etag: 'W/"eins"' }) }, { code: 1, stdout: answer(304, ''), stderr: 'gh: HTTP 304' }]);
+  const first = await github.call(['api', 'x']);
+  assert.throws(() => { 'use strict'; first.runs.reverse(); }, TypeError);
+  assert.ok(Object.isFrozen(first.runs[0]));
+  assert.deepEqual(await github.call(['api', 'x']), { runs: [{ id: 1 }, { id: 2 }] });
+});
+
 test('eine geänderte Antwort ersetzt die gemerkte', async () => {
   const { calls, github } = fake([
     { stdout: answer(200, '{"n":1}', { etag: 'W/"eins"' }) },
@@ -66,37 +76,90 @@ test('Schreiben und Aufrufe mit Eingabe gehen unverändert an gh', async () => {
 test('der Stand des Limits kommt aus den Kopfzeilen', async () => {
   const { github } = fake([{ stdout: answer(200, '{}', { remaining: 4368 }) }]);
   assert.equal(github.quota(), null);
-  assert.equal(github.state(), 'unknown');
+  assert.equal(stateOf(github), 'unknown');
   await github.call(['api', 'x']);
-  assert.deepEqual(github.quota(), { limit: 5000, remaining: 4368, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok' });
+  assert.deepEqual(github.quota(), { limit: 5000, remaining: 4368, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok', tightAt: 0.85 });
 });
 
 test('unter 15 % ist es knapp, bei der Reserve ist Schluss', async () => {
   const { github } = fake([{ stdout: answer(200, '{}', { remaining: 749 }) }, { stdout: answer(200, '{}', { remaining: 101 }) }, { stdout: answer(200, '{}', { remaining: 100 }) }]);
   await github.call(['api', 'x']);
-  assert.equal(github.state(), 'tight');
+  assert.equal(stateOf(github), 'tight');
   await github.call(['api', 'x']);
-  assert.equal(github.state(), 'tight');
+  assert.equal(stateOf(github), 'tight');
   await github.call(['api', 'x']);
-  assert.equal(github.state(), 'out');
+  assert.equal(stateOf(github), 'out');
 });
 
+const limit = (remaining, reset = RESET) => ({ stdout: JSON.stringify({ resources: { core: { limit: 5000, remaining, reset } } }) });
+
 test('rate_limit liefert den Stand, auch ohne andere Abfragen', async () => {
-  const { calls, github } = fake([{ stdout: JSON.stringify({ resources: { core: { limit: 5000, remaining: 40, reset: RESET, used: 4960 } } }) }, { code: 1, stderr: 'kein Netz' }]);
+  const { calls, github } = fake([limit(40), { code: 1, stderr: 'kein Netz' }]);
   await github.refreshQuota();
   assert.deepEqual(calls[0].args, ['api', 'rate_limit']);
-  assert.equal(github.state(), 'out');
+  assert.equal(stateOf(github), 'out');
   await github.refreshQuota(); // scheitert: der letzte Stand bleibt
   assert.equal(github.quota().remaining, 40);
 });
 
-test('nach dem Ende des Fensters gilt das Limit wieder als frei', async () => {
+test('refreshQuota meldet nur, wenn der Zustand kippt', async () => {
+  const { github } = fake([limit(4000), limit(3900), limit(500), limit(400), limit(4900)]);
+  assert.deepEqual(await github.refreshQuota(), { limit: 5000, remaining: 4000, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok', tightAt: 0.85, before: 'unknown', until: new Date(RESET * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) });
+  assert.equal(await github.refreshQuota(), null);
+  assert.partialDeepStrictEqual(await github.refreshQuota(), { state: 'tight', before: 'ok', remaining: 500 });
+  assert.equal(await github.refreshQuota(), null);
+  assert.partialDeepStrictEqual(await github.refreshQuota(), { state: 'ok', before: 'tight' });
+});
+
+test('nach dem Ende des Fensters ist der Stand unbekannt, bis ein neuer da ist', async () => {
   let time = NOW;
   const run = async () => ({ code: 0, stderr: '', stdout: answer(200, '{}', { remaining: 0 }) });
   const github = createGitHub({ run, now: () => time });
   await github.call(['api', 'x']);
-  assert.equal(github.state(), 'out');
+  assert.equal(stateOf(github), 'out');
   time = RESET * 1000 + 1;
-  assert.equal(github.state(), 'ok');
-  assert.equal(github.quota().remaining, 5000);
+  assert.equal(stateOf(github), 'unknown');
+  assert.equal(github.quota(), null);
+  assert.equal(github.mayPoll('wer/was'), true);
+});
+
+test('ein unsinniges Fensterende ist kein Stand', async () => {
+  const { github } = fake([limit(0, 9e15)]);
+  assert.equal(await github.refreshQuota(), null);
+  assert.equal(github.quota(), null);
+});
+
+test('bei knappem Limit wird dieselbe Sache höchstens einmal je Minute abgefragt', async () => {
+  let time = NOW;
+  const run = async () => ({ code: 0, stderr: '', ...limit(500) });
+  const github = createGitHub({ run, now: () => time });
+  assert.equal(github.mayPoll('wer/was'), true); // noch kein Stand: wie gewohnt
+  await github.refreshQuota();
+  assert.equal(github.mayPoll('wer/was'), true);
+  assert.equal(github.mayPoll('wer/was'), false);
+  assert.equal(github.mayPoll('wer/anders'), true);
+  time += 60000;
+  assert.equal(github.mayPoll('wer/was'), true);
+});
+
+test('bei aufgebrauchtem Limit wird nicht mehr gelesen, geschrieben schon', async () => {
+  const { calls, github } = fake([limit(100), { stdout: '{"encoded_jit_config":"x"}' }]);
+  await github.refreshQuota();
+  assert.equal(github.mayPoll('wer/was'), false);
+  await assert.rejects(github.call(['api', 'repos/wer/was']), /Anfragelimit/);
+  assert.deepEqual(await github.call(['api', '-X', 'POST', 'repos/wer/was/actions/runners/generate-jitconfig'], { name: 'n' }), { encoded_jit_config: 'x' });
+  assert.equal(calls.length, 2); // rate_limit und das Schreiben; die Leseabfrage ging nicht hinaus
+});
+
+test('nach einer Weiterleitung gilt der letzte Block', () => {
+  const parsed = parseResponse(`HTTP/2.0 301 Moved Permanently\r\nLocation: /neu\r\n\r\n${answer(200, '{"a":1}', { etag: 'W/"x"' })}`);
+  assert.equal(parsed.status, 200);
+  assert.equal(parsed.body, '{"a":1}');
+});
+
+test('ein Inhalt, der wie eine Statuszeile beginnt, bleibt Inhalt', () => {
+  const body = 'HTTP/1.1 200 OK\r\nEtag: W/"falsch"\r\n\r\n{"b":2}';
+  const parsed = parseResponse(answer(200, body, { etag: 'W/"echt"' }));
+  assert.equal(parsed.headers.etag, 'W/"echt"');
+  assert.equal(parsed.body, body);
 });

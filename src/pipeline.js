@@ -103,7 +103,11 @@ function createPipelines({ gh, dataDir }) {
       try {
         const content = await gh(['api', `repos/${repo}/contents/${run.path}?ref=${run.head_sha}`]);
         jobs = parseWorkflow(Buffer.from(content.content, 'base64').toString('utf8'));
-      } catch { /* dynamischer Lauf ohne Datei oder kein Zugriff: dann ohne Abhängigkeiten */ }
+      } catch (error) {
+        // Dynamischer Lauf ohne Datei oder kein Zugriff (GitHub antwortet mit 4xx): dann ohne Abhängigkeiten.
+        // Alles andere (kein Netz, Anfragelimit) ist vorübergehend und wird beim nächsten Mal neu versucht.
+        if (!/HTTP 4\d\d/.test(error.message)) return null;
+      }
       workflows.set(id, jobs);
       if (workflows.size > WORKFLOWS_MAX) workflows.delete(workflows.keys().next().value);
     }

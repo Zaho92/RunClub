@@ -68,3 +68,12 @@ test('liest den Stand frisch, bevor es schreibt: von Hand gesetzt führt nicht z
   assert.ok(github.calls.includes('-X PATCH repos/wer/was/actions/variables/CI_RUNNER'));
   assert.ok(!github.calls.includes('-X POST repos/wer/was/actions/variables'));
 });
+
+test('ohne lesbaren Stand wird nichts geschrieben und nichts als erledigt gemeldet', async () => {
+  const calls = [];
+  const gh = async (args) => { calls.push(args.join(' ')); throw new Error('Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.'); };
+  const routing = createRouting({ gh });
+  await assert.rejects(routing.set('wer/was', false), /Anfragelimit/);
+  assert.ok(calls.every((call) => !call.includes('-X')));
+  assert.match(routing.of('wer/was').error, /Anfragelimit/);
+});

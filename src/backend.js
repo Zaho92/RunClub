@@ -23,7 +23,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { run } = require('./run');
+const { run, lastLine } = require('./run');
 const { createAccess, pageHeaders, newNonce } = require('./access');
 const { orphaned } = require('./pairs');
 const { readJson, writeJson } = require('./store');
@@ -33,7 +33,7 @@ const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
 const { createRouting, VARIABLE } = require('./routing');
 const { createJournal, resultKind, resultText } = require('./journal');
-const { createGitHub } = require('./github');
+const { createGitHub, STATE: QUOTA } = require('./github');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -70,13 +70,14 @@ const IMAGE_NAME = /^[a-z0-9][a-z0-9._/:-]*:[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
 let stopping = false;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const lastLine = (text) => String(text ?? '').trim().split('\n').map((line) => line.trim()).filter((line) => line && !/^Run '.*--help' for more information/.test(line)).pop() ?? '';
 
 // --- Protokoll ---
 
 const journal = createJournal({ file: LOG_FILE, echo: (line) => console.log(line) });
-// `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` siehe journal.js.
-const log = (text, repo, kind) => journal.add(text, { repo, kind });
+// `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` und `about` (bei Jobs `{ job, runner }`) siehe journal.js.
+const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...about });
+// Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll, auf Wunsch mit dem, was gerade versucht wurde.
+const logError = (repo, what) => (error) => log(what ? `${what} – ${error.message}` : error.message, repo, 'error');
 
 // --- Einstellungen und Gelerntes ---
 
@@ -104,8 +105,8 @@ const saveState = () => writeJson(STATE_FILE, state);
 // --- Hilfen für Prozesse ---
 
 // Abfragen an GitHub gehen über github.js: bedingt, wo es geht, und mit dem Stand des Anfragelimits.
-const hub = createGitHub({ run, timeout: GH_TIMEOUT });
-const gh = hub.call;
+const githubApi = createGitHub({ run, timeout: GH_TIMEOUT });
+const gh = githubApi.call;
 
 const docker = (args, options) => run('docker', args, { timeout: DOCKER_TIMEOUT, ...options });
 const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -308,7 +309,7 @@ async function learnImages(pool, slot) {
   saveState();
   if (unknown && !refreshQueued.has(pool.repo)) {
     refreshQueued.add(pool.repo);
-    refreshSeed(pool.repo).catch((error) => log(`Vorlage – ${error.message}`, pool.repo, 'error')).finally(() => refreshQueued.delete(pool.repo));
+    refreshSeed(pool.repo).catch(logError(pool.repo, 'Vorlage')).finally(() => refreshQueued.delete(pool.repo));
   }
 }
 
@@ -407,18 +408,17 @@ function renewReserve(pool) {
     .then(async () => {
       // Nur was noch mit anderen Limits gebaut ist, geht; eine schon frische Reserve bleibt stehen.
       const current = limitRules.key(limitsOf(pool.repo));
-      const old = pool.reserve.filter((entry) => entry.built !== current);
-      pool.reserve = pool.reserve.filter((entry) => entry.built === current);
-      for (const entry of old) entry.cancel = true;
-      for (const entry of old) { const pair = await entry.promise; if (pair) await removePair(pool.repo, pair.base, null); }
+      await discardReserve(pool, (entry) => entry.built === current);
     })
     .then(() => replenish(pool))
-    .catch((error) => log(error.message, pool.repo, 'error'));
+    .catch(logError(pool.repo));
   return pool.renewing;
 }
 
-async function discardReserve(pool) {
-  const entries = pool.reserve.splice(0);
+// Die Reserve abbauen; was `keep` behält, bleibt stehen.
+async function discardReserve(pool, keep = () => false) {
+  const entries = pool.reserve.filter((entry) => !keep(entry));
+  pool.reserve = pool.reserve.filter(keep);
   for (const entry of entries) entry.cancel = true;
   for (const entry of entries) {
     const pair = await entry.promise;
@@ -461,7 +461,7 @@ async function serveOneJob(pool, slot) {
       if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
       if (started && slot.state !== 'arbeitet') {
         Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), meter: metrics.meter() });
-        log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run');
+        log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run', { job: started[1], runner: slot.name });
         refreshRepo(pool.repo);
         setTimeout(() => refreshRepo(pool.repo), 4000);
       }
@@ -470,7 +470,7 @@ async function serveOneJob(pool, slot) {
         slot.meter = null;
         refreshRepo(pool.repo);
         Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
-        log(`Job „${finished[1]}“ – ${resultText(finished[2])}`, pool.repo, resultKind(finished[2]));
+        log(`Job „${finished[1]}“ – ${resultText(finished[2])}`, pool.repo, resultKind(finished[2]), { job: finished[1] });
       }
     },
   });
@@ -680,8 +680,8 @@ const githubAgain = new Set(); // … und die danach noch einmal dran sind
 
 // Ein Repo abfragen. Läuft schon eine Abfrage, folgt danach genau eine weitere.
 async function refreshRepo(repo) {
-  if (hub.state() === 'out') return; // der Rest des Limits bleibt für das Anmelden neuer Runner
   if (githubBusy.has(repo)) { githubAgain.add(repo); return; }
+  if (!githubApi.mayPoll(repo)) return; // das Anfragelimit ist knapp oder aufgebraucht (siehe github.js)
   githubBusy.add(repo);
   try {
     const runs = (await gh(['api', `repos/${repo}/actions/runs?per_page=20`])).workflow_runs;
@@ -700,17 +700,13 @@ async function refreshRepo(repo) {
   }
 }
 
-// Alle Repos der Reihe nach – der ruhige Takt. Wird das Anfragelimit knapp, nur noch jedes dritte Mal.
-let quietRound = 0;
+// Alle Repos der Reihe nach – der ruhige Takt.
 async function refreshGitHub() {
-  quietRound += 1;
-  if (hub.state() === 'tight' && quietRound % 3) return;
   for (const pool of [...config.pools]) await refreshRepo(pool.repo);
 }
 
 // Wo gerade etwas läuft, öfter nachsehen: Dort ändert sich der Stand im Sekundentakt.
 function refreshActive() {
-  if (hub.state() === 'tight') return;
   for (const settings of config.pools) {
     const working = pools.get(settings.repo)?.slots.some((slot) => slot.state === 'arbeitet');
     if (working || github.get(settings.repo)?.jobs.length) refreshRepo(settings.repo);
@@ -718,17 +714,16 @@ function refreshActive() {
 }
 
 // Den Stand des Anfragelimits holen und ins Protokoll schreiben, wenn er kippt.
-let quotaState = 'unknown';
-async function watchQuota() {
-  await hub.refreshQuota();
-  const quota = hub.quota();
-  if (!quota || quota.state === quotaState) return;
-  const until = new Date(quota.resetAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  if (quota.state === 'out') log(`GitHub-Anfragen sind aufgebraucht (${quota.remaining} von ${quota.limit} frei). Bis ${until} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.`, null, 'error');
-  else if (quota.state === 'tight') log(`GitHub-Anfragen werden knapp (${quota.remaining} von ${quota.limit} frei). Bis ${until} wird seltener abgefragt.`);
-  else if (quotaState !== 'unknown') log('GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.');
-  quotaState = quota.state;
+async function checkQuota() {
+  const changed = await githubApi.refreshQuota();
+  if (!changed) return;
+  if (changed.state === QUOTA.OUT) log(`GitHub-Anfragen sind aufgebraucht (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.`);
+  else if (changed.state === QUOTA.TIGHT) log(`GitHub-Anfragen werden knapp (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird seltener abgefragt.`);
+  else if (changed.before !== QUOTA.UNKNOWN) log('GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.');
+  // Solange nichts gelesen werden durfte, blieb auch der Stand von CI_RUNNER unbekannt: jetzt nachholen.
+  if (changed.before === QUOTA.OUT) for (const settings of config.pools) routing.check(settings.repo).catch(() => {});
 }
+const watchQuota = () => checkQuota().catch(logError(null, 'Anfragelimit'));
 
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
 let repoList = { at: 0, repos: [] };
@@ -807,10 +802,10 @@ function status() {
     machine: {
       cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, dockerMemory, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet'),
       usage, limits: config.limits, series: metrics.series(),
-      limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS },
+      limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },
     },
     repos: [...repos.values()],
-    github: hub.quota(), // Anfragelimit des Kontos: { limit, remaining, resetAt, state } oder null
+    quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
     logCount: journal.count(), // das Protokoll selbst holt die Oberfläche, wenn sich die Zahl ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -841,7 +836,7 @@ const actions = {
     routing.check(info.full_name).then(async (found) => {
       if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(`${VARIABLE} gesetzt – die Jobs laufen jetzt auf den eigenen Runnern`, info.full_name); }
       else if (found.uses === 'none') log(`Die Workflows lesen ${VARIABLE} nicht – die Jobs gehen weiter an GitHubs Runner`, info.full_name);
-    }).catch((error) => log(`${VARIABLE} – ${error.message}`, info.full_name, 'error'));
+    }).catch(logError(info.full_name, VARIABLE));
   },
   async 'pool/set'({ repo, parallel, paused, cache }) {
     const settings = settingsOf(repo);
@@ -855,7 +850,7 @@ const actions = {
     if (cache !== undefined && Boolean(cache) !== settings.cache) {
       settings.cache = Boolean(cache);
       saveConfig();
-      withPoolAtRest(pool, () => prepareCaches(repo)).catch((error) => log(error.message, repo, 'error'));
+      withPoolAtRest(pool, () => prepareCaches(repo)).catch(logError(repo));
     }
     log(`${settings.parallel} ${settings.parallel === 1 ? 'Platz' : 'Plätze'}, ${settings.paused ? 'pausiert' : 'aktiv'}, Cache ${settings.cache ? 'an' : 'aus'}`, repo);
   },
@@ -873,7 +868,12 @@ const actions = {
       await docker(['volume', 'rm', '-f', cacheVolume(repo), seedVolume(repo), buildVolume(repo)]);
       // Ohne Pool würden die Jobs ewig auf einen Runner warten: zurück zu GitHubs Runnern.
       // Der Stand wird frisch gelesen – die Variable kann inzwischen von Hand gesetzt worden sein.
-      try { if ((await routing.check(repo)).here) { await routing.set(repo, false); log(`${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`, repo); } } catch (error) { log(`${VARIABLE} – ${error.message}`, repo, 'error'); }
+      // Lässt er sich nicht lesen, bleibt die Variable, wie sie ist, und das steht im Protokoll.
+      await (async () => {
+        const found = await routing.check(repo);
+        if (found.error) throw new Error(found.error);
+        if (found.here) { await routing.set(repo, false); log(`${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`, repo); }
+      })().catch(logError(repo, `${VARIABLE} bleibt, wie es ist`));
       routing.forget(repo);
       await removeRegistrations(repo);
       delete state.learned[repo];
@@ -882,7 +882,7 @@ const actions = {
       metrics.forget(repo);
       github.delete(repo);
       log('Pool und seine Caches sind entfernt', repo);
-    })().catch((error) => log(error.message, repo, 'error'))
+    })().catch(logError(repo))
       // Auch wenn ein Schritt scheitert, wird der Name wieder frei.
       .finally(() => { if (pools.get(repo) === pool) pools.delete(repo); });
   },
@@ -906,7 +906,7 @@ const actions = {
       await refreshSeed(repo);
       await measureSizes(pool);
       log('Geleert; der nächste Lauf füllt wieder auf', repo);
-    }).catch((error) => log(error.message, repo, 'error'));
+    }).catch(logError(repo));
   },
   async 'pool/routing'({ repo, on }) {
     if (!settingsOf(repo)) throw new Error('Diesen Pool gibt es nicht.');
@@ -952,7 +952,7 @@ const actions = {
       const working = pool.slots.some((slot) => slot.state === 'arbeitet');
       // Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits des Docker-Daemons.
       (working ? Promise.all([renewReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]) : withPoolAtRest(pool, () => prepareCaches(pool.repo)))
-        .catch((error) => log(error.message, pool.repo, 'error'));
+        .catch(logError(pool.repo));
     }
   },
   async 'slot/restart'({ repo, index }) {
@@ -1059,7 +1059,7 @@ setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
 setInterval(measure, MEASURE_INTERVAL_MS);
 setInterval(() => {
-  for (const pool of pools.values()) { replenish(pool); renewService(pool).catch((error) => log(error.message, pool.repo, 'error')); }
+  for (const pool of pools.values()) { replenish(pool); renewService(pool).catch(logError(pool.repo)); }
 }, MINUTE);
 setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 

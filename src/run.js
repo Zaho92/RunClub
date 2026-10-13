@@ -49,4 +49,7 @@ function run(command, args, { input, env, onLine, timeout = 0 } = {}) {
   });
 }
 
-module.exports = { run };
+// Die letzte Zeile dessen, was ein Programm als Fehler schreibt; der Hinweis auf `--help` zählt nicht.
+const lastLine = (text) => String(text ?? '').trim().split('\n').map((line) => line.trim()).filter((line) => line && !/^Run '.*--help' for more information/.test(line)).pop() ?? '';
+
+module.exports = { run, lastLine };
