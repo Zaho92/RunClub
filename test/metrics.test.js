@@ -51,3 +51,10 @@ test('aus den Messpunkten einer Minute werden Mittel- und Höchstwert', () => {
   assert.equal(metrics.minutes()[0].vmCpuMax, 4);
   assert.deepEqual(metrics.series().vmCpu, [2, 4, 0]);
 });
+
+test('Jobs dürfen wie eingebaute Eigenschaften heißen', () => {
+  const metrics = fresh();
+  for (const job of ['constructor', '__proto__', 'toString']) metrics.recordJob('wer/was', { job, result: 'Succeeded', duration: 5, ...metrics.meter().finish() });
+  assert.deepEqual(metrics.jobsView('wer/was').map((row) => row.job).sort(), ['__proto__', 'constructor', 'toString']);
+  assert.deepEqual(metrics.jobsView('constructor'), []);
+});

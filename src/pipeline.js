@@ -123,7 +123,8 @@ function createPipelines({ gh, dataDir }) {
     for (const job of good) if ((job.labels ?? []).includes('self-hosted') && job.created_at) waits.push(seconds(job.created_at, job.started_at));
     if (waits.length > WAITS_KEEP) waits.splice(0, waits.length - WAITS_KEEP);
     // Welche Jobs zu einem Workflow gehören – Ersatz, wenn sich die Workflow-Datei nicht lesen lässt.
-    if (run.conclusion === 'success') memory.jobsOf[run.name] = good.map((job) => job.name);
+    // Der Name des Workflows kommt von außen: als eigene Eigenschaft ablegen, auch wenn er __proto__ heißt.
+    if (run.conclusion === 'success') Object.defineProperty(memory.jobsOf, String(run.name), { value: good.map((job) => job.name), enumerable: true, writable: true, configurable: true });
     memory.seen.push(run.id);
     if (memory.seen.length > SEEN_MAX) memory.seen.splice(0, memory.seen.length - SEEN_MAX);
   }
@@ -154,7 +155,7 @@ function createPipelines({ gh, dataDir }) {
         for (const job of [...actual(defined), present.get(defined.name)].filter(Boolean)) job.needs = [...new Set(parents.map((parent) => parent.name))].filter((name) => name !== job.name);
       }
     } else if (run.status !== 'completed') {
-      for (const name of memory.jobsOf[run.name] ?? []) if (!present.has(name)) jobs.push(pending(name));
+      for (const name of (Object.hasOwn(memory.jobsOf, run.name) ? memory.jobsOf[run.name] : [])) if (!present.has(name)) jobs.push(pending(name));
     }
     stagesOf(jobs);
     return {

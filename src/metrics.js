@@ -26,6 +26,13 @@ function createMetrics({ dataDir }) {
   try { stored = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* noch nichts gemessen */ }
   const minutes = stored.minutes ?? [];
   const jobs = stored.jobs ?? {};
+  // Job- und Repo-Namen kommen von außen und können wie eingebaute Eigenschaften heißen (constructor, __proto__):
+  // nur eigene Einträge zählen, und angelegt wird, ohne den Prototyp zu berühren.
+  const own = (object, key) => (Object.hasOwn(object, key) ? object[key] : undefined);
+  const ensure = (object, key, make) => {
+    if (!Object.hasOwn(object, key)) Object.defineProperty(object, key, { value: make(), enumerable: true, writable: true, configurable: true });
+    return object[key];
+  };
   const save = () => { try { fs.writeFileSync(file, JSON.stringify({ minutes, jobs })); } catch { /* Messwerte sind Beiwerk */ } };
 
   const recent = [];
@@ -69,7 +76,7 @@ function createMetrics({ dataDir }) {
 
   // `record`: { job, result, duration, ...meter().finish() }
   function recordJob(repo, record) {
-    const list = ((jobs[repo] ??= {})[record.job] ??= []);
+    const list = ensure(ensure(jobs, repo, () => ({})), String(record.job), () => []);
     list.push({ at: new Date().toISOString(), ...record, job: undefined });
     if (list.length > JOB_KEEP) list.shift();
     save();
@@ -79,7 +86,7 @@ function createMetrics({ dataDir }) {
 
   // Je Job eine Zeile; die hungrigsten zuerst.
   function jobsView(repo) {
-    return Object.entries(jobs[repo] ?? {}).map(([job, list]) => {
+    return Object.entries(own(jobs, repo) ?? {}).map(([job, list]) => {
       const measured = list.filter((r) => r.samples > 0);
       return {
         job, runs: list.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,

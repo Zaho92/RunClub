@@ -29,9 +29,16 @@ function setAutostart(on) {
 
 function showWindow() {
   if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); return; }
-  window = new BrowserWindow({ width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: '#15171b' });
-  const url = `http://localhost:${backend.PORT}`;
+  window = new BrowserWindow({
+    width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: '#15171b',
+    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+  });
+  // Die Einstiegsadresse trägt den Schlüssel dieses Programmlaufs; damit bekommt nur dieses Fenster die Oberfläche.
+  const url = backend.ENTRY;
+  const home = `http://localhost:${backend.PORT}/`;
   window.loadURL(url);
+  // Das Fenster bleibt bei der eigenen Oberfläche; alles andere öffnet der Browser oder gar nichts.
+  window.webContents.on('will-navigate', (event, target) => { if (!target.startsWith(home)) event.preventDefault(); });
   // Der Dienst im selben Prozess kann einen Moment später lauschen als das Fenster lädt.
   window.webContents.on('did-fail-load', () => setTimeout(() => { if (window) window.loadURL(url); }, 500));
   window.webContents.setWindowOpenHandler(({ url: target }) => { if (/^https:\/\//.test(target)) shell.openExternal(target); return { action: 'deny' }; });

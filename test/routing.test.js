@@ -33,7 +33,7 @@ function fakeGitHub(variable) {
     if (url.endsWith('/contents/.github/workflows')) return [{ name: 'ci.yml', path: '.github/workflows/ci.yml' }, { name: 'README.md', path: '.github/workflows/README.md' }];
     return { content: Buffer.from('runs-on: ${{ fromJSON(vars.CI_RUNNER) }}').toString('base64') };
   };
-  return { gh, calls, value: () => variable };
+  return { gh, calls, value: () => variable, put: (value) => { variable = value; } };
 }
 
 test('setzt die Variable neu, wenn es sie nicht gibt, und entfernt sie wieder', async () => {
@@ -56,4 +56,15 @@ test('überschreibt eine vorhandene Variable, statt sie doppelt anzulegen', asyn
   await routing.set('wer/was', true);
   assert.equal(github.value(), VALUE);
   assert.ok(github.calls.includes('-X PATCH repos/wer/was/actions/variables/CI_RUNNER'));
+});
+
+test('liest den Stand frisch, bevor es schreibt: von Hand gesetzt führt nicht zum doppelten Anlegen', async () => {
+  const github = fakeGitHub(null);
+  const routing = createRouting({ gh: github.gh });
+  await routing.check('wer/was');
+  github.put('"ubuntu-latest"'); // inzwischen bei GitHub von Hand angelegt
+  await routing.set('wer/was', true);
+  assert.equal(github.value(), VALUE);
+  assert.ok(github.calls.includes('-X PATCH repos/wer/was/actions/variables/CI_RUNNER'));
+  assert.ok(!github.calls.includes('-X POST repos/wer/was/actions/variables'));
 });

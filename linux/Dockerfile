@@ -1,6 +1,6 @@
 # Abbild für die eigenen Linux-Runner: GitHubs Runner-Abbild plus das, was die Jobs voraussetzen und
 # GitHubs eigene Rechner mitbringen. Was hier liegt, ist je Job frisch und muss nicht geladen werden.
-# Gebaut wird beim Start der Runner-Verwaltung (monitor.js), jeweils mit dem neuesten Runner.
+# Gebaut wird beim Start der Runner-Verwaltung (src/backend.js), jeweils mit dem neuesten Runner.
 
 FROM node:24-slim AS node
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dotnet

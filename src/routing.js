@@ -43,7 +43,8 @@ function createRouting({ gh }) {
 
   // Schaltet die Jobs des Repos auf die eigenen Runner (`on`) oder zurück zu GitHubs Runnern.
   async function set(repo, on) {
-    const current = known.get(repo) ?? await check(repo);
+    // Immer frisch lesen: Die Variable kann inzwischen von Hand gesetzt oder entfernt worden sein.
+    const current = await check(repo);
     if (on) {
       const body = JSON.stringify({ name: VARIABLE, value: VALUE });
       if (current.value == null) await gh(['api', '-X', 'POST', `repos/${repo}/actions/variables`], body);

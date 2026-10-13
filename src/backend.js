@@ -5,6 +5,10 @@
 // Runner-Container und eigenem Docker-Daemon; nach dem Job wird es samt Volumes entfernt. Der Docker-Socket
 // des Rechners und Windows-Ordner werden nie hineingereicht, die Anmeldung bei GitHub gilt für einen Job.
 //
+// Das trennt Jobs voneinander, ist aber keine Sicherheitsgrenze: Der Docker-Daemon eines Jobs läuft privilegiert,
+// und wer in einem Job Code ausführt, kann daraus in die Docker-VM ausbrechen. Auf diesen Runnern darf deshalb nur
+// Code laufen, dem der Nutzer vertraut – Pools für öffentliche Repos werden nicht angelegt.
+//
 // Was zwischen den Jobs eines Repos bleibt (alles abschaltbar und in der Oberfläche zu leeren):
 //   Pakete      Volume, im Runner als NuGet- und npm-Ordner gesetzt. Jobs schreiben hinein.
 //   Build-Layer ein Build-Dienst je Repo; einfaches `docker build` nutzt ihn (linux/docker-shim.sh).
@@ -19,7 +23,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { spawn } = require('node:child_process');
+const { run } = require('./run');
+const { createAccess, PAGE_HEADERS } = require('./access');
+const { readJson, writeJson } = require('./store');
+const { permanentPullError, pruneOlder, slug, sameRepo, clashes } = require('./images');
+const limitRules = require('./limits');
 const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
 const { createRouting, VARIABLE } = require('./routing');
@@ -31,11 +39,15 @@ const CONFIG_FILE = path.join(DATA_DIR, 'runners.json');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const LOG_FILE = path.join(DATA_DIR, 'runclub.log');
 const IMAGE = 'runclub-runner:latest';
-const MARK = 'runclub.runner';
+// Kennzeichen der eigenen Container, Volumes und Netze. Es trägt den Datenordner in sich, damit eine zweite
+// Instanz (zum Ausprobieren, mit eigenem Datenordner) beim Aufräumen nicht die Paare der ersten entfernt.
+const MARK = `runclub.runner=${crypto.createHash('sha256').update(path.resolve(DATA_DIR).toLowerCase()).digest('hex').slice(0, 10)}`;
 // Was die App um das Backend herum beisteuert: zusätzliche Aufrufe, Angaben für die Oberfläche, das Ende.
 const hooks = { actions: {}, status: () => ({}), onExit: () => process.exit(0) };
 const HOST = os.hostname();
 const TOKEN = crypto.randomBytes(24).toString('hex'); // schützt die ändernden Aufrufe vor fremden Webseiten
+const access = createAccess({ port: PORT }); // schützt Seite und Daten vor allem, was nicht das eigene Fenster ist
+const KEY_FILE = path.join(DATA_DIR, 'access.key');
 const PROCESS_INTERVAL_S = 3;
 const GITHUB_INTERVAL_MS = 20000;
 const GITHUB_ACTIVE_INTERVAL_MS = 8000; // Repos, in denen gerade ein Job läuft
@@ -44,6 +56,12 @@ const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const SIZES_INTERVAL_MS = 5 * 60000;
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const GH_TIMEOUT = MINUTE;
+const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
+const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
+const DOCKER_MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
 const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 const IMAGE_NAME = /^[a-z0-9][a-z0-9._/:-]*:[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
@@ -65,51 +83,36 @@ function log(text) {
 
 // --- Einstellungen und Gelerntes ---
 
+function loadJson(file) {
+  const { data, broken } = readJson(file, {});
+  if (broken) log(`${path.basename(file)} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter ${broken}.`);
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+}
+
 function loadConfig() {
-  const raw = fs.existsSync(CONFIG_FILE) ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) : {};
+  const raw = loadJson(CONFIG_FILE);
   return {
     limits: { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g', ...raw.limits },
     pools: (raw.pools ?? raw.linux ?? []).map((pool) => ({ parallel: 1, cache: true, paused: false, preload: [], ...pool })),
   };
 }
 const config = loadConfig();
-const saveConfig = () => fs.writeFileSync(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`);
+const saveConfig = () => writeJson(CONFIG_FILE, config);
 
-const state = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) : {};
+const state = loadJson(STATE_FILE);
 state.learned ??= {};
 state.rejected ??= {};
-const saveState = () => fs.writeFileSync(STATE_FILE, `${JSON.stringify(state, null, 2)}\n`);
+const saveState = () => writeJson(STATE_FILE, state);
 
 // --- Hilfen für Prozesse ---
 
-function run(command, args, { input, env, onLine } = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { windowsHide: true, env: env ? { ...process.env, ...env } : process.env });
-    let stdout = '';
-    let stderr = '';
-    let pending = '';
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      if (!onLine) { stdout += chunk; return; }
-      pending += chunk;
-      let end;
-      while ((end = pending.indexOf('\n')) >= 0) { onLine(pending.slice(0, end).trim()); pending = pending.slice(end + 1); }
-    });
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
-    child.on('error', (error) => resolve({ code: -1, stdout, stderr: String(error.message) }));
-    child.on('close', (code) => resolve({ code, stdout, stderr }));
-    if (input !== undefined) child.stdin.end(input); else child.stdin.end();
-  });
-}
-
 async function gh(args, input) {
-  const result = await run('gh', input === undefined ? args : [...args, '--input', '-'], { input });
+  const result = await run('gh', input === undefined ? args : [...args, '--input', '-'], { input, timeout: GH_TIMEOUT });
   if (result.code !== 0) throw new Error(lastLine(result.stderr) || `gh endete mit ${result.code}`);
   return result.stdout.trim() ? JSON.parse(result.stdout) : null;
 }
 
-const docker = (args, options) => run('docker', args, options);
+const docker = (args, options) => run('docker', args, { timeout: DOCKER_TIMEOUT, ...options });
 const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
 
 
@@ -122,26 +125,29 @@ let dockerCpus = 1;
 let dockerMemory = 0;
 let linuxReady = false;
 let linuxError = null;
+let leftoversRemoved = false;
 
-const slug = (repo) => repo.split('/')[1].toLowerCase().replace(/[^a-z0-9-]/g, '-');
 const cacheVolume = (repo) => `rc-cache-${slug(repo)}`;
 const seedVolume = (repo) => `rc-seed-${slug(repo)}`;
 const buildVolume = (repo) => `rc-build-${slug(repo)}`;
 const buildService = (repo) => `rc-buildkit-${slug(repo)}`;
+const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}`;
 const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / 86400000;
 
 async function prepareLinux() {
-  const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}']);
+  const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}'], { timeout: 20 * SECOND });
   if (info.code !== 0) throw new Error('Docker ist nicht erreichbar – läuft Docker Desktop?');
   dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
   dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
   log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
-  const build = await docker(['build', '--pull', '-q', '-t', IMAGE, path.join(__dirname, '..', 'linux')]);
+  const build = await docker(['build', '--pull', '-q', '-t', IMAGE, path.join(__dirname, '..', 'linux')], { timeout: DOCKER_LONG });
   if (build.code !== 0) throw new Error(`Das Runner-Abbild ließ sich nicht bauen: ${lastLine(build.stderr)}`);
-  await docker(['pull', '-q', 'docker:dind']);
-  await docker(['pull', '-q', 'moby/buildkit:latest']);
-  await removeLeftovers();
+  await docker(['pull', '-q', 'docker:dind'], { timeout: DOCKER_LONG });
+  await docker(['pull', '-q', 'moby/buildkit:latest'], { timeout: DOCKER_LONG });
+  // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
+  // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.
+  if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; }
 }
 
 // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, bei GitHub angemeldete Runner.
@@ -171,12 +177,14 @@ async function removeRegistrations(repo) {
 async function prepareCaches(repo) {
   const settings = settingsOf(repo);
   await docker(['rm', '-f', buildService(repo)]);
-  if (!settings?.cache) return;
+  if (!settings?.cache) { await docker(['network', 'rm', buildNetwork(repo)]); return; }
   await docker(['volume', 'create', cacheVolume(repo)]);
   await docker(['run', '--rm', '-v', `${cacheVolume(repo)}:/c`, '--entrypoint', 'sh', 'docker:dind', '-c',
     'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
   await docker(['volume', 'create', buildVolume(repo)]);
-  const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no',
+  // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
+  await docker(['network', 'create', buildNetwork(repo)]);
+  const service = await docker(['run', '-d', '--name', buildService(repo), '--privileged', '--restart', 'no', '--network', buildNetwork(repo),
     '--cpus', String(config.limits.dockerCpus), '--memory', config.limits.dockerMemory,
     '-v', `${buildVolume(repo)}:/var/lib/buildkit`, 'moby/buildkit:latest', '--addr', 'tcp://0.0.0.0:1234']);
   if (service.code !== 0) log(`${repo}: Build-Dienst startet nicht – ${lastLine(service.stderr)}`);
@@ -211,28 +219,36 @@ function refreshSeed(repo) {
     if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
     log(`${repo}: frische die Vorlage auf (${wanted.length} Abbilder) …`);
     await docker(['volume', 'create', seed]);
-    await docker(['run', '-d', '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, 'docker:dind']);
+    await docker(['run', '-d', '--label', MARK, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, 'docker:dind']);
     let ready = false;
     for (let attempt = 0; attempt < 40 && !ready; attempt += 1) {
-      ready = (await docker(['exec', loader, 'docker', 'info', '--format', 'ok'])).code === 0;
+      ready = (await docker(['exec', loader, 'docker', 'info', '--format', 'ok'], { timeout: 20 * SECOND })).code === 0;
       if (!ready) await sleep(1000);
     }
+    // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
+    if (!ready) { await docker(['rm', '-f', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
     const present = new Set();
+    const retry = new Set();
     for (const image of wanted) {
-      const pull = await docker(['exec', loader, 'docker', 'pull', '-q', image]);
+      const pull = await docker(['exec', loader, 'docker', 'pull', '-q', image], { timeout: DOCKER_LONG });
       if (pull.code === 0) { present.add(image); continue; }
-      // Was sich nicht laden lässt, hat der Job selbst gebaut oder es ist nicht öffentlich: nicht wieder versuchen.
       log(`${repo}: ${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`);
+      // Eine Störung (Netz, Anfragelimit) geht vorüber: Was schon in der Vorlage liegt, bleibt dort.
+      if (!permanentPullError(pull.stderr)) { retry.add(image); continue; }
+      // Was es bei der Registry nicht gibt, hat der Job selbst gebaut oder es ist nicht öffentlich: nicht wieder versuchen.
       (state.rejected[repo] ??= {})[image] = new Date().toISOString();
       delete state.learned[repo]?.[image];
     }
     const existing = await dockerList(['exec', loader, 'docker', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
+    for (const image of existing) if (retry.has(image)) present.add(image);
     const obsolete = existing.filter((image) => !present.has(image) && IMAGE_NAME.test(image));
     if (obsolete.length) await docker(['exec', loader, 'docker', 'rmi', '-f', ...obsolete]);
     await docker(['exec', loader, 'docker', 'image', 'prune', '-f']);
     await docker(['stop', loader]);
     await docker(['rm', loader]);
     if (pool) pool.seeded = present;
+    pruneOlder(state.rejected[repo], LEARNED_DAYS);
+    pruneOlder(state.learned[repo], LEARNED_DAYS);
     saveState();
   });
 }
@@ -300,7 +316,7 @@ async function provision(pool, cancelled) {
     pair.copied = new Set(pool.seeded);
     if (!pair.copied.size || cancelled()) return;
     await docker(['run', '--rm', ...label, '--name', `${base}-seed`, '-v', `${seedVolume(pool.repo)}:/seed:ro`, '-v', `${base}-docker:/var/lib/docker`,
-      '--entrypoint', 'sh', 'docker:dind', '-c', 'cp -a /seed/. /var/lib/docker/']);
+      '--entrypoint', 'sh', 'docker:dind', '-c', 'cp -a /seed/. /var/lib/docker/'], { timeout: DOCKER_LONG });
   });
   if (cancelled()) return giveUp();
 
@@ -379,6 +395,7 @@ async function serveOneJob(pool, slot) {
     '--cpus', String(limits.runnerCpus), '--memory', limits.runnerMemory,
     '-v', `${pair.base}-work:/home/runner/_work`, '-v', `${pair.base}-sock:/sock`, ...pair.extras,
     '-e', 'JITCONFIG', IMAGE, 'bash', '-c', start], {
+    timeout: 0, // läuft, solange der Job läuft
     env: { JITCONFIG: jit.encoded_jit_config },
     onLine: (line) => {
       const started = line.match(/Running job: (.+)$/);
@@ -437,7 +454,13 @@ async function slotLoop(pool, slot) {
 async function abortIdle(slot) {
   if (slot.state === 'arbeitet' || slot.state === 'räumt auf') return;
   slot.aborted = true;
-  if (slot.base) await docker(['rm', '-f', `${slot.base}-runner`]);
+  // Der Runner-Container kann gerade erst entstehen: so lange entfernen, bis der Platz sein Paar abgeräumt hat.
+  // Hat der Runner inzwischen doch einen Job angenommen, läuft der zu Ende.
+  const { base } = slot;
+  for (let attempt = 0; attempt < 60 && base && slot.base === base && slot.state !== 'arbeitet'; attempt += 1) {
+    await docker(['rm', '-f', `${base}-runner`]);
+    if (slot.base === base) await sleep(1000);
+  }
 }
 
 // Die Zahl der Plätze an die Einstellung angleichen.
@@ -495,7 +518,10 @@ async function measureSizes(pool) {
   pool.sizes = sizes;
 }
 
+let statsFeed = false; // es läuft höchstens einer
 function startStatsFeed() {
+  if (statsFeed) return;
+  statsFeed = true;
   // `docker stats` schreibt fortlaufend; Steuerzeichen für das Neuzeichnen werden entfernt.
   run('docker', ['stats', '--format', '{{json .}}'], {
     onLine: (raw) => {
@@ -509,11 +535,12 @@ function startStatsFeed() {
         if (entry.Name.startsWith('rc-')) containerStats.set(entry.Name, usage); else otherStats.set(entry.Name, usage);
       } catch { /* Kopfzeile oder unvollständige Zeile */ }
     },
-  }).then(() => { containerStats.clear(); otherStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
+  }).then(() => { statsFeed = false; containerStats.clear(); otherStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
 }
 
 // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
 async function linuxLoop() {
+  let misses = 0;
   while (!stopping) {
     if (!linuxReady) {
       try {
@@ -521,16 +548,24 @@ async function linuxLoop() {
         for (const pool of pools.values()) pool.prepared = false;
         linuxReady = true;
         linuxError = null;
+        misses = 0;
         startStatsFeed();
         for (const pool of pools.values()) await preparePool(pool);
       } catch (error) {
         if (linuxError !== error.message) log(error.message);
         linuxError = error.message;
       }
-    } else if ((await docker(['info', '--format', 'ok'])).code !== 0) {
-      linuxReady = false;
-      log('Docker antwortet nicht mehr – die Linux-Runner warten.');
-    }
+    } else if ((await docker(['info', '--format', 'ok'], { timeout: 20 * SECOND })).code !== 0) {
+      // Eine einzelne ausbleibende Antwort (volle VM, kurzer Hänger) heißt nicht, dass Docker weg ist:
+      // Erst nach mehreren in Folge warten die Plätze und alles wird neu vorbereitet.
+      misses += 1;
+      if (misses >= DOCKER_MISSES) {
+        linuxReady = false;
+        log('Docker antwortet nicht mehr – die Linux-Runner warten.');
+      }
+      await sleep(5000);
+      continue;
+    } else misses = 0;
     await sleep(linuxReady ? 30000 : 15000);
   }
 }
@@ -624,6 +659,15 @@ async function listRepos() {
 
 // --- Was die Oberfläche sieht ---
 
+const limitRange = () => limitRules.bounds({ dockerMemory, dockerCpus });
+
+// Beim Speichern kann die Datei einen Augenblick fehlen; dann gilt der letzte bekannte Stand.
+let uiSeenAt = 0;
+function uiChangedAt() {
+  try { uiSeenAt = fs.statSync(path.join(__dirname, 'ui.html')).mtimeMs; } catch { /* gleich wieder da */ }
+  return uiSeenAt;
+}
+
 function status() {
   const waitingOf = (repo) => (github.get(repo)?.jobs ?? []).filter((j) => j.status === 'queued').length;
   const repos = new Map();
@@ -667,10 +711,11 @@ function status() {
     machine: {
       cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, dockerMemory, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet'),
       usage, limits: config.limits, series: metrics.series(),
+      limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), suggestion: limitRules.suggest(config.pools.flatMap((pool) => metrics.jobsView(pool.repo)), limitRange()) },
     },
     repos: [...repos.values()],
     log: recent.slice(-25),
-    ui: fs.statSync(path.join(__dirname, 'ui.html')).mtimeMs, // die Seite lädt sich neu, wenn sich ihre Datei ändert
+    ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
   };
 }
@@ -680,9 +725,16 @@ function status() {
 const actions = {
   async 'pool/add'({ repo, parallel }) {
     if (!REPO_NAME.test(String(repo))) throw new Error('Das Repo wird als besitzer/name angegeben.');
-    if (settingsOf(repo)) throw new Error('Für dieses Repo gibt es schon einen Pool.');
     const info = await gh(['api', `repos/${repo}`]);
     if (!info.permissions?.admin) throw new Error('Für dieses Repo fehlen dir die Verwaltungsrechte; ohne sie lässt sich kein Runner anmelden.');
+    // Erst hier prüfen, mit dem Namen, wie GitHub ihn schreibt, und ohne weiteres Warten bis zum Eintrag:
+    // sonst entstünde bei anderer Schreibweise oder zwei Anfragen kurz nacheinander ein zweiter Pool.
+    const taken = [...config.pools.map((pool) => pool.repo), ...pools.keys()];
+    if (taken.some((other) => sameRepo(other, info.full_name))) throw new Error(pools.get(info.full_name)?.removed ? 'Dieser Pool wird gerade entfernt. Bitte warten, bis das abgeschlossen ist.' : 'Für dieses Repo gibt es schon einen Pool.');
+    const clash = clashes(info.full_name, taken);
+    if (clash) throw new Error(`Ein Pool für ${clash} belegt denselben Namen für Caches und Build-Dienst. Zwei Repos mit gleichem Namen lassen sich nicht zugleich bedienen.`);
+    // Fremde Pull Requests eines öffentlichen Repos würden auf diesem Rechner Code ausführen (siehe Kopf dieser Datei).
+    if (info.private === false) throw new Error('Das Repo ist öffentlich. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.');
     config.pools.push({ repo: info.full_name, parallel: Math.min(4, Math.max(1, Number(parallel) || 1)), cache: true, paused: false, preload: [] });
     saveConfig();
     log(`${info.full_name}: Pool angelegt`);
@@ -720,16 +772,19 @@ const actions = {
     (async () => {
       await quiesce(pool);
       await docker(['rm', '-f', buildService(repo)]);
+      await docker(['network', 'rm', buildNetwork(repo)]);
       await docker(['volume', 'rm', '-f', cacheVolume(repo), seedVolume(repo), buildVolume(repo)]);
       // Ohne Pool würden die Jobs ewig auf einen Runner warten: zurück zu GitHubs Runnern.
-      try { if (routing.of(repo)?.here) { await routing.set(repo, false); log(`${repo}: ${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`); } } catch (error) { log(`${repo}: ${VARIABLE} – ${error.message}`); }
+      // Der Stand wird frisch gelesen – die Variable kann inzwischen von Hand gesetzt worden sein.
+      try { if ((await routing.check(repo)).here) { await routing.set(repo, false); log(`${repo}: ${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`); } } catch (error) { log(`${repo}: ${VARIABLE} – ${error.message}`); }
       routing.forget(repo);
       await removeRegistrations(repo);
       delete state.learned[repo];
       delete state.rejected[repo];
       saveState();
       metrics.forget(repo);
-      pools.delete(repo);
+      github.delete(repo);
+      if (pools.get(repo) === pool) pools.delete(repo);
       log(`${repo}: Pool und seine Caches sind entfernt`);
     })().catch((error) => log(`${repo}: ${error.message}`));
   },
@@ -759,6 +814,15 @@ const actions = {
     if (!settingsOf(repo)) throw new Error('Diesen Pool gibt es nicht.');
     await routing.set(repo, Boolean(on));
     log(`${repo}: ${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen an GitHubs Runner'}`);
+  },
+  // Speicher in GB, Kerne als Anzahl. Arbeitende und schon bereite Paare behalten ihre Limits bis zum nächsten Aufbau.
+  async 'limits/set'(input) {
+    if (!linuxReady) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
+    config.limits = { ...config.limits, ...limitRules.normalize(input, config.limits, limitRange()) };
+    saveConfig();
+    log(`Limits je Job: Runner ${config.limits.runnerMemory} und ${config.limits.runnerCpus} Kerne, Docker ${config.limits.dockerMemory} und ${config.limits.dockerCpus} Kerne`);
+    // Vorbereitete Paare tragen noch die alten Limits: verwerfen, die Reserve füllt sich mit den neuen.
+    for (const pool of pools.values()) discardReserve(pool).then(() => replenish(pool)).catch((error) => log(`${pool.repo}: ${error.message}`));
   },
   async 'slot/restart'({ repo, index }) {
     const slot = pools.get(repo)?.slots[Number(index)];
@@ -805,19 +869,26 @@ function readBody(request) {
 http.createServer(async (request, response) => {
   const json = (code, data) => { response.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data)); };
   // Nur der eigene Rechner unter seinem eigenen Namen: hält umgeleitete Namen fremder Seiten draußen.
-  if (![`localhost:${PORT}`, `127.0.0.1:${PORT}`].includes(request.headers.host ?? '')) return json(403, { error: 'falscher Host' });
-  if (request.method === 'GET' && request.url === '/') {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-    return response.end(PAGE());
-  }
+  if (!access.hostAllowed(request.headers)) return json(403, { error: 'falscher Host' });
   if (request.method === 'GET' && request.url === '/api/ping') return json(200, { ok: true });
-  if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
-  if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
   const font = request.method === 'GET' && request.url.match(/^\/fonts\/([a-z0-9-]+\.woff2)$/);
   if (font && fs.existsSync(path.join(__dirname, 'fonts', font[1]))) {
     response.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=31536000, immutable' });
     return response.end(fs.readFileSync(path.join(__dirname, 'fonts', font[1])));
   }
+  // Der Einstieg tauscht den Schlüssel gegen das Cookie; alles Weitere gibt es nur mit Cookie (siehe access.js).
+  const entering = request.method === 'GET' ? access.entering(request.url) : null;
+  if (entering) {
+    response.writeHead(302, { location: '/', 'set-cookie': access.cookie, 'cache-control': 'no-store' });
+    return response.end();
+  }
+  if (!access.allowed(request.headers)) return json(403, { error: 'Kein Zugriff. RunClub über das Symbol im Infobereich öffnen.' });
+  if (request.method === 'GET' && request.url === '/') {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...PAGE_HEADERS });
+    return response.end(PAGE());
+  }
+  if (request.method === 'GET' && request.url === '/api/status') return json(200, status());
+  if (request.method === 'GET' && request.url === '/api/metrics/day') return json(200, metrics.minutes());
   if (request.method === 'GET' && request.url === '/api/repos') {
     try { return json(200, await listRepos()); } catch (error) { return json(502, { error: error.message }); }
   }
@@ -829,7 +900,13 @@ http.createServer(async (request, response) => {
     try { await action(await readBody(request)); return json(200, { ok: true }); } catch (error) { return json(400, { error: error.message }); }
   }
   return json(404, { error: 'unbekannt' });
-}).listen(PORT, '127.0.0.1', () => log(`Runner-Anzeige: http://localhost:${PORT}`));
+}).listen(PORT, '127.0.0.1', () => {
+  log(`Runner-Anzeige: http://localhost:${PORT}`);
+  // Der Schlüssel steht nur in der Konsole und in einer Datei im Datenordner des Nutzers, nie im Protokoll,
+  // das die Oberfläche zeigt.
+  try { fs.writeFileSync(KEY_FILE, `${access.key}\n`); } catch { /* dann bleibt nur die Konsole */ }
+  console.log(`Öffnen mit: ${access.entry}`);
+});
 
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
@@ -840,4 +917,4 @@ setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool
 for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
 linuxLoop();
 
-module.exports = { PORT, DATA_DIR, hooks, status, shutdown, log };
+module.exports = { PORT, DATA_DIR, ENTRY: access.entry, hooks, status, shutdown, log };
