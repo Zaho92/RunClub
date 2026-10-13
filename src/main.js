@@ -91,14 +91,13 @@ async function quit() {
   await backend.shutdown(); // endet über hooks.onExit
 }
 
-// Abmelden und Herunterfahren meldet Windows nur an Fenster, und danach bleiben wenige Sekunden. Ein unsichtbares
-// Fenster nimmt die Meldung entgegen, auch wenn das eigentliche nie geöffnet wurde; das Backend meldet dann nur noch
-// die freien Runner bei GitHub ab. Aufgehalten wird das Abmelden nicht.
+// Das Ende der Sitzung (Abmelden, Herunterfahren) meldet Windows nur an Fenster, und danach bleiben wenige Sekunden.
+// Ein unsichtbares Fenster nimmt die Meldung entgegen, auch wenn das eigentliche nie geöffnet wurde; das Backend meldet
+// dann nur noch die freien Runner bei GitHub ab. Gehandelt wird erst bei `session-end`: Die Frage
+// davor (`query-session-end`) kommt auch, wenn das Herunterfahren dann abgebrochen wird.
 function watchSession() {
   const listener = new BrowserWindow({ show: false, width: 1, height: 1, skipTaskbar: true, webPreferences: { sandbox: true } });
-  const release = () => { quitting = true; backend.release(); };
-  listener.on('query-session-end', release);
-  listener.on('session-end', release);
+  listener.on('session-end', () => backend.release());
 }
 
 app.on('second-instance', showWindow);

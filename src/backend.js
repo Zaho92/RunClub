@@ -1044,8 +1044,10 @@ const actions = {
 
 // --- Start und Ende ---
 
+let shuttingDown = false;
 async function shutdown() {
-  if (stopping) return;
+  if (shuttingDown) return;
+  shuttingDown = true;
   stopping = true;
   log('Beende die Runner …');
   metrics.save();
@@ -1060,7 +1062,7 @@ async function shutdown() {
 // Start ab.
 async function release() {
   if (stopping) return;
-  stopping = true;
+  stopping = true; // Beenden bleibt danach möglich: `shutdown` achtet nur auf sich selbst
   metrics.save();
   const idle = [...pools.values()].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job));
   await Promise.all(idle.map((slot) => gh(['api', '-X', 'DELETE', `repos/${slot.repo}/actions/runners/${slot.runnerId}`]).catch(() => {})));
