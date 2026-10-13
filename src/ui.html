@@ -300,6 +300,10 @@ const TEXT = {
     runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
     wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
     day: 'Die letzten 24 Stunden',
+    quotaTitle: 'GitHub-Anfragen', quotaLabel: 'In dieser Stunde verbraucht', quotaOf: 'von {0}', quotaReset: 'noch {0} frei · wieder voll um {1} (in {2} min)', quotaTightShort: 'GitHub-Anfragen knapp', quotaOutShort: 'GitHub-Limit erreicht', quotaOutTag: 'GitHub-Limit erreicht, weiter um {0}',
+    quotaOk: 'Das Limit gilt für dein ganzes GitHub-Konto; auch gh im Terminal und andere Werkzeuge zählen mit. Ab der gepunkteten Marke fragt RunClub seltener ab.',
+    quotaTight: 'Bis {0} fragt RunClub seltener ab; Läufe und Restzeiten erscheinen mit Verzögerung. Die Runner arbeiten unverändert.',
+    quotaOut: 'Bis {0} fragt RunClub GitHub nicht mehr ab.', quotaOutMore: 'Laufende Jobs arbeiten weiter, die Anzeige bleibt so lange stehen. Die letzten Anfragen sind für neue Runner reserviert; halte bis dahin an, was sonst an deinem Konto zieht (gh, andere Werkzeuge).',
     projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
     confirmClear: 'Der nächste Lauf von {0} lädt das wieder und ist deshalb langsamer.', confirmRemove: 'Der Pool für {0} wird mit allen Caches entfernt. Auch CI_RUNNER wird entfernt; die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner werden abgebaut. Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
@@ -335,6 +339,10 @@ const TEXT = {
     runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
     wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
     day: 'The last 24 hours',
+    quotaTitle: 'GitHub requests', quotaLabel: 'Used this hour', quotaOf: 'of {0}', quotaReset: '{0} left · full again at {1} (in {2} min)', quotaTightShort: 'GitHub requests running low', quotaOutShort: 'GitHub limit reached', quotaOutTag: 'GitHub limit reached, back at {0}',
+    quotaOk: 'The limit covers your whole GitHub account; gh in the terminal and other tools count too. Past the dotted mark, RunClub polls GitHub less often.',
+    quotaTight: 'Until {0} RunClub polls less often; runs and remaining times show up late. Runners keep working as usual.',
+    quotaOut: 'Until {0} RunClub stops polling GitHub.', quotaOutMore: 'Running jobs carry on; the display stays frozen until then. The last requests are reserved for new runners; pause whatever else uses your account (gh, other tools).',
     projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
     confirmClear: 'The next run of {0} downloads this again and is slower for it.', confirmRemove: 'The pool for {0} is removed with all its caches. CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'All runners are taken down. Running jobs are cut off, queued jobs wait until RunClub runs again.',
@@ -469,7 +477,7 @@ function renderRail() {
   if (window.innerWidth < 760) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), t('working', count('arbeitet'), count('bereit')), '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, entry.repo.split('/')[1], state.text, state.dot); }).join('') +
-    '<div class="railfoot">' + item('usage', t('usage'), '', '', true) + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(repo.split('/')[1])).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
+    '<div class="railfoot">' + item('usage', t('usage'), !quotaTrouble() ? '' : data.github.state === 'out' ? '<span class="c-fail">' + esc(quotaTrouble()) + '</span>' : esc(quotaTrouble()), '', true, data.github?.state === 'out') + item('settings', t('settings'), trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(repo.split('/')[1])).join(', ') + '</span>' : '', '', true, Boolean(trouble)) + '</div>');
 }
 
 // --- Netzplan ---
@@ -635,7 +643,10 @@ function seats(entries) {
 
 // --- Ansichten ---
 
-const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+// Das Anfragelimit des GitHub-Kontos, wenn es knapp oder aufgebraucht ist; sonst null.
+const quotaClock = (iso) => new Date(iso).toLocaleTimeString(lang === 'de' ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+const quotaTrouble = () => { const q = data.github; return q && (q.state === 'tight' || q.state === 'out') ? t(q.state === 'out' ? 'quotaOutShort' : 'quotaTightShort') : null; };
+const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), data.github?.state === 'out' ? t('quotaOutTag', quotaClock(data.github.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
 function quietRows(entries) {
@@ -672,6 +683,22 @@ function renderOverview(entries, single) {
   put(document.getElementById('seats'), seats(entries));
 }
 
+// Haltestelle „GitHub-Anfragen“: Kennzahl und Schiene zeigen das Verbrauchte, wie bei den Speicherspitzen mit der
+// Marke bei 85 %; ab dort fragt RunClub seltener ab. Was noch frei ist und wann es weitergeht, steht im Kopf.
+// Rot ist nur das erreichte Limit: Knapp verlangt nichts und vergeht von selbst.
+function quotaStop() {
+  const q = data.github;
+  if (!q) return '';
+  const count = (n) => n.toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB');
+  const out = q.state === 'out';
+  const until = quotaClock(q.resetAt);
+  const minutes = Math.max(1, Math.round((new Date(q.resetAt) - Date.now()) / 60000));
+  return routeStop('github', t('quotaTitle'), t('quotaReset', count(q.remaining), until, minutes),
+    '<div><div class="k">' + t('quotaLabel') + '</div><div class="v' + (out ? ' c-fail' : '') + '">' + count(q.limit - q.remaining) + ' <small>' + t('quotaOf', count(q.limit)) + '</small></div></div>' +
+    '<div class="um" style="grid-template-columns:minmax(0,1fr)"><i' + (out ? ' class="tight"' : '') + ' style="--v:' + ((q.limit - q.remaining) / q.limit * 100).toFixed(1) + '%"></i></div>' +
+    '<div class="note' + (q.state === 'tight' ? ' over' : '') + '" style="max-width:68ch">' + (out ? '<span class="c-fail">' + t('quotaOut', until) + '</span> <span class="ink">' + t('quotaOutMore') + '</span>' : t(q.state === 'tight' ? 'quotaTight' : 'quotaOk', until)) + '</div>');
+}
+
 function renderUsage() {
   const main = document.getElementById('main');
   main.dataset.shape = 'usage';
@@ -704,7 +731,7 @@ function renderUsage() {
   }).join('');
   put(main, '<div class="stack set"><div class="head"><div><h1>' + t('usage') + '</h1></div></div><div class="route">' +
     routeStop('day', t('day'), '', '<div class="trio">' + chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div>') +
-    projects + '</div></div>');
+    quotaStop() + projects + '</div></div>');
 }
 
 // Gezeichnete Symbole der Bedienelemente: 16er-Raster, ein Strich, in Textfarbe – nie in einer Zustandsfarbe.

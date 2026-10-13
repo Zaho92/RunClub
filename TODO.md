@@ -6,7 +6,7 @@ Stand: 13.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 ## Als Nächstes
 
 1. **Wartende Läufe ohne Pool finden.** Die Repos des Kontos nach Läufen durchsuchen, die auf einen Runner warten, und
-   anbieten, einen Pool anzulegen. Auf das Anfragelimit achten (5.000 je Stunde; im Leerlauf verbraucht RunClub rund 720).
+   anbieten, einen Pool anzulegen. Auf das Anfragelimit achten (5.000 je Stunde; der Stand steht in „Verbrauch“).
 2. **Installer.** Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
@@ -54,9 +54,11 @@ Sicherheit:
 
 Richtigkeit:
 
-- **Anfragelimit.** Ein Lauf, der tagelang offen bleibt (wartet auf Freigabe oder auf ein Label ohne Runner), hält sein
-  Repo im 8-Sekunden-Takt; drei Repos mit je zwei solchen Läufen liegen über 5.000 Anfragen je Stunde. Gebraucht:
-  bedingte Abfragen (ETag), schneller Takt nur bei Jobs auf eigenen Runnern, Takt strecken bei 403/429.
+- **Anfragelimit, Rest.** Abfragen sind jetzt bedingt (ETag; eine unveränderte Antwort zählt nicht), der Stand steht in
+  „Verbrauch“, und RunClub fragt seltener oder gar nicht mehr ab, wenn es knapp wird (`src/github.js`). Offen: Ein Lauf,
+  dessen Jobs gerade auf GitHubs Runnern arbeiten, ändert sich laufend und kostet weiter im 8-Sekunden-Takt; der
+  schnelle Takt sollte nur für Jobs auf eigenen Runnern gelten. Das zweite Limit von GitHub (403/429 mit
+  `retry-after`, bei zu vielen Abfragen in kurzer Zeit) wird nicht eigens behandelt.
 - **Phantom-Jobs im Netzplan.** Jobs mit Ausdruck im Namen (`Test ${{ matrix.os }}`) und Jobs aus wiederverwendeten
   Workflows (`uses:`) heißen bei GitHub anders als in der Datei; der angekündigte Job verschwindet dann nie und
   verlängert die Restzeit (`src/pipeline.js`, `actual()`).
@@ -81,6 +83,9 @@ Oberfläche:
 
 ## Noch nicht echt ausprobiert
 
+- **GitHub-Anfragen knapp und aufgebraucht.** Echt gemessen ist nur der Normalfall (bedingte Abfragen zählen nicht; im
+  Leerlauf 0 statt rund 36 Anfragen in drei Minuten). Seltener abfragen, nicht mehr abfragen und die Meldungen dazu
+  sind nur gegen ein nachgestelltes `gh` getestet (`test/github.test.js`) und als Standbild angesehen.
 - **Protokoll speichern und kopieren** im Fenster der App. Geprüft sind die Endpunkte (`/api/log`, `/api/log/file`) an
   einer Testinstanz und die Darstellung als Standbild. Am echten Fenster prüfen: „Speichern“ öffnet den Dialog von
   Windows, „Kopieren“ legt die ganze Datei in die Zwischenablage und meldet die Zahl der Zeilen.

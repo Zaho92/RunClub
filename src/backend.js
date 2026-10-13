@@ -33,6 +33,7 @@ const { createPipelines } = require('./pipeline');
 const { createMetrics } = require('./metrics');
 const { createRouting, VARIABLE } = require('./routing');
 const { createJournal, resultKind, resultText } = require('./journal');
+const { createGitHub } = require('./github');
 
 const PORT = Number(process.env.RUNCLUB_PORT) || 8770;
 const DATA_DIR = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data');
@@ -102,11 +103,9 @@ const saveState = () => writeJson(STATE_FILE, state);
 
 // --- Hilfen für Prozesse ---
 
-async function gh(args, input) {
-  const result = await run('gh', input === undefined ? args : [...args, '--input', '-'], { input, timeout: GH_TIMEOUT });
-  if (result.code !== 0) throw new Error(lastLine(result.stderr) || `gh endete mit ${result.code}`);
-  return result.stdout.trim() ? JSON.parse(result.stdout) : null;
-}
+// Abfragen an GitHub gehen über github.js: bedingt, wo es geht, und mit dem Stand des Anfragelimits.
+const hub = createGitHub({ run, timeout: GH_TIMEOUT });
+const gh = hub.call;
 
 const docker = (args, options) => run('docker', args, { timeout: DOCKER_TIMEOUT, ...options });
 const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -681,6 +680,7 @@ const githubAgain = new Set(); // … und die danach noch einmal dran sind
 
 // Ein Repo abfragen. Läuft schon eine Abfrage, folgt danach genau eine weitere.
 async function refreshRepo(repo) {
+  if (hub.state() === 'out') return; // der Rest des Limits bleibt für das Anmelden neuer Runner
   if (githubBusy.has(repo)) { githubAgain.add(repo); return; }
   githubBusy.add(repo);
   try {
@@ -700,17 +700,34 @@ async function refreshRepo(repo) {
   }
 }
 
-// Alle Repos der Reihe nach – der ruhige Takt.
+// Alle Repos der Reihe nach – der ruhige Takt. Wird das Anfragelimit knapp, nur noch jedes dritte Mal.
+let quietRound = 0;
 async function refreshGitHub() {
+  quietRound += 1;
+  if (hub.state() === 'tight' && quietRound % 3) return;
   for (const pool of [...config.pools]) await refreshRepo(pool.repo);
 }
 
 // Wo gerade etwas läuft, öfter nachsehen: Dort ändert sich der Stand im Sekundentakt.
 function refreshActive() {
+  if (hub.state() === 'tight') return;
   for (const settings of config.pools) {
     const working = pools.get(settings.repo)?.slots.some((slot) => slot.state === 'arbeitet');
     if (working || github.get(settings.repo)?.jobs.length) refreshRepo(settings.repo);
   }
+}
+
+// Den Stand des Anfragelimits holen und ins Protokoll schreiben, wenn er kippt.
+let quotaState = 'unknown';
+async function watchQuota() {
+  await hub.refreshQuota();
+  const quota = hub.quota();
+  if (!quota || quota.state === quotaState) return;
+  const until = new Date(quota.resetAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (quota.state === 'out') log(`GitHub-Anfragen sind aufgebraucht (${quota.remaining} von ${quota.limit} frei). Bis ${until} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.`, null, 'error');
+  else if (quota.state === 'tight') log(`GitHub-Anfragen werden knapp (${quota.remaining} von ${quota.limit} frei). Bis ${until} wird seltener abgefragt.`);
+  else if (quotaState !== 'unknown') log('GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.');
+  quotaState = quota.state;
 }
 
 // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst.
@@ -793,6 +810,7 @@ function status() {
       limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS },
     },
     repos: [...repos.values()],
+    github: hub.quota(), // Anfragelimit des Kontos: { limit, remaining, resetAt, state } oder null
     logCount: journal.count(), // das Protokoll selbst holt die Oberfläche, wenn sich die Zahl ändert
     ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
     ...hooks.status(),
@@ -1034,6 +1052,8 @@ http.createServer(async (request, response) => {
   console.log(`Öffnen mit: ${access.entry}`);
 });
 
+watchQuota();
+setInterval(watchQuota, MINUTE);
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);

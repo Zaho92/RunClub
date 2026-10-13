@@ -276,7 +276,7 @@ Zwei Spalten über die volle Fensterhöhe: links die Projektleiste (232 px), rec
 
 Der Kopf eines Laufs stellt Titel und Herkunft links an die Grundlinie der großen Restzeit rechts. Der Netzplan füllt die Breite: Jede Stufe ist eine Spalte (mindestens 180 px, höchstens 280 px), die Spalten stehen mit `clamp(40px, 6vw, 96px)` Abstand nebeneinander und sind senkrecht mittig ausgerichtet, die Pills einer Spalte haben 12 px Abstand. Hat ein Lauf keine Abhängigkeiten, stehen die Jobs in Startreihenfolge zu sechst je Spalte. Im Kompaktmodus hält der Plan 44 px Höhe vor, damit das Aufklappen einer Pill nichts darunter verschiebt. Reicht die Breite nicht, rollt der Plan waagerecht.
 
-Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der vier Abschnitte (Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
+Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,25). Die Plätze sind so hoch wie die Kurven (132 px) und rollen in sich. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, die zweite die GitHub-Anfragen, danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der vier Abschnitte (Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
 
 Umbrüche:
 - **bis 1100 px:** Das Band wird zweispaltig, der seitliche Abstand des Hauptbereichs sinkt auf 24 px.
@@ -327,7 +327,7 @@ Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunkte
 ### Navigation (Projektleiste)
 - **Eintrag:** Zweizeilig: Name (`ink`, 400) und Zustand in Worten (12 px `muted`), links das Zustandssymbol (16 px). Radius 8 px, Innenabstand 8 px 12 px 8 px 36 px, 4 px Abstand zwischen Einträgen.
 - **Zustände:** Ruhe durchsichtig, überfahren `rail-hover`, gewählt `surface`.
-- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort.
+- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. „Verbrauch“ trägt eine zweite Zeile, wenn die GitHub-Anfragen knapp (`muted`) oder aufgebraucht (`fail-text`) sind. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort.
 - **Schmal:** Eine waagerecht rollende Zeile aus Symbol und Name; der gewählte Eintrag rückt in den Blick.
 
 ### Schaltflächen
@@ -368,10 +368,20 @@ Wenige Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px), meist z
 Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 px 12 px, Platzhalter `muted`, Schreibmarke `chart`.
 
 ### Tag
-Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört) Schrift `fail-text`, Rahmen `fail-edge`.
+Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört, GitHub-Limit erreicht) Schrift `fail-text`, Rahmen `fail-edge`.
 
 ### Tabellen und Zeilen
 Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Projektzeile der Einstellungen ist keine Tabellenzeile, sondern eine aufklappbare Fläche.) Kopfzeile in `muted` 400, Zahlen rechtsbündig. In „Alle Projekte“ steht jedes ruhige Projekt in einer Zeile aus drei Spalten (190 px Name mit Symbol, Titel des letzten Laufs mit einer Kette kleiner Zustandssymbole davor, rechts das Alter).
+
+### GitHub-Anfragen
+Die zweite Haltestelle in „Verbrauch“: der Stand des Anfragelimits des GitHub-Kontos in dieser Stunde. Im Kopf rechts,
+was noch frei ist und wann das Fenster wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und der
+Bezugsgröße, eine Schiene über die volle Breite mit derselben Größe und der gepunkteten Marke bei 85 % (dieselbe
+Schiene wie bei den Speicherspitzen) und ein Satz in `muted`. Ab der Marke fragt RunClub seltener ab. Das ist keine
+Störung und vergeht von selbst: Der Satz steht dann in `text`, und „Verbrauch“ trägt in der Leiste eine zweite Zeile
+in `muted`. Erst an der Reserve (2 %), wenn RunClub gar nicht mehr abfragt, wird es rot: Kennzahl, Schiene und der
+erste Satz, der die Uhrzeit nennt, zu der es weitergeht; der Rest des Satzes nennt in `text` den Ausweg. Die Zeile in
+der Leiste ist dann `fail-text`, und in der Übersicht steht ein Warn-Tag mit der Uhrzeit.
 
 ### Protokoll
 Die letzte Haltestelle der Einstellungen. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und
