@@ -9,7 +9,7 @@
 // `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
 //   Pool    { repo, slots, reserve, seeded, removed, … }   (angelegt in `startPool` in backend.js)
-//   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, … }
+//   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, kept, … }
 //   Paar    { id, base, copied, extras, limits }; `base` ist der Name, den Container, Volumes und Netz tragen
 //
 // Zustände eines Platzes: startet, bereit, arbeitet, räumt auf, gestört, wartet, pausiert, wartet auf Docker, aus.
@@ -64,6 +64,7 @@ function createSlots({
     await removePair(slot.repo, base, job ? null : runnerId);
     slot.base = null;
     slot.runnerId = null;
+    slot.kept = null;
   }
 
   // Baut ein Paar bis kurz vor die Anmeldung: Netz, Volumes, Kopie der Vorlage, laufender Docker-Daemon.
@@ -119,12 +120,16 @@ function createSlots({
 
   async function serveOneJob(pool, slot) {
     Object.assign(slot, { state: 'startet', job: null, finished: false, error: null, aborted: false, building: true });
-    let pair = null;
+    // Ein Paar, dessen Anmeldung zuletzt scheiterte, steht noch: Es wird wieder genommen statt eines aus der Reserve.
+    let pair = slot.kept ?? null;
+    slot.kept = null;
     try {
-      const entry = pool.reserve.shift();
-      replenish(pool);
-      if (entry) pair = await entry.promise;
-      if (!pair) pair = await provision(pool, () => slot.aborted);
+      if (!pair) {
+        const entry = pool.reserve.shift();
+        replenish(pool);
+        if (entry) pair = await entry.promise;
+        if (!pair) pair = await provision(pool, () => slot.aborted);
+      }
     } finally { slot.building = false; }
     if (!pair) return;
     // Runner und Docker-Daemon eines Paars tragen dieselben Limits: die, mit denen es gebaut wurde.
@@ -132,9 +137,13 @@ function createSlots({
     Object.assign(slot, { base: pair.base, name: `${host}-linux-${pair.id}`, copied: pair.copied, built: limitRules.key(limits) });
     if (slot.aborted) return;
 
-    // Anmeldung für genau einen Job; danach verfällt sie von selbst.
-    const jit = await gh(['api', '-X', 'POST', `repos/${pool.repo}/actions/runners/generate-jitconfig`],
-      JSON.stringify({ name: slot.name, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' }));
+    // Anmeldung für genau einen Job; danach verfällt sie von selbst. Scheitert sie (403, Anfragelimit, kein Netz), ist
+    // das Paar unbenutzt: Der Platz behält es (`kept`) und meldet es nach der Pause erneut an (siehe `slotLoop`).
+    let jit = null;
+    try {
+      jit = await gh(['api', '-X', 'POST', `repos/${pool.repo}/actions/runners/generate-jitconfig`],
+        JSON.stringify({ name: slot.name, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' }));
+    } catch (error) { slot.kept = pair; throw error; }
     slot.runnerId = jit.runner?.id ?? null;
     if (slot.aborted) return;
 
@@ -167,6 +176,14 @@ function createSlots({
     });
     if (slot.aborted) return;
     if (!slot.job) throw new Error(`Runner endete ohne Job (${lastLine(runner.stderr) || `Code ${runner.code}`})`);
+    if (!slot.finished) {
+      // Der Runner endete mitten im Job, ohne ein Ergebnis zu melden. Dauer und Ergebnis stimmen dann nicht: Die
+      // Messung wird beendet und verworfen statt als Verbrauch gemerkt.
+      slot.meter?.finish();
+      slot.meter = null;
+      slot.jobs += 1;
+      log(`Job „${slot.job}“ endete ohne Ergebnis (${lastLine(runner.stderr) || `Code ${runner.code}`})`, pool.repo, 'error', { job: slot.job });
+    }
     await learnImages(pool, slot);
   }
 
@@ -186,8 +203,12 @@ function createSlots({
         if (!slot.aborted) {
           Object.assign(slot, { error: error.message, state: 'gestört' });
           log(error.message, pool.repo, 'error');
-          await teardown(slot);
-          for (let waited = 0; waited < 60 && slotWanted(pool, slot) && !poolResting(pool); waited += 1) await sleep(1000);
+          if (!slot.kept) await teardown(slot);
+          // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
+          // zurück, nachdem er hier gewirkt hat.
+          for (let waited = 0; waited < 60 && slotWanted(pool, slot) && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
+          // Ein behaltenes Paar geht, wenn der Platz nicht gleich weitermacht oder es nicht mehr zu den Limits passt.
+          if (slot.aborted || !slotWanted(pool, slot) || !linuxReady() || poolResting(pool) || slot.built !== limitRules.key(limitsOf(pool.repo))) await teardown(slot);
           continue;
         }
       }

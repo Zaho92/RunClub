@@ -50,6 +50,8 @@ function createPools({
         const current = limitRules.key(limitsOf(pool.repo));
         await discardReserve(pool, (entry) => entry.built === current);
       })
+      // Auch wenn das Abbauen scheitert, wird nachgefüllt: Sonst bliebe die Reserve bis zum nächsten Minutentakt leer.
+      .catch(logError(pool.repo))
       .then(() => replenish(pool))
       .catch(logError(pool.repo));
     return pool.renewing;
@@ -67,10 +69,13 @@ function createPools({
   }
 
   // Freie Paare und Reserve, die noch mit anderen Limits gebaut sind als den jetzt geltenden.
+  function staleSlots(pool) {
+    const current = limitRules.key(limitsOf(pool.repo));
+    return pool.slots.filter((slot) => slot.base && slot.built && slot.built !== current && slot.state !== 'arbeitet' && slot.state !== 'räumt auf');
+  }
   function staleCount(pool) {
     const current = limitRules.key(limitsOf(pool.repo));
-    return pool.slots.filter((slot) => slot.base && slot.built && slot.built !== current && slot.state !== 'arbeitet' && slot.state !== 'räumt auf').length +
-      pool.reserve.filter((entry) => entry.built !== current).length;
+    return staleSlots(pool).length + pool.reserve.filter((entry) => entry.built !== current).length;
   }
 
   const poolResting = (pool) => !pool.prepared || pool.hold || settingsOf(pool.repo)?.paused;
@@ -79,6 +84,12 @@ function createPools({
   function reconcile(pool) {
     const wanted = settingsOf(pool.repo)?.parallel ?? 0;
     const active = pool.slots.filter((slot) => !slot.retired);
+    // Auslaufende Plätze, deren Schleife noch läuft, werden zuerst wieder übernommen: Sonst stünden neben ihnen
+    // neue, und der Pool hätte vorübergehend mehr Runner als eingestellt.
+    for (const slot of pool.slots) {
+      if (active.length >= wanted) break;
+      if (slot.retired && slot.state !== 'aus') { slot.retired = false; active.push(slot); }
+    }
     for (let index = active.length; index < wanted; index += 1) {
       const slot = { repo: pool.repo, state: 'startet', jobs: 0 };
       pool.slots.push(slot);
@@ -93,12 +104,12 @@ function createPools({
     while (pool.reserve.length || pool.slots.some((slot) => slot.base || slot.building)) await sleep(500);
   }
 
-  // Die freien Runner eines Pools neu aufbauen. Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits
-  // des Docker-Daemons. Ob ein Job läuft, entscheidet sich erst, wenn der Pool nicht mehr anderweitig angehalten ist
+  // Die freien Runner eines Pools neu aufbauen. Läuft ein Job, gehen nur die mit alten Limits (wie `staleCount`
+  // sie zählt). Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits des Docker-Daemons. Ob ein Job läuft, entscheidet sich erst, wenn der Pool nicht mehr anderweitig angehalten ist
   // (ein Cache wird geleert): Startet in der Wartezeit ein Job, würde der Pool sonst bis zu dessen Ende stillstehen.
   async function rebuildIdle(pool) {
     while (pool.hold) await sleep(500);
-    if (pool.slots.some((slot) => slot.state === 'arbeitet')) return Promise.all([renewReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]);
+    if (pool.slots.some((slot) => slot.state === 'arbeitet')) return Promise.all([renewReserve(pool), ...staleSlots(pool).map((slot) => abortIdle(slot))]);
     return withPoolAtRest(pool, () => prepareCaches(pool.repo));
   }
 

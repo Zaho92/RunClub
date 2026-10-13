@@ -27,8 +27,8 @@ async function until(condition) {
 // Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
 function world() {
   const w = {
-    calls: [], details: [], logs: [], slept: [], timers: [], refreshed: [], recorded: [], forgotten: [], learned: [], replenished: [], discarded: 0,
-    stopping: false, ready: true, resting: false, settings: { repo: REPO, parallel: 1, cache: true, paused: false },
+    calls: [], details: [], logs: [], slept: [], timers: [], refreshed: [], recorded: [], forgotten: [], learned: [], replenished: [], discarded: 0, metered: 0,
+    limits: LIMITS, newId: () => 'a1b2c3', stopping: false, ready: true, resting: false, settings: { repo: REPO, parallel: 1, cache: true, paused: false },
     answer: () => undefined, onSleep: () => {}, jit: { runner: { id: 77 }, encoded_jit_config: 'geheim' },
   };
   const docker = async (args, options = {}) => {
@@ -48,11 +48,11 @@ function world() {
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     timer: (work, ms) => w.timers.push({ work, ms }),
-    newId: () => 'a1b2c3',
+    newId: () => w.newId(),
     host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234,
-    metrics: { meter: () => ({ finish: () => ({ peakMemory: 5 }) }), recordJob: (repo, record) => w.recorded.push([repo, record]) },
+    metrics: { meter: () => ({ finish: () => { w.metered += 1; return { peakMemory: 5 }; } }), recordJob: (repo, record) => w.recorded.push([repo, record]) },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
-    limitsOf: () => LIMITS,
+    limitsOf: () => w.limits,
     seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildService: () => 'rc-buildkit-app',
     stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: () => w.resting,
     withSeed: (repo, exclusive, work) => { assert.equal(exclusive, false); return work(); },
@@ -238,15 +238,132 @@ test('ohne Fehlerausgabe nennt die Meldung den Code; nach der Pause versucht der
   assert.equal(w.calls.filter((name) => name === UNREGISTER).length, 2);
 });
 
-test('scheitert die Anmeldung bei GitHub, wird das Paar abgebaut und nichts abgemeldet', async () => {
+const BUILD = [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`, `network connect --alias buildkit ${BASE} rc-buildkit-app`];
+
+test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause wird dasselbe Paar erneut angemeldet', async () => {
+  const w = world();
+  w.ghFails = 'gh: Forbidden (HTTP 403)';
+  let paused = null;
+  w.onSleep = () => {
+    if (w.slept.length === 1) paused = { state: w.slot.state, error: w.slot.error, base: w.slot.base, live: [...w.slots.livePairs] };
+    if (w.slept.length === 60) w.ghFails = null;
+  };
+  w.answer = (name, args, { onLine }) => {
+    if (!isRunner(name)) return undefined;
+    onLine('Running job: Bauen');
+    onLine('Job Bauen completed with result: Succeeded');
+    return { code: 0 };
+  };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.deepEqual(w.calls, [...BUILD, REGISTER, REGISTER, `run ${BASE}-runner`, ...REMOVE]); // ein Aufbau, zwei Anmeldungen
+  assert.deepEqual(paused, { state: 'gestört', error: 'gh: Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
+  assert.deepEqual(w.logs[0], ['gh: Forbidden (HTTP 403)', REPO, 'error']);
+  assert.equal(w.slept.length, 60);
+  assert.deepEqual(w.replenished, [REPO]); // die Reserve gibt kein zweites Paar her
+  assert.equal(w.slot.jobs, 1);
+  assert.equal(w.slots.livePairs.size, 0);
+});
+
+test('ein Paar ohne Anmeldung wird abgebaut, wenn der Platz endet, und nichts wird abgemeldet', async () => {
   const w = world();
   w.ghFails = 'gh: Forbidden (HTTP 403)';
   w.onSleep = () => { w.stopping = true; };
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual(w.logs, [['gh: Forbidden (HTTP 403)', REPO, 'error']]);
-  assert.deepEqual(w.calls.slice(-5), [REGISTER, ...REMOVE]);
+  assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]);
   assert.equal(w.slot.error, 'gh: Forbidden (HTTP 403)');
+  assert.deepEqual(w.slept, [1000]);
+  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slots.livePairs.size, 0);
+});
+
+test('ein Paar ohne Anmeldung wird abgebaut, wenn der Pool ruht oder die Limits sich geändert haben', async () => {
+  const rest = world();
+  rest.ghFails = 'gh: Forbidden (HTTP 403)';
+  let resting = null;
+  rest.onSleep = () => {
+    if (rest.slept.length === 1) { rest.resting = true; rest.settings.paused = true; }
+    if (rest.slept.length === 2) { resting = { state: rest.slot.state, base: rest.slot.base }; rest.stopping = true; }
+  };
+  await rest.slots.slotLoop(rest.pool, rest.slot);
+  assert.deepEqual(rest.calls, [...BUILD, REGISTER, ...REMOVE]);
+  assert.deepEqual(resting, { state: 'pausiert', base: null });
+
+  const changed = world();
+  changed.ghFails = 'gh: Forbidden (HTTP 403)';
+  changed.onSleep = () => {
+    if (changed.slept.length === 1) changed.limits = { ...LIMITS, dockerMemory: '6g' };
+    if (changed.slept.length === 61) changed.stopping = true;
+  };
+  await changed.slots.slotLoop(changed.pool, changed.slot);
+  // Nach der Pause entsteht ein neues Paar mit den geltenden Limits, statt das alte noch einmal anzumelden.
+  assert.deepEqual(changed.calls, [...BUILD, REGISTER, ...REMOVE, ...BUILD, REGISTER, ...REMOVE]);
+  assert.deepEqual(changed.details.filter((detail) => detail.name === `run ${BASE}-dind`).map((detail) => detail.args[detail.args.indexOf('--memory') + 1]), ['8g', '6g']);
+});
+
+test('endet der Runner mitten im Job ohne Ergebnis, steht das im Protokoll, und die Messung wird verworfen', async () => {
+  const w = world();
+  w.answer = (name, args, { onLine }) => {
+    if (!isRunner(name)) return undefined;
+    onLine('Running job: Bauen');
+    return { code: 137 }; // ohne „completed with result“
+  };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.deepEqual(w.logs, [
+    [`Job „Bauen“ läuft auf ${RUNNER}`, REPO, 'run', { job: 'Bauen', runner: RUNNER }],
+    ['Job „Bauen“ endete ohne Ergebnis (Code 137)', REPO, 'error', { job: 'Bauen' }],
+  ]);
+  assert.deepEqual(w.recorded, []); // Dauer und Ergebnis stimmen nicht: kein Verbrauch
+  assert.equal(w.metered, 1);
+  assert.equal(w.slot.meter, null);
+  assert.equal(w.slot.jobs, 1);
+  assert.deepEqual(w.learned, ['Bauen']);
+  assert.deepEqual(w.calls.slice(-5), [`run ${BASE}-runner`, ...REMOVE]); // die Anmeldung ist verbraucht
+  assert.deepEqual(w.slept, []);
+});
+
+test('ein Abbruch in der Pause nach einem Fehler beendet sie sofort, und der Platz beginnt neu', async () => {
+  const w = world();
+  let runs = 0;
+  w.answer = (name, args, { onLine }) => {
+    if (!isRunner(name)) return undefined;
+    runs += 1;
+    if (runs === 1) return { code: 137 };
+    onLine('Running job: Bauen');
+    onLine('Job Bauen completed with result: Succeeded');
+    return { code: 0 };
+  };
+  w.onSleep = () => { if (w.slept.length === 3) w.slots.abortIdle(w.slot); };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.equal(w.slept.length, 3); // nicht die ganze Minute
+  assert.equal(runs, 2);
+  assert.deepEqual(w.logs.map(([text]) => text), ['Runner endete ohne Job (Code 137)', `Job „Bauen“ läuft auf ${RUNNER}`, 'Job „Bauen“ – fertig']);
+});
+
+test('ein Abbruch in der Pause nach gescheiterter Anmeldung baut das behaltene Paar ab', async () => {
+  const w = world();
+  w.ghFails = 'gh: Forbidden (HTTP 403)';
+  let abort = null;
+  w.onSleep = () => {
+    if (w.slept.length !== 3) return;
+    w.slot.retired = true; // wie `reconcile`, wenn ein Platz wegfällt
+    abort = w.slots.abortIdle(w.slot);
+  };
+  await w.slots.slotLoop(w.pool, w.slot);
+  await abort;
+
+  assert.deepEqual(w.calls, [...BUILD, REGISTER, `rm -f ${BASE}-runner`, ...REMOVE]);
+  assert.ok(w.slept.length <= 4); // drei Sekunden Pause, höchstens eine des Abbruchs
+  assert.equal(w.slot.aborted, true);
+  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slots.livePairs.size, 0);
 });
 
 test('Abbruch im Leerlauf entfernt den Runner und meldet ihn bei GitHub ab', async () => {
@@ -394,7 +511,7 @@ test('teardown: ohne Paar geschieht nichts; ohne Job wird abgemeldet, nach einem
   const idle = { repo: REPO, base: BASE, runnerId: 77, job: null };
   await w.slots.teardown(idle);
   assert.deepEqual(w.calls, [...REMOVE, UNREGISTER]);
-  assert.deepEqual(idle, { repo: REPO, base: null, runnerId: null, job: null });
+  assert.deepEqual(idle, { repo: REPO, base: null, runnerId: null, job: null, kept: null }); // auch ein behaltenes Paar ist damit weg
 
   w.calls.length = 0;
   await w.slots.teardown({ repo: REPO, base: BASE, runnerId: 77, job: 'Bauen' });

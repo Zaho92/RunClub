@@ -272,11 +272,12 @@ test('eine Erneuerung, die auf einen noch laufenden Aufbau trifft, wartet ihn ab
   w.removing = () => { throw new Error('Docker antwortet nicht'); };
   await w.pools.renewReserve(w.pool);
   assert.deepEqual(w.logs, [['Docker antwortet nicht', REPO, 'error']]);
-  assert.deepEqual(w.pool.reserve, []); // nach dem Fehler wird in dieser Runde nicht nachgefüllt
+  assert.deepEqual(w.calls.slice(-2), ['remove rc-app-2', 'provision 3']); // nachgefüllt wird auch nach dem Fehler
+  assert.deepEqual(w.pool.reserve.map((entry) => entry.built), [limitRules.key(NEWER)]);
 
   w.removing = () => {};
-  await w.pools.renewReserve(w.pool);
-  assert.deepEqual(w.calls.slice(-1), ['provision 3']);
+  await w.pools.renewReserve(w.pool); // die Reserve ist schon frisch
+  assert.equal(w.builds.length, 3);
   assert.equal(w.logs.length, 1);
 });
 
@@ -319,18 +320,43 @@ test('reconcile legt fehlende Plätze an und lässt überzählige auslaufen', ()
   assert.deepEqual(w.aborted, [second]);
   assert.equal(w.pool.slots.length, 2); // der auslaufende Platz geht erst, wenn seine Schleife endet
 
-  // Ein auslaufender Platz zählt nicht mehr: Wird wieder erhöht, kommt ein neuer dazu.
+  // Wird wieder erhöht, bleibt zuerst der auslaufende Platz; erst für den dritten entsteht ein neuer.
   w.settings.parallel = 3;
   w.pools.reconcile(w.pool);
-  assert.equal(w.pool.slots.length, 4);
-  assert.equal(w.loops.length, 4);
+  assert.equal(w.pool.slots.length, 3);
+  assert.equal(w.loops.length, 3);
+  assert.deepEqual(w.pool.slots.map((slot) => Boolean(slot.retired)), [false, false, false]);
+  assert.deepEqual(w.pool.slots.slice(0, 2), [first, second]);
   assert.deepEqual(w.aborted, [second]);
 
   // Ohne Eintrag in den Einstellungen laufen alle aus.
   w.settings = undefined;
   w.pools.reconcile(w.pool);
-  assert.deepEqual(w.pool.slots.map((slot) => slot.retired), [true, true, true, true]);
-  assert.equal(w.aborted.length, 4); // der schon auslaufende wird nicht noch einmal abgebrochen
+  assert.deepEqual(w.pool.slots.map((slot) => slot.retired), [true, true, true]);
+  assert.equal(w.aborted.length, 4);
+  w.pools.reconcile(w.pool); // schon auslaufende werden nicht noch einmal abgebrochen
+  assert.equal(w.aborted.length, 4);
+});
+
+test('reconcile übernimmt nur auslaufende Plätze, deren Schleife noch läuft, und nicht mehr als gewünscht', () => {
+  const w = world();
+  w.settings.parallel = 4;
+  w.pools.reconcile(w.pool);
+  const [first, second, third, fourth] = w.pool.slots;
+  w.settings.parallel = 1;
+  w.pools.reconcile(w.pool);
+  second.state = 'aus'; // seine Schleife ist schon zu Ende
+  third.state = 'arbeitet';
+
+  w.settings.parallel = 2;
+  w.pools.reconcile(w.pool);
+  assert.deepEqual([first, second, third, fourth].map((slot) => Boolean(slot.retired)), [false, true, false, true]);
+  assert.equal(w.loops.length, 4); // kein neuer Platz
+
+  w.settings.parallel = 4;
+  w.pools.reconcile(w.pool);
+  assert.deepEqual([first, second, third, fourth].map((slot) => Boolean(slot.retired)), [false, true, false, false]);
+  assert.equal(w.loops.length, 5); // der beendete Platz kommt nicht zurück: Für ihn entsteht ein neuer
 });
 
 test('quiesce baut Reserve und freie Paare ab und wartet, bis nichts mehr steht', async () => {
@@ -427,15 +453,21 @@ test('rebuildIdle ohne laufenden Job: Der Pool kommt zur Ruhe und der Build-Dien
   assert.equal(w.pool.renewing, undefined);
 });
 
-test('rebuildIdle mit laufendem Job: Die Reserve wird erneuert, freie Paare abgebrochen, der Pool nicht angehalten', async () => {
+test('rebuildIdle mit laufendem Job: Die Reserve wird erneuert, freie Paare mit alten Limits abgebrochen, der Pool nicht angehalten', async () => {
   const w = world();
   w.pools.replenish(w.pool);
   w.builds[0].finish();
   w.builds[1].finish();
   w.limits = NEW;
-  w.pool.slots = [{ name: 'arbeitend', state: 'arbeitet', base: 'rc-app-8' }, { name: 'frei', state: 'bereit', base: 'rc-app-9' }];
+  const old = limitRules.key(OLD);
+  w.pool.slots = [
+    { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-8', built: old },
+    { name: 'frei', state: 'bereit', base: 'rc-app-9', built: old },
+    { name: 'frisch', state: 'bereit', base: 'rc-app-7', built: limitRules.key(NEW) }, // trägt schon die neuen Limits: bleibt
+    { name: 'bauend', state: 'startet', building: true }, // noch ohne Paar
+  ];
   await w.pools.rebuildIdle(w.pool);
-  assert.deepEqual(w.calls.slice(2), ['abort arbeitend', 'abort frei', 'remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'provision 3', 'provision 4']);
+  assert.deepEqual(w.calls.slice(2), ['abort frei', 'remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'provision 3', 'provision 4']);
   assert.equal(w.pool.hold, false);
   assert.deepEqual(w.slept, []);
 });
@@ -449,7 +481,7 @@ test('rebuildIdle wartet auf `hold` und entscheidet erst danach, ob ein Job läu
   started.onSleep = () => { if (started.slept.length === 3) { slot.state = 'arbeitet'; started.pool.hold = false; } };
   await started.pools.rebuildIdle(started.pool);
   assert.deepEqual(started.slept, [500, 500, 500]);
-  assert.deepEqual(started.calls, ['abort eins', 'provision 1', 'provision 2']); // nicht angehalten, kein neuer Build-Dienst; die Reserve füllt sich
+  assert.deepEqual(started.calls, ['provision 1', 'provision 2']); // nicht angehalten, kein neuer Build-Dienst; die Reserve füllt sich
   assert.equal(started.pool.hold, false);
   assert.ok(started.pool.renewing);
 
@@ -573,6 +605,34 @@ test('echte Plätze: Überzählige laufen aus; der freie wird abgebrochen, der a
   assert.equal(second.jobs, 1);
   assert.equal(w.ids, 3); // für den ausgelaufenen Platz entsteht kein neues Paar
   assert.equal(first.state, 'bereit');
+  await w.finish();
+});
+
+test('echte Plätze: Wird erhöht, während Plätze auslaufen, stehen nie mehr als eingestellt', async () => {
+  const w = wired();
+  w.settings.reserve = 0;
+  w.settings.parallel = 3;
+  w.pools.reconcile(w.pool);
+  await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
+  const [first, second, third] = w.pool.slots;
+  w.emit.get(second.base)('Running job: Bauen');
+
+  w.settings.parallel = 1;
+  w.pools.reconcile(w.pool);
+  w.settings.parallel = 3; // gleich wieder erhöht: der arbeitende und der gerade abgebrochene Platz laufen noch aus
+  w.pools.reconcile(w.pool);
+  assert.deepEqual(w.pool.slots, [first, second, third]);
+  assert.deepEqual(w.pool.slots.map((slot) => Boolean(slot.retired)), [false, false, false]);
+
+  await until(() => third.state === 'bereit' && third.name === 'PC-linux-4'); // der abgebrochene Platz baut neu auf
+  assert.deepEqual(names(w), ['PC-linux-1 bereit', 'PC-linux-2 arbeitet', 'PC-linux-4 bereit']);
+  assert.equal(w.ids, 4);
+
+  // Der Platz, der auslaufen sollte, bedient nach seinem Job den nächsten.
+  w.emit.get(second.base)('Job Bauen completed with result: Succeeded');
+  w.ends.get('rc-app-2')();
+  await until(() => second.state === 'bereit' && second.name === 'PC-linux-5');
+  assert.equal(w.pool.slots.length, 3);
   await w.finish();
 });
 

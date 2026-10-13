@@ -58,17 +58,13 @@ Richtigkeit:
 - **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
   einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
   zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
-- **Aus dem Umzug nach `src/pools.js`, noch offen.** Werden Plätze erhöht, während überzählige noch auslaufen, stehen
-  vorübergehend mehr Runner als eingestellt. „Runner neu aufbauen“ mit laufendem Job bricht alle freien Plätze ab,
-  auch solche, die schon die neuen Limits tragen. `pool/set` ruft beim Pausieren `discardReserve` ohne `await` und
-  ohne Fehlerbehandlung. Scheitert das Abbauen der alten Reserve in `renewReserve`, wird erst im Minutentakt
-  nachgefüllt.
-- **Aus dem Umzug nach `src/slots.js`, noch offen.** Scheitert das Anmelden eines Runners dauerhaft (403,
-  Anfragelimit), baut der Platz jede Minute ein Paar aus der Reserve ab, und die Reserve baut nach. Endet ein Runner
-  mitten im Job ohne Abschlusszeile, gibt es kein Ergebnis im Protokoll und keinen Verbrauch, und die Messung des
-  Platzes bleibt stehen. Ein Abbruch im Leerlauf (`abortIdle`) während der Wartezeit nach einem Fehler setzt nur ein
-  Kennzeichen, das der nächste Versuch zurücksetzt; es wirkt nur, weil Pause, Anhalten und Auslaufen die Schleife
-  ohnehin stoppen.
+- **„Runner neu aufbauen“ mit laufendem Job erfasst keinen Platz, der gerade aufbaut.** Abgebrochen werden nur noch
+  freie Plätze mit alten Limits (dieselbe Regel wie die Anzeige). Ein Platz, der in dem Augenblick ein Paar mit alten
+  Limits aus der Reserve übernimmt, hat noch keine Angabe und bleibt stehen; er zählt danach als „alt“, und ein zweiter
+  Klick ersetzt ihn.
+- **Scheitert `discardReserve` mittendrin**, bleiben die Paare der übrigen verworfenen Einträge stehen, bis der
+  nächste Start aufräumt (sie stehen noch in `livePairs`, `removeOrphans` fasst sie deshalb nicht an). Praktisch kaum
+  erreichbar, weil `removePair` Fehler von Docker nicht wirft.
 - **Abmeldungen bleiben liegen**, wenn ein Job beim Beenden oder Abmelden noch läuft: Sein Runner bleibt bei GitHub
   eingetragen, bis der nächste Start aufräumt. Freie Runner werden beim Abmelden von Windows jetzt abgemeldet.
 
@@ -131,6 +127,23 @@ Richtigkeit:
   Erneuerungen nacheinander, ein gescheiterter Eintrag verlässt die Reserve, und die Meldung nennt die Ursache. Beim
   nächsten Mal im Protokoll nachsehen, ob es dabei bleibt.
 
+- **Korrekturen an Plätzen und Reserve nach dem Umzug** (`src/slots.js`, `src/pools.js`), alle nur mit
+  nachgestelltem Docker und GitHub geprüft (`test/slots.test.js`, `test/pools.test.js`); wirksam erst nach einem
+  Neustart der App. Im Betrieb sähe man es so:
+  - Scheitert die Anmeldung bei GitHub (403, Anfragelimit aufgebraucht, kein Netz), bleibt der Platz „gestört“ mit
+    seinem Runner-Namen stehen, der Fehler steht jede Minute im Protokoll, und `docker ps` zeigt dasselbe Paar
+    (`rc-…-dind`) weiter; die Reserve baut nicht nach. Sobald GitHub wieder antwortet, wird der Platz ohne neuen Aufbau
+    „bereit“. Pausieren, Plätze verringern, Beenden oder geänderte Limits bauen das Paar ab.
+  - Endet ein Runner mitten im Job (etwa `docker rm -f <Paar>-runner` während eines Demo-Laufs), steht „Job „…“
+    endete ohne Ergebnis (…)“ als Fehler im Protokoll, der Platz zählt den Job mit, und unter Verbrauch erscheint
+    kein Eintrag dafür. Beim Beenden der App mit laufendem Job erscheint die Meldung nicht.
+  - Plätze von 3 auf 1 und gleich wieder auf 3 stellen, während ein Job läuft: Es stehen nie mehr als drei Plätze in
+    der Liste, keiner trägt „läuft aus“, und der arbeitende bedient nach seinem Job den nächsten.
+  - „Runner neu aufbauen“ mit laufendem Job nach einer Limit-Änderung: Freie Runner, die schon neu gebaut waren,
+    behalten ihren Namen; nur die mit alten Limits bekommen einen neuen.
+  - Nicht herbeiführbar, nur am Test geprüft: Nachfüllen der Reserve nach einem gescheiterten Abbau (`renewReserve`),
+    der Fehler von `discardReserve` beim Pausieren im Protokoll (`pool/set` in `src/backend.js`, ohne Test, weil
+    `backend.js` sich nicht laden lässt) und der Abbruch während der Pause nach einem Fehler.
 - **CI_RUNNER setzen und entfernen** gegen GitHub. Gelesen wird richtig, das Schreiben ist nur gegen ein nachgestelltes
   GitHub getestet (`test/routing.test.js`). Ausprobieren in Einstellungen → Projekt RunClub.
 - **Stehenbleiben des Auslastungsbands** beim Scrollen und die Ansicht im **schmalen Fenster**: nur im Code und als Standbild geprüft.

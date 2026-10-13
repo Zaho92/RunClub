@@ -718,7 +718,7 @@ const actions = {
     if (parallel !== undefined) settings.parallel = Math.min(4, Math.max(1, Number(parallel) || 1));
     if (paused !== undefined) settings.paused = Boolean(paused);
     saveConfig();
-    if (settings.paused) { pool.slots.forEach((slot) => abortIdle(slot)); discardReserve(pool); }
+    if (settings.paused) { pool.slots.forEach((slot) => abortIdle(slot)); discardReserve(pool).catch(logError(repo)); }
     reconcile(pool);
     if (cache !== undefined && Boolean(cache) !== settings.cache) {
       settings.cache = Boolean(cache);
