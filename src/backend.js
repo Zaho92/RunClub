@@ -1006,6 +1006,16 @@ async function shutdown() {
   log('Beendet.');
   hooks.onExit();
 }
+// Beim Abmelden von Windows bleibt für den Abbau keine Zeit (siehe main.js). Dann nur die freien Runner bei GitHub
+// abmelden, alle zugleich, damit dort keine toten Einträge stehen bleiben; Container und Volumes räumt der nächste
+// Start ab.
+async function release() {
+  if (stopping) return;
+  stopping = true;
+  metrics.save();
+  const idle = [...pools.values()].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job));
+  await Promise.all(idle.map((slot) => gh(['api', '-X', 'DELETE', `repos/${slot.repo}/actions/runners/${slot.runnerId}`]).catch(() => {})));
+}
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 process.on('SIGBREAK', shutdown);
@@ -1092,4 +1102,4 @@ setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool
 for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
 linuxLoop();
 
-module.exports = { PORT, DATA_DIR, ENTRY: access.entry, hooks, status, shutdown, log };
+module.exports = { PORT, DATA_DIR, ENTRY: access.entry, hooks, status, shutdown, release, log };

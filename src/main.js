@@ -91,6 +91,16 @@ async function quit() {
   await backend.shutdown(); // endet über hooks.onExit
 }
 
+// Abmelden und Herunterfahren meldet Windows nur an Fenster, und danach bleiben wenige Sekunden. Ein unsichtbares
+// Fenster nimmt die Meldung entgegen, auch wenn das eigentliche nie geöffnet wurde; das Backend meldet dann nur noch
+// die freien Runner bei GitHub ab. Aufgehalten wird das Abmelden nicht.
+function watchSession() {
+  const listener = new BrowserWindow({ show: false, width: 1, height: 1, skipTaskbar: true, webPreferences: { sandbox: true } });
+  const release = () => { quitting = true; backend.release(); };
+  listener.on('query-session-end', release);
+  listener.on('session-end', release);
+}
+
 app.on('second-instance', showWindow);
 app.on('window-all-closed', () => { /* läuft im Infobereich weiter */ });
 
@@ -100,6 +110,7 @@ app.whenReady().then(() => {
   backend.hooks.status = () => ({ app: { autostart: autostart() } });
   backend.hooks.actions['app/autostart'] = async ({ on }) => setAutostart(on);
 
+  watchSession();
   tray = new Tray(TRAY_ICON);
   tray.on('click', showWindow);
   refreshTray();

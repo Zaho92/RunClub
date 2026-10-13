@@ -324,7 +324,7 @@ const TEXT = {
     capNote: 'Speicher von Runner und Docker zusammen: höchstens {0} GB je Job, damit das Limit unter dem Speicher der Docker-VM bleibt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
     memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
     suggestText: 'Vorschlag: Runner {0} GB, Docker {1} GB, je {2} Kerne.', suggestSame: 'Die Limits entsprechen dem Vorschlag.', suggestWhy: 'Aus den Messwerten dieses Projekts: die höchste Spitze mit 50 % Luft. Die gepunktete Marke zeigt den Vorschlag am Regler.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
-    firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
+    starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
   },
   en: {
     late: 'longer than usual ({0})', approx: 'about {0}', started: 'run started', idleAll: 'Nothing is running right now.', fewer: 'One slot fewer', more: 'One more slot', seatN: 'Slot {0}', railLabel: 'Projects',
@@ -363,7 +363,7 @@ const TEXT = {
     capNote: 'Runner and Docker memory together: at most {0} GB per job, so the limit stays below the Docker VM’s memory.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
     memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
     suggestText: 'Suggestion: runner {0} GB, Docker {1} GB, {2} cores each.', suggestSame: 'The limits match the suggestion.', suggestWhy: 'From this project’s measurements: the highest peak plus 50% headroom. The dotted mark shows the suggestion on the slider.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
-    firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
+    starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
   },
 };
 const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off', 'läuft aus': 'retiring' };
@@ -997,9 +997,16 @@ function tick() {
   for (const el of document.querySelectorAll('[data-running]')) el.textContent = t('since', clock(secondsSince(el.dataset.running)));
 }
 
+// Bis zur ersten Antwort stehen Wortmarke und ein Satz da statt einer leeren Fläche; bleibt die Antwort aus, sagt
+// der Satz das.
+function renderStart(failed) {
+  document.getElementById('rail').innerHTML = '<div class="brand">RunClub</div>';
+  document.getElementById('main').innerHTML = '<div class="stack"><div class="head"><div><h1>' + t('all') + '</h1><div class="sub' + (failed ? ' c-fail' : '') + '">' + t(failed ? 'noAnswer' : 'starting') + '</div></div></div></div>';
+}
+
 async function refresh() {
   const before = data?.ui;
-  try { data = await (await fetch('/api/status')).json(); } catch { toast(t('noAnswer')); return; }
+  try { data = await (await fetch('/api/status')).json(); } catch { if (data) toast(t('noAnswer')); else renderStart(true); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
   render();
   if (view === 'settings' && data.logCount !== logCount) loadLog();
@@ -1122,6 +1129,6 @@ document.addEventListener('mousemove', (event) => {
 window.addEventListener('resize', () => document.querySelectorAll('.plan').forEach(drawLinks));
 document.fonts?.ready.then(() => document.querySelectorAll('.plan').forEach(drawLinks));
 
-refresh(); loadRepos(); if (view === 'usage') loadDay();
+renderStart(false); refresh(); loadRepos(); if (view === 'usage') loadDay();
 setInterval(refresh, 3000); setInterval(tick, 1000); setInterval(() => { if (view === 'usage') loadDay(); }, 60000);
 </script></body></html>
