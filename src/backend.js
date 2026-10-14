@@ -23,7 +23,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { run } = require('./run');
+const { run, ESCAPES } = require('./run');
 const { SECOND, MINUTE, DAY, MB, GB } = require('./units');
 const { createAccess, pageHeaders, newNonce, same } = require('./access');
 const { readJson, writeJson } = require('./store');
@@ -34,7 +34,7 @@ const { createMetrics } = require('./metrics');
 const { createVmMemory, COMMAND: VM_COMMAND } = require('./vmmemory');
 const { createRouting, VARIABLE } = require('./routing');
 const { createWaiting, candidates } = require('./waiting');
-const { createJournal } = require('./journal');
+const { createJournal, errorLog } = require('./journal');
 const { createGitHub, STATE: QUOTA } = require('./github');
 const { createSlots } = require('./slots');
 const { createPools } = require('./pools');
@@ -70,7 +70,6 @@ const HOST = os.hostname();
 const TOKEN = crypto.randomBytes(24).toString('hex'); // schützt die ändernden Aufrufe vor fremden Webseiten
 const access = createAccess({ port: PORT }); // schützt Seite und Daten vor allem, was nicht das eigene Fenster ist
 const KEY_FILE = path.join(DATA_DIR, 'access.key');
-const PROCESS_INTERVAL_S = 3;
 const GITHUB_INTERVAL_MS = 20000;
 const GITHUB_ACTIVE_INTERVAL_MS = 8000; // Repos, in denen gerade ein Job läuft
 const MEASURE_INTERVAL_MS = 2000;
@@ -99,8 +98,7 @@ const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...abou
 // Fenster nach einem Neustart nicht zufällig dieselbe Zahl sieht und das Nachladen auslässt.
 const STARTED = Date.now();
 const logStamp = () => `${STARTED}-${journal.count()}`;
-// Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll, auf Wunsch mit dem, was gerade versucht wurde.
-const logError = (repo, what) => (error) => log(what ? `${what} – ${error.message}` : error.message, repo, 'error');
+const logError = errorLog(log);
 
 // --- Einstellungen und Gelerntes ---
 
@@ -213,7 +211,7 @@ function startStatsFeed() {
   docker(['stats', '--format', '{{json .}}'], {
     timeout: 0,
     onLine: (raw) => {
-      const line = raw.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '').trim();
+      const line = raw.replace(ESCAPES, '').trim();
       if (!line.startsWith('{')) return;
       try {
         const entry = JSON.parse(line);

@@ -14,7 +14,7 @@
 // Protokoll Hinein kommt nur, dass an- oder abgemeldet wurde und als wer. Der Einmalcode und alles, was `gh`
 //           schreibt, bleiben draußen; die Meldung eines gescheiterten Ablaufs steht nur im Stand.
 
-const { lastLine } = require('./run');
+const { lastLine, ESCAPES } = require('./run');
 const { SECOND, MINUTE } = require('./units');
 const { GH_ENV } = require('./github');
 const { SCOPE: MINUTES_SCOPE } = require('./minutes');
@@ -39,7 +39,6 @@ const RECHECK = 10 * MINUTE; // so oft wird ein guter Stand im laufenden Betrieb
 // Oberfläche macht daraus einen Link, und auf github.com liegen auch Seiten Dritter.
 const DEVICE_URL = 'https://github.com/login/device';
 const CODE = /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/;
-const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/; // nichts, was `gh` als Option lesen könnte
 // So begründet `gh` ein Token, das GitHub ablehnt. Bewusst eng: „401“, „invalid“ oder „expired“ allein stehen auch in
 // Störungen (ein Port, eine Kennung, ein abgelaufenes Zertifikat, HTML statt JSON).
@@ -141,7 +140,7 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
 
   // Was `gh` zuletzt als Fehler schrieb, ohne den Code und die Aufforderung; leer, wenn es nichts schrieb.
   function said(stderr, code) {
-    const lines = String(stderr ?? '').replace(ANSI, '').split('\n').filter((line) => !CODE.test(line) && !/^\W*Open this URL/i.test(line));
+    const lines = String(stderr ?? '').replace(ESCAPES, '').split('\n').filter((line) => !CODE.test(line) && !/^\W*Open this URL/i.test(line));
     const text = lastLine(lines.join('\n'));
     return code ? text.split(code).join('…') : text;
   }
@@ -159,7 +158,7 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
     const shown = new Promise((resolve) => { show = resolve; });
     const onText = (raw) => {
       if (mine.state !== FLOW.STARTING && mine.state !== FLOW.WAITING) return;
-      const line = String(raw).replace(ANSI, '');
+      const line = String(raw).replace(ESCAPES, '');
       const code = line.match(CODE);
       // Was `gh` statt des Codes schreibt, erklärt später, warum keiner kam.
       if (!code) { mine.heard = said(line) || mine.heard; return; }

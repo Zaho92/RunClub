@@ -25,3 +25,10 @@ test('eine beschädigte Datei verhindert den Start nicht und bleibt als Kopie li
   assert.deepEqual(result.data, {});
   assert.equal(fs.readFileSync(result.broken, 'utf8'), '{ "pools": [');
 });
+
+test('kompakt geschrieben steht alles in einer Zeile und liest sich gleich', () => {
+  const file = path.join(folder(), 'x.json');
+  writeJson(file, { minutes: [1, 2] }, { compact: true });
+  assert.equal(fs.readFileSync(file, 'utf8'), '{"minutes":[1,2]}\n');
+  assert.deepEqual(readJson(file, {}).data, { minutes: [1, 2] });
+});

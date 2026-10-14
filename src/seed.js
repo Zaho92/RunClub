@@ -11,8 +11,9 @@
 // Die Regeln für einzelne Abbilder liegen in images.js.
 
 const { lastLine } = require('./run');
-const { SECOND, DAY } = require('./units');
-const { permanentPullError, pruneOlder } = require('./images');
+const { SECOND } = require('./units');
+const { permanentPullError, daysSince, pruneOlder } = require('./images');
+const { errorLog } = require('./journal');
 
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
@@ -31,9 +32,7 @@ function createSeed({
   settingsOf, seedVolume, poolOf,
   state, saveState,
 }) {
-  // Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll, mit dem, was gerade versucht wurde.
-  const logError = (repo, what) => (error) => log(`${what} – ${error.message}`, repo, 'error');
-  const daysSince = (iso) => (Date.now() - new Date(iso).getTime()) / DAY;
+  const logError = errorLog(log);
 
   function wantedImages(repo) {
     const fixed = settingsOf(repo)?.preload ?? [];

@@ -2,6 +2,7 @@
 // In `runners.json` stehen sie, wie Docker sie liest (`4g`, `1536m`); die Oberfläche rechnet in GB und Kernen.
 
 const { MB, GB } = require('./units');
+const { median } = require('./numbers');
 
 const bytesOf = (text) => {
   const match = String(text ?? '').trim().match(/^([\d.]+)\s*([gmk]?)b?$/i);
@@ -86,7 +87,7 @@ function plan(projects, range) {
   if (!needs.length) return null;
   const memory = (need) => need.runnerMemory + need.dockerMemory;
   const sorted = needs.map((entry) => memory(entry.need)).sort((a, b) => a - b);
-  const middle = sorted.length % 2 ? sorted[sorted.length >> 1] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  const middle = median(sorted);
   const outlier = (entry) => memory(entry.need) > middle * OUTLIER_FACTOR && memory(entry.need) - middle >= OUTLIER_GB;
   const usual = needs.filter((entry) => !outlier(entry));
   const most = (field) => Math.max(...usual.map((entry) => entry.need[field]));

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createJournal, resultKind, resultText, line } = require('../src/journal');
+const { createJournal, resultKind, resultText, line, errorLog } = require('../src/journal');
 
 const file = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-journal-')), 'runclub.log');
 const at = new Date(2026, 9, 13, 15, 34, 28);
@@ -194,4 +194,12 @@ test('von einer aufgeblähten Datei mit Einträgen wird nur das Ende gelesen', (
   assert.equal(texts.at(-1), 'zuletzt');
   assert.ok(texts.length < 5); // nur was in die letzten 1000 Bytes passt, ohne die angeschnittene erste Zeile
   assert.ok(fs.statSync(`${target}.entries`).size < 2000); // und die Datei ist danach wieder klein
+});
+
+test('errorLog: ein Fehler kommt zum Projekt ins Protokoll, auf Wunsch mit dem, was versucht wurde', () => {
+  const entries = [];
+  const logError = errorLog((...entry) => entries.push(entry));
+  logError('wer/App')(new Error('kaputt'));
+  logError(null, 'Anfragelimit')(new Error('keine Antwort'));
+  assert.deepEqual(entries, [['kaputt', 'wer/App', 'error'], ['Anfragelimit – keine Antwort', null, 'error']]);
 });

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { permanentPullError, pruneOlder, slug, sameRepo, clashes } = require('../src/images');
+const { permanentPullError, daysSince, pruneOlder, slug, sameRepo, clashes } = require('../src/images');
 
 test('nur ein Abbild, das es bei der Registry nicht gibt, wird abgelehnt', () => {
   assert.equal(permanentPullError('Error response from daemon: pull access denied for app, repository does not exist or may require \'docker login\': denied: requested access to the resource is denied'), true);
@@ -33,4 +33,10 @@ test('zwei Repos mit gleichem Namen teilen sich keinen Cache', () => {
   assert.equal(clashes('alice/my.repo', ['alice/my-repo']), 'alice/my-repo');
   assert.equal(clashes('alice/api', ['Alice/API']), null);
   assert.equal(clashes('alice/api', ['alice/web']), null);
+});
+
+test('daysSince zählt Tage mit Bruchteil', () => {
+  const now = Date.parse('2026-10-14T12:00:00Z');
+  assert.equal(daysSince('2026-10-13T00:00:00Z', now), 1.5);
+  assert.equal(daysSince('2026-10-14T12:00:00Z', now), 0);
 });

@@ -16,10 +16,10 @@ function readJson(file, fallback) {
   }
 }
 
-// Erst vollständig daneben schreiben, dann umbenennen.
-function writeJson(file, data) {
+// Erst vollständig daneben schreiben, dann umbenennen. `compact` für große Dateien, die niemand von Hand liest.
+function writeJson(file, data, { compact = false } = {}) {
   const draft = `${file}.neu`;
-  fs.writeFileSync(draft, `${JSON.stringify(data, null, 2)}\n`);
+  fs.writeFileSync(draft, `${compact ? JSON.stringify(data) : JSON.stringify(data, null, 2)}\n`);
   fs.renameSync(draft, file);
 }
 

@@ -4,6 +4,7 @@
 
 const { app, BrowserWindow, Tray, Menu, shell } = require('electron');
 const path = require('node:path');
+const { SECOND } = require('./units');
 
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const TRAY_ICON = path.join(__dirname, '..', 'build', 'tray.png');
@@ -14,6 +15,7 @@ const GROUND = '#0c1838';
 const RAIL = '#091230';
 const TEXT = '#c9d2ea';
 const NARROW = 760;
+const TOOLTIP_INTERVAL = 5 * SECOND; // so oft wird der Hinweis am Symbol im Infobereich aufgefrischt
 
 if (!app.requestSingleInstanceLock()) app.exit(0);
 
@@ -114,6 +116,6 @@ app.whenReady().then(() => {
   tray.on('click', showWindow);
   refreshTray();
   refreshTooltip();
-  setInterval(refreshTooltip, 5000);
+  setInterval(refreshTooltip, TOOLTIP_INTERVAL);
   if (!HIDDEN) showWindow();
 });

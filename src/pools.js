@@ -13,6 +13,7 @@
 //            `leaving` zählt die Paare, die schon aus der Reserve genommen sind, aber noch abgebaut werden.
 
 const limitRules = require('./limits');
+const { errorLog } = require('./journal');
 
 //   log(text, repo, kind), sleep(ms)
 //   pools                   Map Repo -> Pool; `startPool` trägt neue Pools ein
@@ -27,8 +28,7 @@ function createPools({
   provision, removePair, teardown, slotLoop, abortIdle,
   prepareCaches, refreshSeed, measureSizes,
 }) {
-  // Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll.
-  const logError = (repo) => (error) => log(error.message, repo, 'error');
+  const logError = errorLog(log);
 
   // Die Reserve eines Pools: fertig vorbereitete Paare ohne Anmeldung. Ein Platz, der frei wird, nimmt eines davon
   // und ist nach wenigen Sekunden wieder bereit; die Reserve füllt sich im Hintergrund nach.

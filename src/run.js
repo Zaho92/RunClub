@@ -14,12 +14,15 @@
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { SECOND } = require('./units');
 
 // Ein Job kann beliebig viel schreiben. Behalten wird nur, was gebraucht wird: das Ende der Fehlerausgabe und
 // eine angefangene Zeile bis zu einer vernünftigen Länge.
 const KEEP = 64 * 1024;
 const LINE_MAX = 1024 * 1024;
-const GRACE = 5000; // so lange darf ein beendetes Programm seine Ausgabe noch offen halten
+const GRACE = 5 * SECOND; // so lange darf ein beendetes Programm seine Ausgabe noch offen halten
+// Steuerzeichen, mit denen Programme ihre Ausgabe im Terminal färben oder neu zeichnen.
+const ESCAPES = /\u001b\[[0-9;?]*[A-Za-z]/g;
 
 // Wo das Programm liegt. Windows sucht einen Namen ohne Pfad zuerst im Arbeitsverzeichnis und erst dann in PATH: Ein
 // dort abgelegtes `gh.exe` bekäme sonst die Anmeldung samt Einmalcode. Deshalb wird der Name hier nur über die
@@ -97,4 +100,4 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
 // Die letzte Zeile dessen, was ein Programm als Fehler schreibt; der Hinweis auf `--help` zählt nicht.
 const lastLine = (text) => String(text ?? '').trim().split('\n').map((line) => line.trim()).filter((line) => line && !/^Run '.*--help' for more information/.test(line)).pop() ?? '';
 
-module.exports = { run, locate, lastLine };
+module.exports = { run, locate, lastLine, ESCAPES };

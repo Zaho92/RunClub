@@ -7,9 +7,11 @@
 //
 // Eng ist es, wenn in mehreren Proben in Folge zu wenig frei ist; eine Probe darüber hebt das wieder auf.
 
+const { SECOND } = require('./units');
+
 const FREE_MIN = 0.15; // darunter gilt der freie Anteil als zu klein
 const TIGHT_SAMPLES = 3; // so viele Proben in Folge, bevor gewarnt wird
-const MAX_AGE_MS = 15000; // ältere Messwerte gelten nicht mehr
+const MAX_AGE_MS = 15 * SECOND; // ältere Messwerte gelten nicht mehr
 const INTERVAL_S = 2;
 
 // Läuft in der VM. Die Schleife endet von selbst, sobald niemand mehr liest (das Schreiben scheitert dann).

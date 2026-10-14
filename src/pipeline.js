@@ -6,8 +6,9 @@
 // Restzeit        Die offenen Jobs aller laufenden Läufe werden in der Reihenfolge ihrer Abhängigkeiten auf die
 //                 Plätze des Pools verteilt. Das bleibt eine Schätzung.
 
-const fs = require('node:fs');
 const path = require('node:path');
+const { median: exactMedian } = require('./numbers');
+const { readJson, writeJson } = require('./store');
 
 const KEEP = 10; // gemerkte Dauern je Job
 const LEARN_PER_ROUND = 5; // abgeschlossene Läufe, die je Abfrage nachgelernt werden
@@ -16,12 +17,8 @@ const WAITS_KEEP = 50; // gemerkte Wartezeiten je Repo
 const WORKFLOWS_MAX = 40; // gemerkte Workflow-Dateien
 const TURNAROUND_S = 8; // Wechsel eines Platzes zum nächsten Job
 
-const median = (values) => {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
-};
+// Sekunden bleiben ganze Zahlen.
+const median = (values) => { const middle = exactMedian(values); return middle === null ? null : Math.round(middle); };
 const seconds = (from, to) => Math.max(0, Math.round((new Date(to) - new Date(from)) / 1000));
 const unquote = (text) => text.trim().replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2');
 
@@ -122,9 +119,9 @@ function stagesOf(jobs) {
 
 function createPipelines({ gh, dataDir }) {
   const file = path.join(dataDir, 'history.json');
-  let history = {};
-  try { history = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* noch nichts gelernt */ }
-  const save = () => { try { fs.writeFileSync(file, JSON.stringify(history)); } catch { /* Gelerntes ist Beiwerk */ } };
+  const read = readJson(file, {}).data; // eine beschädigte Datei bleibt als Kopie liegen
+  const history = read && typeof read === 'object' && !Array.isArray(read) ? read : {};
+  const save = () => { try { writeJson(file, history, { compact: true }); } catch { /* Gelerntes ist Beiwerk */ } };
   const memoryOf = (repo) => (history[repo] ??= { durations: {}, jobsOf: {}, seen: [] });
   const active = new Map(); // Repo -> laufende Läufe mit ihren Jobs
   const latest = new Map(); // Repo -> { id, updatedAt, pipeline } des jüngsten abgeschlossenen Laufs

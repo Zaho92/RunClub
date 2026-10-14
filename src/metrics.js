@@ -7,29 +7,23 @@
 //           können einen Job gleich nennen, und beim Lesen wird danach getrennt.
 // CPU steht überall in Kernen, Arbeitsspeicher in Bytes.
 
-const fs = require('node:fs');
 const path = require('node:path');
+
+const { MINUTE, DAY } = require('./units');
+const { median } = require('./numbers');
+const { readJson, writeJson } = require('./store');
 
 const RECENT_MAX = 300; // Messpunkte der letzten halben Stunde
 const MINUTES_MAX = 1440;
-const { MINUTE, DAY } = require('./units');
 const JOB_KEEP = 20; // gemerkte Durchläufe je Job und Workflow
 const NAME_KEEP = 100; // … und je Jobname über alle Workflows
 const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
 const FIELDS = ['hostCpu', 'hostMemory', 'vmCpu', 'vmMemory'];
 
-const median = (values) => {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
-};
-
-// `now`: die Uhr; in Tests steuerbar.
-function createMetrics({ dataDir, now: clock = Date.now }) { // `now`: die Uhr in Millisekunden; in Tests steuerbar
+// `now`: die Uhr in Millisekunden; in Tests steuerbar.
+function createMetrics({ dataDir, now: clock = Date.now }) {
   const file = path.join(dataDir, 'metrics.json');
-  let stored = {};
-  try { stored = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* noch nichts gemessen */ }
+  const stored = readJson(file, {}).data; // eine beschädigte Datei bleibt als Kopie liegen
   // Die Datei kann von Hand verändert oder beschädigt sein: nur nehmen, was die erwartete Form hat.
   const minutes = (Array.isArray(stored?.minutes) ? stored.minutes : []).filter((entry) => entry && Number.isFinite(entry.at));
   const jobs = stored?.jobs && typeof stored.jobs === 'object' && !Array.isArray(stored.jobs) ? stored.jobs : {};
@@ -40,7 +34,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) { // `now`: die Uhr i
     if (!Object.hasOwn(object, key)) Object.defineProperty(object, key, { value: make(), enumerable: true, writable: true, configurable: true });
     return object[key];
   };
-  const save = () => { try { fs.writeFileSync(file, JSON.stringify({ minutes, jobs })); } catch { /* Messwerte sind Beiwerk */ } };
+  const save = () => { try { writeJson(file, { minutes, jobs }, { compact: true }); } catch { /* Messwerte sind Beiwerk */ } };
 
   // Was älter als 24 Stunden ist, fällt heraus: Nach einer langen Pause lägen sonst alte Minuten auf der Achse eines Tages.
   // Ebenso, was in der Zukunft liegt (die Uhr wurde zurückgestellt): Die Kurve liefe sonst rückwärts.
