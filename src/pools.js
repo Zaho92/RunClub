@@ -1,8 +1,8 @@
-// Die Reserve eines Pools und sein Anhalten: Was über den einzelnen Platz hinausgeht, aber noch kein Cache und keine
-// Vorlage ist. Hier liegt, wie ein Pool entsteht und vorbereitet wird (`startPool`, `preparePool`), wie die Reserve
-// sich füllt (`replenish`), erneuert (`renewReserve`) und abgebaut wird
-// (`discardReserve`), wie die Zahl der Plätze der Einstellung folgt (`reconcile`) und wie ein Pool zur Ruhe kommt,
-// damit an seinen Caches gearbeitet werden kann (`quiesce`, `withPoolAtRest`, `rebuildIdle`).
+// Ein Pool im Ganzen: Was über den einzelnen Platz hinausgeht, aber noch kein Cache und keine Vorlage ist. Hier
+// liegt, wie ein Pool entsteht und vorbereitet wird (`startPool`, `preparePool`), wie die Reserve sich füllt
+// (`replenish`), erneuert (`renewReserve`) und abgebaut wird (`discardReserve`), wie die Zahl der Plätze der
+// Einstellung folgt (`reconcile`) und wie ein Pool zur Ruhe kommt, damit an seinen Caches gearbeitet werden kann
+// (`quiesce`, `withPoolAtRest`, `rebuildIdle`).
 //
 // Der Lebenslauf eines Platzes liegt in slots.js. Beide Seiten brauchen einander: Die Reserve baut Paare mit
 // `provision` und entfernt sie mit `removePair`, ein Platz füllt die Reserve nach und baut sie ab, wenn der Pool ruht.

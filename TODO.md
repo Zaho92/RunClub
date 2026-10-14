@@ -267,14 +267,14 @@ Richtigkeit:
     Windows selbst in den Ordnern aus PATH und nie im Arbeitsverzeichnis (`locate`). Geprüft am echten Rechner für
     alle drei, auch im Betrieb (Start und Demo-Lauf am 14.10.2026). Liegt eines davon nur als `.cmd` vor, findet RunClub es nicht
     mehr (das ließ sich auch vorher nicht starten).
-  - Erledigt am 14.10.2026: die Docker-Überwachung als `src/linux.js` (`linuxLoop`, `prepareLinux`, `buildImage`,
+  - Erledigt am 14.10.2026: die Docker-Überwachung als `src/linux.js` (`linuxLoop`, nach außen `watch`, `prepareLinux`, `buildImage`,
     `refreshImage`, `removeOrphans`, `removeLeftovers`, `removeRegistrations`), dazu `startPool` und `preparePool` in
     `src/pools.js` und `measureSizes` in `src/caches.js`, alle mit Tests. Der Code ist unverändert umgezogen (Zeile für
     Zeile verglichen); anders sind die Namen des Hereingereichten, `stopping()` und `linuxReady()` als Abfrage, die
     beiden zu ladenden Abbilder als Liste, die Messungen, die `linuxLoop` über `onReady` und `onAlive` startet, die
     Meldung „nicht erreichbar“ aus der Engine, `docker stats` über `docker()` mit `timeout: 0` und der Dauerlauf in der
     VM über `engine.inVm` (jetzt mit `wsl --exec`, ohne die Shell der Distro). Nach dem Review: Ein Pool, der gerade
-    entfernt wird, wird nicht mehr vorbereitet. Im Betrieb geprüft am 14.10.2026: Start, Messung der VM, Demo-Lauf.
+    entfernt wird, wird nicht mehr vorbereitet, und das Entfernen wartet eine laufende Vorbereitung ab. Im Betrieb geprüft am 14.10.2026: Start, Messung der VM, Demo-Lauf.
     Neu: `src/engine.js` als einzige Stelle, die weiß, wo Docker läuft (siehe „Docker Engine statt Docker Desktop“).
     In `src/backend.js` bleiben die Verdrahtung, die GitHub-Abfragen, die Messung und der Dienst.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.

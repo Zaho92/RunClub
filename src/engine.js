@@ -8,7 +8,8 @@
 //                          ohne TLS gibt jedem, der den Port erreicht, die volle Gewalt über den Daemon, auch einem
 //                          Job aus seinem Container heraus: dann nur mit RUNCLUB_DOCKER_CERTS.
 //   RUNCLUB_DOCKER_CERTS   Ordner mit `ca.pem`, `cert.pem`, `key.pem` für einen `tcp://`-Endpunkt mit TLS (geht als
-//                          DOCKER_CERT_PATH mit DOCKER_TLS_VERIFY=1 an die CLI).
+//                          DOCKER_CERT_PATH mit DOCKER_TLS_VERIFY=1 an die CLI). Gilt nur mit RUNCLUB_DOCKER_HOST; ohne
+//                          ihn gehen auch TLS-Einstellungen aus der Umgebung des Benutzers nicht an den eigenen Endpunkt.
 //   RUNCLUB_DOCKER_DISTRO  WSL-Distro, in der der Daemon läuft; dort wird die Belegung der VM gemessen (vmmemory.js).
 //                          Ohne Angabe bei Docker Desktop `docker-desktop`, bei eigenem Endpunkt keine; leer: keine.
 //
@@ -21,7 +22,7 @@ const DESKTOP_DISTRO = 'docker-desktop';
 // Liest die Engine aus der Umgebung: { host, certs, distro }, jeweils oder null.
 function engineFrom(env = process.env) {
   const host = String(env.RUNCLUB_DOCKER_HOST ?? '').trim() || null;
-  const certs = String(env.RUNCLUB_DOCKER_CERTS ?? '').trim() || null;
+  const certs = (host && String(env.RUNCLUB_DOCKER_CERTS ?? '').trim()) || null;
   const named = env.RUNCLUB_DOCKER_DISTRO;
   const distro = named === undefined ? (host ? null : DESKTOP_DISTRO) : String(named).trim() || null;
   return { host, certs, distro };
@@ -37,9 +38,10 @@ function engineFrom(env = process.env) {
 //   inVm(script, options)   ein festes Shell-Skript in der VM (`wsl --exec`, ohne die Shell der Distro dazwischen);
 //                           ohne Distro ein Ergebnis ohne Ausgabe (`code` -1). Nie Daten von außen hineinschreiben.
 //   unreachableText         die Meldung, wenn Docker nicht antwortet
-function createEngine({ run, timeout, host = null, certs = null, distro = DESKTOP_DISTRO }) {
+function createEngine({ run, timeout, host = null, certs = null, distro = host ? null : DESKTOP_DISTRO }) {
   const desktop = !host && distro === DESKTOP_DISTRO;
-  const own = { ...(host ? { DOCKER_HOST: host } : {}), ...(certs ? { DOCKER_TLS_VERIFY: '1', DOCKER_CERT_PATH: certs } : {}) };
+  // Mit eigenem Endpunkt gelten nur dessen TLS-Angaben; ein leerer Wert zählt für die CLI wie ein fehlender.
+  const own = host ? { DOCKER_HOST: host, DOCKER_TLS_VERIFY: certs ? '1' : '', DOCKER_CERT_PATH: certs ?? '' } : {};
   const docker = (args, options = {}) => run('docker', args, { timeout, ...options, ...(Object.keys(own).length ? { env: { ...options.env, ...own } } : {}) });
   const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean);
   const inVm = (script, options) => (distro ? run('wsl', ['-d', distro, '--exec', 'sh', '-c', script], options)

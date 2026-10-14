@@ -211,7 +211,7 @@ function startStatsFeed() {
       try {
         const entry = JSON.parse(line);
         const [value, unit] = entry.MemUsage.split('/')[0].trim().match(/^([\d.]+)\s*(\w+)$/).slice(1);
-        const factor = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: MB, GB: 1e9, GiB: 1073741824 }[unit] ?? 1;
+        const factor = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: MB, GB: 1e9, GiB: GB }[unit] ?? 1;
         const usage = { cpu: (parseFloat(entry.CPUPerc) || 0) / 100, memory: Number(value) * factor, at: Date.now() };
         if (entry.Name.startsWith('rc-')) containerStats.set(entry.Name, usage); else otherStats.set(entry.Name, usage);
       } catch { /* Kopfzeile oder unvollständige Zeile */ }
@@ -516,6 +516,8 @@ const actions = {
     pool.removed = true;
     log('Pool wird entfernt', repo);
     (async () => {
+      // Eine laufende Vorbereitung (Docker meldete sich gerade zurück) legte sonst nach dem Abbau Caches neu an.
+      while (pool.preparing) await sleep(500);
       await quiesce(pool);
       await docker(['rm', '-f', buildService(repo)]);
       await docker(['network', 'rm', buildNetwork(repo)]);
