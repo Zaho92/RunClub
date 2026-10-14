@@ -11,7 +11,8 @@ zeigt seine Oberfläche in einem Fenster.
 - Node.js (nur für `npm install`)
 
 RunClub nutzt die Anmeldung von `gh`, dieselbe wie im Terminal, und braucht dafür das Recht `repo`; mit dem
-freiwilligen Recht `user` zeigt es zusätzlich das Minuten-Kontingent des Kontos. Anmelden geht in
+Recht `user` zeigt es zusätzlich das Minuten-Kontingent des Kontos. Das Anmelden in der App verlangt beide in einem
+Schritt; `user` ist freiwillig in dem Sinn, dass sein Fehlen keine Störung ist. Anmelden geht in
 der App (Einstellungen → GitHub: Einmalcode, Bestätigung im Browser) oder wie bisher im Terminal
 (`gh auth login`). Dort lässt sich auch ein fehlendes Recht ergänzen und wieder abmelden; Abmelden meldet
 auch `gh` im Terminal ab. Ein Token oder ein anderer Host aus der Umgebung (`GH_TOKEN`, `GITHUB_TOKEN`, `GH_HOST`)

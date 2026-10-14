@@ -23,11 +23,14 @@ const HOST = 'github.com';
 const STATE = { UNKNOWN: 'unknown', MISSING: 'missing', OUT: 'out', IN: 'in' };
 const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
 const WHY = { LATE: 'late', SILENT: 'silent', GH: 'gh' };
-// Ohne sie kann RunClub nicht arbeiten. `repo` genügt für alles, was es tut: Runner an- und abmelden, Läufe lesen und
-// erneut starten, die Variable CI_RUNNER setzen. Mehr wird nicht verlangt; `gh` ergänzt von sich aus `read:org` und
-// `gist`, und die Oberfläche sagt das dazu.
+// Ohne sie kann RunClub nicht arbeiten. `repo` genügt für alles, was es mit den Runnern tut: Runner an- und abmelden,
+// Läufe lesen und erneut starten, die Variable CI_RUNNER setzen. `gh` ergänzt von sich aus `read:org` und `gist`,
+// und die Oberfläche sagt das dazu.
 const REQUIRED = ['repo'];
 // Freiwillige Rechte mit ihrem Zweck; den Satz dazu bildet die Oberfläche. `minutes`: das Minuten-Kontingent zeigen.
+// Freiwillig heißt: Fehlt eines, ist das keine Störung. Das Anmelden in der App verlangt sie trotzdem gleich mit
+// (Entscheidung des Nutzers, 14.10.2026: ein Schritt statt Anmelden und danach Ergänzen); ergänzt werden müssen sie
+// nur nach einer Anmeldung im Terminal, die sie nicht verlangt hat.
 const OPTIONAL = [{ scope: MINUTES_SCOPE, purpose: 'minutes' }];
 const FLOW_TIMEOUT = 15 * MINUTE; // so lange gilt auch der Einmalcode bei GitHub
 const START_WAIT = 20 * SECOND; // kommt bis dahin kein Code, gilt der Ablauf als gescheitert
@@ -207,7 +210,8 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
     if (current.state === STATE.MISSING) throw new Error('Das Programm gh ist nicht installiert.');
     if (current.state === STATE.IN) throw new Error(`Du bist schon als ${current.login} angemeldet.`);
     if (current.state !== STATE.OUT) throw new Error('Der Stand der Anmeldung ließ sich noch nicht lesen. Bitte gleich noch einmal versuchen.');
-    return begin('login', [...REQUIRED], ['auth', 'login', '--hostname', HOST, '--web', '-s', REQUIRED.join(',')]);
+    const scopes = [...REQUIRED, ...OPTIONAL.map((entry) => entry.scope)];
+    return begin('login', scopes, ['auth', 'login', '--hostname', HOST, '--web', '-s', scopes.join(',')]);
   }
 
   // Ein Recht ergänzen: ohne Angabe alle fehlenden Pflichtrechte, sonst das genannte freiwillige.

@@ -72,8 +72,11 @@ Richtigkeit:
 
 - **Anmeldung bei GitHub in der App** (`src/auth.js`, Aktionen `auth/…` in `src/backend.js`, Haltestelle „GitHub“ in
   `src/ui.html`): „Recht ergänzen“ für `user` hat der Nutzer am 14.10.2026 echt benutzt (Einmalcode, Bestätigung im
-  Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Anmelden, Abmelden und
-  Abbrechen sind nur gegen ein nachgestelltes `gh` getestet (`test/auth.test.js`). Echt prüfen, bei ruhenden Runnern:
+  Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Ebenfalls echt benutzt am
+  14.10.2026: „Abmelden“ und danach „Bei GitHub anmelden“; beides ging durch, nur fehlte danach `user`, weil das
+  Anmelden damals nur `repo` verlangte. Seither verlangt es `repo` und `user` in einem Schritt (Wunsch des Nutzers);
+  das ist nur gegen ein nachgestelltes `gh` getestet. Beim nächsten Anmelden nachsehen: Danach steht keine Zeile
+  „Recht ergänzen“, und „Verbrauch“ zeigt die GitHub-Minuten. Echt prüfen, bei ruhenden Runnern:
   „Abbrechen“ (danach läuft kein `gh` mehr; ist `gh` über einen Zwischenstarter wie den von scoop installiert, beendet
   das Abbrechen womöglich nur diesen), dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und
   als wer; der Code steht nirgends).
