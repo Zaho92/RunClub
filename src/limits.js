@@ -86,8 +86,7 @@ function plan(projects, range) {
   const needs = projects.map((project) => ({ repo: project.repo, need: suggest(project.jobs, range) })).filter((entry) => entry.need);
   if (!needs.length) return null;
   const memory = (need) => need.runnerMemory + need.dockerMemory;
-  const sorted = needs.map((entry) => memory(entry.need)).sort((a, b) => a - b);
-  const middle = median(sorted);
+  const middle = median(needs.map((entry) => memory(entry.need)));
   const outlier = (entry) => memory(entry.need) > middle * OUTLIER_FACTOR && memory(entry.need) - middle >= OUTLIER_GB;
   const usual = needs.filter((entry) => !outlier(entry));
   const most = (field) => Math.max(...usual.map((entry) => entry.need[field]));

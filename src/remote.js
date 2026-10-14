@@ -13,7 +13,8 @@ const { SLOT } = require('./states');
 
 const RUNS_PER_REPO = 20;
 const REPO_LIST_MAX_AGE = 5 * MINUTE; // so lange gilt die Liste der Repos des Kontos
-const REPO_PAGES_MAX = 10; // zu je 100 Repos
+const PAGE_SIZE = 100; // so viele gibt GitHub höchstens je Seite heraus
+const REPO_PAGES_MAX = 10;
 const RERUN_SETTLE = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht (Takt in backend.js)
 
@@ -24,10 +25,10 @@ const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne 
 //   repos(), settingsOf(repo)     die Repos mit Pool und ihre Einstellungen (siehe settings.js)
 //   poolOf(repo)            der stehende Pool oder undefined
 //   stopping(), timer (wie `setTimeout`)
-//   onPublic(repo)          ein Repo mit Pool ist öffentlich geworden
+//   onPublic(repo), onPrivate(repo)   ein Repo mit Pool ist öffentlich bzw. wieder privat (siehe actions.js)
 function createRemote({
   gh, githubApi, pipelines, routing, waiting, log, logError,
-  repos, settingsOf, poolOf, stopping, timer = setTimeout, onPublic,
+  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, onPublic, onPrivate,
 }) {
   const states = new Map(); // Repo -> { jobs, runs, error }
   const busy = new Set(); // Repos, deren Abfrage gerade läuft
@@ -45,7 +46,7 @@ function createRemote({
         .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, own: job.own, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
       states.set(repo, {
         jobs, error: null,
-        runs: runs.slice(0, RUNS_PER_REPO).map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
+        runs: runs.map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
       });
       noteWorkflows(poolOf(repo), jobs);
     } catch (error) {
@@ -87,14 +88,14 @@ function createRemote({
   // ist ein Pool möglich (es hat keinen, und öffentliche bekommen keinen; siehe `pool/add` in actions.js).
   let repoList = { at: 0, repos: [] };
   async function listRepos() {
-    if (Date.now() - repoList.at > REPO_LIST_MAX_AGE) {
+    if (now() - repoList.at > REPO_LIST_MAX_AGE) {
       const found = [];
       for (let page = 1; page <= REPO_PAGES_MAX; page += 1) {
-        const batch = await gh(['api', `user/repos?per_page=100&page=${page}&sort=pushed`]);
+        const batch = await gh(['api', `user/repos?per_page=${PAGE_SIZE}&page=${page}&sort=pushed`]);
         found.push(...batch.filter((r) => r.permissions?.admin && !r.archived).map((r) => ({ repo: r.full_name, private: r.private, pushedAt: r.pushed_at })));
-        if (batch.length < 100) break;
+        if (batch.length < PAGE_SIZE) break;
       }
-      repoList = { at: Date.now(), repos: found };
+      repoList = { at: now(), repos: found };
     }
     return repoList.repos.map((r) => { const pool = Boolean(settingsOf(r.repo)); return { ...r, pool, free: !pool && r.private !== false }; });
   }
@@ -108,14 +109,14 @@ function createRemote({
   }
 
   // Pools gibt es nur für private Repos. Wird ein Repo später öffentlich, liefen Pull Requests von Fremden auf diesem
-  // Rechner: Das meldet `onPublic`, einmal, bis das Repo wieder privat ist.
-  const publicRepos = new Set();
+  // Rechner: Das meldet `onPublic`. Ob ein Pool deshalb pausiert ist, steht in seinen Einstellungen (`pausedPublic`)
+  // und überdauert einen Neustart; erst eine gelungene Prüfung, die das Repo wieder privat findet, hebt es auf.
   async function checkVisibility(repo) {
+    const own = settingsOf(repo);
+    if (!own) return;
     const info = await gh(['api', `repos/${repo}`]);
-    if (info.private !== false) { publicRepos.delete(repo); return; }
-    if (publicRepos.has(repo) || !settingsOf(repo)) return;
-    publicRepos.add(repo);
-    await onPublic(repo);
+    if (info.private === false && !own.pausedPublic) await onPublic(repo);
+    else if (info.private !== false && own.pausedPublic) await onPrivate(repo);
   }
   const watchVisibility = (repo) => checkVisibility(repo).catch(logError(repo, 'Sichtbarkeit des Repos'));
 
@@ -131,8 +132,7 @@ function createRemote({
   return {
     refreshRepo, refreshAll, refreshActive, watchQuota, listRepos, scanWaiting, watchVisibility, rerun,
     view: (repo) => states.get(repo) ?? null,
-    isPublic: (repo) => publicRepos.has(repo),
-    forget: (repo) => { states.delete(repo); publicRepos.delete(repo); },
+    forget: (repo) => states.delete(repo),
   };
 }
 

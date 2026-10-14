@@ -7,6 +7,7 @@ const { createActions } = require('../src/actions');
 const { createSettings, PARALLEL_MAX } = require('../src/settings');
 const limitRules = require('../src/limits');
 const { GB } = require('../src/units');
+const { errorLog } = require('../src/journal');
 const { turn, until } = require('./support');
 
 const REPO = 'wer/App';
@@ -14,7 +15,7 @@ const REPO = 'wer/App';
 // Alles um die Aufrufe herum nachgestellt; die Einstellungen sind echt (in einem leeren Ordner). `calls` hält in
 // Kurzform, was die Aufrufe auslösen.
 function world({ pools: repos = [REPO] } = {}) {
-  const w = { calls: [], logs: [], timers: [], ready: true, info: {}, public: new Set(), routingState: { uses: 'variable', here: false, error: null }, plan: null, stale: 1 };
+  const w = { calls: [], logs: [], timers: [], ready: true, info: {}, routingState: { uses: 'variable', here: false, error: null }, plan: null, stale: 1 };
   w.settings = createSettings({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-actions-')), log: () => {} });
   w.pools = new Map();
   for (const repo of repos) {
@@ -25,33 +26,33 @@ function world({ pools: repos = [REPO] } = {}) {
   const runners = {
     pools: w.pools,
     slots: { abortIdle: (slot) => w.calls.push(`abortIdle ${slot.name}`) },
-    discardReserve: call('discardReserve'),
+    discardReserve: async (pool) => w.calls.push(`discardReserve ${pool.repo}`),
     reconcile: (pool) => w.calls.push(`reconcile ${pool.repo}`),
     startPool: (repo) => w.calls.push(`startPool ${repo}`),
     withPoolAtRest: async (pool, work) => { w.calls.push(`atRest ${pool.repo}`); return work(); },
     renewReserve: (pool) => w.calls.push(`renewReserve ${pool.repo}`),
     staleCount: () => w.stale,
-    rebuildIdle: call('rebuildIdle'),
+    rebuildIdle: async (pool) => w.calls.push(`rebuildIdle ${pool.repo}`),
     caches: { removeCaches: async (repo, parts) => { w.calls.push(`removeCaches ${repo} ${Object.keys(parts).filter((key) => parts[key]).join('+')}`); if (w.cachesFail) throw new Error(w.cachesFail); }, prepareCaches: call('prepareCaches'), measureSizes: async (pool) => w.calls.push(`measureSizes ${pool.repo}`) },
     seed: { forget: call('forgetSeed'), refreshSeed: call('refreshSeed') },
   };
-  const { actions, pauseForPublic } = createActions({
+  const { actions, pauseForPublic, allowPrivate } = createActions({
     gh: async (args) => { w.calls.push(`gh ${args.at(-1)}`); return w.info; },
     settings: w.settings, runners,
-    remote: { refreshAll: call('refreshAll'), forget: (repo) => w.calls.push(`remote.forget ${repo}`), isPublic: (repo) => w.public.has(repo), rerun: call('rerun') },
+    remote: { refreshAll: call('refreshAll'), forget: (repo) => w.calls.push(`remote.forget ${repo}`), rerun: call('rerun') },
     routing: { check: async (repo) => { w.calls.push(`routing.check ${repo}`); return w.routingState; }, set: async (repo, on) => { w.calls.push(`routing.set ${repo} ${on}`); }, forget: (repo) => w.calls.push(`routing.forget ${repo}`) },
     waiting: { forget: (repo) => w.calls.push(`waiting.forget ${repo}`) },
     metrics: { forget: (repo) => w.calls.push(`metrics.forget ${repo}`) },
     account: { login: call('login'), grant: call('grant'), cancel: call('cancel'), logout: call('logout') },
-    docker: { ready: () => w.ready, removeRegistrations: call('removeRegistrations') },
+    dockerWatch: { ready: () => w.ready, removeRegistrations: call('removeRegistrations') },
     limitRange: () => limitRules.bounds({ dockerMemory: 16 * GB, dockerCpus: 8 }),
     limitPlan: () => w.plan,
     log: (...entry) => w.logs.push(entry),
-    logError: (repo, what) => (error) => w.logs.push([what ? `${what} – ${error.message}` : error.message, repo, 'error']),
+    logError: errorLog((...entry) => w.logs.push(entry)),
     shutdown: () => w.calls.push('shutdown'),
     timer: (work, ms) => w.timers.push({ work, ms }),
   });
-  Object.assign(w, { actions, pauseForPublic });
+  Object.assign(w, { actions, pauseForPublic, allowPrivate });
   return w;
 }
 
@@ -78,7 +79,7 @@ test('pool/add legt an, wie GitHub das Repo schreibt, startet den Pool und leite
   await until(() => w.calls.includes('routing.set Wer/Neu true'));
   assert.deepEqual(w.settings.config.pools, [{ repo: 'Wer/Neu', parallel: PARALLEL_MAX, cache: true, paused: false, preload: [] }]);
   assert.deepEqual(w.calls.slice(0, 5), ['gh repos/wer/neu', 'waiting.forget Wer/Neu', 'startPool Wer/Neu', 'refreshAll', 'routing.check Wer/Neu']);
-  assert.deepEqual(w.logs.map(([text]) => text), ['Pool angelegt', 'CI_RUNNER gesetzt – die Jobs laufen jetzt auf den eigenen Runnern']);
+  assert.deepEqual(w.logs.map(([text]) => text), ['Pool angelegt', 'CI_RUNNER gesetzt – die Jobs laufen auf den eigenen Runnern']);
 });
 
 test('pool/set: Plätze begrenzt, Pausieren beendet freie Paare und die Reserve, ein anderer Cache wird bei Ruhe bereitgestellt', async () => {
@@ -86,17 +87,23 @@ test('pool/set: Plätze begrenzt, Pausieren beendet freie Paare und die Reserve,
   await w.actions['pool/set']({ repo: REPO, parallel: '3', paused: true, cache: false });
   await turn();
   assert.deepEqual(w.settings.settingsOf(REPO), { repo: REPO, parallel: 3, cache: false, paused: true, preload: [] });
-  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve`, `reconcile ${REPO}`, `atRest ${REPO}`, `prepareCaches ${REPO}`]);
+  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`, `reconcile ${REPO}`, `atRest ${REPO}`, `prepareCaches ${REPO}`]);
   assert.deepEqual(w.logs, [['3 Plätze, pausiert, Cache aus', REPO]]);
   await assert.rejects(w.actions['pool/set']({ repo: 'wer/Fremd', parallel: 1 }), { message: 'Diesen Pool gibt es nicht.' });
 });
 
-test('pool/set: ein öffentlich gewordenes Repo lässt sich nicht fortsetzen, und es ändert sich nichts', async () => {
+test('ein öffentlich gewordenes Repo: weder fortsetzen noch Jobs umleiten, bis es wieder privat ist', async () => {
   const w = world();
-  w.settings.settingsOf(REPO).paused = true;
-  w.public.add(REPO);
+  Object.assign(w.settings.settingsOf(REPO), { paused: true, pausedPublic: true });
   await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false, parallel: 4 }), /öffentlich/);
   assert.deepEqual([w.settings.settingsOf(REPO).paused, w.settings.settingsOf(REPO).parallel], [true, 2]);
+  await assert.rejects(w.actions['pool/routing']({ repo: REPO, on: true }), /öffentlich/);
+  await w.actions['pool/routing']({ repo: REPO, on: false }); // zurück an GitHub geht immer
+  await w.allowPrivate(REPO);
+  assert.equal(w.settings.settingsOf(REPO).pausedPublic, undefined);
+  assert.equal(w.logs.at(-1)[0], 'Das Repo ist wieder privat; der Pool lässt sich fortsetzen.');
+  await w.actions['pool/set']({ repo: REPO, paused: false });
+  assert.equal(w.settings.settingsOf(REPO).paused, false);
 });
 
 test('pool/remove: sofort aus den Einstellungen; danach Caches, Vorlage, Variable, Anmeldungen, Gelerntes; dann ist der Name frei', async () => {
@@ -131,6 +138,15 @@ test('pool/clear: nur bekannte Caches; geleert wird bei Ruhe, danach neu bereitg
   await until(() => w.logs.length === 2);
   assert.deepEqual(w.calls, [`atRest ${REPO}`, `removeCaches ${REPO} `, `forgetSeed ${REPO}`, `prepareCaches ${REPO}`, `refreshSeed ${REPO}`, `measureSizes ${REPO}`]);
   assert.deepEqual(w.logs.map(([text]) => text), ['Leere die gelernten Abbilder …', 'Geleert; der nächste Lauf füllt wieder auf']);
+  // Scheitert das Löschen, steht es im Protokoll, und Caches, Build-Dienst und Vorlage stehen trotzdem wieder bereit.
+  w.calls.length = 0;
+  w.logs.length = 0;
+  w.cachesFail = 'Caches ließen sich nicht löschen – volume is in use';
+  await w.actions['pool/clear']({ repo: REPO, what: 'build' });
+  await until(() => w.logs.length === 2);
+  assert.deepEqual(w.calls.slice(-3), [`prepareCaches ${REPO}`, `refreshSeed ${REPO}`, `measureSizes ${REPO}`]);
+  assert.deepEqual(w.logs[1], [w.cachesFail, REPO, 'error']);
+  w.cachesFail = null;
   w.calls.length = 0;
   await w.actions['pool/clear']({ repo: REPO, what: 'all' });
   await until(() => w.calls.includes(`measureSizes ${REPO}`));
@@ -156,7 +172,7 @@ test('pool/rebuild baut nur Pools mit veralteten Paaren neu auf, keine, die gera
   const w = world({ pools: [REPO, 'wer/Zwei'] });
   w.pools.get('wer/Zwei').removed = true;
   await w.actions['pool/rebuild']({});
-  assert.deepEqual(w.calls, ['rebuildIdle']);
+  assert.deepEqual(w.calls, [`rebuildIdle ${REPO}`]);
   w.stale = 0;
   await w.actions['pool/rebuild']({ repo: REPO });
   assert.equal(w.calls.length, 1);
@@ -174,8 +190,8 @@ test('beenden antwortet erst und beendet dann', async () => {
 test('ein öffentlich gewordenes Repo: Pool pausiert, freie Paare und Reserve weg, Variable entfernt, laut im Protokoll', async () => {
   const w = world();
   await w.pauseForPublic(REPO);
-  assert.equal(w.settings.settingsOf(REPO).paused, true);
-  assert.deepEqual(w.calls, ['abortIdle frei', 'discardReserve', `routing.set ${REPO} false`]);
+  assert.deepEqual([w.settings.settingsOf(REPO).paused, w.settings.settingsOf(REPO).pausedPublic], [true, true]);
+  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`, `routing.set ${REPO} false`]);
   assert.equal(w.logs[0][2], 'error');
   w.calls.length = 0;
   w.pools.get(REPO).removed = true;

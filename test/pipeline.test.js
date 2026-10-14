@@ -224,11 +224,11 @@ test('ein Ausdruck im Namen steht nie für „ / “ und darf leer sein', () => 
 });
 
 test('ein angekündigter Job hat die Dauer der passenden gelernten Jobs', async () => {
-  const { pipeline } = await renamed([done('Vorbereiten', 10)], { 'Test ubuntu-latest': [100], 'Test windows-latest': [200, 300], 'lint (18)': [40], Vorbereiten: [10] });
+  const { pipeline } = await renamed([done('Vorbereiten', 10)], { 'Test ubuntu-latest': [100], 'Test windows-latest': [200, 300], 'lint (18)': [40], Vorbereiten: [10], 'Ausliefern / Bauen': [30] });
   const estimate = (name) => pipeline.jobs.find((j) => j.name === name).estimate;
   assert.equal(estimate(EXPR), 200);
   assert.equal(estimate('lint'), 40);
-  assert.equal(estimate('Ausliefern'), null); // nichts gelernt
+  assert.equal(estimate('Ausliefern'), null); // ein Aufruf läuft als mehrere Jobs: Einer davon sagt nichts über die Dauer
 });
 
 test('viele Ausdrücke im Namen werden nicht zum teuren Muster', async () => {

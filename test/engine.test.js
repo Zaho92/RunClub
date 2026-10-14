@@ -92,14 +92,16 @@ function fakeGet(answer, calls = []) {
   };
 }
 
-test('ein ungeschützter Daemon auf Port 2375 wird erkannt, nur bei Docker Desktop', async () => {
+test('ein ungeschützter Daemon: bei Docker Desktop über Port 2375, bei eigenem Endpunkt über tcp:// ohne TLS', async () => {
   const calls = [];
   const run = async () => ({ code: 0, stdout: '', stderr: '' });
-  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet('OK', calls) }).exposedDaemon(), true);
+  assert.match(await createEngine({ run, timeout: 1, get: fakeGet('OK', calls) }).exposure(), /tcp:\/\/localhost:2375/);
   assert.deepEqual(calls, [[EXPOSED_PING, 2000]]);
-  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })) }).exposedDaemon(), false);
-  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet('etwas anderes') }).exposedDaemon(), false);
+  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })) }).exposure(), null);
+  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet('etwas anderes') }).exposure(), null);
   const other = [];
-  assert.equal(await createEngine({ run, timeout: 1, host: 'npipe:////./pipe/runclub', get: fakeGet('OK', other) }).exposedDaemon(), false);
-  assert.deepEqual(other, []);
+  assert.equal(await createEngine({ run, timeout: 1, host: 'npipe:////./pipe/runclub', get: fakeGet('OK', other) }).exposure(), null);
+  assert.deepEqual(other, []); // ohne Docker Desktop kein Blick auf Port 2375
+  assert.match(await createEngine({ run, timeout: 1, host: 'tcp://127.0.0.1:2375', get: fakeGet('OK') }).exposure(), /^RUNCLUB_DOCKER_HOST zeigt auf tcp:\/\/127\.0\.0\.1:2375 ohne TLS/);
+  assert.equal(await createEngine({ run, timeout: 1, host: 'tcp://127.0.0.1:2376', certs: 'C:\\certs', get: fakeGet('OK') }).exposure(), null);
 });

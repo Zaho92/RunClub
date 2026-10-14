@@ -155,4 +155,12 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   return { call, refreshQuota, mayPoll, quota: view };
 }
 
-module.exports = { createGitHub, parseResponse, deepFreeze, STATE, GH_ENV };
+// Einen Runner bei GitHub abmelden. 404 heißt: schon weg (etwa von selbst nach seinem Job) und ist kein Fehler.
+// `gh` wie `call`.
+async function unregisterRunner(gh, repo, runnerId) {
+  try { await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runnerId}`]); } catch (error) {
+    if (!/HTTP 404/.test(error.message)) throw error;
+  }
+}
+
+module.exports = { createGitHub, parseResponse, deepFreeze, unregisterRunner, STATE, GH_ENV };

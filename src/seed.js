@@ -12,11 +12,13 @@
 
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
+const { waitForDaemon, PAIR_SOCKET } = require('./dind');
 const { permanentPullError, daysSince, pruneOlder } = require('./images');
 const { errorLog } = require('./journal');
 
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
+const LOCK_PAUSE = SECOND / 2; // so oft sieht nach, wer auf die Vorlage wartet
 const IMAGE_NAME = /^[a-z0-9][a-z0-9._/:-]*:[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
@@ -26,11 +28,12 @@ const IMAGE_NAME = /^[a-z0-9][a-z0-9._/:-]*:[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 //   longTimeout             Zeitgrenze für das Laden eines Abbilds
 //   settingsOf(repo), seedVolume(repo), poolOf(repo) (der Pool oder undefined)
 //   state, saveState()      das Gelernte (`learned`, `rejected`) und sein Speichern
+//   stopping()              RunClub endet: Ein Auffrischen hört dann auf, statt das Beenden aufzuhalten
 function createSeed({
   docker, dockerList, log, sleep,
   mark, dind, longTimeout,
   settingsOf, seedVolume, poolOf,
-  state, saveState,
+  state, saveState, stopping = () => false,
 }) {
   const logError = errorLog(log);
 
@@ -48,7 +51,7 @@ function createSeed({
   async function withSeed(repo, exclusive, work) {
     if (!seedLocks.has(repo)) seedLocks.set(repo, { readers: 0, writing: false });
     const lock = seedLocks.get(repo);
-    while (lock.writing || (exclusive && lock.readers > 0)) await sleep(500);
+    while (lock.writing || (exclusive && lock.readers > 0)) await sleep(LOCK_PAUSE);
     if (exclusive) lock.writing = true; else lock.readers += 1;
     try { return await work(); } finally { if (exclusive) lock.writing = false; else lock.readers -= 1; }
   }
@@ -65,16 +68,14 @@ function createSeed({
       log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
       await docker(['volume', 'create', seed]);
       await docker(['run', '-d', '--label', mark, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, dind]);
-      let ready = false;
-      for (let attempt = 0; attempt < 40 && !ready; attempt += 1) {
-        ready = (await docker(['exec', loader, 'docker', 'info', '--format', 'ok'], { timeout: 20 * SECOND })).code === 0;
-        if (!ready) await sleep(1000);
-      }
+      const ready = await waitForDaemon({ docker, sleep, container: loader, cancelled: stopping });
       // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
       if (!ready) { await docker(['rm', '-f', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
       const present = new Set();
       const retry = new Set();
       for (const image of wanted) {
+        // Endet RunClub, bleibt die Vorlage, wie sie war; den Lade-Container räumt das Beenden ab.
+        if (stopping()) return;
         const pull = await docker(['exec', loader, 'docker', 'pull', '-q', image], { timeout: longTimeout });
         if (pull.code === 0) { present.add(image); continue; }
         log(`${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`, repo, 'error');
@@ -101,7 +102,7 @@ function createSeed({
   // Nach einem Job: die Namen der Abbilder festhalten, die er selbst geladen hat.
   const refreshQueued = new Set();
   async function learnImages(pool, slot) {
-    const listing = await docker(['exec', `${slot.base}-dind`, 'docker', '-H', 'unix:///sock/docker.sock', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
+    const listing = await docker(['exec', `${slot.base}-dind`, 'docker', '-H', PAIR_SOCKET, 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
     if (listing.code !== 0) return;
     const now = new Date().toISOString();
     const rejected = state.rejected[pool.repo] ?? {};

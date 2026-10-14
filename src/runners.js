@@ -10,6 +10,9 @@ const { createSeed } = require('./seed');
 const { createSlots } = require('./slots');
 const { createCaches } = require('./caches');
 const { createPools } = require('./pools');
+const { idleRegistrations } = require('./slots');
+const { unregisterRunner } = require('./github');
+const { errorLog } = require('./journal');
 
 //   docker(args, options), dockerList(args)   aus engine.js
 //   gh(args, body)          Aufruf der GitHub-API
@@ -36,7 +39,7 @@ function createRunners({
     docker, dockerList, log, sleep,
     mark: names.mark, dind, longTimeout,
     settingsOf, seedVolume: names.seedVolume, poolOf,
-    state: settings.state, saveState: settings.saveState,
+    state: settings.state, saveState: settings.saveState, stopping,
   });
 
   let reserve = null; // die Funktionen aus pools.js; sie entstehen erst nach den Plätzen, die sie brauchen
@@ -62,11 +65,31 @@ function createRunners({
   reserve = createPools({
     log, sleep, pools,
     settingsOf, limitsOf, stopping, dockerReady,
-    provision: slots.provision, removePair: slots.removePair, teardown: slots.teardown, slotLoop: slots.slotLoop, abortIdle: slots.abortIdle,
+    provision: slots.provision, removePair: slots.removePair, abort: slots.abort, slotLoop: slots.slotLoop, abortIdle: slots.abortIdle,
     prepareCaches: caches.prepareCaches, refreshSeed: seed.refreshSeed, measureSizes: caches.measureSizes,
   });
 
-  return { pools, seed, slots, caches, ...reserve };
+  const logError = errorLog(log);
+
+  // Im Minutentakt: die Reserve nachfüllen und einen Build-Dienst mit alten Limits erneuern.
+  function tick() {
+    for (const pool of pools.values()) {
+      reserve.replenish(pool);
+      caches.renewService(pool).catch(logError(pool.repo));
+    }
+  }
+
+  // Die Volumes aller Pools messen; ein ruhender Pool misst selbst, wenn seine Arbeit fertig ist.
+  function measureAll() {
+    if (!dockerReady()) return;
+    for (const pool of pools.values()) if (!pool.hold) caches.measureSizes(pool);
+  }
+
+  // Beim Abmelden von Windows: die freien Runner bei GitHub abmelden, alle zugleich. Fehler zählen nicht; was bleibt,
+  // meldet der nächste Start ab.
+  const releaseIdle = () => Promise.all(idleRegistrations(pools.values()).map(({ repo, runnerId }) => unregisterRunner(gh, repo, runnerId).catch(() => {})));
+
+  return { pools, seed, slots, caches, ...reserve, tick, measureAll, releaseIdle };
 }
 
 module.exports = { createRunners };

@@ -335,7 +335,7 @@ const TEXT = {
     noMinutesOne: 'Keine GitHub-Minuten: Ein Lauf ist seit {1} nicht gestartet', noMinutesMany: 'Keine GitHub-Minuten: {0} Läufe sind seit {1} nicht gestartet', noMinutesTip: 'Die GitHub-Minuten sind aufgebraucht. Mit einem Pool laufen die Jobs auf diesem Rechner und brauchen keine.',
     rerun: 'Erneut starten', rerunFailed: 'Nur Gescheiterte', rerunJob: 'Job erneut starten', rerunTip: 'Alle Jobs dieses Laufs noch einmal ausführen', rerunFailedTip: 'Nur die gescheiterten Jobs noch einmal ausführen; die gelungenen behalten ihr Ergebnis', rerunDone: 'Erneut gestartet. Bei GitHub dauert es einen Augenblick, bis der Lauf wieder erscheint.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
     peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
-    reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', dockerStarting: 'startet', github: 'GitHub: {0}',
+    reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', dockerStarting: 'startet', retiring: 'läuft aus', github: 'GitHub: {0}',
     runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
     wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
     day: 'Die letzten 24 Stunden',
@@ -400,7 +400,7 @@ const TEXT = {
     noMinutesOne: 'No GitHub minutes: one run has not started for {1}', noMinutesMany: 'No GitHub minutes: {0} runs have not started for {1}', noMinutesTip: 'The GitHub minutes are used up. With a pool the jobs run on this machine and need none.',
     rerun: 'Re-run', rerunFailed: 'Failed only', rerunJob: 'Re-run job', rerunTip: 'Run all jobs of this run again', rerunFailedTip: 'Run only the failed jobs again; the successful ones keep their result', rerunDone: 'Re-run started. It takes GitHub a moment to show the run again.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
     peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
-    reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', dockerStarting: 'starting', github: 'GitHub: {0}',
+    reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', dockerStarting: 'starting', retiring: 'retiring', github: 'GitHub: {0}',
     runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
     wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
     day: 'The last 24 hours',
@@ -453,7 +453,9 @@ const TEXT = {
     minutesBilledInfo: 'GitHub can bill some minutes even below the included ones, for example for larger runners.', peakInfo: 'Measured against this project’s limit, separately for runner and Docker. Past the dotted mark ({0}%) a peak counts as tight. In the table, the value that sets the bar stands out.',
   },
 };
-const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off', 'läuft aus': 'retiring' };
+// Die Zustände eines Platzes, wie das Backend sie nennt (SLOT in src/states.js), und ihre englischen Wörter.
+const SLOT = { WORKING: 'arbeitet', READY: 'bereit' };
+const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off' };
 // Bis zu dieser Breite gilt das Fenster als schmal; dieselbe Grenze steht im CSS (`max-width: 760px`) und in main.js.
 const NARROW = 760;
 const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* ohne Speicher */ } } };
@@ -485,9 +487,9 @@ const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; retur
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
 const shortRepo = (repo) => repo.split('/')[1]; // der Name ohne den Besitzer
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
-const stateText = (state) => (lang === 'de' ? state : state.split(', ').map((part) => STATES_EN[part] ?? part).join(', '));
+const stateText = (state) => (lang === 'de' ? state : STATES_EN[state] ?? state);
 // Der Zustand eines Runners samt „läuft aus“, wenn der Platz wegfällt, sobald er frei ist.
-const runnerState = (r) => (r.retiring ? r.state + ', läuft aus' : r.state);
+const runnerState = (r) => stateText(r.state) + (r.retiring ? ', ' + t('retiring') : '');
 const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
 const icon = (state) => '<span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[state] + '</svg></span>';
 const jobState = (j) => j.status === 'in_progress' ? 'run' : j.status !== 'completed' ? 'wait' : ({ success: 'done', failure: 'fail', timed_out: 'fail', cancelled: 'cancel', skipped: 'skip' })[j.conclusion] ?? 'done';
@@ -640,7 +642,7 @@ function renderRail() {
   const item = (key, title, sub, dot, plain, todo) => '<button class="nav' + (plain ? ' plain' : '') + (todo ? ' todo' : '') + (dot ? ' s-' + dot : '') + '" data-view="' + esc(key) + '" aria-current="' + (view === key) + '">' + (dot ? icon(dot) : '') + '<b>' + esc(title) + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</button>';
   document.getElementById('rail').setAttribute('aria-label', t('railLabel'));
   if (window.innerWidth <= NARROW) requestAnimationFrame(() => document.querySelector('.nav[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
-  put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), data.repos.length ? t('working', count('arbeitet'), count('bereit')) : '', '') +
+  put(document.getElementById('rail'), '<div class="brand">RunClub</div>' + item('all', t('all'), data.repos.length ? t('working', count(SLOT.WORKING), count(SLOT.READY)) : '', '') +
     data.repos.map((entry) => { const state = projectState(entry); return item(entry.repo, shortRepo(entry.repo), state.text, state.dot); }).join('') +
     '<div class="railfoot">' + item('usage', t('usage'), !usage ? '' : usage.out ? '<span class="c-fail">' + esc(usage.text) + '</span>' : esc(usage.text), '', true, Boolean(usage?.out)) + item('settings', t('settings'), signIn ? (authStart() ? esc(signIn) : '<span class="c-fail">' + esc(signIn) + '</span>') : trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean((signIn && !authStart()) || trouble)) + '</div>');
 }
@@ -817,11 +819,11 @@ function seats(entries) {
   for (const entry of entries) {
     const short = shortRepo(entry.repo);
     entry.runners.forEach((r, index) => {
-      if (r.state !== 'arbeitet') return;
+      if (r.state !== SLOT.WORKING) return;
       rows.push('<tr><td style="white-space:nowrap">' + esc(many ? short + ' ' + (index + 1) : index + 1) + '</td><td class="cut" title="' + esc(r.job?.job ?? '') + '">' + esc(r.job?.job ?? '') + '</td><td class="r">' + mb(r.memory) + '</td><td class="r">' + num(r.cores ?? 0) + '</td></tr>');
     });
-    const rest = entry.runners.filter((r) => r.state !== 'arbeitet');
-    const states = [...new Set(rest.map(runnerState))].map((state) => rest.filter((r) => runnerState(r) === state).length + ' ' + stateText(state)).join(', ');
+    const rest = entry.runners.filter((r) => r.state !== SLOT.WORKING);
+    const states = [...new Set(rest.map(runnerState))].map((state) => rest.filter((r) => runnerState(r) === state).length + ' ' + state).join(', ');
     if (rest.length) idle.push((many ? short + ': ' : '') + states);
   }
   const reserve = entries.reduce((sum, e) => sum + (e.pool?.reserve ?? 0), 0);

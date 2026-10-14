@@ -24,6 +24,7 @@ const DESKTOP_DISTRO = 'docker-desktop';
 // Docker Desktop kann seinen Daemon ohne TLS auf diesem Port freigeben (Settings → General).
 const EXPOSED_PING = 'http://127.0.0.1:2375/_ping';
 const PROBE_TIMEOUT = 2 * SECOND;
+const PING_MAX = 100; // Zeichen; ein Daemon antwortet mit „OK“
 
 // Liest die Engine aus der Umgebung: { host, certs, distro }, jeweils oder null.
 function engineFrom(env = process.env) {
@@ -44,7 +45,7 @@ function engineFrom(env = process.env) {
 //   inVm(script, options)   ein festes Shell-Skript in der VM (`wsl --exec`, ohne die Shell der Distro dazwischen);
 //                           ohne Distro ein Ergebnis ohne Ausgabe (`code` -1). Nie Daten von außen hineinschreiben.
 //   unreachableText         die Meldung, wenn Docker nicht antwortet
-//   exposedDaemon()         ob Docker Desktop seinen Daemon ohne Schutz auf tcp://localhost:2375 freigibt (Promise)
+//   exposure()              eine Warnung, wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise)
 // `get` wie `http.get`; in Tests steuerbar.
 function createEngine({ run, timeout, host = null, certs = null, distro = host ? null : DESKTOP_DISTRO, get = http.get }) {
   const desktop = !host && distro === DESKTOP_DISTRO;
@@ -57,19 +58,24 @@ function createEngine({ run, timeout, host = null, certs = null, distro = host ?
   const unreachableText = desktop ? 'Docker ist nicht erreichbar – läuft Docker Desktop?'
     : `Docker ist nicht erreichbar – läuft der Daemon${host ? ` unter ${host}` : ''}${distro ? ` in der WSL-Distro ${distro}` : ''}?`;
   // Ein Daemon ohne Schutz auf dem Windows-localhost ist aus jedem Container erreichbar (host.docker.internal): Ein Job
-  // steuerte damit ganz Docker, ohne erst ausbrechen zu müssen. Nur bei Docker Desktop gibt es diesen Schalter.
-  const exposedDaemon = () => new Promise((resolve) => {
-    if (!desktop) { resolve(false); return; }
+  // steuerte damit ganz Docker, ohne erst ausbrechen zu müssen. Bei Docker Desktop gibt es dafür einen Schalter; ein
+  // eigener Endpunkt über `tcp://` ohne Zertifikate ist es von vornherein.
+  const desktopExposed = () => new Promise((resolve) => {
     const request = get(EXPOSED_PING, { timeout: PROBE_TIMEOUT }, (response) => {
       let body = '';
-      response.on('data', (chunk) => { body += chunk; });
+      response.on('data', (chunk) => { body += chunk; if (body.length > PING_MAX) request.destroy(); });
       response.on('end', () => resolve(body.trim() === 'OK'));
       response.on('error', () => resolve(false));
     });
     request.on('timeout', () => request.destroy());
     request.on('error', () => resolve(false)); // nichts lauscht dort: so soll es sein
   });
-  return { docker, dockerList, inVm, unreachableText, exposedDaemon };
+  async function exposure() {
+    if (host && /^tcp:\/\//i.test(host) && !certs) return `RUNCLUB_DOCKER_HOST zeigt auf ${host} ohne TLS (RUNCLUB_DOCKER_CERTS fehlt). Jeder Job, der diesen Port erreicht, steuert damit ganz Docker.`;
+    if (desktop && await desktopExposed()) return 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.';
+    return null;
+  }
+  return { docker, dockerList, inVm, unreachableText, exposure };
 }
 
 module.exports = { engineFrom, createEngine, DESKTOP_DISTRO, EXPOSED_PING };

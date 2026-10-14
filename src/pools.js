@@ -15,18 +15,21 @@
 const limitRules = require('./limits');
 const { errorLog } = require('./journal');
 const { SLOT, busy } = require('./states');
+const { SECOND } = require('./units');
+
+const POLL_PAUSE = SECOND / 2; // so oft sieht nach, wer darauf wartet, dass ein Pool zur Ruhe kommt
 
 //   log(text, repo, kind), sleep(ms)
 //   pools                   Map Repo -> Pool; `startPool` trägt neue Pools ein
 //   settingsOf(repo), limitsOf(repo), stopping(), dockerReady()
-//   provision(pool, cancelled), removePair(repo, base, runnerId), teardown(slot), slotLoop(pool, slot), abortIdle(slot)
+//   provision(pool, cancelled), removePair(repo, base, runnerId), abort(slot), slotLoop(pool, slot), abortIdle(slot)
 //                           aus slots.js
 //   prepareCaches(repo), measureSizes(pool)   Paket-Cache und Build-Dienst bereitstellen, Volumes messen (caches.js)
 //   refreshSeed(repo)       die Vorlage auffrischen (seed.js)
 function createPools({
   log, sleep, pools,
   settingsOf, limitsOf, stopping, dockerReady,
-  provision, removePair, teardown, slotLoop, abortIdle,
+  provision, removePair, abort, slotLoop, abortIdle,
   prepareCaches, refreshSeed, measureSizes,
 }) {
   const logError = errorLog(log);
@@ -110,26 +113,31 @@ function createPools({
     for (const slot of active.slice(wanted)) { slot.retired = true; abortIdle(slot); }
   }
 
+  // Steht im Pool noch ein Paar: eines im Abbau, an einem Platz oder eines, das ein Platz gerade aufbaut?
+  const hasPairs = (pool) => Boolean(pool.leaving) || pool.slots.some((slot) => slot.base || slot.building);
+
   // Wartet, bis kein Paar des Pools mehr steht: freie Paare und die Reserve werden entfernt, arbeitende laufen zu Ende.
   async function quiesce(pool) {
     await Promise.all([discardReserve(pool), ...pool.slots.map((slot) => abortIdle(slot))]);
-    while (pool.reserve.length || pool.leaving || pool.slots.some((slot) => slot.base || slot.building)) await sleep(500);
+    while (pool.reserve.length || hasPairs(pool)) await sleep(POLL_PAUSE);
   }
 
   // Beim Beenden: alle Paare abbauen, auch die Reserve und die, die gerade entstehen; laufende Jobs enden dabei. Ein
-  // Platz im Aufbau sieht den Abbruch und räumt sein Paar selbst ab; darauf wird bis `timeout` gewartet.
+  // Platz im Aufbau sieht den Abbruch und räumt sein Paar selbst ab. Gewartet wird höchstens `timeout`: Ein Aufbau für
+  // die Reserve kann hinter dem Auffrischen der Vorlage hängen, und das Beenden räumt ohnehin alles Gekennzeichnete ab.
   async function dismantle(timeout) {
     const all = [...pools.values()];
-    await Promise.all(all.flatMap((pool) => [discardReserve(pool), ...pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })]));
+    for (const pool of all) discardReserve(pool).catch(logError(pool.repo)); // zählt sofort in `leaving`
+    await Promise.all(all.flatMap((pool) => pool.slots.map(abort)));
     const until = Date.now() + timeout;
-    while (Date.now() < until && all.some((pool) => pool.leaving || pool.slots.some((slot) => slot.base || slot.building))) await sleep(500);
+    while (Date.now() < until && all.some(hasPairs)) await sleep(POLL_PAUSE);
   }
 
   // Die freien Runner eines Pools neu aufbauen. Läuft ein Job, gehen nur die mit alten Limits (wie `staleCount`
   // sie zählt). Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits des Docker-Daemons. Ob ein Job läuft, entscheidet sich erst, wenn der Pool nicht mehr anderweitig angehalten ist
   // (ein Cache wird geleert): Startet in der Wartezeit ein Job, würde der Pool sonst bis zu dessen Ende stillstehen.
   async function rebuildIdle(pool) {
-    while (pool.hold) await sleep(500);
+    while (pool.hold) await sleep(POLL_PAUSE);
     if (pool.slots.some((slot) => slot.state === SLOT.WORKING)) return Promise.all([renewReserve(pool), ...staleSlots(pool).map((slot) => abortIdle(slot))]);
     return withPoolAtRest(pool, () => prepareCaches(pool.repo));
   }
@@ -151,13 +159,14 @@ function createPools({
       if (!pool.hold) await prepareCaches(pool.repo);
       await refreshSeed(pool.repo);
     } catch (error) { log(`Vorbereitung – ${error.message}`, pool.repo, 'error'); } finally { pool.prepared = true; pool.preparing = false; }
-    measureSizes(pool);
+    // Ruht der Pool, misst die Arbeit an seinen Caches selbst; der Messcontainer hielte sonst Volumes fest, die sie löscht.
+    if (!pool.hold) measureSizes(pool);
   }
 
   // Bringt den Pool zur Ruhe und tut dann `work`. Was sonst an Caches und Volumes arbeitet (Vorbereitung, Erneuern des
   // Build-Dienstes, Messen), läuft erst zu Ende: Ein belegtes Volume ließe sich nicht löschen.
   async function withPoolAtRest(pool, work) {
-    while (pool.hold || pool.preparing || pool.renewingService || pool.measuring) await sleep(500);
+    while (pool.hold || pool.preparing || pool.renewingService || pool.measuring) await sleep(POLL_PAUSE);
     pool.hold = true;
     try { await quiesce(pool); return await work(); } finally { pool.hold = false; }
   }

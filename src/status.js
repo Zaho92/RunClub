@@ -26,15 +26,15 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 //   runners                 `pools` (Map), `reserveSize(pool)`, `staleCount(pool)` (siehe runners.js)
 //   remote                  `view(repo)` (siehe remote.js)
 //   pipelines, metrics, usage, routing, waiting, account, githubApi   siehe die gleichnamigen Module
-//   docker                  `ready()`, `error()`, `cpus()`, `memory()` (die Docker-Überwachung aus dockerwatch.js)
+//   dockerWatch             `ready()`, `error()`, `cpus()`, `memory()` (siehe dockerwatch.js)
 //   buildService(repo)      Name des Build-Dienstes (siehe names.js)
 //   logStamp()              Kennung des Protokolls; ändert sie sich, holt die Oberfläche es neu
 //   uiFile                  die Datei der Seite; ändert sie sich, lädt die Seite sich neu
 //   extra()                 Angaben, die die App beisteuert (siehe `hooks.status` in backend.js)
-function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, docker, buildService, logStamp, uiFile, extra = () => ({}) }) {
+function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, buildService, logStamp, uiFile, extra = () => ({}) }) {
   const { config, limitsOf } = settings;
 
-  const limitRange = () => limitRules.bounds({ dockerMemory: docker.memory(), dockerCpus: docker.cpus() });
+  const limitRange = () => limitRules.bounds({ dockerMemory: dockerWatch.memory(), dockerCpus: dockerWatch.cpus() });
   // Der Vorschlag für alle Projekte zusammen und ob er schon gilt (siehe `plan` in limits.js).
   function limitPlan() {
     const found = limitRules.plan(config.pools.map((pool) => ({ repo: pool.repo, jobs: metrics.jobsView(pool.repo) })), limitRange());
@@ -82,7 +82,7 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
       lastRun: pipelines.lastOf(repo),
       usage: { jobs: metrics.jobsView(repo), wait: pipelines.waitOf(repo) },
       pool: poolView(settingsOfRepo),
-      runners: (runners.pools.get(repo)?.slots ?? []).map((slot, index) => runnerView({ slot, index, repo, jobs: remoteState.jobs, statsOf: usage.statsOf, cpus: docker.cpus() })),
+      runners: (runners.pools.get(repo)?.slots ?? []).map((slot, index) => runnerView({ slot, index, repo, jobs: remoteState.jobs, statsOf: usage.statsOf, cpus: dockerWatch.cpus() })),
     };
   }
 
@@ -90,8 +90,8 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
     return {
       at: new Date().toISOString(),
       machine: {
-        cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus: docker.cpus(), dockerMemory: docker.memory(),
-        docker: { ready: docker.ready(), error: docker.ready() ? null : docker.error() }, // ohne Fehler und nicht bereit: Docker startet noch
+        cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus: dockerWatch.cpus(), dockerMemory: dockerWatch.memory(),
+        docker: { ready: dockerWatch.ready(), error: dockerWatch.ready() ? null : dockerWatch.error() }, // ohne Fehler und nicht bereit: Docker startet noch
         usage: usage.view(), vmTight: usage.vmTight(), // { free }, wenn die Docker-VM kaum noch Arbeitsspeicher frei hat, sonst null
         limits: config.limits, series: metrics.series(),
         limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },

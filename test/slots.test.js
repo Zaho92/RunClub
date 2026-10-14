@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createSlots, noteWorkflows, idleRegistrations } = require('../src/slots');
+const { createSlots, noteWorkflows, pairNames, idleRegistrations } = require('../src/slots');
 const { turn, until } = require('./support');
 
 const REPO = 'wer/App';
@@ -115,16 +115,17 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     '--cpus', '4', '--memory', '8g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/var/lib/docker`,
     '--entrypoint', 'sh', 'dind:test', '-c', 'chown 1001:1001 /home/runner/_work && exec dockerd-entrypoint.sh dockerd --host=unix:///sock/docker.sock --group=123']);
   const runner = call(`run ${BASE}-runner`);
-  assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
+  assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '-i', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
     '--cpus', '6', '--memory', '4g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
     '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
     '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc',
-    '-e', 'JITCONFIG', 'runner:test', 'bash', '-c']);
+    'runner:test', 'bash', '-c']);
   // Die Anmeldung geht über die Umgebung an den Runner, nicht über die Befehlszeile.
-  assert.match(runner.args.at(-1), /export ACTIONS_RUNNER_INPUT_JITCONFIG="\$JITCONFIG"; unset JITCONFIG; exec \.\/run\.sh$/);
+  assert.match(runner.args.at(-1), /read -r ACTIONS_RUNNER_INPUT_JITCONFIG; export ACTIONS_RUNNER_INPUT_JITCONFIG; exec \.\/run\.sh$/);
   assert.match(runner.args.at(-1), /--driver remote --driver-opt default-load=true unix:\/\/\/run\/rc-buildkit\/buildkitd\.sock /);
   assert.equal(runner.options.timeout, 0);
-  assert.deepEqual(runner.options.env, { JITCONFIG: 'geheim' }); // die Anmeldung steht nicht in der Befehlszeile
+  assert.equal(runner.options.input, 'geheim\n'); // die Anmeldung steht weder in der Befehlszeile noch in den Einstellungen des Containers
+  assert.equal(runner.options.env, undefined);
 
   assert.deepEqual(w.logs, [
     [`Job „Bauen“ läuft auf ${RUNNER}`, REPO, 'run', { job: 'Bauen', runner: RUNNER }],
@@ -182,8 +183,8 @@ test('ein Paar aus der Reserve wird übernommen, mit den Limits, mit denen es ge
 
   assert.deepEqual(w.calls, [REGISTER, 'run rc-app-ffffff-runner', ALIVE('rc-app-ffffff')]);
   const { args } = w.details[0];
-  assert.deepEqual(args.slice(8, 12), ['--cpus', '2', '--memory', '2g']);
-  assert.ok(args.join(' ').includes('-e X=1 -e JITCONFIG'));
+  assert.deepEqual(args.slice(args.indexOf('--cpus'), args.indexOf('--cpus') + 4), ['--cpus', '2', '--memory', '2g']);
+  assert.ok(args.join(' ').includes('-e X=1 runner:test'));
   assert.deepEqual(w.pool.reserve, []);
   assert.deepEqual(w.replenished, [REPO]);
   assert.equal(w.slot.name, 'PC-linux-ffffff');
@@ -612,4 +613,8 @@ test('idleRegistrations: nur Plätze mit Anmeldung und ohne Job', () => {
     { slots: [{ repo: 'wer/b', runnerId: 3 }] },
   ];
   assert.deepEqual(idleRegistrations(pools), [{ repo: 'wer/a', runnerId: 1 }, { repo: 'wer/b', runnerId: 3 }]);
+});
+
+test('pairNames: die Runner der Plätze, deren Paar steht', () => {
+  assert.deepEqual([...pairNames({ slots: [{ name: 'PC-linux-1', base: 'rc-app-1' }, { name: 'PC-linux-2', base: null }, { name: 'PC-linux-3', base: 'rc-app-3' }] })], ['PC-linux-1', 'PC-linux-3']);
 });

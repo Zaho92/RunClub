@@ -64,4 +64,4 @@ function createSettings({ dataDir, log }) {
   return { config, saveConfig, state, saveState, settingsOf, limitsOf, repos, addPool, removePool };
 }
 
-module.exports = { createSettings, clampParallel, LIMIT_DEFAULTS, poolDefaults, PARALLEL_MAX, REPO_NAME };
+module.exports = { createSettings, clampParallel, PARALLEL_MAX, REPO_NAME };

@@ -21,8 +21,11 @@ const limitRules = require('./limits');
 const { busy } = require('./states');
 
 const VOLUME_PREFIX = 'rc-';
-const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren (siehe linux/docker-shim.sh)
+const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren
+const SOCKET = `${SOCKET_DIR}/buildkitd.sock`; // derselbe Pfad steht in linux/docker-shim.sh
 const SERVICE_USER = 1000; // unter diesem Benutzer läuft der Build-Dienst; die Paare kommen über seine Gruppe an den Socket
+const RUNNER_USER = 1001; // der Benutzer `runner` im Runner-Abbild; ihm gehören Arbeitsordner und Paket-Cache
+const RETRY_MAX = 30 * MINUTE; // längster Abstand zwischen zwei Versuchen, den Build-Dienst anzulegen
 const LIMITS_LABEL = 'runclub.limits';
 const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legte sonst die ganze Docker-VM lahm
 
@@ -75,10 +78,12 @@ function createCaches({
     const service = await docker(['run', '-d', '--name', buildService(repo), '--label', serviceMark, '--label', `${LIMITS_LABEL}=${serviceKey(repo)}`,
       '--restart', 'no', '--network', buildNetwork(repo),
       '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory, '--pids-limit', String(PIDS_MAX),
-      // Ohne Rechte braucht buildkit eigene Namensräume, die Dockers Vorgaben verbieten (siehe docs/rootless.md von buildkit).
-      '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined',
+      // Ohne Rechte braucht buildkit eigene Namensräume, die Dockers Vorgaben verbieten, und ein eigenes /proc für die
+      // Sandbox seiner Build-Schritte (siehe docs/rootless.md von buildkit). Mit der Sandbox sieht ein Schritt weder
+      // buildkitd noch die Schritte anderer Builds desselben Repos.
+      '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
       '-v', `${buildVolume(repo)}:/home/user/.local/share/buildkit`, '-v', `${buildSocket(repo)}:${SOCKET_DIR}`,
-      buildkit, '--addr', `unix://${SOCKET_DIR}/buildkitd.sock`, '--oci-worker-no-process-sandbox']);
+      buildkit, '--addr', `unix://${SOCKET}`]);
     return service.code === 0 ? null : `Build-Dienst startet nicht – ${lastLine(service.stderr)}`;
   }
 
@@ -87,7 +92,7 @@ function createCaches({
     if (!settingsOf(repo)?.cache) { await removeService(repo); return; }
     await docker(['volume', 'create', cacheVolume(repo)]);
     await docker(['run', '--rm', '-v', `${cacheVolume(repo)}:/c`, '--entrypoint', 'sh', dind, '-c',
-      'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
+      `mkdir -p /c/nuget /c/npm && chown ${RUNNER_USER}:${RUNNER_USER} /c /c/nuget /c/npm`]);
     await docker(['volume', 'create', buildVolume(repo)]);
     await docker(['volume', 'create', buildSocket(repo)]);
     // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
@@ -100,7 +105,7 @@ function createCaches({
     if (!pool) return;
     // Nach einem Fehlschlag versucht `renewService` es wieder, in wachsendem Abstand (höchstens eine halbe Stunde).
     pool.serviceFailures = failure ? (pool.serviceFailures ?? 0) + 1 : 0;
-    pool.serviceRetryAt = Date.now() + Math.min(2 ** pool.serviceFailures, 30) * MINUTE;
+    pool.serviceRetryAt = Date.now() + Math.min(2 ** pool.serviceFailures * MINUTE, RETRY_MAX);
     pool.serviceFailed = Boolean(failure);
     pool.serviceBuilt = failure ? null : serviceKey(repo);
   }
@@ -147,4 +152,4 @@ function createCaches({
   return { prepareCaches, renewService, removeService, removeCaches, measureSizes };
 }
 
-module.exports = { createCaches, SOCKET_DIR, SERVICE_USER, PIDS_MAX };
+module.exports = { createCaches, SOCKET_DIR, SOCKET, SERVICE_USER, RUNNER_USER, PIDS_MAX };

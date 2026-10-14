@@ -7,7 +7,7 @@
 //                 Plätze des Pools verteilt. Das bleibt eine Schätzung.
 
 const path = require('node:path');
-const { median: exactMedian } = require('./numbers');
+const { median } = require('./numbers');
 const { readJson, writeJson } = require('./store');
 
 const KEEP = 10; // gemerkte Dauern je Job
@@ -18,7 +18,7 @@ const WORKFLOWS_MAX = 40; // gemerkte Workflow-Dateien
 const TURNAROUND_S = 8; // Wechsel eines Platzes zum nächsten Job
 
 // Sekunden bleiben ganze Zahlen.
-const median = (values) => { const middle = exactMedian(values); return middle === null ? null : Math.round(middle); };
+const roundedMedian = (values) => { const middle = median(values); return middle === null ? null : Math.round(middle); };
 const seconds = (from, to) => Math.max(0, Math.round((new Date(to) - new Date(from)) / 1000));
 const unquote = (text) => text.trim().replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2');
 
@@ -128,15 +128,17 @@ function createPipelines({ gh, dataDir }) {
   const workflows = new Map(); // "Repo@Commit:Pfad" -> Jobs der Workflow-Datei oder null
 
   const key = (workflow, job) => `${workflow} / ${job}`;
-  const estimate = (repo, workflow, job) => median(memoryOf(repo).durations[key(workflow, job)] ?? []);
+  const estimate = (repo, workflow, job) => roundedMedian(memoryOf(repo).durations[key(workflow, job)] ?? []);
   // Ein angekündigter Job läuft bei GitHub oft unter anderem Namen (Ausdruck, Matrix): dann zählen alle gelernten Jobs
   // desselben Workflows, die zu ihm passen.
   function estimateOf(repo, workflow, defined, matcher) {
+    // Ein Aufruf (`uses:`) läuft als mehrere Jobs, oft nacheinander: Die Dauer eines davon wäre zu kurz geschätzt.
+    if (defined.uses) return estimate(repo, workflow, defined.name);
     const prefix = key(workflow, '');
     const durations = Object.entries(memoryOf(repo).durations)
       .filter(([name]) => name.startsWith(prefix) && matcher.test(name.slice(prefix.length)))
       .flatMap(([, values]) => values);
-    return estimate(repo, workflow, defined.name) ?? median(durations);
+    return estimate(repo, workflow, defined.name) ?? roundedMedian(durations);
   }
   const jobsOfRun = async (repo, id) => (await gh(['api', `repos/${repo}/actions/runs/${id}/jobs?per_page=100`])).jobs;
 
@@ -250,7 +252,7 @@ function createPipelines({ gh, dataDir }) {
 
   // Die laufenden Läufe mit Restzeit; `slots`: Plätze des Pools, die Jobs annehmen.
   function view(repo, slots, now = Date.now()) {
-    const fallback = median(Object.values(memoryOf(repo).durations).map(median).filter((value) => value != null)) ?? 60;
+    const fallback = roundedMedian(Object.values(memoryOf(repo).durations).map(roundedMedian).filter((value) => value != null)) ?? 60;
     const list = (active.get(repo) ?? []).map((pipeline) => ({ ...pipeline, rough: false, jobs: pipeline.jobs.map((job) => ({ ...job })) }));
     const usual = (pipeline, job) => { if (job.estimate == null) pipeline.rough = true; return job.estimate ?? fallback; };
     const free = []; // je Platz: Sekunden ab jetzt, bis er frei wird
@@ -303,7 +305,7 @@ function createPipelines({ gh, dataDir }) {
   // Wie lange Jobs zuletzt auf einen eigenen Runner gewartet haben (Sekunden).
   function waitOf(repo) {
     const waits = memoryOf(repo).waits ?? [];
-    return waits.length ? { usual: median(waits), longest: Math.max(...waits), jobs: waits.length } : null;
+    return waits.length ? { usual: roundedMedian(waits), longest: Math.max(...waits), jobs: waits.length } : null;
   }
 
   return { refresh, view, lastOf, waitOf };

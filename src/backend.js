@@ -42,12 +42,12 @@ const { createWaiting } = require('./waiting');
 const { createUsage } = require('./usage');
 const { createRemote, WAITING_INTERVAL } = require('./remote');
 const { createRunners } = require('./runners');
-const { idleRegistrations } = require('./slots');
 const { createDockerWatch } = require('./dockerwatch');
 const { createAccount } = require('./account');
 const { createStatus } = require('./status');
 const { createActions } = require('./actions');
-const { createServer } = require('./server');
+const { createServer, mergeActions } = require('./server');
+const { createHousekeeping } = require('./housekeeping');
 
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
@@ -102,7 +102,7 @@ function start({
   const remote = createRemote({
     gh, githubApi, pipelines, routing, waiting, log, logError,
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
-    onPublic: (repo) => actionsApi.pauseForPublic(repo),
+    onPublic: (repo) => actionsApi.pauseForPublic(repo), onPrivate: (repo) => actionsApi.allowPrivate(repo),
   });
   let dockerWatch = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist
   const usage = createUsage({ docker, inVm: engine.inVm, metrics, pools: () => runners.pools.values(), log, stopping: isStopping });
@@ -118,7 +118,7 @@ function start({
     docker, dockerList, gh, log, sleep,
     host: os.hostname(), mark: names.mark, serviceMark: names.serviceMark, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'),
     requiredImages: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
-    unreachableText: engine.unreachableText, exposedDaemon: engine.exposedDaemon,
+    unreachableText: engine.unreachableText, exposure: engine.exposure, buildService: names.buildService, buildNetwork: names.buildNetwork,
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
     stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,
   });
@@ -130,7 +130,7 @@ function start({
   });
   const uiFile = path.join(__dirname, 'ui.html');
   const { status, limitRange, limitPlan } = createStatus({
-    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, docker: dockerWatch,
+    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch,
     buildService: names.buildService, logStamp, uiFile, extra: appStatus,
   });
 
@@ -151,20 +151,21 @@ function start({
   async function release() {
     if (stopping) return;
     stopTimers();
-    await Promise.all(idleRegistrations(runners.pools.values()).map(({ repo, runnerId }) => gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runnerId}`]).catch(() => {})));
+    await runners.releaseIdle();
   }
 
   actionsApi = createActions({
-    gh, settings, runners, remote, routing, waiting, metrics, account, docker: dockerWatch, limitRange, limitPlan, log, logError, shutdown,
+    gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, limitRange, limitPlan, log, logError, shutdown,
   });
 
   // --- Lokaler Dienst ---
+  const actions = mergeActions(actionsApi.actions, appActions); // ein Name, den es schon gibt, ist ein Fehler
   const token = crypto.randomBytes(24).toString('hex'); // schützt die ändernden Aufrufe vor fremden Webseiten
   const access = createAccess({ port }); // schützt Seite und Daten vor allem, was nicht das eigene Fenster ist
   const server = createServer({
     access, token, uiFile, fontsDir: path.join(__dirname, 'fonts'),
     routes: { status, dayMinutes: metrics.dayMinutes, log: () => ({ stamp: logStamp(), entries: journal.recent() }), logFile: journal.read, repos: remote.listRepos },
-    actions: () => ({ ...appActions, ...actionsApi.actions }),
+    actions: () => actions,
   });
   server.listen(port, '127.0.0.1', () => {
     log(`Runner-Anzeige: http://127.0.0.1:${port}`);
@@ -177,7 +178,7 @@ function start({
   // --- Takte ---
   const timers = [];
   const every = (ms, work) => { work(); timers.push(setInterval(work, ms)); };
-  const later = (ms, work) => timers.push(setInterval(work, ms));
+  const everyAfter = (ms, work) => timers.push(setInterval(work, ms)); // wie `every`, aber erst nach dem ersten Abstand
   // Beim Beenden: keine Takte mehr, die Messung sichern, ein `gh`, das noch auf die Bestätigung im Browser wartet,
   // nicht zurücklassen.
   function stopTimers() {
@@ -189,23 +190,16 @@ function start({
   every(EVERY.account, account.watch);
   every(EVERY.quota, remote.watchQuota);
   every(EVERY.waiting, remote.scanWaiting);
-  later(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, 'Runner-Abbild')));
+  everyAfter(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, 'Runner-Abbild')));
   every(EVERY.github, remote.refreshAll);
-  later(EVERY.githubActive, remote.refreshActive);
-  later(EVERY.measure, usage.measure);
-  later(EVERY.reserve, () => {
-    for (const pool of runners.pools.values()) { runners.replenish(pool); runners.caches.renewService(pool).catch(logError(pool.repo)); }
-  });
-  later(EVERY.sizes, () => { if (dockerWatch.ready()) for (const pool of runners.pools.values()) if (!pool.hold) runners.caches.measureSizes(pool); });
-  // Ein Paar, das mitten im Job endet (beim Beenden, nach einem Absturz), kann seinen Runner nicht abmelden: GitHub führt
-  // ihn noch eine Weile als beschäftigt. Ist er frei und ohne Verbindung, wird er hier abgemeldet.
-  later(EVERY.housekeeping, () => {
-    for (const pool of runners.pools.values()) {
-      if (pool.removed || !githubApi.mayPoll(pool.repo)) continue;
-      remote.watchVisibility(pool.repo);
-      dockerWatch.removeRegistrations(pool.repo, { keep: new Set(pool.slots.filter((slot) => slot.base).map((slot) => slot.name)), offline: true });
-    }
-  });
+  everyAfter(EVERY.githubActive, remote.refreshActive);
+  everyAfter(EVERY.measure, usage.measure);
+  everyAfter(EVERY.reserve, runners.tick);
+  everyAfter(EVERY.sizes, runners.measureAll);
+  everyAfter(EVERY.housekeeping, createHousekeeping({
+    pools: () => runners.pools.values(), mayPoll: githubApi.mayPoll, gap: EVERY.housekeeping,
+    watchVisibility: remote.watchVisibility, removeRegistrations: dockerWatch.removeRegistrations,
+  }));
 
   for (const repo of settings.repos()) { runners.startPool(repo); routing.check(repo).catch(() => {}); remote.watchVisibility(repo); }
   dockerWatch.watch();

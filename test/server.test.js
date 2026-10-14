@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { createServer, BODY_MAX } = require('../src/server');
+const { createServer, mergeActions, BODY_MAX } = require('../src/server');
 const { createAccess } = require('../src/access');
 
 const TOKEN = 'token-der-seite';
@@ -45,8 +45,8 @@ test('ohne Schlüssel gibt es nur den Ping und die Schriften; ein fremder Host b
   assert.equal((await s.request('GET', '/api/ping')).code, 200);
   const font = await s.request('GET', '/fonts/mona.woff2');
   assert.deepEqual([font.code, font.text, font.headers['content-type']], [200, 'schrift', 'font/woff2']);
-  assert.equal((await s.request('GET', '/fonts/..%2Fui.html')).code, 403);
-  assert.equal((await s.request('GET', '/fonts/fehlt.woff2')).code, 403);
+  // Nur Schriften aus ihrem Ordner, auch mit Schlüssel: Kein Weg führt hinaus.
+  for (const url of ['/fonts/..%2Fui.html', '/fonts/../ui.html', '/fonts/fehlt.woff2', '/fonts/MONA.woff2']) assert.equal((await s.request('GET', url, { headers: s.cookie })).code, 404, url);
   for (const url of ['/', '/api/status', '/api/log/file', '/api/repos']) assert.equal((await s.request('GET', url)).code, 403, url);
   assert.equal((await s.request('GET', '/api/ping', { headers: { host: 'boese.example:80' } })).code, 403);
   assert.equal((await s.request('GET', '/api/status', { headers: { ...s.cookie, host: 'boese.example' } })).code, 403);
@@ -101,4 +101,11 @@ test('ein Aufruf muss ein JSON-Objekt sein und darf nicht zu groß sein', async 
   const big = await post(JSON.stringify({ text: 'x'.repeat(BODY_MAX) })).catch((error) => ({ error }));
   assert.ok(big.error || big.code === 400); // abgewiesen; die Verbindung darf dabei abbrechen
   assert.deepEqual(s.called, [{}]);
+});
+
+test('Aufrufe der App und aus actions.js werden zusammengeführt; einen Namen doppelt gibt es nicht', () => {
+  const own = async () => {};
+  const app = async () => {};
+  assert.deepEqual(Object.keys(mergeActions({ 'pool/set': own }, { 'app/autostart': app })), ['pool/set', 'app/autostart']);
+  assert.throws(() => mergeActions({ shutdown: own }, { shutdown: app }), { message: 'Den Aufruf shutdown gibt es doppelt.' });
 });

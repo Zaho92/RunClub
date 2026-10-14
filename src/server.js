@@ -20,6 +20,9 @@ const FONT = /^\/fonts\/([a-z0-9-]+\.woff2)$/;
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
+    // Bricht die Verbindung mitten im Aufruf ab, endet das Warten trotzdem.
+    request.on('error', reject);
+    request.on('close', () => { if (!request.complete) reject(new Error('Der Aufruf kam nicht vollständig an.')); });
     request.on('data', (chunk) => {
       body += chunk;
       if (body.length > BODY_MAX) { reject(new Error('Der Aufruf ist zu groß.')); request.destroy(); }
@@ -87,4 +90,17 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
   });
 }
 
-module.exports = { createServer, readBody, BODY_MAX };
+// Führt die Aufrufe aus actions.js und die der App zusammen. Derselbe Name an zwei Stellen ist ein Fehler: Einer der
+// beiden würde sonst still verdeckt.
+function mergeActions(...sets) {
+  const merged = {};
+  for (const set of sets) {
+    for (const [name, action] of Object.entries(set)) {
+      if (Object.hasOwn(merged, name)) throw new Error(`Den Aufruf ${name} gibt es doppelt.`);
+      merged[name] = action;
+    }
+  }
+  return merged;
+}
+
+module.exports = { createServer, mergeActions, BODY_MAX };

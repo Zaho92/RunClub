@@ -47,7 +47,7 @@ function world() {
       await w.removing(base);
       w.calls.push(`removed ${base}`);
     },
-    teardown: async (slot) => { w.calls.push(`teardown ${slot.name}`); },
+    abort: async (slot) => { slot.aborted = true; w.calls.push(`teardown ${slot.name}`); },
     slotLoop: (pool, slot) => { w.loops.push(slot); },
     abortIdle: async (slot) => { w.aborted.push(slot); w.calls.push(`abort ${slot.name ?? w.pool.slots.indexOf(slot) + 1}`); },
     prepareCaches: async (repo) => { w.calls.push(`caches ${repo}`); await w.caches(); },
@@ -520,14 +520,14 @@ function wired() {
   };
   const sleep = async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); };
   const log = (...entry) => w.logs.push(entry);
-  w.pools = createRunners({
+  w.runners = createRunners({
     docker, dockerList: async () => [], gh, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1234,
     settings: { settingsOf: (repo) => (repo === REPO ? w.settings : undefined), limitsOf: () => w.limits, state: { learned: {}, rejected: {} }, saveState: () => {} },
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
     stopping: () => w.stopping, dockerReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
   });
-  w.abortIdle = w.pools.slots.abortIdle;
+  w.abortIdle = w.runners.slots.abortIdle;
   // Am Ende eines Tests: alle Schleifen beenden, damit nichts weiterläuft.
   w.finish = async () => {
     w.stopping = true;
@@ -547,11 +547,11 @@ const count = (w, call) => w.calls.filter((name) => name === call).length;
 test('echte Plätze: Ein Platz nimmt sein Paar aus der Reserve, und sie füllt sich nach', async () => {
   const w = wired();
   w.settings.parallel = 1;
-  w.pools.replenish(w.pool);
+  w.runners.replenish(w.pool);
   await until(() => w.pool.reserve[0]?.ready);
   assert.equal(w.ids, 1);
 
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   await until(() => w.pool.slots[0].state === 'bereit' && w.pool.reserve[0]?.ready);
   assert.deepEqual(names(w), ['PC-linux-1 bereit']); // das vorbereitete Paar, nicht ein neues
   assert.equal(w.ids, 2);
@@ -561,8 +561,8 @@ test('echte Plätze: Ein Platz nimmt sein Paar aus der Reserve, und sie füllt s
   // Pausieren, wie `pool/set` es tut: Runner und Reserve gehen, der Platz bleibt und wartet.
   w.settings.paused = true;
   w.pool.slots.forEach((slot) => w.abortIdle(slot));
-  w.pools.discardReserve(w.pool);
-  w.pools.reconcile(w.pool);
+  w.runners.discardReserve(w.pool);
+  w.runners.reconcile(w.pool);
   await until(() => w.pool.slots[0].state === 'pausiert');
   assert.deepEqual(w.pool.reserve, []);
   assert.equal(count(w, 'network rm'), 2);
@@ -574,14 +574,14 @@ test('echte Plätze: Überzählige laufen aus; der freie wird abgebrochen, der a
   const w = wired();
   w.settings.reserve = 0;
   w.settings.parallel = 3;
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
   const [first, second, third] = w.pool.slots;
   w.emit.get(second.base)('Running job: Bauen');
   assert.deepEqual(names(w), ['PC-linux-1 bereit', 'PC-linux-2 arbeitet', 'PC-linux-3 bereit']);
 
   w.settings.parallel = 1;
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   assert.deepEqual([first.retired, second.retired, third.retired], [undefined, true, true]);
   await until(() => w.pool.slots.length === 2);
   assert.deepEqual(names(w), ['PC-linux-1 bereit', 'PC-linux-2 arbeitet, läuft aus']);
@@ -606,15 +606,15 @@ test('echte Plätze: Wird erhöht, während Plätze auslaufen, stehen nie mehr a
   const w = wired();
   w.settings.reserve = 0;
   w.settings.parallel = 3;
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
   const [first, second, third] = w.pool.slots;
   w.emit.get(second.base)('Running job: Bauen');
 
   w.settings.parallel = 1;
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   w.settings.parallel = 3; // gleich wieder erhöht: der arbeitende und der gerade abgebrochene Platz laufen noch aus
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   assert.deepEqual(w.pool.slots, [first, second, third]);
   assert.deepEqual(w.pool.slots.map((slot) => Boolean(slot.retired)), [false, false, false]);
 
@@ -633,13 +633,13 @@ test('echte Plätze: Wird erhöht, während Plätze auslaufen, stehen nie mehr a
 test('echte Plätze: withPoolAtRest wartet das Ende eines laufenden Jobs ab und hält die Plätze so lange an', async () => {
   const w = wired();
   w.settings.reserve = 0;
-  w.pools.reconcile(w.pool);
+  w.runners.reconcile(w.pool);
   await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
   const [busy, idle] = w.pool.slots;
   w.emit.get(busy.base)('Running job: Bauen');
 
   let state = null;
-  const rest = w.pools.withPoolAtRest(w.pool, async () => { state = names(w); return w.ids; });
+  const rest = w.runners.withPoolAtRest(w.pool, async () => { state = names(w); return w.ids; });
   await until(() => idle.state === 'wartet');
   await settle();
   assert.equal(state, null); // solange der Job läuft, beginnt die Arbeit nicht
@@ -739,13 +739,13 @@ test('withPoolAtRest wartet, bis Vorbereitung, Erneuern des Build-Dienstes und M
   }
 });
 
-test('ruht der Pool für eine Arbeit an seinen Caches, lässt die Vorbereitung die Caches dieser Arbeit', async () => {
+test('ruht der Pool für eine Arbeit an seinen Caches, lässt die Vorbereitung Caches und Messen dieser Arbeit', async () => {
   const s = starter({ ready: false });
   await s.api.startPool(REPO);
   const pool = s.pools.get(REPO);
   pool.hold = true;
   await s.api.preparePool(pool);
-  assert.deepEqual(s.calls.slice(2), [`seed ${REPO}`, `sizes ${REPO} true`]);
+  assert.deepEqual(s.calls.slice(2), [`seed ${REPO}`]); // gemessen wird nach der Arbeit, nicht dazwischen
 });
 
 test('beim Beenden: Reserve und Paare werden abgebaut, auch eines im Aufbau wird abgewartet', async () => {
@@ -771,4 +771,15 @@ test('beim Beenden: Reserve und Paare werden abgebaut, auch eines im Aufbau wird
   stuck.pool.slots = [{ name: 'hängt', state: 'startet', building: true }];
   await stuck.pools.dismantle(0);
   assert.deepEqual(stuck.slept, []);
+});
+
+test('beim Beenden hält ein Aufbau für die Reserve, der nicht endet, nichts auf', async () => {
+  const w = world();
+  w.pools.replenish(w.pool); // beide Aufbauten bleiben offen, etwa hinter dem Auffrischen der Vorlage
+  await w.pools.dismantle(0);
+  assert.equal(w.pool.leaving, 2); // sie zählen noch, bis sie enden
+  assert.equal(w.builds.every((build) => build.cancelled()), true);
+  w.builds.forEach((build) => build.finish(null));
+  await settle();
+  assert.equal(w.pool.leaving, 0);
 });

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createRemote, RERUN_SETTLE, WAITING_INTERVAL } = require('../src/remote');
+const { createRemote, RERUN_SETTLE, WAITING_INTERVAL, REPO_LIST_MAX_AGE } = require('../src/remote');
 const { STATE: QUOTA } = require('../src/github');
 const { turn } = require('./support');
 
@@ -10,7 +10,7 @@ const REPO = 'wer/App';
 // werfen oder ein Promise liefern); `calls` hält die Pfade in ihrer Reihenfolge.
 function world() {
   const w = {
-    calls: [], logs: [], timers: [], public: [], checked: [], scanned: null, stopping: false, may: () => true,
+    calls: [], logs: [], timers: [], public: [], private: [], time: 1000000, checked: [], scanned: null, stopping: false, may: () => true,
     settings: { [REPO]: { repo: REPO } }, pools: { [REPO]: { slots: [] } }, quota: null,
     answers: {}, pipelines: [],
   };
@@ -30,7 +30,7 @@ function world() {
     logError: (repo, what) => (error) => w.logs.push([`${what} – ${error.message}`, repo, 'error']),
     repos: () => Object.keys(w.settings), settingsOf: (repo) => w.settings[repo], poolOf: (repo) => w.pools[repo],
     stopping: () => w.stopping, timer: (work, ms) => w.timers.push({ work, ms }),
-    onPublic: async (repo) => { w.public.push(repo); },
+    now: () => w.time, onPublic: async (repo) => { w.public.push(repo); }, onPrivate: async (repo) => { w.private.push(repo); },
   });
   return w;
 }
@@ -142,6 +142,9 @@ test('die Repos des Kontos: nur mit Verwaltungsrecht und nicht archiviert, seite
   ]);
   await w.remote.listRepos();
   assert.equal(w.calls.length, 2);
+  w.time += REPO_LIST_MAX_AGE + 1; // danach wird neu gelesen
+  await w.remote.listRepos();
+  assert.equal(w.calls.length, 4);
 });
 
 test('wartende Läufe: Kandidaten aus der Liste der Repos; bei knappem Limit seltener, beim Beenden nicht', async () => {
@@ -158,16 +161,22 @@ test('wartende Läufe: Kandidaten aus der Liste der Repos; bei knappem Limit sel
   assert.equal(w.scanned, null);
 });
 
-test('ein öffentlich gewordenes Repo wird einmal gemeldet, bis es wieder privat ist', async () => {
+test('ein öffentlich gewordenes Repo wird gemeldet, solange sein Pool nicht deshalb pausiert ist; wieder privat ebenso', async () => {
   const w = world();
   w.answers[`repos/${REPO}`] = { private: false };
   await w.remote.watchVisibility(REPO);
+  assert.deepEqual(w.public, [REPO]);
+  w.settings[REPO].pausedPublic = true; // so hält actions.js es fest
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.public, [REPO]);
-  assert.equal(w.remote.isPublic(REPO), true);
   w.answers[`repos/${REPO}`] = { private: true };
   await w.remote.watchVisibility(REPO);
-  assert.equal(w.remote.isPublic(REPO), false);
+  assert.deepEqual(w.private, [REPO]);
+  delete w.settings[REPO].pausedPublic;
+  await w.remote.watchVisibility(REPO);
+  assert.deepEqual(w.private, [REPO]);
+  await w.remote.watchVisibility('wer/ohnePool');
+  assert.equal(w.calls.includes('repos/wer/ohnePool'), false);
   w.answers[`repos/${REPO}`] = () => { throw new Error('HTTP 404'); };
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.logs, [['Sichtbarkeit des Repos – HTTP 404', REPO, 'error']]);

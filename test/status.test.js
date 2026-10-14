@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createStatus, runnerView } = require('../src/status');
 const { SLOT } = require('../src/states');
+const { GB } = require('../src/units');
 
 const REPO = 'wer/App';
 const stats = { 'rc-app-1-runner': { cpu: 1, memory: 100 }, 'rc-app-1-dind': { cpu: 0.5, memory: 50 } };
@@ -48,7 +49,7 @@ function world() {
     waiting: { list: () => [{ repo: REPO, reason: 'runner' }, { repo: 'wer/ohne', reason: 'minutes' }] },
     account: { minutesView: () => null, authView: () => ({ state: 'in' }) },
     githubApi: { quota: () => null },
-    docker: { ready: () => w.ready, error: () => w.error, cpus: () => 6, memory: () => 16 * 1073741824 },
+    dockerWatch: { ready: () => w.ready, error: () => w.error, cpus: () => 6, memory: () => 16 * GB },
     buildService: (repo) => `rc-buildkit-${repo}`,
     logStamp: () => '1-2', uiFile: 'gibt-es-nicht.html', extra: () => ({ app: { autostart: true } }),
   });

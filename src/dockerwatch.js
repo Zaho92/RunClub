@@ -10,13 +10,15 @@
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
 const { orphaned } = require('./pairs');
+const { unregisterRunner } = require('./github');
+const { runnerPrefix } = require('./names');
 
 const MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
 const PROBE_TIMEOUT = 20 * SECOND;
 const READY_PAUSE = 30 * SECOND; // Abstand der Prüfungen, solange Docker antwortet
 const WAIT_PAUSE = 15 * SECOND; // … und solange es noch nicht vorbereitet ist
 const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
-const EXPOSED_TEXT = 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.';
+const RUNNERS_PAGE = 100; // Runner je Abfrage bei GitHub; mehr hat ein Repo mit Pool nicht
 
 //   docker(args, options), dockerList(args)   aus engine.js
 //   gh(args)                Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
@@ -27,7 +29,8 @@ const EXPOSED_TEXT = 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:
 //   requiredImages          Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
 //   unreachableText         die Meldung, wenn Docker nicht antwortet (aus engine.js)
-//   exposedDaemon()         ob der Daemon ohne Schutz auf tcp://localhost:2375 frei liegt (aus engine.js)
+//   exposure()              Warnung, wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise, aus engine.js)
+//   buildService(repo), buildNetwork(repo)   Namen des Build-Dienstes und seines Netzes (siehe names.js)
 //   livePairs               Name des Paars -> Repo (aus slots.js)
 //   repos(), pools()        die Repos mit Pool laut Einstellung, die stehenden Pools
 //   preparePool(pool)       Caches und Vorlage eines Pools bereitstellen
@@ -36,7 +39,8 @@ const EXPOSED_TEXT = 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createDockerWatch({
   docker, dockerList, gh, log, sleep,
-  host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText, exposedDaemon = async () => false,
+  host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText, exposure = async () => null,
+  buildService, buildNetwork,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
 }) {
@@ -96,8 +100,13 @@ function createDockerWatch({
   }
 
   // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, Build-Dienste (sie enden mit dem Programm; was noch
-  // steht, gehört zu einem Absturz oder einem Pool, den es nicht mehr gibt), bei GitHub angemeldete Runner.
+  // steht, gehört zu einem Absturz oder einem Pool, den es nicht mehr gibt), bei GitHub angemeldete Runner. Build-Dienst
+  // und Netz eines Repos werden dazu beim Namen entfernt: Ältere Versionen haben sie ohne Kennzeichen angelegt.
   async function removeLeftovers() {
+    for (const repo of repos()) {
+      await docker(['rm', '-f', buildService(repo)]);
+      await removeNetwork(buildNetwork(repo));
+    }
     const containers = [
       ...await dockerList(['ps', '-aq', '--filter', `label=${mark}`]),
       ...await dockerList(['ps', '-aq', '--filter', `label=${serviceMark}`]),
@@ -109,22 +118,24 @@ function createDockerWatch({
     for (const repo of repos()) await removeRegistrations(repo);
   }
 
-  // Runner dieses Rechners bei GitHub abmelden, die keinen Job mehr haben. `keep`: Namen, die zu stehenden Paaren
-  // gehören und bleiben. Mit `offline` nur solche, die keine Verbindung mehr haben: Im Betrieb trifft das die
-  // Runner, deren Paar mitten im Job endete (beim Beenden, nach einem Absturz) und die GitHub erst später freigibt,
-  // nicht aber die einer zweiten Instanz zum Ausprobieren.
-  async function removeRegistrations(repo, { keep = new Set(), offline = false } = {}) {
+  // Runner dieses Rechners bei GitHub abmelden, die keinen Job mehr haben. `keep()`: Namen, die zu stehenden Paaren
+  // gehören und bleiben; erst nach der Antwort von GitHub gefragt, damit ein Platz, der sich währenddessen anmeldet,
+  // dazugehört. Mit `offline` nur solche, die keine Verbindung mehr haben: Im Betrieb trifft das die Runner, deren
+  // Paar mitten im Job endete (beim Beenden, nach einem Absturz) und die GitHub erst später freigibt.
+  async function removeRegistrations(repo, { keep = () => new Set(), offline = false } = {}) {
     try {
-      const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=100`])).runners;
-      const stale = runners.filter((runner) => runner.name.startsWith(`${host}-linux-`) && !runner.busy && !keep.has(runner.name) && (!offline || runner.status === 'offline'));
-      for (const runner of stale) await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runner.id}`]);
+      const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=${RUNNERS_PAGE}`])).runners;
+      const kept = keep();
+      const stale = runners.filter((runner) => runner.name.startsWith(runnerPrefix(host)) && !runner.busy && !kept.has(runner.name) && (!offline || runner.status === 'offline'));
+      for (const runner of stale) await unregisterRunner(gh, repo, runner.id);
       if (offline && stale.length) log(`${stale.length} verwaiste Runner bei GitHub abgemeldet`, repo);
     } catch (error) { log(`Abmelden alter Runner – ${error.message}`, repo, 'error'); }
   }
 
   // Geprüft wird, sobald Docker (wieder) vorbereitet ist: Der Schalter in Docker Desktop kann inzwischen umgelegt sein.
   async function warnIfExposed() {
-    if (await exposedDaemon()) log(EXPOSED_TEXT, null, 'error');
+    const warning = await exposure();
+    if (warning) log(warning, null, 'error');
   }
 
   // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
@@ -167,4 +178,4 @@ function createDockerWatch({
   };
 }
 
-module.exports = { createDockerWatch, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };
+module.exports = { createDockerWatch, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };

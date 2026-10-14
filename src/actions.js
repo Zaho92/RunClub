@@ -9,21 +9,25 @@ const limitRules = require('./limits');
 const { VARIABLE } = require('./routing');
 const { sameRepo, clashes } = require('./images');
 const { clampParallel, REPO_NAME } = require('./settings');
+const { SECOND } = require('./units');
 
 const CACHE_PARTS = { packages: 'den Paket-Cache', build: 'die Build-Layer', images: 'die gelernten Abbilder', all: 'alle Caches' };
-const SHUTDOWN_DELAY = 100; // ms: erst antworten, dann beenden
+const SHUTDOWN_DELAY = SECOND / 10; // erst antworten, dann beenden
 const NO_POOL = 'Diesen Pool gibt es nicht.';
+// Was eine Änderung an CI_RUNNER bewirkt, für das Protokoll.
+const routedText = (on) => `${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen wieder an GitHubs Runner'}`;
+const KEPT = `${VARIABLE} bleibt, wie es ist`;
 
 //   gh(args)                Aufruf der GitHub-API
 //   settings                siehe settings.js
 //   runners                 siehe runners.js
 //   remote, routing, waiting, metrics, account   siehe die gleichnamigen Module
-//   docker                  `ready()`, `removeRegistrations(repo)` (die Docker-Überwachung aus dockerwatch.js)
+//   dockerWatch             `ready()`, `removeRegistrations(repo)` (siehe dockerwatch.js)
 //   limitRange(), limitPlan()   siehe status.js
 //   log(text, repo, kind), logError(repo, what)
 //   shutdown()              RunClub beenden
 //   timer                   wie `setTimeout`; in Tests steuerbar
-function createActions({ gh, settings, runners, remote, routing, waiting, metrics, account, docker, limitRange, limitPlan, log, logError, shutdown, timer = setTimeout }) {
+function createActions({ gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, limitRange, limitPlan, log, logError, shutdown, timer = setTimeout }) {
   const { config, saveConfig, settingsOf, limitsOf } = settings;
   const { pools } = runners;
 
@@ -35,13 +39,19 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
     return { own, pool };
   }
   function requireDocker() {
-    if (!docker.ready()) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
+    if (!dockerWatch.ready()) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
   }
   // Freie Paare beenden und die Reserve abbauen, damit ein pausierter Pool nichts mehr annimmt.
   function rest(repo, pool) {
     pool.slots.forEach((slot) => runners.slots.abortIdle(slot));
     runners.discardReserve(pool).catch(logError(repo));
   }
+  // Neue Limits für alle Projekte übernehmen (Speicher in GB, Kerne als Anzahl); was fehlt, bleibt.
+  function applySharedLimits(input) {
+    config.limits = { ...config.limits, ...limitRules.normalize(input, config.limits, limitRange()) };
+  }
+  // Vorbereitete Paare tragen noch die alten Limits: verwerfen, die Reserve füllt sich mit den neuen.
+  const renewAll = () => { for (const pool of pools.values()) runners.renewReserve(pool); };
   const limitsText = (limits) => `Runner ${limits.runnerMemory} und ${limits.runnerCpus} Kerne, Docker ${limits.dockerMemory} und ${limits.dockerCpus} Kerne`;
 
   // Einen Pool abbauen, nachdem er aus den Einstellungen verschwunden ist: Caches und Vorlage löschen, die Jobs zurück
@@ -61,10 +71,10 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       await (async () => {
         const found = await routing.check(repo);
         if (found.error) throw new Error(found.error);
-        if (found.here) { await routing.set(repo, false); log(`${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`, repo); }
-      })().catch(logError(repo, `${VARIABLE} bleibt, wie es ist`));
+        if (found.here) { await routing.set(repo, false); log(routedText(false), repo); }
+      })().catch(logError(repo, KEPT));
       routing.forget(repo);
-      await docker.removeRegistrations(repo);
+      await dockerWatch.removeRegistrations(repo);
       metrics.forget(repo);
       remote.forget(repo);
       if (failures.length) log(`Pool entfernt, aber nicht alles: ${failures.join('; ')}`, repo, 'error');
@@ -77,17 +87,28 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
   }
 
   // Ein Repo mit Pool ist öffentlich geworden: Fremde Pull Requests liefen sonst auf diesem Rechner. Der Pool pausiert
-  // und die Jobs gehen zurück an GitHubs Runner; fortsetzen lässt er sich erst, wenn das Repo wieder privat ist.
+  // und die Jobs gehen zurück an GitHubs Runner; fortsetzen lässt er sich erst, wenn das Repo wieder privat ist. Ein Job,
+  // der schon läuft, läuft zu Ende.
   async function pauseForPublic(repo) {
     const own = settingsOf(repo);
     const pool = pools.get(repo);
     if (!own || !pool || pool.removed) return;
-    own.paused = true;
+    Object.assign(own, { paused: true, pausedPublic: true });
     saveConfig();
     rest(repo, pool);
     log('Das Repo ist öffentlich geworden. Damit keine fremden Pull Requests auf diesem Rechner laufen, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner.', repo, 'error');
-    await routing.set(repo, false).catch(logError(repo, `${VARIABLE} bleibt, wie es ist`));
+    await routing.set(repo, false).catch(logError(repo, KEPT));
   }
+
+  // Das Repo ist wieder privat: Der Pool bleibt pausiert, lässt sich aber wieder fortsetzen.
+  async function allowPrivate(repo) {
+    const own = settingsOf(repo);
+    if (!own?.pausedPublic) return;
+    delete own.pausedPublic;
+    saveConfig();
+    log('Das Repo ist wieder privat; der Pool lässt sich fortsetzen.', repo);
+  }
+  const PUBLIC = 'Das Repo ist öffentlich. Der Pool lässt sich erst wieder nutzen, wenn es privat ist.';
 
   const actions = {
     async 'pool/add'({ repo, parallel }) {
@@ -109,13 +130,13 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       remote.refreshAll();
       // Die Jobs des Repos auf die eigenen Runner leiten, wenn seine Workflows die Variable lesen.
       routing.check(info.full_name).then(async (found) => {
-        if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(`${VARIABLE} gesetzt – die Jobs laufen jetzt auf den eigenen Runnern`, info.full_name); }
+        if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(routedText(true), info.full_name); }
         else if (found.uses === 'none') log(`Die Workflows lesen ${VARIABLE} nicht – die Jobs gehen weiter an GitHubs Runner`, info.full_name);
       }).catch(logError(info.full_name, VARIABLE));
     },
     async 'pool/set'({ repo, parallel, paused, cache }) {
       const { own, pool } = poolOf(repo);
-      if (paused === false && remote.isPublic(repo)) throw new Error('Das Repo ist öffentlich. Der Pool lässt sich erst fortsetzen, wenn es wieder privat ist.');
+      if (paused === false && own.pausedPublic) throw new Error(PUBLIC);
       if (parallel !== undefined) own.parallel = clampParallel(parallel);
       if (paused !== undefined) own.paused = Boolean(paused);
       const cacheChanged = cache !== undefined && Boolean(cache) !== own.cache;
@@ -140,18 +161,25 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       const all = what === 'all';
       log(`Leere ${CACHE_PARTS[what]} …`, repo);
       runners.withPoolAtRest(pool, async () => {
-        await runners.caches.removeCaches(repo, { packages: all || what === 'packages', build: all || what === 'build' });
-        if (all || what === 'images') await runners.seed.forget(repo);
-        await runners.caches.prepareCaches(repo);
-        await runners.seed.refreshSeed(repo);
-        await runners.caches.measureSizes(pool);
+        // Was auch scheitert: Danach stehen Paket-Cache, Build-Dienst und Vorlage wieder bereit. Sonst fehlte etwa der
+        // Build-Dienst, den das Leeren schon beendet hat, bis zum nächsten Neustart.
+        try {
+          await runners.caches.removeCaches(repo, { packages: all || what === 'packages', build: all || what === 'build' });
+          if (all || what === 'images') await runners.seed.forget(repo);
+        } finally {
+          await runners.caches.prepareCaches(repo);
+          await runners.seed.refreshSeed(repo);
+          await runners.caches.measureSizes(pool);
+        }
         log('Geleert; der nächste Lauf füllt wieder auf', repo);
       }).catch(logError(repo));
     },
     async 'pool/routing'({ repo, on }) {
-      if (!settingsOf(repo)) throw new Error(NO_POOL);
+      const own = settingsOf(repo);
+      if (!own) throw new Error(NO_POOL);
+      if (on && own.pausedPublic) throw new Error(PUBLIC);
       await routing.set(repo, Boolean(on));
-      log(`${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen an GitHubs Runner'}`, repo);
+      log(routedText(Boolean(on)), repo);
     },
     // Einen abgeschlossenen Lauf oder Job von Hand erneut starten; das löscht nichts.
     async 'run/rerun'({ repo, id, failedOnly }) {
@@ -170,10 +198,9 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       if (repo && !own) throw new Error(NO_POOL);
       if (own && inherit) { delete own.limits; log(`Wieder die Limits für alle (${limitsText(config.limits)})`, repo); }
       else if (own) { own.limits = limitRules.normalize(input, limitsOf(repo), limitRange()); log(`Eigene Limits – ${limitsText(own.limits)}`, repo); }
-      else { config.limits = { ...config.limits, ...limitRules.normalize(input, config.limits, limitRange()) }; log(`Limits je Job: ${limitsText(config.limits)}`); }
+      else { applySharedLimits(input); log(`Limits je Job: ${limitsText(config.limits)}`); }
       saveConfig();
-      // Vorbereitete Paare tragen noch die alten Limits: verwerfen, die Reserve füllt sich mit den neuen.
-      for (const pool of pools.values()) runners.renewReserve(pool);
+      renewAll();
     },
     // Übernimmt den Vorschlag aus den Messwerten als Ganzes: den Standard für alle und eigene Limits für die Ausreißer.
     // Gemessene Projekte, die nicht als Ausreißer gelten, verlieren dabei ihre eigenen Werte.
@@ -181,7 +208,7 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       requireDocker();
       const found = limitPlan();
       if (!found) throw new Error('Für einen Vorschlag fehlen noch Messwerte.');
-      config.limits = { ...config.limits, ...limitRules.normalize(found.shared, config.limits, limitRange()) };
+      applySharedLimits(found.shared);
       for (const own of config.pools) {
         if (!found.measured.includes(own.repo)) continue; // zu wenige Läufe: Was der Nutzer eingestellt hat, bleibt
         if (found.own[own.repo]) own.limits = limitRules.normalize(found.own[own.repo], limitsOf(own.repo), limitRange()); else delete own.limits;
@@ -189,7 +216,7 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       saveConfig();
       const outliers = Object.keys(found.own);
       log(`Limits aus den Messwerten übernommen: Standard Runner ${config.limits.runnerMemory}, Docker ${config.limits.dockerMemory}${outliers.length ? `; eigene Limits für ${outliers.join(', ')}` : ''}`);
-      for (const pool of pools.values()) runners.renewReserve(pool);
+      renewAll();
     },
     // Baut die freien Paare neu auf, damit neue Limits sofort gelten. Arbeitende Paare laufen zu Ende.
     async 'pool/rebuild'({ repo }) {
@@ -209,7 +236,7 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
     async shutdown() { timer(shutdown, SHUTDOWN_DELAY); },
   };
 
-  return { actions, pauseForPublic };
+  return { actions, pauseForPublic, allowPrivate };
 }
 
-module.exports = { createActions, CACHE_PARTS };
+module.exports = { createActions };

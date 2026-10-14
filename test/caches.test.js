@@ -70,9 +70,9 @@ test('bereitstellen legt Paket-Cache, Netz und Build-Dienst ohne Rechte mit den 
   assert.deepEqual(args('run rc-buildkit-app'),
     ['run', '-d', '--name', 'rc-buildkit-app', '--label', 'runclub.service=test', '--label', `runclub.limits=${KEY_OLD}`,
       '--restart', 'no', '--network', 'rc-buildnet-app', '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',
-      '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined',
+      '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
       '-v', 'rc-build-app:/home/user/.local/share/buildkit', '-v', 'rc-buildsock-app:/run/rc-buildkit',
-      'buildkit:test', '--addr', 'unix:///run/rc-buildkit/buildkitd.sock', '--oci-worker-no-process-sandbox']);
+      'buildkit:test', '--addr', 'unix:///run/rc-buildkit/buildkitd.sock']); // mit Sandbox der Build-Schritte
   assert.equal(args('run rc-buildkit-app').includes('--privileged'), false);
   assert.equal(w.pool.serviceBuilt, KEY_OLD);
   assert.equal(w.pool.serviceFailed, false);

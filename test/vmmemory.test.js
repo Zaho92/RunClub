@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createVmMemory, read, COMMAND, MAX_AGE_MS } = require('../src/vmmemory');
+const { createVmMemory, read, COMMAND, MAX_AGE } = require('../src/vmmemory');
 
 const KB = 1024;
 const TOTAL = 16337408; // kB, wie in /proc/meminfo
@@ -131,7 +131,7 @@ test('ein übergangener Block zählt weder für noch gegen die Folge', () => {
 test('ein alter Messwert gilt nicht mehr und nimmt die Warnung mit', () => {
   const { vm, clock, changes, probe } = fresh();
   for (let i = 0; i < 3; i += 1) probe(0.1);
-  clock.at += MAX_AGE_MS;
+  clock.at += MAX_AGE;
   assert.ok(vm.current(), 'an der Grenze gilt er noch');
   clock.at += 1;
   assert.equal(vm.current(), null);

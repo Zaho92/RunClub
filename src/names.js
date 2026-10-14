@@ -35,4 +35,8 @@ function createNames({ dataDir, port }) {
   };
 }
 
-module.exports = { createNames, DEFAULT_PORT, IMAGE, DIND, BUILDKIT };
+// Runner dieses Rechners heißen `<Rechner>-linux-<Kennung des Paars>`; daran erkennt RunClub sie bei GitHub wieder.
+const runnerPrefix = (host) => `${host}-linux-`;
+const runnerName = (host, id) => `${runnerPrefix(host)}${id}`;
+
+module.exports = { createNames, runnerPrefix, runnerName, DEFAULT_PORT, IMAGE, DIND, BUILDKIT };
