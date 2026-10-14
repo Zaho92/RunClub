@@ -4,6 +4,7 @@ const { createLinux, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE 
 const { createEngine } = require('../src/engine');
 
 const MARK = 'runclub.runner=test';
+const SERVICE_MARK = 'runclub.service=test';
 const IMAGE = 'runner:test';
 
 // Ein Aufruf von Docker in Kurzform.
@@ -28,7 +29,7 @@ function world() {
     gh: async (args) => { w.calls.push(`gh ${args.join(' ')}`); if (w.ghFails) throw new Error(w.ghFails); return w.runners; },
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
-    host: 'PC', mark: MARK, image: IMAGE, imageDir: 'C:/rc/linux', requiredImages: ['dind:test', 'buildkit:test'], longTimeout: 1234,
+    host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, image: IMAGE, imageDir: 'C:/rc/linux', requiredImages: ['dind:test', 'buildkit:test'], longTimeout: 1234,
     unreachableText,
     livePairs: w.livePairs, repos: () => w.repos, pools: () => w.pools,
     preparePool: async (pool) => { w.prepared.push(pool.repo); assert.equal(pool.prepared, false); },
@@ -48,7 +49,10 @@ async function loopFor(w, rounds, each = () => {}) {
 const PREPARE = [
   'info --format {{.NCPU}} {{.MemTotal}}', 'build --pull -q -t runner:test C:/rc/linux', 'pull -q dind:test', 'pull -q buildkit:test',
 ];
-const LEFTOVERS = [`ps -aq --filter label=${MARK}`, `volume ls -q --filter label=${MARK}`, `network ls -q --filter label=${MARK}`, 'gh api repos/wer/App/actions/runners?per_page=100'];
+const LEFTOVERS = [
+  `ps -aq --filter label=${MARK}`, `ps -aq --filter label=${SERVICE_MARK}`, `volume ls -q --filter label=${MARK}`,
+  `network ls -q --filter label=${MARK}`, `network ls -q --filter label=${SERVICE_MARK}`, 'gh api repos/wer/App/actions/runners?per_page=100',
+];
 const ORPHANS = [`ps -a --filter label=${MARK} --format {{.Names}}`, `volume ls -q --filter label=${MARK}`, `network ls --filter label=${MARK} --format {{.Name}}`];
 
 test('vor der ersten Antwort ist Docker nicht bereit, mit der Grenze von einem Kern und ohne Speicher', () => {
@@ -158,25 +162,42 @@ test('das tägliche Neubauen geschieht nur, wenn Docker bereit ist und RunClub n
   assert.deepEqual(w.calls, []);
 });
 
-test('Reste eines früheren Laufs: alles Gekennzeichnete, Netze samt ihren Mitgliedern, freie Runner des Rechners bei GitHub', async () => {
+test('Reste eines früheren Laufs: alles Gekennzeichnete samt Build-Diensten, Netze samt ihren Mitgliedern, freie Runner des Rechners bei GitHub', async () => {
   const w = world();
   w.repos = ['wer/App', 'wer/Zwei'];
   w.answer = (name) => ({
     [`ps -aq --filter label=${MARK}`]: { stdout: 'c1\nc2\n' },
+    [`ps -aq --filter label=${SERVICE_MARK}`]: { stdout: 'b1\n' },
     [`volume ls -q --filter label=${MARK}`]: { stdout: 'v1\n' },
     [`network ls -q --filter label=${MARK}`]: { stdout: 'n1\n' },
-    'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}': { stdout: 'rc-buildkit-app\n' },
+    [`network ls -q --filter label=${SERVICE_MARK}`]: { stdout: 'n2\n' },
+    'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}': { stdout: 'rc-fremd\n' },
   })[name];
   w.runners = { runners: [
     { id: 1, name: 'PC-linux-a1', busy: false }, { id: 2, name: 'PC-linux-b2', busy: true }, { id: 3, name: 'ANDERER-linux-c3', busy: false },
   ] };
   await w.linux.removeLeftovers();
   assert.deepEqual(w.calls, [
-    `ps -aq --filter label=${MARK}`, 'rm -f -v c1 c2', `volume ls -q --filter label=${MARK}`, 'volume rm -f v1', `network ls -q --filter label=${MARK}`,
-    'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}', 'network disconnect -f n1 rc-buildkit-app', 'network rm n1',
+    `ps -aq --filter label=${MARK}`, `ps -aq --filter label=${SERVICE_MARK}`, 'rm -f -v c1 c2 b1', `volume ls -q --filter label=${MARK}`, 'volume rm -f v1',
+    `network ls -q --filter label=${MARK}`, 'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}', 'network disconnect -f n1 rc-fremd', 'network rm n1',
+    `network ls -q --filter label=${SERVICE_MARK}`, 'network inspect n2 --format {{range .Containers}}{{println .Name}}{{end}}', 'network rm n2',
     'gh api repos/wer/App/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/App/actions/runners/1',
     'gh api repos/wer/Zwei/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/Zwei/actions/runners/1',
   ]);
+});
+
+test('im Betrieb: nur freie Runner ohne Verbindung, die keinem stehenden Paar gehören', async () => {
+  const w = world();
+  w.runners = { runners: [
+    { id: 1, name: 'PC-linux-a1', busy: false, status: 'offline' }, // Paar endete mitten im Job: geht
+    { id: 2, name: 'PC-linux-b2', busy: true, status: 'offline' }, // GitHub führt ihn noch als beschäftigt
+    { id: 3, name: 'PC-linux-c3', busy: false, status: 'online' }, // etwa eine zweite Instanz zum Ausprobieren
+    { id: 4, name: 'PC-linux-d4', busy: false, status: 'offline' }, // gerade angemeldet, der Runner startet noch
+    { id: 5, name: 'ANDERER-linux-e5', busy: false, status: 'offline' },
+  ] };
+  await w.linux.removeRegistrations('wer/App', { keep: new Set(['PC-linux-d4']), offline: true });
+  assert.deepEqual(w.calls, ['gh api repos/wer/App/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/App/actions/runners/1']);
+  assert.deepEqual(w.logs, [['1 verwaiste Runner bei GitHub abgemeldet', 'wer/App']]);
 });
 
 test('scheitert das Abmelden bei GitHub, steht das beim Projekt im Protokoll, und es geht weiter', async () => {

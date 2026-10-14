@@ -21,6 +21,7 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   gh(args)                Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
 //   log(text, repo, kind), sleep(ms)
 //   host, mark              Name des Rechners (Anfang der Runner-Namen) und Kennzeichen der eigenen Container
+//   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze (siehe caches.js)
 //   image, imageDir         Name und Ordner (Dockerfile) des Runner-Abbilds
 //   requiredImages          Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
@@ -33,7 +34,7 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createLinux({
   docker, dockerList, gh, log, sleep,
-  host, mark, image, imageDir, requiredImages, longTimeout, unreachableText,
+  host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
 }) {
@@ -92,22 +93,30 @@ function createLinux({
     if (containers.length || volumes.length) log(`Reste nach der Unterbrechung entfernt: ${containers.length} Container, ${volumes.length} Volumes`);
   }
 
-  // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, bei GitHub angemeldete Runner.
+  // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, Build-Dienste (sie enden mit dem Programm; was noch
+  // steht, gehört zu einem Absturz oder einem Pool, den es nicht mehr gibt), bei GitHub angemeldete Runner.
   async function removeLeftovers() {
-    const containers = await dockerList(['ps', '-aq', '--filter', `label=${mark}`]);
+    const containers = [
+      ...await dockerList(['ps', '-aq', '--filter', `label=${mark}`]),
+      ...await dockerList(['ps', '-aq', '--filter', `label=${serviceMark}`]),
+    ];
     if (containers.length) await docker(['rm', '-f', '-v', ...containers]);
     const volumes = await dockerList(['volume', 'ls', '-q', '--filter', `label=${mark}`]);
     if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
-    for (const network of await dockerList(['network', 'ls', '-q', '--filter', `label=${mark}`])) await removeNetwork(network);
+    for (const label of [mark, serviceMark]) for (const network of await dockerList(['network', 'ls', '-q', '--filter', `label=${label}`])) await removeNetwork(network);
     for (const repo of repos()) await removeRegistrations(repo);
   }
 
-  async function removeRegistrations(repo) {
+  // Runner dieses Rechners bei GitHub abmelden, die keinen Job mehr haben. `keep`: Namen, die zu stehenden Paaren
+  // gehören und bleiben. Mit `offline` nur solche, die keine Verbindung mehr haben: Im Betrieb trifft das die
+  // Runner, deren Paar mitten im Job endete (beim Beenden, nach einem Absturz) und die GitHub erst später freigibt,
+  // nicht aber die einer zweiten Instanz zum Ausprobieren.
+  async function removeRegistrations(repo, { keep = new Set(), offline = false } = {}) {
     try {
       const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=100`])).runners;
-      for (const runner of runners) {
-        if (runner.name.startsWith(`${host}-linux-`) && !runner.busy) await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runner.id}`]);
-      }
+      const stale = runners.filter((runner) => runner.name.startsWith(`${host}-linux-`) && !runner.busy && !keep.has(runner.name) && (!offline || runner.status === 'offline'));
+      for (const runner of stale) await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runner.id}`]);
+      if (offline && stale.length) log(`${stale.length} verwaiste Runner bei GitHub abgemeldet`, repo);
     } catch (error) { log(`Abmelden alter Runner – ${error.message}`, repo, 'error'); }
   }
 

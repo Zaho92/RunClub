@@ -257,3 +257,32 @@ test('zwei Jobs mit Neuem kurz nacheinander frischen die Vorlage nur einmal auf;
   await settle();
   assert.equal(w.calls.filter((name) => name === `run ${LOADER}`).length, 2);
 });
+
+test('vergessen löscht Gelerntes und Vorlage, sobald nicht mehr kopiert wird; was sich nicht löschen lässt, wirft', async () => {
+  const w = world();
+  w.state.learned[REPO] = { 'node:22': daysAgo(1) };
+  w.state.rejected[REPO] = { 'eigen:1': daysAgo(1) };
+  w.pool.seeded = new Set(['node:22']);
+  let copying = null;
+  const copy = w.seed.withSeed(REPO, false, () => new Promise((resolve) => { copying = resolve; }));
+  const forgotten = w.seed.forget(REPO);
+  await turn();
+  assert.deepEqual(w.calls, []); // die Kopie läuft noch
+  copying();
+  await copy;
+  await forgotten;
+  assert.deepEqual(w.calls, [`volume rm -f ${SEED}`]);
+  assert.deepEqual([w.state.learned[REPO], w.state.rejected[REPO], [...w.pool.seeded]], [undefined, undefined, []]);
+  assert.equal(w.saved, 1);
+
+  w.answer = () => ({ code: 1, stderr: 'Error response from daemon: volume is in use\n' });
+  await assert.rejects(w.seed.forget(REPO), { message: 'Die Vorlage ließ sich nicht löschen – Error response from daemon: volume is in use' });
+});
+
+test('die Vorlage eines Pools, der entfernt wird, wird nicht mehr aufgefrischt', async () => {
+  const w = world();
+  w.state.learned[REPO] = { 'node:22': daysAgo(1) };
+  w.pool.removed = true;
+  await w.seed.refreshSeed(REPO);
+  assert.deepEqual(w.calls, []);
+});

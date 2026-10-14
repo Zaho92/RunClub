@@ -20,6 +20,11 @@ const { slug } = require('./images');
 const { createNetwork } = require('./subnets');
 const { resultKind, resultText } = require('./journal');
 const limitRules = require('./limits');
+const { SOCKET_DIR, SERVICE_USER, PIDS_MAX } = require('./caches');
+const { SECOND } = require('./units');
+
+const ROUND_PAUSE = 5 * SECOND; // nach einem unerwarteten Fehler, bevor der Platz es wieder versucht
+const REATTACH_MAX = 5; // so oft wird nach einem Abriss der Verbindung wieder mitgelesen
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
 //   gh(args, body)          Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
@@ -27,7 +32,7 @@ const limitRules = require('./limits');
 //   host, mark, image, dind Name des Rechners, Kennzeichen der eigenen Container, Abbild des Runners und des Daemons
 //   longTimeout             Zeitgrenze für das Kopieren der Vorlage
 //   metrics                 `{ meter(), recordJob(repo, record) }` (siehe metrics.js)
-//   settingsOf(repo), limitsOf(repo), seedVolume(repo), cacheVolume(repo), buildService(repo)
+//   settingsOf(repo), limitsOf(repo), seedVolume(repo), cacheVolume(repo), buildSocket(repo)
 //   stopping(), linuxReady(), poolResting(pool)
 //   withSeed(repo, exclusive, work), learnImages(pool, slot), replenish(pool), discardReserve(pool)
 //   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen
@@ -35,7 +40,7 @@ const limitRules = require('./limits');
 function createSlots({
   docker, gh, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, mark, image, dind, longTimeout, metrics,
-  settingsOf, limitsOf, seedVolume, cacheVolume, buildService,
+  settingsOf, limitsOf, seedVolume, cacheVolume, buildSocket,
   stopping, linuxReady, poolResting,
   withSeed, learnImages, replenish, discardReserve, refreshRepo, forgetStats,
 }) {
@@ -43,12 +48,12 @@ function createSlots({
 
   // Entfernt ein Paar: Container, Volumes, Netz und – wenn kein Job darauf lief – die Anmeldung bei GitHub.
   async function removePair(repo, base, runnerId) {
-    await docker(['rm', '-f', '-v', `${base}-runner`, `${base}-dind`, `${base}-seed`]);
-    await docker(['network', 'disconnect', '-f', base, buildService(repo)]);
-    await docker(['volume', 'rm', '-f', `${base}-work`, `${base}-sock`, `${base}-docker`]);
-    await docker(['network', 'rm', base]);
-    for (const name of [`${base}-runner`, `${base}-dind`]) forgetStats(name);
-    livePairs.delete(base);
+    try {
+      await docker(['rm', '-f', '-v', `${base}-runner`, `${base}-dind`, `${base}-seed`]);
+      await docker(['volume', 'rm', '-f', `${base}-work`, `${base}-sock`, `${base}-docker`]);
+      await docker(['network', 'rm', base]);
+      for (const name of [`${base}-runner`, `${base}-dind`]) forgetStats(name);
+    } finally { livePairs.delete(base); } // sonst hielte `removeOrphans` (linux.js) ein halb abgeräumtes Paar für stehend
     if (runnerId) {
       // 404 heißt: schon weg (der Runner meldet sich nach seinem Job selbst ab). Alles andere bleibt bei GitHub als
       // toter Eintrag stehen, bis der nächste Start aufräumt, und gehört deshalb ins Protokoll.
@@ -96,7 +101,7 @@ function createSlots({
     // Der Daemon des Jobs: eigenes Netz, eigener Speicher, erreichbar nur über den geteilten Socket.
     // Der Arbeitsordner liegt in beiden Containern am selben Pfad, damit `docker run -v "$PWD:..."` stimmt.
     const daemon = await docker(['run', '-d', ...label, '--name', `${base}-dind`, '--privileged', '--network', base,
-      '--cpus', String(limits.dockerCpus), '--memory', limits.dockerMemory,
+      '--cpus', String(limits.dockerCpus), '--memory', limits.dockerMemory, '--pids-limit', String(PIDS_MAX), // gilt auch für die Container des Jobs darin
       '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:/var/lib/docker`,
       '--entrypoint', 'sh', dind, '-c',
       'chown 1001:1001 /home/runner/_work && exec dockerd-entrypoint.sh dockerd --host=unix:///sock/docker.sock --group=123']);
@@ -111,9 +116,9 @@ function createSlots({
 
     if (settingsOf(pool.repo)?.cache) {
       pair.extras.push('-v', `${cacheVolume(pool.repo)}:/opt/rc-cache`, '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm');
-      // Der Build-Dienst hängt im Netz des Paars und heißt dort `buildkit`.
-      const joined = await docker(['network', 'connect', '--alias', 'buildkit', base, buildService(pool.repo)]);
-      if (joined.code === 0) pair.extras.push('-e', 'RC_BUILDER=rc');
+      // Der Build-Dienst ist über seinen Socket zu erreichen, nur lesend eingehängt: So kann ein Job ihn nicht durch
+      // einen eigenen ersetzen, den das nächste Paar dann ansprechen würde. Zugang über die Gruppe des Dienstes.
+      pair.extras.push('-v', `${buildSocket(pool.repo)}:${SOCKET_DIR}:ro`, '--group-add', String(SERVICE_USER), '-e', 'RC_BUILDER=rc');
     }
     return pair;
   }
@@ -156,32 +161,45 @@ function createSlots({
     if (slot.aborted) return;
 
     // Der Runner teilt das Netz des Daemons: Ports, die ein Job veröffentlicht, liegen für ihn auf localhost.
-    const start = 'if [ -n "$RC_BUILDER" ]; then docker buildx create --name "$RC_BUILDER" --driver remote --driver-opt default-load=true tcp://buildkit:1234 >/dev/null 2>&1 || unset RC_BUILDER; fi; exec ./run.sh --jitconfig "$JITCONFIG"';
-    const runner = await docker(['run', '--rm', '--label', mark, '--name', `${pair.base}-runner`, '--network', `container:${pair.base}-dind`,
-      '--cpus', String(limits.runnerCpus), '--memory', limits.runnerMemory,
+    // Die Anmeldung kommt über die Umgebung herein und verlässt sie gleich wieder: Sonst stünde sie in der Umgebung jedes
+    // Job-Schritts, und ein `env` schriebe sie ins Protokoll bei GitHub.
+    const start = [
+      `if [ -n "$RC_BUILDER" ]; then docker buildx create --name "$RC_BUILDER" --driver remote --driver-opt default-load=true unix://${SOCKET_DIR}/buildkitd.sock >/dev/null 2>&1 || unset RC_BUILDER; fi`,
+      'jit="$JITCONFIG"; unset JITCONFIG',
+      'exec ./run.sh --jitconfig "$jit"',
+    ].join('; ');
+    const follow = (line) => {
+      const started = line.match(/Running job: (.+)$/);
+      const finished = line.match(/Job (.+) completed with result: (\w+)/);
+      if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
+      if (started && slot.state !== 'arbeitet') {
+        Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
+        log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run', { job: started[1], runner: slot.name });
+        refreshRepo(pool.repo);
+        timer(() => refreshRepo(pool.repo), 4000);
+      }
+      if (finished && !slot.finished) {
+        if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], workflow: slot.workflow, result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / 1000), ...slot.meter.finish() });
+        slot.meter = null;
+        refreshRepo(pool.repo);
+        Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
+        log(`Job „${finished[1]}“ – ${resultText(finished[2])}`, pool.repo, resultKind(finished[2]), { job: finished[1] });
+      }
+    };
+    let runner = await docker(['run', '--rm', '--label', mark, '--name', `${pair.base}-runner`, '--network', `container:${pair.base}-dind`,
+      '--cpus', String(limits.runnerCpus), '--memory', limits.runnerMemory, '--pids-limit', String(PIDS_MAX),
       '-v', `${pair.base}-work:/home/runner/_work`, '-v', `${pair.base}-sock:/sock`, ...pair.extras,
       '-e', 'JITCONFIG', image, 'bash', '-c', start], {
       timeout: 0, // läuft, solange der Job läuft
       env: { JITCONFIG: jit.encoded_jit_config },
-      onLine: (line) => {
-        const started = line.match(/Running job: (.+)$/);
-        const finished = line.match(/Job (.+) completed with result: (\w+)/);
-        if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
-        if (started && slot.state !== 'arbeitet') {
-          Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
-          log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run', { job: started[1], runner: slot.name });
-          refreshRepo(pool.repo);
-          timer(() => refreshRepo(pool.repo), 4000);
-        }
-        if (finished && !slot.finished) {
-          if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], workflow: slot.workflow, result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / 1000), ...slot.meter.finish() });
-          slot.meter = null;
-          refreshRepo(pool.repo);
-          Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
-          log(`Job „${finished[1]}“ – ${resultText(finished[2])}`, pool.repo, resultKind(finished[2]), { job: finished[1] });
-        }
-      },
+      onLine: follow,
     });
+    // Endet der Aufruf, während der Runner weiterläuft (Docker Desktop verlor kurz die Verbindung), wird weiter
+    // mitgelesen, statt das Paar mitten im Job abzuräumen. Schon gelesene Zeilen wirken dabei kein zweites Mal.
+    for (let attempt = 0; attempt < REATTACH_MAX && !slot.finished && !slot.aborted && await runnerAlive(pair.base); attempt += 1) {
+      log(`Die Verbindung zu ${slot.name} riss ab; es wird weiter mitgelesen`, pool.repo, 'error');
+      runner = await docker(['logs', '-f', `${pair.base}-runner`], { timeout: 0, onLine: follow });
+    }
     // Nach einem Abbruch ist nichts mehr zu melden, außer der Runner hatte doch schon einen Job angenommen (der
     // Abbruch kam einen Augenblick zu spät); beim Beenden der App gilt auch das nicht.
     if (slot.aborted && (!slot.job || stopping())) return;
@@ -196,36 +214,50 @@ function createSlots({
     await learnImages(pool, slot);
   }
 
+  async function runnerAlive(base) {
+    const found = await docker(['inspect', '--format', '{{.State.Running}}', `${base}-runner`]);
+    return found.code === 0 && found.stdout.trim() === 'true';
+  }
+
   const slotWanted = (pool, slot) => !stopping() && !pool.removed && !slot.retired;
 
   async function slotLoop(pool, slot) {
     while (slotWanted(pool, slot)) {
-      if (!linuxReady() || poolResting(pool)) {
-        slot.state = !linuxReady() ? 'wartet auf Docker' : settingsOf(pool.repo)?.paused ? 'pausiert' : 'wartet';
-        await discardReserve(pool);
-        await sleep(1000);
-        continue;
-      }
-      try {
-        await serveOneJob(pool, slot);
-      } catch (error) {
-        if (!slot.aborted) {
-          Object.assign(slot, { error: error.message, state: 'gestört' });
-          log(error.message, pool.repo, 'error');
-          if (!slot.kept) await teardown(slot);
-          // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
-          // zurück, nachdem er hier gewirkt hat.
-          for (let waited = 0; waited < 60 && slotWanted(pool, slot) && linuxReady() && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
-          // Ein behaltenes Paar geht, wenn der Platz nicht gleich weitermacht oder es nicht mehr zu den Limits passt.
-          if (slot.aborted || !slotWanted(pool, slot) || !linuxReady() || poolResting(pool) || slot.built !== limitRules.key(limitsOf(pool.repo))) await teardown(slot);
-          continue;
-        }
-      }
-      slot.state = 'räumt auf';
-      await teardown(slot);
+      // Was beim Abräumen oder an der Reserve wirft, beendet den Platz nicht: Dem Pool fehlte sonst dauerhaft einer.
+      await slotRound(pool, slot).catch(async (error) => {
+        log(`Platz – ${error.message}`, pool.repo, 'error');
+        await sleep(ROUND_PAUSE);
+      });
     }
     slot.state = 'aus';
     pool.slots = pool.slots.filter((other) => other !== slot);
+  }
+
+  // Eine Runde des Platzes: warten, solange der Pool ruht, sonst einen Job bedienen und das Paar abräumen.
+  async function slotRound(pool, slot) {
+    if (!linuxReady() || poolResting(pool)) {
+      slot.state = !linuxReady() ? 'wartet auf Docker' : settingsOf(pool.repo)?.paused ? 'pausiert' : 'wartet';
+      await discardReserve(pool);
+      await sleep(1000);
+      return;
+    }
+    try {
+      await serveOneJob(pool, slot);
+    } catch (error) {
+      if (!slot.aborted) {
+        Object.assign(slot, { error: error.message, state: 'gestört' });
+        log(error.message, pool.repo, 'error');
+        if (!slot.kept) await teardown(slot);
+        // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
+        // zurück, nachdem er hier gewirkt hat.
+        for (let waited = 0; waited < 60 && slotWanted(pool, slot) && linuxReady() && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
+        // Ein behaltenes Paar geht, wenn der Platz nicht gleich weitermacht oder es nicht mehr zu den Limits passt.
+        if (slot.aborted || !slotWanted(pool, slot) || !linuxReady() || poolResting(pool) || slot.built !== limitRules.key(limitsOf(pool.repo))) await teardown(slot);
+        return;
+      }
+    }
+    slot.state = 'räumt auf';
+    await teardown(slot);
   }
 
   // Ein Paar ohne Job vorzeitig beenden.

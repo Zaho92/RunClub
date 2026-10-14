@@ -48,7 +48,7 @@ function showWindow() {
   });
   // Die Einstiegsadresse trägt den Schlüssel dieses Programmlaufs; damit bekommt nur dieses Fenster die Oberfläche.
   const url = backend.ENTRY;
-  const home = `http://localhost:${backend.PORT}/`;
+  const home = `http://127.0.0.1:${backend.PORT}/`; // wie die Einstiegsadresse (siehe access.js)
   window.loadURL(url);
   // Das Fenster bleibt bei der eigenen Oberfläche; alles andere öffnet der Browser oder gar nichts.
   window.webContents.on('will-navigate', (event, target) => { if (!target.startsWith(home)) event.preventDefault(); });

@@ -6,8 +6,18 @@
 # geteilten Cache. Ist der Build-Dienst nicht erreichbar, baut der Daemon des Jobs selbst, nur langsamer.
 
 real=/usr/bin/docker
+# Der Socket des Build-Dienstes (SOCKET_DIR in src/caches.js).
+socket=/run/rc-buildkit/buildkitd.sock
 
-if [ "$1" = "build" ] && [ -n "$RC_BUILDER" ] && timeout 3 bash -c '</dev/tcp/buildkit/1234' 2>/dev/null; then
+# Erreichbar ist der Dienst, wenn sich der Socket öffnen lässt. curl versteht buildkit nicht, aber Code 7 heißt
+# „keine Verbindung“ (Dienst beendet, Socket verwaist) und 28 „keine Antwort“; alles andere hat ihn erreicht.
+reachable() {
+  [ -S "$socket" ] || return 1
+  curl -s --max-time 3 --unix-socket "$socket" http://buildkit/ -o /dev/null
+  case $? in 7|28) return 1 ;; esac
+}
+
+if [ "$1" = "build" ] && [ -n "$RC_BUILDER" ] && reachable; then
   shift
   exec "$real" buildx build --builder "$RC_BUILDER" "$@"
 fi

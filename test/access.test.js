@@ -22,7 +22,7 @@ test('ohne das Cookie mit dem Schlüssel gibt es keinen Zugriff', () => {
 });
 
 test('die Einstiegsadresse tauscht den Schlüssel gegen das Cookie', () => {
-  assert.equal(access.entry, 'http://localhost:8770/?key=geheim');
+  assert.equal(access.entry, 'http://127.0.0.1:8770/?key=geheim');
   assert.equal(access.entering('/?key=geheim'), true);
   assert.equal(access.entering('/?key=falsch'), false);
   assert.equal(access.entering('/?key='), false);

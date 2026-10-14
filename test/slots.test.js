@@ -53,7 +53,7 @@ function world() {
     metrics: { meter: () => ({ finish: () => { w.metered += 1; return { peakMemory: 5 }; } }), recordJob: (repo, record) => w.recorded.push([repo, record]) },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
-    seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildService: () => 'rc-buildkit-app',
+    seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
     stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: () => w.resting,
     withSeed: (repo, exclusive, work) => { assert.equal(exclusive, false); return work(); },
     learnImages: async (pool, slot) => { w.learned.push(slot.job); w.onLearn?.(pool, slot); },
@@ -75,10 +75,10 @@ const PROVISION = [
 ];
 const REMOVE = [
   `rm -f -v ${BASE}-runner ${BASE}-dind ${BASE}-seed`,
-  `network disconnect -f ${BASE} rc-buildkit-app`,
   `volume rm -f ${BASE}-work ${BASE}-sock ${BASE}-docker`,
   `network rm ${BASE}`,
 ];
+const ALIVE = (base) => `inspect --format {{.State.Running}} ${base}-runner`; // läuft der Runner nach dem Ende des Aufrufs noch?
 const REGISTER = `gh -X POST repos/${REPO}/actions/runners/generate-jitconfig`;
 const UNREGISTER = `gh -X DELETE repos/${REPO}/actions/runners/77`;
 
@@ -105,7 +105,6 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     `run ${BASE}-seed`,
     `run ${BASE}-dind`,
     `exec ${BASE}-dind info`,
-    `network connect --alias buildkit ${BASE} rc-buildkit-app`,
     REGISTER,
     `run ${BASE}-runner`,
     ...REMOVE, // ohne Abmeldung: Die Anmeldung galt für diesen einen Job
@@ -118,14 +117,17 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     '--entrypoint', 'sh', 'dind:test', '-c', 'cp -a /seed/. /var/lib/docker/']);
   assert.deepEqual(call(`run ${BASE}-seed`).options, { timeout: 1234 });
   assert.deepEqual(call(`run ${BASE}-dind`).args, ['run', '-d', '--label', MARK, '--name', `${BASE}-dind`, '--privileged', '--network', BASE,
-    '--cpus', '4', '--memory', '8g', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/var/lib/docker`,
+    '--cpus', '4', '--memory', '8g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/var/lib/docker`,
     '--entrypoint', 'sh', 'dind:test', '-c', 'chown 1001:1001 /home/runner/_work && exec dockerd-entrypoint.sh dockerd --host=unix:///sock/docker.sock --group=123']);
   const runner = call(`run ${BASE}-runner`);
   assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
-    '--cpus', '6', '--memory', '4g', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
-    '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm', '-e', 'RC_BUILDER=rc',
+    '--cpus', '6', '--memory', '4g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
+    '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
+    '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc',
     '-e', 'JITCONFIG', 'runner:test', 'bash', '-c']);
-  assert.match(runner.args.at(-1), /exec \.\/run\.sh --jitconfig "\$JITCONFIG"$/);
+  // Die Anmeldung verlässt die Umgebung, bevor der Runner startet: Job-Schritte sehen sie nicht.
+  assert.match(runner.args.at(-1), /jit="\$JITCONFIG"; unset JITCONFIG; exec \.\/run\.sh --jitconfig "\$jit"$/);
+  assert.match(runner.args.at(-1), /--driver remote --driver-opt default-load=true unix:\/\/\/run\/rc-buildkit\/buildkitd\.sock /);
   assert.equal(runner.options.timeout, 0);
   assert.deepEqual(runner.options.env, { JITCONFIG: 'geheim' }); // die Anmeldung steht nicht in der Befehlszeile
 
@@ -183,7 +185,7 @@ test('ein Paar aus der Reserve wird übernommen, mit den Limits, mit denen es ge
   w.answer = (name, args, { onLine }) => { if (name === 'run rc-app-ffffff-runner') onLine('Running job: Bauen'); };
   await w.slots.serveOneJob(w.pool, w.slot);
 
-  assert.deepEqual(w.calls, [REGISTER, 'run rc-app-ffffff-runner']);
+  assert.deepEqual(w.calls, [REGISTER, 'run rc-app-ffffff-runner', ALIVE('rc-app-ffffff')]);
   const { args } = w.details[0];
   assert.deepEqual(args.slice(8, 12), ['--cpus', '2', '--memory', '2g']);
   assert.ok(args.join(' ').includes('-e X=1 -e JITCONFIG'));
@@ -193,18 +195,19 @@ test('ein Paar aus der Reserve wird übernommen, mit den Limits, mit denen es ge
   assert.equal(w.slot.copied, pair.copied);
 });
 
-test('ohne Cache hängt das Paar nicht am Build-Dienst; lässt er sich nicht erreichen, baut der Job ohne ihn', async () => {
+test('mit Cache bekommt das Paar den Socket des Build-Dienstes nur lesend, ohne Cache nichts davon', async () => {
   const off = world();
   off.settings.cache = false;
   assert.deepEqual((await off.slots.provision(off.pool, () => false)).extras, []);
   assert.deepEqual(off.calls, [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`]);
 
-  const lost = world();
-  lost.answer = (name) => (name.startsWith('network connect') ? { code: 1, stderr: 'No such container' } : undefined);
-  const pair = await lost.slots.provision(lost.pool, () => false);
-  assert.deepEqual(pair.extras, ['-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm']);
+  const on = world();
+  const pair = await on.slots.provision(on.pool, () => false);
+  assert.deepEqual(pair.extras, ['-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
+    '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc']);
+  assert.deepEqual(on.calls, [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`]); // kein Netz wird geteilt
   assert.deepEqual({ id: pair.id, base: pair.base, limits: pair.limits }, { id: 'a1b2c3', base: BASE, limits: LIMITS });
-  assert.deepEqual([...lost.slots.livePairs], [[BASE, REPO]]);
+  assert.deepEqual([...on.slots.livePairs], [[BASE, REPO]]);
 });
 
 test('endet der Runner ohne Job, ist der Platz gestört: Fehler ins Protokoll, Abbau samt Abmeldung, dann Pause', async () => {
@@ -218,7 +221,7 @@ test('endet der Runner ohne Job, ist der Platz gestört: Fehler ins Protokoll, A
   const message = 'Runner endete ohne Job (docker: Error response from daemon: Conflict.)';
   assert.deepEqual(w.logs, [[message, REPO, 'error']]);
   assert.deepEqual(paused, { state: 'gestört', error: message, base: null });
-  assert.deepEqual(w.calls.slice(-6), [`run ${BASE}-runner`, ...REMOVE, UNREGISTER]); // kein Job: Die Anmeldung wird zurückgenommen
+  assert.deepEqual(w.calls.slice(-6), [`run ${BASE}-runner`, ALIVE(BASE), ...REMOVE, UNREGISTER]); // kein Job: Die Anmeldung wird zurückgenommen
   assert.deepEqual(w.slept, [1000]);
   assert.deepEqual(w.learned, []);
   assert.deepEqual(w.recorded, []);
@@ -238,7 +241,7 @@ test('ohne Fehlerausgabe nennt die Meldung den Code; nach der Pause versucht der
   assert.equal(w.calls.filter((name) => name === UNREGISTER).length, 2);
 });
 
-const BUILD = [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`, `network connect --alias buildkit ${BASE} rc-buildkit-app`];
+const BUILD = [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`];
 
 test('meldet GitHub, dass es den Runner schon gibt, wird das Paar nicht behalten: derselbe Name hülfe nicht', async () => {
   const w = world();
@@ -335,7 +338,7 @@ test('endet der Runner mitten im Job ohne Ergebnis, steht das im Protokoll, und 
   assert.equal(w.slot.lastResult, 'Bauen: ohne Ergebnis');
   assert.equal(w.slot.jobs, 1);
   assert.deepEqual(w.learned, ['Bauen']);
-  assert.deepEqual(w.calls.slice(-5), [`run ${BASE}-runner`, ...REMOVE]); // die Anmeldung ist verbraucht
+  assert.deepEqual(w.calls.slice(-5), [`run ${BASE}-runner`, ALIVE(BASE), ...REMOVE]); // die Anmeldung ist verbraucht
   assert.deepEqual(w.slept, []);
 });
 
@@ -395,7 +398,7 @@ test('Abbruch im Leerlauf entfernt den Runner und meldet ihn bei GitHub ab', asy
   await w.slots.abortIdle(w.slot);
   await loop;
 
-  assert.deepEqual(w.calls.slice(-6), [`rm -f ${BASE}-runner`, ...REMOVE, UNREGISTER]);
+  assert.deepEqual(w.calls.slice(-5), [`rm -f ${BASE}-runner`, ...REMOVE, UNREGISTER]); // nach einem Abbruch wird nicht weiter mitgelesen
   assert.deepEqual(w.slept, [1000]);
   assert.deepEqual(w.logs, []); // ein Abbruch ist kein Fehler
   assert.deepEqual(w.learned, []);
@@ -486,14 +489,14 @@ test('lässt sich das Paar nicht aufbauen, bleibt nichts davon stehen', async ()
   const start = world();
   start.answer = (name) => (name === `run ${BASE}-dind` ? { code: 125, stderr: 'no space left on device' } : undefined);
   await assert.rejects(start.slots.provision(start.pool, () => false), { message: 'Docker-Daemon startet nicht: no space left on device' });
-  assert.deepEqual(start.calls.slice(-4), REMOVE);
+  assert.deepEqual(start.calls.slice(-REMOVE.length), REMOVE);
 
   const slow = world();
   slow.answer = (name) => (name === `exec ${BASE}-dind info` ? { code: 1 } : undefined);
   await assert.rejects(slow.slots.provision(slow.pool, () => false), { message: 'Docker-Daemon wurde nicht bereit' });
   assert.equal(slow.slept.length, 40);
   assert.ok(slow.slept.every((ms) => ms === 1000));
-  assert.deepEqual(slow.calls.slice(-4), REMOVE);
+  assert.deepEqual(slow.calls.slice(-REMOVE.length), REMOVE);
 });
 
 test('ruht der Pool oder fehlt Docker, wartet der Platz und die Reserve wird abgebaut', async () => {
@@ -539,6 +542,57 @@ test('teardown: ohne Paar geschieht nichts; ohne Job wird abgemeldet, nach einem
   w.ghFails = 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.';
   await w.slots.teardown({ repo: REPO, base: BASE, runnerId: 77, job: null });
   assert.deepEqual(w.logs, [['Runner ließ sich bei GitHub nicht abmelden – Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.', REPO, 'error']]);
+});
+
+test('reißt die Verbindung zu `docker run` ab, während der Runner weiterläuft, wird mitgelesen statt abgeräumt', async () => {
+  const w = world();
+  let alive = true;
+  w.answer = (name, args, { onLine }) => {
+    if (isRunner(name)) { onLine('Listening for Jobs'); onLine('Running job: Bauen'); return { code: -1, stderr: 'error during connect' }; }
+    if (name === ALIVE(BASE)) return { stdout: alive ? 'true\n' : 'false\n' };
+    if (name === `logs -f ${BASE}-runner`) {
+      // Die Protokolle beginnen von vorn: Was schon gelesen ist, wirkt kein zweites Mal.
+      for (const line of ['Listening for Jobs', 'Running job: Bauen', 'Job Bauen completed with result: Succeeded']) onLine(line);
+      alive = false;
+      return { code: 0 };
+    }
+    return undefined;
+  };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.deepEqual(w.calls.slice(-6), [`run ${BASE}-runner`, ALIVE(BASE), `logs -f ${BASE}-runner`, ...REMOVE]);
+  assert.deepEqual(w.details.find((call) => call.name === `logs -f ${BASE}-runner`).options.timeout, 0);
+  assert.deepEqual(w.logs.map(([text]) => text), [
+    `Job „Bauen“ läuft auf ${RUNNER}`,
+    `Die Verbindung zu ${RUNNER} riss ab; es wird weiter mitgelesen`,
+    'Job „Bauen“ – fertig',
+  ]);
+  assert.equal(w.recorded.length, 1);
+  assert.equal(w.slot.jobs, 1);
+  assert.deepEqual(w.learned, ['Bauen']);
+});
+
+test('wirft etwas beim Abräumen, steht das im Protokoll, und der Platz macht weiter', async () => {
+  const w = world();
+  let rounds = 0;
+  // Ein Platz, dessen Reserve beim ersten Abbau wirft.
+  const discard = async () => { rounds += 1; if (rounds === 1) throw new Error('Docker antwortet nicht'); w.stopping = true; };
+  const { createSlots } = require('../src/slots');
+  const slots = createSlots({
+    docker: async () => ({ code: 0, stdout: '', stderr: '' }), gh: async () => null,
+    log: (...entry) => w.logs.push(entry), sleep: async (ms) => { w.slept.push(ms); await turn(); },
+    host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234, metrics: {},
+    settingsOf: () => w.settings, limitsOf: () => LIMITS, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
+    stopping: () => w.stopping, linuxReady: () => true, poolResting: () => true,
+    withSeed: (repo, exclusive, work) => work(), learnImages: async () => {}, replenish: () => {}, discardReserve: discard,
+    refreshRepo: () => {}, forgetStats: () => {},
+  });
+  await slots.slotLoop(w.pool, w.slot);
+  assert.deepEqual(w.logs, [['Platz – Docker antwortet nicht', REPO, 'error']]);
+  assert.deepEqual(w.slept, [5000, 1000]); // erst die Pause nach dem Fehler, dann die übliche Runde
+  assert.equal(w.slot.state, 'aus');
+  assert.deepEqual(w.pool.slots, []);
 });
 
 test('ein Platz ist nur gewollt, solange das Programm läuft, der Pool besteht und der Platz nicht ausläuft', () => {

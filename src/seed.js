@@ -57,6 +57,7 @@ function createSeed({
   function refreshSeed(repo) {
     return withSeed(repo, true, async () => {
       const pool = poolOf(repo);
+      if (pool?.removed) return; // der Lade-Container hielte das Volume fest, das gerade gelöscht werden soll
       const seed = seedVolume(repo);
       const loader = `${seed}-loader`;
       const wanted = wantedImages(repo);
@@ -122,7 +123,21 @@ function createSeed({
     }
   }
 
-  return { wantedImages, withSeed, refreshSeed, learnImages };
+  // Vorlage und Gelerntes eines Repos verwerfen, sobald keine Kopie und kein Auffrischen mehr läuft. Wirft, wenn
+  // sich das Volume nicht löschen lässt.
+  function forget(repo) {
+    return withSeed(repo, true, async () => {
+      delete state.learned[repo];
+      delete state.rejected[repo];
+      saveState();
+      const pool = poolOf(repo);
+      if (pool) pool.seeded = new Set();
+      const removed = await docker(['volume', 'rm', '-f', seedVolume(repo)]);
+      if (removed.code !== 0) throw new Error(`Die Vorlage ließ sich nicht löschen – ${lastLine(removed.stderr)}`);
+    });
+  }
+
+  return { wantedImages, withSeed, refreshSeed, learnImages, forget };
 }
 
 module.exports = { createSeed, LEARNED_DAYS, LEARNED_MAX };

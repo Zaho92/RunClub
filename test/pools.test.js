@@ -22,7 +22,7 @@ function basics() {
   return {
     calls: [], logs: [], slept: [], stopping: false, ready: true, limits: OLD, onSleep: () => {},
     settings: { repo: REPO, parallel: 2, cache: true, paused: false },
-    pool: { repo: REPO, slots: [], reserve: [], hold: false, prepared: true, removed: false, seeded: new Set(), sizes: null }, // wie `startPool`, schon vorbereitet
+    pool: { repo: REPO, slots: [], reserve: [], leaving: 0, hold: false, prepared: true, removed: false, seeded: new Set(), sizes: null }, // wie `startPool`, schon vorbereitet
   };
 }
 
@@ -52,10 +52,11 @@ function world() {
       await w.removing(base);
       w.calls.push(`removed ${base}`);
     },
+    teardown: async (slot) => { w.calls.push(`teardown ${slot.name}`); },
     slotLoop: (pool, slot) => { w.loops.push(slot); },
     abortIdle: async (slot) => { w.aborted.push(slot); w.calls.push(`abort ${slot.name ?? w.pool.slots.indexOf(slot) + 1}`); },
     prepareCaches: async (repo) => { w.calls.push(`caches ${repo}`); await w.caches(); },
-    pools: new Map(), refreshSeed: async () => {}, measureSizes: async () => {},
+    pools: new Map([[REPO, w.pool]]), refreshSeed: async () => {}, measureSizes: async () => {},
   });
   return w;
 }
@@ -242,13 +243,13 @@ test('mehrere renewReserve kurz nacheinander laufen nacheinander: erst entfernen
   const second = w.pools.renewReserve(w.pool);
   assert.equal(w.pool.renewing, second);
   await settle();
-  assert.deepEqual(w.calls.slice(2), ['remove rc-app-1']); // solange das alte Paar steht, entsteht nichts Neues
+  assert.deepEqual(w.calls.slice(2), ['remove rc-app-1', 'remove rc-app-2', 'removed rc-app-2']); // solange ein altes Paar steht, entsteht nichts Neues
   assert.deepEqual(w.pool.reserve, []);
 
   first.open();
   await until(() => w.builds.length === 4);
   // Die erste Erneuerung hat mit den jetzt geltenden Limits gebaut; für die zweite bleibt nichts zu tun.
-  assert.deepEqual(w.calls.slice(2), ['remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'provision 3', 'provision 4']);
+  assert.deepEqual(w.calls.slice(2), ['remove rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'removed rc-app-1', 'provision 3', 'provision 4']);
   await second;
   assert.deepEqual(w.pool.reserve.map((entry) => entry.built), [limitRules.key(NEWER), limitRules.key(NEWER)]);
   assert.equal(w.builds.length, 4);
@@ -272,7 +273,7 @@ test('eine Erneuerung, die auf einen noch laufenden Aufbau trifft, wartet ihn ab
   w.limits = NEWER;
   w.removing = () => { throw new Error('Docker antwortet nicht'); };
   await w.pools.renewReserve(w.pool);
-  assert.deepEqual(w.logs, [['Docker antwortet nicht', REPO, 'error']]);
+  assert.deepEqual(w.logs, [['Abbau der Reserve – Docker antwortet nicht', REPO, 'error']]);
   assert.deepEqual(w.calls.slice(-2), ['remove rc-app-2', 'provision 3']); // nachgefüllt wird auch nach dem Fehler
   assert.deepEqual(w.pool.reserve.map((entry) => entry.built), [limitRules.key(NEWER)]);
 
@@ -374,7 +375,7 @@ test('quiesce baut Reserve und freie Paare ab und wartet, bis nichts mehr steht'
   };
   await w.pools.quiesce(w.pool);
 
-  assert.deepEqual(w.calls.slice(2), ['abort arbeitend', 'abort bauend', 'remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2']);
+  assert.deepEqual(w.calls.slice(2), ['abort arbeitend', 'abort bauend', 'remove rc-app-1', 'remove rc-app-2', 'removed rc-app-1', 'removed rc-app-2']);
   assert.deepEqual(w.slept, [500, 500, 500, 500]);
   assert.deepEqual(w.pool.reserve, []);
 
@@ -424,7 +425,7 @@ test('ein zweites withPoolAtRest wartet auf das erste', async () => {
   assert.equal(w.pool.hold, false);
 });
 
-test('`hold` wird auch nach einem Fehler gelöst, in der Arbeit wie beim Anhalten', async () => {
+test('`hold` wird auch nach einem Fehler gelöst; ein Fehler beim Abbau steht im Protokoll und hält die Arbeit nicht auf', async () => {
   const w = world();
   await assert.rejects(w.pools.withPoolAtRest(w.pool, async () => { throw new Error('Cache lässt sich nicht leeren'); }), { message: 'Cache lässt sich nicht leeren' });
   assert.equal(w.pool.hold, false);
@@ -434,9 +435,11 @@ test('`hold` wird auch nach einem Fehler gelöst, in der Arbeit wie beim Anhalte
   w.builds[1].finish();
   w.removing = () => { throw new Error('Docker antwortet nicht'); };
   let worked = false;
-  await assert.rejects(w.pools.withPoolAtRest(w.pool, async () => { worked = true; }), { message: 'Docker antwortet nicht' });
-  assert.equal(worked, false);
+  await w.pools.withPoolAtRest(w.pool, async () => { worked = true; });
+  assert.equal(worked, true);
   assert.equal(w.pool.hold, false);
+  assert.deepEqual(w.logs, [['Abbau der Reserve – Docker antwortet nicht', REPO, 'error'], ['Abbau der Reserve – Docker antwortet nicht', REPO, 'error']]);
+  assert.equal(w.pool.leaving, 0);
 
   w.removing = () => {};
   assert.equal(await w.pools.withPoolAtRest(w.pool, async () => 'danach'), 'danach');
@@ -469,7 +472,7 @@ test('rebuildIdle mit laufendem Job: Die Reserve wird erneuert, freie Paare mit 
     { name: 'übernimmt', state: 'startet', building: true, built: old }, // übernimmt gerade ein Paar mit alten Limits: geht
   ];
   await w.pools.rebuildIdle(w.pool);
-  assert.deepEqual(w.calls.slice(2), ['abort frei', 'abort übernimmt', 'remove rc-app-1', 'removed rc-app-1', 'remove rc-app-2', 'removed rc-app-2', 'provision 3', 'provision 4']);
+  assert.deepEqual(w.calls.slice(2), ['abort frei', 'abort übernimmt', 'remove rc-app-1', 'remove rc-app-2', 'removed rc-app-1', 'removed rc-app-2', 'provision 3', 'provision 4']);
   assert.equal(w.pool.hold, false);
   assert.deepEqual(w.slept, []);
 });
@@ -524,11 +527,11 @@ function wired() {
   const log = (...entry) => w.logs.push(entry);
   const settingsOf = (repo) => (repo === REPO ? w.settings : undefined);
   const limitsOf = () => w.limits;
-  const { provision, removePair, slotLoop, abortIdle } = createSlots({
+  const { provision, removePair, teardown, slotLoop, abortIdle } = createSlots({
     docker, gh, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
     host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234,
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
-    settingsOf, limitsOf, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildService: () => 'rc-buildkit-app',
+    settingsOf, limitsOf, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
     stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: (...args) => w.pools.poolResting(...args),
     withSeed: (repo, exclusive, work) => work(), learnImages: async () => {},
     replenish: (...args) => w.pools.replenish(...args), discardReserve: (...args) => w.pools.discardReserve(...args),
@@ -536,7 +539,7 @@ function wired() {
   });
   w.pools = createPools({
     log, sleep, settingsOf, limitsOf, stopping: () => w.stopping, linuxReady: () => w.ready,
-    provision, removePair, slotLoop, abortIdle,
+    provision, removePair, teardown, slotLoop, abortIdle,
     prepareCaches: async () => { w.caches += 1; },
     pools: new Map(), refreshSeed: async () => {}, measureSizes: async () => {},
   });
@@ -687,7 +690,7 @@ test('ein neuer Pool steht sofort mit seinen Plätzen da und wird vorbereitet, w
   const s = starter();
   await s.api.startPool(REPO);
   const pool = s.pools.get(REPO);
-  assert.deepEqual({ ...pool, slots: pool.slots.length, seeded: [...pool.seeded] }, { repo: REPO, slots: 2, reserve: [], hold: false, prepared: true, preparing: false, removed: false, seeded: [], sizes: null });
+  assert.deepEqual({ ...pool, slots: pool.slots.length, seeded: [...pool.seeded] }, { repo: REPO, slots: 2, reserve: [], leaving: 0, hold: false, prepared: true, preparing: false, removed: false, seeded: [], sizes: null });
   assert.deepEqual(s.calls, [`loop ${REPO} 1`, `loop ${REPO} 2`, `caches ${REPO}`, `seed ${REPO}`, `sizes ${REPO} true`]);
 });
 
@@ -721,4 +724,63 @@ test('zwei Vorbereitungen zugleich (Anlegen und Docker-Überwachung) laufen nur 
   const pool = s.pools.get(REPO);
   await Promise.all([s.api.preparePool(pool), s.api.preparePool(pool)]);
   assert.deepEqual(s.calls.filter((call) => call.startsWith('caches')), [`caches ${REPO}`]);
+});
+
+test('was gerade abgebaut wird, zählt beim Nachfüllen mit: Es stehen nie mehr Paare als gewollt', async () => {
+  const w = world();
+  w.pool.leaving = 1;
+  w.pools.replenish(w.pool);
+  assert.deepEqual(w.calls, ['provision 1']); // zwei gewollt, eines geht noch
+  w.pool.leaving = 0;
+  w.pools.replenish(w.pool);
+  assert.deepEqual(w.calls, ['provision 1', 'provision 2']);
+});
+
+test('withPoolAtRest wartet, bis Vorbereitung, Erneuern des Build-Dienstes und Messen fertig sind', async () => {
+  for (const busy of ['preparing', 'renewingService', 'measuring']) {
+    const w = world();
+    w.pool[busy] = true;
+    let worked = false;
+    const done = w.pools.withPoolAtRest(w.pool, async () => { worked = true; });
+    await settle();
+    assert.equal(worked, false, busy);
+    assert.equal(w.pool.hold, false, busy); // angehalten wird erst danach
+    w.pool[busy] = false;
+    await done;
+    assert.equal(worked, true, busy);
+  }
+});
+
+test('ruht der Pool für eine Arbeit an seinen Caches, lässt die Vorbereitung die Caches dieser Arbeit', async () => {
+  const s = starter({ ready: false });
+  await s.api.startPool(REPO);
+  const pool = s.pools.get(REPO);
+  pool.hold = true;
+  await s.api.preparePool(pool);
+  assert.deepEqual(s.calls.slice(2), [`seed ${REPO}`, `sizes ${REPO} true`]);
+});
+
+test('beim Beenden: Reserve und Paare werden abgebaut, auch eines im Aufbau wird abgewartet', async () => {
+  const w = world();
+  w.pools.replenish(w.pool);
+  w.builds[0].finish();
+  const working = { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-9' };
+  const building = { name: 'bauend', state: 'startet', building: true };
+  w.pool.slots = [working, building];
+  w.onSleep = () => { building.building = false; working.base = null; };
+  const done = w.pools.dismantle(30000);
+  await settle();
+  assert.equal(w.builds[1].cancelled(), true); // der Aufbau für die Reserve gilt als abgebrochen …
+  w.builds[1].finish(null); // … und endet ohne Paar
+  await done;
+  assert.ok(w.calls.includes('remove rc-app-1'));
+  assert.ok(w.calls.includes('teardown arbeitend') && w.calls.includes('teardown bauend'));
+  assert.equal(working.aborted && building.aborted, true);
+  assert.ok(w.slept.length >= 1);
+
+  // Ohne Ende wartet es nicht länger als erlaubt.
+  const stuck = world();
+  stuck.pool.slots = [{ name: 'hängt', state: 'startet', building: true }];
+  await stuck.pools.dismantle(0);
+  assert.deepEqual(stuck.slept, []);
 });

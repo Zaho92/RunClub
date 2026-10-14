@@ -39,8 +39,9 @@ function createAccess({ port, key = crypto.randomBytes(24).toString('hex') }) {
   const hosts = [`localhost:${port}`, `127.0.0.1:${port}`];
   return {
     key,
-    // Diese Adresse tauscht den Schlüssel gegen das Cookie und führt zur Seite.
-    entry: `http://localhost:${port}/?key=${key}`,
+    // Diese Adresse tauscht den Schlüssel gegen das Cookie und führt zur Seite. Sie nennt die Adresse, auf der der Dienst
+    // lauscht: `localhost` könnte auch über IPv6 (`::1`) gehen, wo ein anderes Programm den Schlüssel annähme.
+    entry: `http://127.0.0.1:${port}/?key=${key}`,
     cookie: `${COOKIE}=${key}; HttpOnly; SameSite=Strict; Path=/`,
     // Nur der eigene Rechner unter seinem eigenen Namen: hält umgeleitete Namen fremder Seiten draußen.
     hostAllowed: (headers) => hosts.includes(headers.host ?? ''),

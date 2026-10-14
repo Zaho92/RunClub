@@ -68,8 +68,10 @@ function suggest(jobs, range) {
 
 // Was für ein Projekt gilt: seine eigenen Limits, sonst die für alle.
 const effective = (shared, own) => ({ ...shared, ...(own ?? {}) });
+// Kennung der Limits des Docker-Daemons: Die trägt auch der Build-Dienst (siehe caches.js).
+const dockerKey = (limits) => [limits.dockerCpus, bytesOf(limits.dockerMemory)].join('/');
 // Kennung eines Satzes von Limits: Daran ist zu erkennen, ob ein Paar noch mit anderen gebaut wurde.
-const key = (limits) => [limits.runnerCpus, bytesOf(limits.runnerMemory), limits.dockerCpus, bytesOf(limits.dockerMemory)].join('/');
+const key = (limits) => [limits.runnerCpus, bytesOf(limits.runnerMemory), dockerKey(limits)].join('/');
 
 function sameValues(a, b) { return ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'].every((field) => a?.[field] === b?.[field]); }
 
@@ -122,4 +124,4 @@ function rate(jobs, values, range) {
   return { state: values.runnerMemory + values.dockerMemory > 2 * (need.runnerMemory + need.dockerMemory) ? 'generous' : 'ok', runs };
 }
 
-module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, SUGGEST_RUNS, TIGHT };
+module.exports = { bytesOf, memoryText, bounds, view, normalize, suggest, plan, planApplied, rate, sameValues, effective, key, dockerKey, SUGGEST_RUNS, TIGHT };

@@ -1,5 +1,5 @@
 // RunClub: Verwaltung der eigenen GitHub-Actions-Runner auf diesem Rechner.
-// Läuft im Hauptprozess der App (main.js) oder allein:  node src/backend.js  ->  http://localhost:8770
+// Läuft im Hauptprozess der App (main.js) oder allein:  node src/backend.js  ->  http://127.0.0.1:8770
 //
 // Linux-Runner: je Repo ein Pool in `runners.json`. Für jeden Job entsteht ein frisches Paar aus
 // Runner-Container und eigenem Docker-Daemon; nach dem Job wird es samt Volumes entfernt. Der Docker-Socket
@@ -11,8 +11,8 @@
 //
 // Was zwischen den Jobs eines Repos bleibt (alles abschaltbar und in der Oberfläche zu leeren):
 //   Pakete      Volume, im Runner als NuGet- und npm-Ordner gesetzt. Jobs schreiben hinein.
-//   Build-Layer ein Build-Dienst je Repo; einfaches `docker build` nutzt ihn (linux/docker-shim.sh).
-//               Jobs schreiben hinein. Wer mit eigenem Builder baut (Veröffentlichen), nutzt ihn nicht.
+//   Build-Layer ein Build-Dienst je Repo, ohne Rechte und nur über einen Socket erreichbar (siehe caches.js);
+//               einfaches `docker build` nutzt ihn (linux/docker-shim.sh). Jobs schreiben hinein. Wer mit eigenem Builder baut (Veröffentlichen), nutzt ihn nicht.
 //   Abbilder    Vorlage für den Docker-Daemon. Dieses Programm merkt sich nach jedem Job nur die Namen der
 //               geladenen Abbilder und holt sie selbst von der Registry – kein Job schreibt hinein.
 //
@@ -52,15 +52,18 @@ const CONFIG_FILE = path.join(DATA_DIR, 'runners.json');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const LOG_FILE = path.join(DATA_DIR, 'runclub.log');
 const IMAGE = 'runclub-runner:latest';
-// Was privilegiert läuft, ist per Digest festgenagelt: Ein bewegliches Etikett (`dind`, `latest`) kann von heute auf
-// morgen etwas anderes sein. Anheben: das neue Abbild laden (`docker pull docker:dind`), prüfen, den Digest aus
-// `docker image inspect --format '{{index .RepoDigests 0}}'` hier eintragen. Das Runner-Abbild selbst (linux/Dockerfile)
+// Docker-Daemon und Build-Dienst sind per Digest festgenagelt: Ein bewegliches Etikett (`dind`, `latest`) kann von heute
+// auf morgen etwas anderes sein. Anheben: das neue Abbild laden (`docker pull docker:dind`,
+// `docker pull moby/buildkit:rootless`), die Version darin ablesen (`docker --version`, `buildkitd --version`) und mit
+// dem Digest aus `docker image inspect --format '{{index .RepoDigests 0}}'` hier eintragen. Das Runner-Abbild selbst (linux/Dockerfile)
 // folgt bewusst dem neuesten Stand: GitHub weist zu alte Runner ab.
 const DIND = 'docker:29.9.0-dind@sha256:0b6d18a4a222e71c88be6034926b4f6cde2fc33c2218643d03ccfddc65995470';
-const BUILDKIT = 'moby/buildkit@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c';
+const BUILDKIT = 'moby/buildkit:v0.34.0-rootless@sha256:65eca3c01cd1180c8f64565c4e3c5983af5145818b0e6fa863385d099eb73855';
 // Kennzeichen der eigenen Container, Volumes und Netze. Es trägt den Datenordner in sich, damit eine zweite
 // Instanz (zum Ausprobieren, mit eigenem Datenordner) beim Aufräumen nicht die Paare der ersten entfernt.
-const MARK = `runclub.runner=${crypto.createHash('sha256').update(path.resolve(DATA_DIR).toLowerCase()).digest('hex').slice(0, 10)}`;
+const INSTANCE_ID = crypto.createHash('sha256').update(path.resolve(DATA_DIR).toLowerCase()).digest('hex').slice(0, 10);
+const MARK = `runclub.runner=${INSTANCE_ID}`;
+const SERVICE_MARK = `runclub.service=${INSTANCE_ID}`; // Build-Dienste und ihre Netze (siehe caches.js)
 // Was die App um das Backend herum beisteuert: zusätzliche Aufrufe, Angaben für die Oberfläche, das Ende.
 const hooks = { actions: {}, status: () => ({}), onExit: () => process.exit(0) };
 const HOST = os.hostname();
@@ -79,7 +82,10 @@ const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Bet
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
 const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
+const SHUTDOWN_WAIT_MS = 30 * SECOND; // so lange wartet das Beenden auf Paare, die gerade entstehen
+const HOUSEKEEPING_INTERVAL_MS = 10 * MINUTE; // so oft wird die Sichtbarkeit der Repos geprüft und verwaiste Runner abgemeldet
 const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
+const BODY_MAX = 10000; // Zeichen; kein Aufruf der Oberfläche braucht mehr
 
 let stopping = false;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -138,17 +144,18 @@ const otherStats = new Map(); // fremde Container in derselben Docker-VM: Name -
 
 // Caches, Vorlage und Build-Dienst heißen nach dem Repo. Eine zweite Instanz (anderer Port, eigener Datenordner)
 // hängt ihr Kennzeichen an, damit sie der ersten nichts wegnimmt, wenn beide ein Repo gleichen Namens bedienen.
-const INSTANCE = PORT === 8770 ? '' : `-${MARK.split('=')[1]}`;
+const INSTANCE = PORT === 8770 ? '' : `-${INSTANCE_ID}`;
 const cacheVolume = (repo) => `rc-cache-${slug(repo)}${INSTANCE}`;
 const seedVolume = (repo) => `rc-seed-${slug(repo)}${INSTANCE}`;
 const buildVolume = (repo) => `rc-build-${slug(repo)}${INSTANCE}`;
+const buildSocket = (repo) => `rc-buildsock-${slug(repo)}${INSTANCE}`;
 const buildService = (repo) => `rc-buildkit-${slug(repo)}${INSTANCE}`;
 const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}${INSTANCE}`;
 const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits); // eigene Limits des Projekts oder die für alle
 
 // Vorlage und Gelerntes liegen in seed.js: die Namen der Abbilder nach einem Job festhalten, die Vorlage auffrischen.
-const { withSeed, refreshSeed, learnImages } = createSeed({
+const { withSeed, refreshSeed, learnImages, forget: forgetSeed } = createSeed({
   docker, dockerList, log, sleep,
   mark: MARK, dind: DIND, longTimeout: DOCKER_LONG,
   settingsOf, seedVolume, poolOf: (repo) => pools.get(repo),
@@ -163,38 +170,38 @@ const { livePairs, provision, removePair, teardown, slotLoop, abortIdle } = crea
   docker, gh, log, sleep,
   host: HOST, mark: MARK, image: IMAGE, dind: DIND, longTimeout: DOCKER_LONG,
   metrics: { meter: () => metrics.meter(), recordJob: (repo, record) => metrics.recordJob(repo, record) },
-  settingsOf, limitsOf, seedVolume, cacheVolume, buildService,
+  settingsOf, limitsOf, seedVolume, cacheVolume, buildSocket,
   stopping: () => stopping, linuxReady: () => linux.ready(), poolResting: (...args) => poolResting(...args),
   withSeed, learnImages, replenish: (...args) => replenish(...args), discardReserve: (...args) => discardReserve(...args), refreshRepo,
   forgetStats: (name) => containerStats.delete(name),
 });
 
 // Paket-Cache und Build-Dienst eines Repos liegen in caches.js: bereitstellen, mit neuen Limits neu anlegen, messen.
-const { prepareCaches, renewService, measureSizes } = createCaches({
+const { prepareCaches, renewService, removeCaches, measureSizes } = createCaches({
   docker, dockerList, log,
-  dind: DIND, buildkit: BUILDKIT,
+  dind: DIND, buildkit: BUILDKIT, serviceMark: SERVICE_MARK,
   settingsOf, limitsOf, poolOf: (repo) => pools.get(repo),
-  cacheVolume, seedVolume, buildVolume, buildService, buildNetwork,
-  livePairs, stopping: () => stopping, linuxReady: () => linux.ready(),
+  cacheVolume, seedVolume, buildVolume, buildSocket, buildService, buildNetwork,
+  stopping: () => stopping, linuxReady: () => linux.ready(),
 });
 
 // Die Reserve eines Pools und sein Anhalten liegen in pools.js: einen Pool anlegen und vorbereiten, die Reserve
 // nachfüllen, erneuern, abbauen, die Zahl der Plätze angleichen, den Pool zur Ruhe bringen.
-const { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, rebuildIdle, withPoolAtRest, startPool, preparePool } = createPools({
+const { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, dismantle, rebuildIdle, withPoolAtRest, startPool, preparePool } = createPools({
   log, sleep, pools,
   settingsOf, limitsOf, stopping: () => stopping, linuxReady: () => linux.ready(),
-  provision, removePair, slotLoop, abortIdle,
+  provision, removePair, teardown, slotLoop, abortIdle,
   prepareCaches, refreshSeed, measureSizes,
 });
 
 // Die Docker-Überwachung liegt in linux.js: Docker vorbereiten, sobald es antwortet, es danach prüfen, Reste abräumen.
 const linux = createLinux({
   docker, dockerList, gh, log, sleep,
-  host: HOST, mark: MARK, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'), requiredImages: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
+  host: HOST, mark: MARK, serviceMark: SERVICE_MARK, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'), requiredImages: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
   unreachableText: engine.unreachableText,
   livePairs, repos: () => config.pools.map((settings) => settings.repo), pools: () => pools.values(), preparePool,
   stopping: () => stopping,
-  onReady: () => { startStatsFeed(); vmFeedMissing = false; startVmFeed(); },
+  onReady: () => { startStatsFeed(); vmFeedMissing = false; startVmFeed(); checkExposedDaemon(); },
   onAlive: () => startVmFeed(),
 });
 
@@ -217,6 +224,23 @@ function startStatsFeed() {
       } catch { /* Kopfzeile oder unvollständige Zeile */ }
     },
   }).then(() => { statsFeed = false; containerStats.clear(); otherStats.clear(); if (!stopping) setTimeout(startStatsFeed, 5000); });
+}
+
+// Gibt Docker Desktop den Daemon ohne TLS auf tcp://localhost:2375 frei, erreicht ihn jeder Job über
+// host.docker.internal und steuert damit ganz Docker, ohne erst ausbrechen zu müssen. Geprüft wird, sobald Docker
+// (wieder) vorbereitet ist.
+const EXPOSED_DAEMON = 'http://127.0.0.1:2375/_ping';
+function checkExposedDaemon() {
+  const request = http.get(EXPOSED_DAEMON, { timeout: 2 * SECOND }, (response) => {
+    let body = '';
+    response.on('data', (chunk) => { body += chunk; });
+    response.on('end', () => {
+      if (body.trim() !== 'OK') return;
+      log('Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.', null, 'error');
+    });
+  });
+  request.on('timeout', () => request.destroy());
+  request.on('error', () => { /* nichts lauscht dort: so soll es sein */ });
 }
 
 const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`; // für Meldungen
@@ -381,6 +405,26 @@ function scanWaiting() {
   return listRepos().then((repos) => waiting.scan(candidates(repos))).catch(() => {});
 }
 
+// Pools gibt es nur für private Repos (siehe `pool/add`). Wird ein Repo später öffentlich, liefen Pull Requests von
+// Fremden auf diesem Rechner: Dann wird sein Pool pausiert und die Variable entfernt. Fortsetzen lässt er sich erst,
+// wenn das Repo wieder privat ist.
+const publicRepos = new Set();
+async function checkVisibility(repo) {
+  const info = await gh(['api', `repos/${repo}`]);
+  if (info.private !== false) { publicRepos.delete(repo); return; }
+  const settings = settingsOf(repo);
+  const pool = pools.get(repo);
+  if (publicRepos.has(repo) || !settings || !pool || pool.removed) return;
+  publicRepos.add(repo);
+  settings.paused = true;
+  saveConfig();
+  pool.slots.forEach((slot) => abortIdle(slot));
+  discardReserve(pool).catch(logError(repo));
+  log('Das Repo ist öffentlich geworden. Damit keine fremden Pull Requests auf diesem Rechner laufen, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner.', repo, 'error');
+  await routing.set(repo, false).catch(logError(repo, `${VARIABLE} bleibt, wie es ist`));
+}
+const watchVisibility = (repo) => checkVisibility(repo).catch(logError(repo, 'Sichtbarkeit des Repos'));
+
 // --- Was die Oberfläche sieht ---
 
 const limitRange = () => limitRules.bounds({ dockerMemory: linux.memory(), dockerCpus: linux.cpus() });
@@ -497,6 +541,7 @@ const actions = {
     const pool = pools.get(repo);
     if (!settings || !pool) throw new Error('Diesen Pool gibt es nicht.');
     if (parallel !== undefined) settings.parallel = Math.min(4, Math.max(1, Number(parallel) || 1));
+    if (paused === false && publicRepos.has(repo)) throw new Error('Das Repo ist öffentlich. Der Pool lässt sich erst fortsetzen, wenn es wieder privat ist.');
     if (paused !== undefined) settings.paused = Boolean(paused);
     saveConfig();
     if (settings.paused) { pool.slots.forEach((slot) => abortIdle(slot)); discardReserve(pool).catch(logError(repo)); }
@@ -516,12 +561,12 @@ const actions = {
     pool.removed = true;
     log('Pool wird entfernt', repo);
     (async () => {
-      // Eine laufende Vorbereitung (Docker meldete sich gerade zurück) legte sonst nach dem Abbau Caches neu an.
-      while (pool.preparing) await sleep(500);
-      await quiesce(pool);
-      await docker(['rm', '-f', buildService(repo)]);
-      await docker(['network', 'rm', buildNetwork(repo)]);
-      await docker(['volume', 'rm', '-f', cacheVolume(repo), seedVolume(repo), buildVolume(repo)]);
+      // Erst ruht der Pool: Was noch an Caches und Vorlage arbeitet, läuft zu Ende und legt danach nichts mehr an.
+      const failures = [];
+      await withPoolAtRest(pool, async () => {
+        await removeCaches(repo, { packages: true, build: true }).catch((error) => failures.push(error.message));
+        await forgetSeed(repo).catch((error) => failures.push(error.message));
+      });
       // Ohne Pool würden die Jobs ewig auf einen Runner warten: zurück zu GitHubs Runnern.
       // Der Stand wird frisch gelesen – die Variable kann inzwischen von Hand gesetzt worden sein.
       // Lässt er sich nicht lesen, bleibt die Variable, wie sie ist, und das steht im Protokoll.
@@ -532,12 +577,10 @@ const actions = {
       })().catch(logError(repo, `${VARIABLE} bleibt, wie es ist`));
       routing.forget(repo);
       await linux.removeRegistrations(repo);
-      delete state.learned[repo];
-      delete state.rejected[repo];
-      saveState();
       metrics.forget(repo);
       github.delete(repo);
-      log('Pool und seine Caches sind entfernt', repo);
+      if (failures.length) log(`Pool entfernt, aber nicht alles: ${failures.join('; ')}`, repo, 'error');
+      else log('Pool und seine Caches sind entfernt', repo);
     })().catch(logError(repo))
       // Auch wenn ein Schritt scheitert, wird der Name wieder frei.
       .finally(() => { if (pools.get(repo) === pool) pools.delete(repo); });
@@ -550,14 +593,8 @@ const actions = {
     const all = what === 'all';
     log(`Leere ${{ packages: 'den Paket-Cache', build: 'die Build-Layer', images: 'die gelernten Abbilder', all: 'alle Caches' }[what]} …`, repo);
     withPoolAtRest(pool, async () => {
-      if (all || what === 'packages') await docker(['volume', 'rm', '-f', cacheVolume(repo)]);
-      if (all || what === 'build') { await docker(['rm', '-f', buildService(repo)]); await docker(['volume', 'rm', '-f', buildVolume(repo)]); }
-      if (all || what === 'images') {
-        delete state.learned[repo];
-        delete state.rejected[repo];
-        saveState();
-        await docker(['volume', 'rm', '-f', seedVolume(repo)]);
-      }
+      await removeCaches(repo, { packages: all || what === 'packages', build: all || what === 'build' });
+      if (all || what === 'images') await forgetSeed(repo);
       await prepareCaches(repo);
       await refreshSeed(repo);
       await measureSizes(pool);
@@ -637,9 +674,8 @@ async function shutdown() {
   log('Beende die Runner …');
   metrics.save();
   auth.close().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, bliebe sonst zurück
-  await Promise.all([...pools.values()].flatMap((pool) => pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })));
-  for (const settings of config.pools) { await docker(['rm', '-f', buildService(settings.repo)]); await docker(['network', 'rm', buildNetwork(settings.repo)]); }
-  await linux.removeLeftovers();
+  await dismantle(SHUTDOWN_WAIT_MS);
+  await linux.removeLeftovers(); // auch die Build-Dienste und ihre Netze
   log('Beendet.');
   hooks.onExit();
 }
@@ -663,7 +699,10 @@ const PAGE = (nonce) => fs.readFileSync(path.join(__dirname, 'ui.html'), 'utf8')
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
-    request.on('data', (chunk) => { body += chunk; if (body.length > 10000) reject(new Error('zu groß')); });
+    request.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > BODY_MAX) { reject(new Error('Der Aufruf ist zu groß.')); request.destroy(); }
+    });
     request.on('end', () => {
       try {
         const data = body ? JSON.parse(body) : {};
@@ -716,7 +755,7 @@ http.createServer(async (request, response) => {
   }
   return json(404, { error: 'unbekannt' });
 }).listen(PORT, '127.0.0.1', () => {
-  log(`Runner-Anzeige: http://localhost:${PORT}`);
+  log(`Runner-Anzeige: http://127.0.0.1:${PORT}`);
   // Der Schlüssel steht nur in der Konsole und in einer Datei im Datenordner des Nutzers, nie im Protokoll,
   // das die Oberfläche zeigt.
   try { fs.writeFileSync(KEY_FILE, `${access.key}\n`); } catch { /* dann bleibt nur die Konsole */ }
@@ -740,8 +779,18 @@ setInterval(() => {
   for (const pool of pools.values()) { replenish(pool); renewService(pool).catch(logError(pool.repo)); }
 }, MINUTE);
 setInterval(() => { if (linux.ready()) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
+// Seltener nachsehen: ob ein Repo öffentlich geworden ist und ob verwaiste Runner bei GitHub stehen. Ein Paar, das mitten
+// im Job endet (beim Beenden, nach einem Absturz), kann seinen Runner nicht abmelden: GitHub führt ihn noch eine Weile
+// als beschäftigt. Ist er frei und ohne Verbindung, wird er hier abgemeldet.
+setInterval(() => {
+  for (const pool of pools.values()) {
+    if (pool.removed || !githubApi.mayPoll(pool.repo)) continue;
+    watchVisibility(pool.repo);
+    linux.removeRegistrations(pool.repo, { keep: new Set(pool.slots.filter((slot) => slot.base).map((slot) => slot.name)), offline: true });
+  }
+}, HOUSEKEEPING_INTERVAL_MS);
 
-for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
+for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); watchVisibility(settings.repo); }
 linux.watch();
 
 module.exports = { PORT, DATA_DIR, ENTRY: access.entry, hooks, status, shutdown, release, log };
