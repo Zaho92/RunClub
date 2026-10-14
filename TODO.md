@@ -13,7 +13,16 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
    deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
    Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
    Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner unter `%APPDATA%\RunClub` bleibt, wo er ist.
-3. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
+3. **Docker Engine statt Docker Desktop** (Idee des Nutzers, 14.10.2026; erst Analyse, dann entscheiden). Ziel: eine
+   Abhängigkeit weniger. Eine eigene Docker Engine in einer eigenen WSL-Distro statt Docker Desktop. Für
+   die Veröffentlichung spricht die Lizenz von Docker Desktop (in größeren Firmen kostenpflichtig) und mehr Kontrolle
+   über den Daemon (rootless dind oder sysbox gegen den Ausbruch aus privilegierten Containern, siehe unten). Dagegen:
+   RunClub müsste die Distro selbst einrichten, starten und aktuell halten, und die Windows-CLI erreicht den Daemon nur
+   über einen Umweg (Aufruf über `wsl`, gesicherter TCP-Port oder Weiterleitung einer Named Pipe). Vorschlag: zuerst
+   den Zugang zu Docker austauschbar machen (Endpunkt und Name der Distro für `src/vmmemory.js` an einer Stelle), dann
+   einen Prototyp mit einer Engine in einer Distro `runclub` messen (Kosten je `docker`-Aufruf, Start nach dem Booten,
+   Speicher im Leerlauf gegenüber Docker Desktop).
+4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
    holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein
@@ -75,8 +84,7 @@ Richtigkeit:
   Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Ebenfalls echt benutzt am
   14.10.2026: „Abmelden“ und danach „Bei GitHub anmelden“; beides ging durch, nur fehlte danach `user`, weil das
   Anmelden damals nur `repo` verlangte. Seither verlangt es `repo` und `user` in einem Schritt (Wunsch des Nutzers);
-  das ist nur gegen ein nachgestelltes `gh` getestet. Beim nächsten Anmelden nachsehen: Danach steht keine Zeile
-  „Recht ergänzen“, und „Verbrauch“ zeigt die GitHub-Minuten. Echt prüfen, bei ruhenden Runnern:
+  vom Nutzer am 14.10.2026 echt geprüft: Danach fehlt kein Recht. Echt prüfen, bei ruhenden Runnern:
   „Abbrechen“ (danach läuft kein `gh` mehr; ist `gh` über einen Zwischenstarter wie den von scoop installiert, beendet
   das Abbrechen womöglich nur diesen), dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und
   als wer; der Code steht nirgends).
