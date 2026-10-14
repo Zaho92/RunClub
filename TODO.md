@@ -52,33 +52,100 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 
 ## Aus den Reviews noch offen
 
-Sicherheit:
-
-- **Privilegierte Container sind keine Sicherheitsgrenze.** Ein Job kann aus seinem Docker-Daemon in die Docker-VM
-  ausbrechen und erreicht dort die Paare und Caches der anderen Repos. Bis das gelöst ist, gibt es Pools nur für private
-  Repos (`pool/add` lehnt öffentliche ab). Vermutet, nicht geprüft: Unter Docker Desktop mit WSL2 liegt in der VM auch
-  das Windows-Laufwerk; ein ausgebrochener Job käme dann an `access.key` und die Dateien des Nutzers. Der Schlüssel
-  schützt also nur gegen Jobs, die nicht ausbrechen. Grundsätzliche Lösung: Daemon ohne `--privileged` (rootless dind, sysbox oder
-  Enhanced Container Isolation von Docker Desktop). Vor einer Veröffentlichung von RunClub klären.
-- **Caches sind zwischen Branches beschreibbar.** Ein Job auf einem Branch kann den NuGet-Ordner und den Build-Cache
-  verändern, den ein späterer Job auf `main` benutzt. Möglich: Caches nur für den Standard-Branch beschreibbar einhängen.
-  Entschieden am 13.10.2026: bleibt so, weil es Läufe auf Branches sonst langsamer macht.
-- **Das Netz je Repo trennt Repos, nicht die Paare eines Repos.** Der Build-Dienst hängt in allen Paar-Netzen seines
-  Repos; ein Build-Schritt könnte Ports erreichen, die ein gleichzeitig laufender Job desselben Repos veröffentlicht.
-- **Digests anheben.** `docker:dind` und `moby/buildkit` laufen privilegiert und sind per Digest festgenagelt (`DIND`,
-  `BUILDKIT` in `src/backend.js`); von Zeit zu Zeit bewusst anheben. `node`, das .NET-SDK und der Runner im
-  Runner-Abbild folgen dem neuesten Stand, weil GitHub zu alte Runner abweist; sie laufen nicht privilegiert.
+Fünfter Durchgang am 14.10.2026 über den ganzen Stand nach `08949b0` (Richtigkeit, Sicherheit, Standards samt
+Schnittplan für `src/backend.js`). Was er fand, steht hier zusammen mit den älteren offenen Punkten. Reihenfolge je
+Gruppe: empfohlen.
 
 Richtigkeit:
 
-- **Zuordnung im Netzplan, Rest.** Ein Ausdruck im Namen passt auf beliebigen Text: `Test ${{ matrix.os }}` schluckt auch
-  einen fremden `Test / Docker`. Wird ein Ausdruck leer ausgewertet, greift die Zuordnung nicht. Der angekündigte Job
-  zeigt den rohen Namen mit `${{ … }}` und hat keine gelernte Dauer.
-- **Scheitert `discardReserve` mittendrin**, bleiben die Paare der übrigen verworfenen Einträge stehen, bis der
-  nächste Start aufräumt (sie stehen noch in `livePairs`, `removeOrphans` fasst sie deshalb nicht an). Praktisch kaum
-  erreichbar, weil `removePair` Fehler von Docker nicht wirft.
-- **Abmeldungen bleiben liegen**, wenn ein Job beim Beenden oder Abmelden noch läuft: Sein Runner bleibt bei GitHub
-  eingetragen, bis der nächste Start aufräumt. Freie Runner werden beim Abmelden von Windows jetzt abgemeldet.
+1. **Entfernen eines Pools gegen laufende Hintergrundarbeit.** `pool/remove` wartet nur auf `pool.preparing` und
+   `quiesce`. Ein laufendes `renewService` legt danach Netz, Volume und einen privilegierten `rc-buildkit-…` neu an; der
+   trägt kein Kennzeichen und überlebt jeden Neustart. `refreshSeed` und der `du`-Container von `measureSizes` halten das
+   Seed-Volume fest, `volume rm` scheitert still, das Protokoll meldet trotzdem „entfernt“. Vorschlag: `pool.hold`
+   während des Entfernens, auf `renewingService` warten, das Löschen in `withSeed(repo, true, …)`, `code` prüfen.
+2. **Neue Vorbereitung nach einem Docker-Ausfall reißt den Build-Dienst weg.** `prepareCaches` entfernt ihn
+   unbedingt; laufende Builds brechen ab, und der neue Dienst hängt in keinem Paar-Netz mehr, die Paare bauen still
+   ohne Cache. Vorschlag: nur neu anlegen, wenn er fehlt oder andere Limits trägt; danach die stehenden Paare wieder
+   anbinden (oder Socket statt Netz, siehe Sicherheit 4).
+3. **Beenden wartet nicht auf Paare im Aufbau.** `shutdown` baut nur Plätze mit `slot.base` ab; Reserve-Einträge und
+   Plätze mit `building` können nach `removeLeftovers` noch einen privilegierten Daemon starten. Vorschlag: vor
+   `removeLeftovers` die Reserve verwerfen und auf `!slot.building` warten, mit Zeitgrenze.
+4. **Abmeldungen bleiben liegen** (bekannt, genauer gefasst). `teardown` meldet bei laufendem Job nicht ab, und
+   `removeRegistrations` (nur beim ersten Start) überspringt Runner, die GitHub noch als `busy` führt. Startet die App
+   neu, bevor GitHub den Job abschreibt, räumt niemand mehr auf. Dieselbe Lücke: Job ohne Ergebnis, gescheitertes
+   DELETE, 409/422 bei der Anmeldung; `release` übersieht einen Platz mitten in der Anmeldung. Vorschlag: regelmäßig
+   Runner `<Rechner>-linux-*` löschen, die offline, nicht `busy` und keinem stehenden Platz zugeordnet sind.
+5. **Zuordnung im Netzplan** (bekannt, genauer gefasst). `Test ${{ matrix.os }}` passt auf „Test / Docker“, aber nicht
+   auf „Test“ (leerer Ausdruck). Der angekündigte Job zeigt den rohen Namen und findet keine gelernte Dauer; dasselbe
+   bei Matrix-Jobs ohne Ausdruck („Build“ angekündigt, gelernt „Build (x)“). Vorschlag: Ausdruck als optionaler Text
+   ohne „ / “, angrenzende Leerzeichen optional; angekündigt als „Test …“, Dauer als Median aller passenden Jobs.
+6. **Abbruch eines Platzes durch einen Wurf** (bekannt als „`discardReserve` mittendrin“). Heute nicht erreichbar,
+   weil `removePair` nicht wirft. Wirft künftig etwas in `slotLoop`, endet die Schleife ohne `.catch`, und dem Pool
+   fehlt dauerhaft ein Platz. Vorschlag: `discardReserve` je Eintrag mit `allSettled`, `livePairs.delete` im
+   `finally`, `slotLoop(…).catch` setzt den Platz auf „aus“.
+7. **Abriss der Verbindung zu `docker run` beendet den Job.** Endet der Aufruf, während der Container weiterläuft
+   (Docker Desktop verliert kurz die Verbindung), gilt das als „ohne Ergebnis“, und das Paar wird mitten im Job
+   entfernt. Vorschlag: `docker inspect` prüfen und mit `docker logs -f` weiter mitlesen.
+8. **`renewReserve` hält die Reihenfolge nicht.** Während die alten Paare abgebaut werden, füllt der Minutentakt
+   schon nach; kurz stehen doppelt so viele Paare. Vorschlag: `replenish` überspringen, solange erneuert wird.
+9. **`withPoolAtRest` wartet nicht auf `renewService` und `preparePool`.** Cache leeren kann still scheitern, ein
+   doppeltes `prepareCaches` markiert einen laufenden Dienst als gescheitert.
+
+Sicherheit:
+
+1. **Privilegierte Container sind keine Sicherheitsgrenze** (bekannt). dind (`slots.js`), Build-Dienst (`caches.js`)
+   und Lade-Daemon (`seed.js`) laufen `--privileged`; ein Job erreicht nach dem Ausbruch die Volumes aller Repos, die
+   `JITCONFIG` anderer Paare und vermutlich das Windows-Laufwerk mit `access.key` und der Anmeldung von `gh` (Recht
+   `repo` auf das ganze Konto). Bis das gelöst ist, gibt es Pools nur für private Repos. Optionen: rootless dind (geht
+   mit Docker Desktop, Haken bei den Rechten am geteilten Arbeitsordner, 1–2 Tage mit echten Jobs; empfohlener erster
+   Schritt), ECI (nur mit Docker Business, unter WSL2 schwächer), Sysbox in eigener Engine (WSL2 nicht offiziell
+   unterstützt; zusammen mit „Docker Engine statt Docker Desktop“). Vor einer Veröffentlichung klären.
+2. **„Nur private Repos“ gilt nur beim Anlegen.** Wird ein Repo mit Pool später öffentlich, laufen fremde Pull
+   Requests auf den eigenen Runnern. Vorschlag: Sichtbarkeit regelmäßig lesen; wird es öffentlich, Pool pausieren,
+   Reserve verwerfen, `CI_RUNNER` entfernen, laut melden.
+3. **Jobs erreichen den localhost von Windows** über `host.docker.internal`, also jeden Dienst dort; mit „Expose
+   daemon on tcp://localhost:2375“ in Docker Desktop auch den äußeren Daemon. Vorschlag: Port 2375 beim Vorbereiten
+   prüfen und warnen; den Weg zu `host.docker.internal` aus den Paar-Netzen sperren (zu prüfen).
+4. **Das Netz je Repo trennt die Paare eines Repos nicht** (bekannt). Der Build-Dienst hängt in allen Paar-Netzen
+   und lauscht ohne TLS auf Port 1234. Vorschlag: Build-Dienst über einen Unix-Socket in einem Volume statt über die
+   Netze anbinden; dann teilt kein Paar-Netz mehr einen Teilnehmer.
+5. **Der Build-Dienst läuft unnötig privilegiert.** Vorschlag: `moby/buildkit:…-rootless` ohne `--privileged`.
+6. **Digests anheben** (bekannt). `docker:dind` und `moby/buildkit` sind per Digest festgenagelt (`DIND`, `BUILDKIT`);
+   von Zeit zu Zeit bewusst anheben. Neu: `BUILDKIT` trägt kein Etikett, die Version ist nicht ablesbar. `node` und
+   das .NET-SDK im Runner-Abbild sind nicht festgenagelt; das Abbild hält den Socket des privilegierten Daemons, ist
+   also nicht harmloser als dieser. Vorschlag: Etikett zum Digest, `node` und SDK per Digest, dazu etwas, das neue
+   Digests meldet (Renovate oder ein Workflow).
+7. **`JITCONFIG` steht in der Umgebung der Job-Schritte** (Vermutung); ein `env` schreibt sie ins Protokoll bei
+   GitHub. Vorschlag: im Startskript lesen und `unset`.
+8. **Keine Grenze für Prozesse je Paar.** Eine Fork-Bomb legt die VM für alle Repos lahm. Vorschlag: `--pids-limit`.
+9. **Kleinigkeiten am lokalen Dienst.** Der Einstieg nennt `localhost`, der Dienst lauscht auf `127.0.0.1` (Chromium
+   kann `::1` versuchen); `readBody` liest nach dem Überschreiten der Grenze weiter.
+
+Standards (Clean Code, Doppelungen):
+
+- Doppelt: `logError` (dreimal), Steuerzeichen-Muster (`auth.js`, `backend.js`), `median` (dreimal), JSON schreiben
+  ohne `store.writeJson` (`metrics.js`, `pipeline.js`), Build-Dienst samt Netz entfernen (dreimal), Gelerntes
+  löschen (zweimal, gehört `seed.js`), Vorgaben und Grenze von `parallel` (zweimal), „Diesen Pool gibt es nicht“
+  (fünfmal), `serviceKey` baut `limits.key` nach, `daysSince` rechnet wie `images.pruneOlder`, `shutdown` und
+  `release` beginnen gleich.
+- Tot oder ohne Namen: `PROCESS_INTERVAL_S` unbenutzt; Zahlen ohne Namen in `backend.js` (5000, 15000, 500, 100,
+  10000, Seiten von `listRepos`), Zeiten ohne `units` in `run.js`, `vmmemory.js`, `main.js`; `8770` doppelt.
+- Zeichenketten als Zustände: Zustände eines Platzes sind deutsche Sätze an über 20 Stellen (auch `main.js`,
+  `ui.html`); „läuft aus“ wird angehängt und mit `startsWith` verglichen; `machine.docker` ist `'bereit'` oder ein
+  Fehlertext; `SERVICE_FAILED` als Wert im Schlüsselfeld.
+- Namen: `rerun(…, path, unknown)` verdeckt `node:path`; `github` neben `githubApi`; Kopfkommentare verweisen auf
+  `backend.js`. Fremder Zustand: Die GitHub-Abfrage schreibt `slot.workflow`, `shutdown` setzt `slot.aborted`,
+  `release` liest `slot.runnerId`.
+- Tests: `pools.test.js` kopiert die „läuft aus“-Logik und die Verdrahtung aus `backend.js`; Hilfen (`turn`,
+  `until`, nachgestelltes Docker) sind in mehreren Tests kopiert; Einheiten von Hand gerechnet. Ungetestet: der
+  HTTP-Dienst mit seiner Zugriffskontrolle, die Prüfungen von `pool/add`, `status()`, das Lesen von `docker stats`.
+
+Backend-Umbau, letzter Schritt (Schnittplan aus dem Review): `src/backend.js` wird Verdrahtung mit
+`start({ port, dataDir, hooks })`, `main.js` ruft es auf (braucht einen Neustart der App). Neue Module, jedes mit
+Tests: `settings.js` (Einstellungen, Gelerntes, Vorgaben), `names.js` (Kennzeichen, Abbilder, Namen von Volumes und
+Diensten), `usage.js` (Messung, `docker stats`, VM), `remote.js` (GitHub-Abfragen, Anfragelimit, wartende Läufe,
+erneut starten), `account.js` (Anmeldung und Minuten), `status.js` (was die Oberfläche sieht), `actions.js` (Aufrufe
+der Oberfläche), `server.js` (lokaler Dienst, ohne `listen`).
 
 ## Noch nicht echt ausprobiert
 
