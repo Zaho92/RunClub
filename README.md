@@ -42,11 +42,13 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | Pfad | Inhalt |
 | --- | --- |
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
-| `src/backend.js` | Pools, Docker-Überwachung, GitHub-Abfragen, lokaler Dienst für die Oberfläche |
+| `src/backend.js` | Verdrahtung der Module, GitHub-Abfragen, Messung, lokaler Dienst für die Oberfläche |
+| `src/engine.js` | Wo Docker läuft (heute Docker Desktop): Aufrufe der CLI, Endpunkt, WSL-Distro für die Messung der VM |
+| `src/linux.js` | Docker-Überwachung: vorbereiten, sobald Docker antwortet, regelmäßig prüfen, Runner-Abbild bauen, Reste abräumen |
 | `src/slots.js` | Lebenslauf eines Platzes: ein Paar aufbauen, den Runner anmelden, einen Job bedienen, abräumen, im Leerlauf abbrechen |
-| `src/pools.js` | Reserve eines Pools (nachfüllen, erneuern, abbauen), Zahl der Plätze angleichen, einen Pool zur Ruhe bringen |
+| `src/pools.js` | Einen Pool anlegen und vorbereiten, Reserve eines Pools (nachfüllen, erneuern, abbauen), Zahl der Plätze angleichen, einen Pool zur Ruhe bringen |
 | `src/seed.js` | Vorlage eines Repos: die Abbilder eines Jobs lernen, die Vorlage auffrischen, Kopieren und Auffrischen gegeneinander sperren |
-| `src/caches.js` | Paket-Cache und Build-Dienst eines Repos bereitstellen, den Build-Dienst mit neuen Limits oder nach einem Fehlschlag neu anlegen |
+| `src/caches.js` | Paket-Cache und Build-Dienst eines Repos bereitstellen, den Build-Dienst mit neuen Limits oder nach einem Fehlschlag neu anlegen, die Volumes messen |
 | `src/pipeline.js` | Läufe mit ihren Jobs, Abhängigkeiten aus der Workflow-Datei (`needs`), übliche Dauer, Restzeit |
 | `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
 | `src/vmmemory.js` | Belegung der Docker-VM aus `/proc/meminfo` (mit Kernel und Daemon), Regel für die Warnung, wenn kaum noch Speicher frei ist |
@@ -70,7 +72,9 @@ Einstellungen, Gelerntes und Protokoll liegen unter `%APPDATA%\RunClub\data`.
 
 Umgebungsvariablen: `RUNCLUB_DATA` (Datenordner), `RUNCLUB_PORT` (Port des Dienstes, sonst 8770) und
 `RUNCLUB_SUBNETS` (Bereich, aus dem die Netze der Runner ihr Subnetz bekommen, sonst `10.213.0.0/16`; von /8 bis /24.
-Nötig nur, wenn der Bereich schon vergeben ist, etwa durch ein VPN).
+Nötig nur, wenn der Bereich schon vergeben ist, etwa durch ein VPN). Für eine andere Docker-Engine als Docker Desktop:
+`RUNCLUB_DOCKER_HOST` (Endpunkt des Daemons, geht als `DOCKER_HOST` an die CLI) und `RUNCLUB_DOCKER_DISTRO` (WSL-Distro
+des Daemons für die Messung der VM, sonst `docker-desktop`; leer: keine Messung).
 
 Die Oberfläche und ihre Daten bekommt nur das eigene Fenster: Der Dienst ist unter Docker Desktop auch aus den
 Containern der Jobs erreichbar, deshalb verlangt er einen Schlüssel, der bei jedem Start neu entsteht

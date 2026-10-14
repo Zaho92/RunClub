@@ -1,7 +1,7 @@
 // Was zwischen den Jobs eines Repos bleibt und nicht Vorlage ist (siehe Kopf von backend.js): der Paket-Cache als
 // Volume und der Build-Dienst mit seinem Volume und seinem Netz. `prepareCaches` stellt beides bereit oder baut es ab,
 // wenn das Repo keinen Cache will; `renewService` legt den Build-Dienst neu an, wenn er alte Limits trägt oder nicht
-// zustande kam.
+// zustande kam. `measureSizes` misst, wie groß Paket-Cache, Vorlage und Build-Layer sind.
 //
 // Der Build-Dienst trägt die Limits des Docker-Daemons. Am Pool steht, womit er gebaut ist:
 //   pool.serviceBuilt     Kennung der Limits (`serviceKey`) oder `SERVICE_FAILED`
@@ -16,17 +16,18 @@ const limitRules = require('./limits');
 const SERVICE_FAILED = 'gescheitert'; // steht in `serviceBuilt`, wenn der Build-Dienst nicht zustande kam
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
+//   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
 //   log(text, repo, kind)
 //   dind, buildkit          Abbild des Docker-Daemons (hier nur als Werkzeug für das Volume) und des Build-Diensts
 //   settingsOf(repo), limitsOf(repo), poolOf(repo) (der Pool oder undefined)
-//   cacheVolume(repo), buildVolume(repo), buildService(repo), buildNetwork(repo)   die Namen je Repo
+//   cacheVolume(repo), seedVolume(repo), buildVolume(repo), buildService(repo), buildNetwork(repo)   die Namen je Repo
 //   livePairs               Name des Paars -> Repo (aus slots.js)
 //   stopping(), linuxReady()
 function createCaches({
-  docker, log,
+  docker, dockerList, log,
   dind, buildkit,
   settingsOf, limitsOf, poolOf,
-  cacheVolume, buildVolume, buildService, buildNetwork,
+  cacheVolume, seedVolume, buildVolume, buildService, buildNetwork,
   livePairs, stopping, linuxReady,
 }) {
   // Der Build-Dienst trägt die Limits des Docker-Daemons; mit dieser Kennung ist zu erkennen, ob er noch alte trägt.
@@ -77,7 +78,23 @@ function createCaches({
     pool.serviceBuilt = failure ? SERVICE_FAILED : serviceKey(repo);
   }
 
-  return { prepareCaches, renewService };
+  // Die Größe der Volumes eines Pools in Bytes (`pool.sizes`: { packages, images, build }); was fehlt, zählt 0.
+  async function measureSizes(pool) {
+    const existing = new Set(await dockerList(['volume', 'ls', '-q', '--filter', 'name=rc-']));
+    const parts = [['packages', cacheVolume(pool.repo)], ['images', seedVolume(pool.repo)], ['build', buildVolume(pool.repo)]].filter(([, volume]) => existing.has(volume));
+    const sizes = { packages: 0, images: 0, build: 0 };
+    if (parts.length) {
+      const mounts = parts.flatMap(([key, volume]) => ['-v', `${volume}:/m/${key}:ro`]);
+      const result = await docker(['run', '--rm', ...mounts, '--entrypoint', 'sh', dind, '-c', 'du -sm /m/* 2>/dev/null']);
+      for (const line of result.stdout.split('\n')) {
+        const match = line.match(/^(\d+)\s+\/m\/(\w+)/);
+        if (match) sizes[match[2]] = Number(match[1]) * 1048576;
+      }
+    }
+    pool.sizes = sizes;
+  }
+
+  return { prepareCaches, renewService, measureSizes };
 }
 
 module.exports = { createCaches, SERVICE_FAILED };

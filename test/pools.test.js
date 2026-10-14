@@ -663,3 +663,51 @@ test('echte Plätze: withPoolAtRest wartet das Ende eines laufenden Jobs ab und 
   assert.equal(w.ids, 4);
   await w.finish();
 });
+
+// --- einen Pool anlegen und vorbereiten ---
+
+// Nur was `startPool` und `preparePool` brauchen; der Rest der Reserve bleibt außen vor.
+function starter({ ready = true, failCaches = null } = {}) {
+  const s = { calls: [], logs: [], pools: new Map(), ready };
+  s.api = createPools({
+    log: (...entry) => s.logs.push(entry), sleep: turn, pools: s.pools,
+    settingsOf: (repo) => ({ repo, parallel: 2, cache: true, paused: false }), limitsOf: () => OLD,
+    stopping: () => false, linuxReady: () => s.ready,
+    provision: async () => null, removePair: async () => {}, slotLoop: (pool, slot) => s.calls.push(`loop ${pool.repo} ${pool.slots.indexOf(slot) + 1}`), abortIdle: async () => {},
+    prepareCaches: async (repo) => { s.calls.push(`caches ${repo}`); if (failCaches) throw new Error(failCaches); },
+    refreshSeed: async (repo) => { s.calls.push(`seed ${repo}`); },
+    measureSizes: async (pool) => { s.calls.push(`sizes ${pool.repo} ${pool.prepared}`); },
+  });
+  return s;
+}
+
+test('ein neuer Pool steht sofort mit seinen Plätzen da und wird vorbereitet, wenn Docker bereit ist', async () => {
+  const s = starter();
+  await s.api.startPool(REPO);
+  const pool = s.pools.get(REPO);
+  assert.deepEqual({ ...pool, slots: pool.slots.length, seeded: [...pool.seeded] }, { repo: REPO, slots: 2, reserve: [], hold: false, prepared: true, preparing: false, removed: false, seeded: [], sizes: null });
+  assert.deepEqual(s.calls, [`loop ${REPO} 1`, `loop ${REPO} 2`, `caches ${REPO}`, `seed ${REPO}`, `sizes ${REPO} true`]);
+});
+
+test('ist Docker noch nicht bereit, wartet die Vorbereitung auf die Docker-Überwachung', async () => {
+  const s = starter({ ready: false });
+  await s.api.startPool(REPO);
+  assert.equal(s.pools.get(REPO).prepared, false);
+  assert.deepEqual(s.calls, [`loop ${REPO} 1`, `loop ${REPO} 2`]);
+});
+
+test('scheitert die Vorbereitung, steht das im Protokoll, und der Pool gilt trotzdem als vorbereitet', async () => {
+  const s = starter({ failCaches: 'kein Platz' });
+  await s.api.startPool(REPO);
+  assert.equal(s.pools.get(REPO).prepared, true);
+  assert.deepEqual(s.logs, [['Vorbereitung – kein Platz', REPO, 'error']]);
+  assert.deepEqual(s.calls.slice(2), [`caches ${REPO}`, `sizes ${REPO} true`]);
+});
+
+test('zwei Vorbereitungen zugleich (Anlegen und Docker-Überwachung) laufen nur einmal', async () => {
+  const s = starter({ ready: false });
+  await s.api.startPool(REPO);
+  const pool = s.pools.get(REPO);
+  await Promise.all([s.api.preparePool(pool), s.api.preparePool(pool)]);
+  assert.deepEqual(s.calls.filter((call) => call.startsWith('caches')), [`caches ${REPO}`]);
+});

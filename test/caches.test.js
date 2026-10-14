@@ -26,19 +26,21 @@ function world() {
     pool: { repo: REPO, slots: [], reserve: [], hold: false, prepared: true, removed: false }, // wie `startPool`, schon vorbereitet
     livePairs: new Map(),
   };
+  const docker = async (args) => {
+    const name = brief(args);
+    w.calls.push(name);
+    w.details.push({ name, args });
+    return { code: 0, stdout: '', stderr: '', ...(await w.answer(name, args)) };
+  };
   w.caches = createCaches({
-    docker: async (args) => {
-      const name = brief(args);
-      w.calls.push(name);
-      w.details.push({ name, args });
-      return { code: 0, stdout: '', stderr: '', ...(await w.answer(name, args)) };
-    },
+    docker,
+    dockerList: async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean),
     log: (...entry) => w.logs.push(entry),
     dind: 'dind:test', buildkit: 'buildkit:test',
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
     poolOf: (repo) => (repo === REPO ? w.pool : undefined),
-    cacheVolume: () => 'rc-cache-app', buildVolume: () => 'rc-build-app', buildService: () => 'rc-buildkit-app', buildNetwork: () => 'rc-buildnet-app',
+    cacheVolume: () => 'rc-cache-app', seedVolume: () => 'rc-seed-app', buildVolume: () => 'rc-build-app', buildService: () => 'rc-buildkit-app', buildNetwork: () => 'rc-buildnet-app',
     livePairs: w.livePairs, stopping: () => w.stopping, linuxReady: () => w.ready,
   });
   return w;
@@ -183,4 +185,26 @@ test('zwei Aufrufe kurz nacheinander erneuern nur einmal', async () => {
   w.limits = NEW;
   await Promise.all([w.caches.renewService(w.pool), w.caches.renewService(w.pool)]);
   assert.deepEqual(w.calls, PREPARE);
+});
+
+test('gemessen werden nur die Volumes, die es gibt, in Bytes; was fehlt, zählt 0', async () => {
+  const w = world();
+  const pool = { repo: REPO, sizes: null };
+  const lists = { 'volume ls -q --filter name=rc-': 'rc-cache-app\nrc-build-app\nrc-cache-fremd\n' };
+  w.answer = (name, args) => {
+    if (name === 'volume ls -q --filter name=rc-') return { stdout: lists[name] };
+    if (args[0] === 'run' && args.includes('du -sm /m/* 2>/dev/null')) return { stdout: '12\t/m/packages\n3\t/m/build\nunsinn\n' };
+    return undefined;
+  };
+  await w.caches.measureSizes(pool);
+  assert.deepEqual(pool.sizes, { packages: 12 * 1048576, images: 0, build: 3 * 1048576 });
+  const du = w.details.find((call) => call.args.includes('du -sm /m/* 2>/dev/null')).args;
+  assert.deepEqual(du, ['run', '--rm', '-v', 'rc-cache-app:/m/packages:ro', '-v', 'rc-build-app:/m/build:ro', '--entrypoint', 'sh', 'dind:test', '-c', 'du -sm /m/* 2>/dev/null']);
+
+  // Ohne ein einziges Volume wird nichts gestartet.
+  const empty = world();
+  const bare = { repo: REPO, sizes: null };
+  await empty.caches.measureSizes(bare);
+  assert.deepEqual(bare.sizes, { packages: 0, images: 0, build: 0 });
+  assert.equal(empty.calls.some((name) => name.startsWith('run')), false);
 });

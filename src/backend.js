@@ -23,10 +23,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { run, lastLine } = require('./run');
+const { run } = require('./run');
 const { SECOND, MINUTE, DAY, GB } = require('./units');
 const { createAccess, pageHeaders, newNonce, same } = require('./access');
-const { orphaned } = require('./pairs');
 const { readJson, writeJson } = require('./store');
 const { slug, sameRepo, clashes } = require('./images');
 const limitRules = require('./limits');
@@ -41,6 +40,8 @@ const { createSlots } = require('./slots');
 const { createPools } = require('./pools');
 const { createSeed } = require('./seed');
 const { createCaches } = require('./caches');
+const { engineFrom, createEngine } = require('./engine');
+const { createLinux } = require('./linux');
 const { createAuth } = require('./auth');
 const { createMinutes, SCOPE: MINUTES_SCOPE } = require('./minutes');
 
@@ -78,7 +79,6 @@ const IMAGE_INTERVAL_MS = DAY; // so oft wird das Runner-Abbild im laufenden Bet
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
 const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
-const DOCKER_MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
 const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 
 let stopping = false;
@@ -125,8 +125,9 @@ const saveState = () => writeJson(STATE_FILE, state);
 const githubApi = createGitHub({ run, timeout: GH_TIMEOUT });
 const gh = githubApi.call;
 
-const docker = (args, options) => run('docker', args, { timeout: DOCKER_TIMEOUT, ...options });
-const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
+// Docker läuft dort, wo engine.js sagt (heute Docker Desktop); alle Aufrufe gehen darüber.
+const engine = createEngine({ run, timeout: DOCKER_TIMEOUT, ...engineFrom() });
+const { docker, dockerList } = engine;
 
 
 // --- Linux-Pools ---
@@ -134,11 +135,6 @@ const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((
 const pools = new Map(); // Repo -> { repo, slots, hold, removed, sizes, seeded }
 const containerStats = new Map(); // Container-Name -> { cpu (Kerne), memory }
 const otherStats = new Map(); // fremde Container in derselben Docker-VM: Name -> { cpu, memory, at }
-let dockerCpus = 1;
-let dockerMemory = 0;
-let linuxReady = false;
-let linuxError = null;
-let leftoversRemoved = false;
 
 // Caches, Vorlage und Build-Dienst heißen nach dem Repo. Eine zweite Instanz (anderer Port, eigener Datenordner)
 // hängt ihr Kennzeichen an, damit sie der ersten nichts wegnimmt, wenn beide ein Repo gleichen Namens bedienen.
@@ -150,76 +146,6 @@ const buildService = (repo) => `rc-buildkit-${slug(repo)}${INSTANCE}`;
 const buildNetwork = (repo) => `rc-buildnet-${slug(repo)}${INSTANCE}`;
 const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
 const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits); // eigene Limits des Projekts oder die für alle
-
-// Das Runner-Abbild bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
-// nur ganz ohne Abbild geht es nicht.
-async function buildImage() {
-  const build = await docker(['build', '--pull', '-q', '-t', IMAGE, path.join(__dirname, '..', 'linux')], { timeout: DOCKER_LONG });
-  if (build.code === 0) return;
-  const reason = lastLine(build.stderr);
-  if ((await docker(['image', 'inspect', '--format', 'ok', IMAGE])).code !== 0) throw new Error(`Das Runner-Abbild ließ sich nicht bauen: ${reason}`);
-  log(`Das Runner-Abbild ließ sich nicht neu bauen (${reason}); die Runner nutzen das vorhandene.`, null, 'error');
-}
-
-// Bei langer Laufzeit veraltet der Runner im Abbild, und GitHub weist zu alte Runner ab: täglich neu bauen. Neue
-// Paare starten von selbst mit dem neuen Abbild; laufende Jobs berührt das nicht.
-async function refreshImage() {
-  if (stopping || !linuxReady) return;
-  log('Baue das Runner-Abbild neu (tägliche Auffrischung) …');
-  await buildImage();
-}
-
-async function prepareLinux() {
-  const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}'], { timeout: 20 * SECOND });
-  if (info.code !== 0) throw new Error('Docker ist nicht erreichbar – läuft Docker Desktop?');
-  dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
-  dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
-  log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
-  await buildImage();
-  await docker(['pull', '-q', DIND], { timeout: DOCKER_LONG });
-  await docker(['pull', '-q', BUILDKIT], { timeout: DOCKER_LONG });
-  // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
-  // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.
-  if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; } else await removeOrphans();
-}
-
-// Nach einer Unterbrechung von Docker: War Docker beim Abräumen eines Paars nicht erreichbar, sind dessen Container,
-// Volumes und Netz liegen geblieben. Entfernt wird nur, was zu keinem stehenden Paar mehr gehört.
-async function removeOrphans() {
-  const live = new Set(livePairs.keys());
-  const containers = orphaned(await dockerList(['ps', '-a', '--filter', `label=${MARK}`, '--format', '{{.Names}}']), live);
-  if (containers.length) await docker(['rm', '-f', '-v', ...containers]);
-  const volumes = orphaned(await dockerList(['volume', 'ls', '-q', '--filter', `label=${MARK}`]), live);
-  if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
-  for (const network of orphaned(await dockerList(['network', 'ls', '--filter', `label=${MARK}`, '--format', '{{.Name}}']), live)) {
-    for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
-    await docker(['network', 'rm', network]);
-  }
-  if (containers.length || volumes.length) log(`Reste nach der Unterbrechung entfernt: ${containers.length} Container, ${volumes.length} Volumes`);
-}
-
-// Reste eines früheren Laufs: Paare, ihre Volumes und Netze, bei GitHub angemeldete Runner.
-async function removeLeftovers() {
-  const containers = await dockerList(['ps', '-aq', '--filter', `label=${MARK}`]);
-  if (containers.length) await docker(['rm', '-f', '-v', ...containers]);
-  const volumes = await dockerList(['volume', 'ls', '-q', '--filter', `label=${MARK}`]);
-  if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
-  const networks = await dockerList(['network', 'ls', '-q', '--filter', `label=${MARK}`]);
-  for (const network of networks) {
-    for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
-    await docker(['network', 'rm', network]);
-  }
-  for (const pool of config.pools) await removeRegistrations(pool.repo);
-}
-
-async function removeRegistrations(repo) {
-  try {
-    const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=100`])).runners;
-    for (const runner of runners) {
-      if (runner.name.startsWith(`${HOST}-linux-`) && !runner.busy) await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runner.id}`]);
-    }
-  } catch (error) { log(`Abmelden alter Runner – ${error.message}`, repo, 'error'); }
-}
 
 // Vorlage und Gelerntes liegen in seed.js: die Namen der Abbilder nach einem Job festhalten, die Vorlage auffrischen.
 const { withSeed, refreshSeed, learnImages } = createSeed({
@@ -237,69 +163,47 @@ const { livePairs, provision, removePair, teardown, slotLoop, abortIdle } = crea
   host: HOST, mark: MARK, image: IMAGE, dind: DIND, longTimeout: DOCKER_LONG,
   metrics: { meter: () => metrics.meter(), recordJob: (repo, record) => metrics.recordJob(repo, record) },
   settingsOf, limitsOf, seedVolume, cacheVolume, buildService,
-  stopping: () => stopping, linuxReady: () => linuxReady, poolResting: (...args) => poolResting(...args),
+  stopping: () => stopping, linuxReady: () => linux.ready(), poolResting: (...args) => poolResting(...args),
   withSeed, learnImages, replenish: (...args) => replenish(...args), discardReserve: (...args) => discardReserve(...args), refreshRepo,
   forgetStats: (name) => containerStats.delete(name),
 });
 
-// Paket-Cache und Build-Dienst eines Repos liegen in caches.js: bereitstellen und mit neuen Limits neu anlegen.
-const { prepareCaches, renewService } = createCaches({
-  docker, log,
+// Paket-Cache und Build-Dienst eines Repos liegen in caches.js: bereitstellen, mit neuen Limits neu anlegen, messen.
+const { prepareCaches, renewService, measureSizes } = createCaches({
+  docker, dockerList, log,
   dind: DIND, buildkit: BUILDKIT,
   settingsOf, limitsOf, poolOf: (repo) => pools.get(repo),
-  cacheVolume, buildVolume, buildService, buildNetwork,
-  livePairs, stopping: () => stopping, linuxReady: () => linuxReady,
+  cacheVolume, seedVolume, buildVolume, buildService, buildNetwork,
+  livePairs, stopping: () => stopping, linuxReady: () => linux.ready(),
 });
 
-// Die Reserve eines Pools und sein Anhalten liegen in pools.js: nachfüllen, erneuern, abbauen, die Zahl der Plätze
-// angleichen, den Pool zur Ruhe bringen.
-const { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, rebuildIdle, withPoolAtRest } = createPools({
-  log, sleep,
-  settingsOf, limitsOf, stopping: () => stopping, linuxReady: () => linuxReady,
+// Die Reserve eines Pools und sein Anhalten liegen in pools.js: einen Pool anlegen und vorbereiten, die Reserve
+// nachfüllen, erneuern, abbauen, die Zahl der Plätze angleichen, den Pool zur Ruhe bringen.
+const { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, rebuildIdle, withPoolAtRest, startPool, preparePool } = createPools({
+  log, sleep, pools,
+  settingsOf, limitsOf, stopping: () => stopping, linuxReady: () => linux.ready(),
   provision, removePair, slotLoop, abortIdle,
-  prepareCaches,
+  prepareCaches, refreshSeed, measureSizes,
 });
 
-async function startPool(repo) {
-  const pool = { repo, slots: [], reserve: [], hold: false, prepared: false, removed: false, seeded: new Set(), sizes: null };
-  pools.set(repo, pool);
-  reconcile(pool);
-  if (linuxReady) await preparePool(pool);
-}
-
-async function preparePool(pool) {
-  // Ein neuer Pool kann zugleich von `startPool` und von der Schleife in `linuxLoop` erreicht werden.
-  if (pool.preparing) return;
-  pool.preparing = true;
-  pool.prepared = false;
-  try {
-    await prepareCaches(pool.repo);
-    await refreshSeed(pool.repo);
-  } catch (error) { log(`Vorbereitung – ${error.message}`, pool.repo, 'error'); } finally { pool.prepared = true; pool.preparing = false; }
-  measureSizes(pool);
-}
-
-async function measureSizes(pool) {
-  const existing = new Set(await dockerList(['volume', 'ls', '-q', '--filter', 'name=rc-']));
-  const parts = [['packages', cacheVolume(pool.repo)], ['images', seedVolume(pool.repo)], ['build', buildVolume(pool.repo)]].filter(([, volume]) => existing.has(volume));
-  const sizes = { packages: 0, images: 0, build: 0 };
-  if (parts.length) {
-    const mounts = parts.flatMap(([key, volume]) => ['-v', `${volume}:/m/${key}:ro`]);
-    const result = await docker(['run', '--rm', ...mounts, '--entrypoint', 'sh', DIND, '-c', 'du -sm /m/* 2>/dev/null']);
-    for (const line of result.stdout.split('\n')) {
-      const match = line.match(/^(\d+)\s+\/m\/(\w+)/);
-      if (match) sizes[match[2]] = Number(match[1]) * 1048576;
-    }
-  }
-  pool.sizes = sizes;
-}
+// Die Docker-Überwachung liegt in linux.js: Docker vorbereiten, sobald es antwortet, es danach prüfen, Reste abräumen.
+const linux = createLinux({
+  docker, dockerList, gh, log, sleep,
+  host: HOST, mark: MARK, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'), pulled: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
+  unreachable: engine.unreachable,
+  livePairs, repos: () => config.pools.map((settings) => settings.repo), pools: () => [...pools.values()], preparePool,
+  stopping: () => stopping,
+  onReady: () => { startStatsFeed(); vmFeedMissing = false; startVmFeed(); },
+  onAlive: () => startVmFeed(),
+});
 
 let statsFeed = false; // es läuft höchstens einer
 function startStatsFeed() {
   if (statsFeed) return;
   statsFeed = true;
-  // `docker stats` schreibt fortlaufend; Steuerzeichen für das Neuzeichnen werden entfernt.
-  run('docker', ['stats', '--format', '{{json .}}'], {
+  // `docker stats` schreibt fortlaufend (deshalb ohne Zeitgrenze); Steuerzeichen für das Neuzeichnen werden entfernt.
+  docker(['stats', '--format', '{{json .}}'], {
+    timeout: 0,
     onLine: (raw) => {
       const line = raw.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '').trim();
       if (!line.startsWith('{')) return;
@@ -317,8 +221,8 @@ function startStatsFeed() {
 const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`; // für Meldungen
 
 // Was die Docker-VM wirklich belegt, liest ein zweiter Dauerlauf in der VM selbst (siehe vmmemory.js); die Summe der
-// Container lässt Kernel und Daemon aus. Das geht nur mit Docker Desktop unter WSL2. Gibt es die Distro nicht, endet
-// der Aufruf ohne Messwert: Dann bleibt es still bei der Summe der Container, bis Docker neu vorbereitet wird.
+// Container lässt Kernel und Daemon aus. Das geht nur, wenn der Daemon in einer WSL-Distro läuft (siehe engine.js;
+// bei Docker Desktop `docker-desktop`). Gibt es die Distro nicht, endet der Aufruf ohne Messwert: Dann bleibt es still bei der Summe der Container, bis Docker neu vorbereitet wird.
 // Neu gestartet wird nur von `linuxLoop`, wenn Docker gerade geantwortet hat: Der Aufruf würde eine angehaltene
 // Distro sonst selbst hochfahren.
 const vmProbe = createVmMemory({
@@ -336,42 +240,8 @@ function startVmFeed() {
   if (vmFeed || vmFeedMissing || stopping) return;
   vmFeed = true;
   let seen = false;
-  run('wsl', ['-d', 'docker-desktop', 'sh', '-c', VM_COMMAND], { timeout: VM_FEED_MAX, onLine: (line) => { vmProbe.line(line); seen ||= Boolean(vmProbe.current()); } })
+  engine.inVm(VM_COMMAND, { timeout: VM_FEED_MAX, onLine: (line) => { vmProbe.line(line); seen ||= Boolean(vmProbe.current()); } })
     .then(() => { vmFeed = false; vmFeedMissing = !seen; vmProbe.drop(); });
-}
-
-// Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
-async function linuxLoop() {
-  let misses = 0;
-  while (!stopping) {
-    if (!linuxReady) {
-      try {
-        await prepareLinux();
-        for (const pool of pools.values()) pool.prepared = false;
-        linuxReady = true;
-        linuxError = null;
-        misses = 0;
-        startStatsFeed();
-        vmFeedMissing = false;
-        startVmFeed();
-        for (const pool of pools.values()) await preparePool(pool);
-      } catch (error) {
-        if (linuxError !== error.message) log(error.message, null, 'error');
-        linuxError = error.message;
-      }
-    } else if ((await docker(['info', '--format', 'ok'], { timeout: 20 * SECOND })).code !== 0) {
-      // Eine einzelne ausbleibende Antwort (volle VM, kurzer Hänger) heißt nicht, dass Docker weg ist:
-      // Erst nach mehreren in Folge warten die Plätze und alles wird neu vorbereitet.
-      misses += 1;
-      if (misses >= DOCKER_MISSES) {
-        linuxReady = false;
-        log('Docker antwortet nicht mehr – die Linux-Runner warten.', null, 'error');
-      }
-      await sleep(5000);
-      continue;
-    } else { misses = 0; startVmFeed(); }
-    await sleep(linuxReady ? 30000 : 15000);
-  }
 }
 
 // --- GitHub: Runner, laufende und wartende Jobs, letzte Läufe ---
@@ -511,7 +381,7 @@ function scanWaiting() {
 
 // --- Was die Oberfläche sieht ---
 
-const limitRange = () => limitRules.bounds({ dockerMemory, dockerCpus });
+const limitRange = () => limitRules.bounds({ dockerMemory: linux.memory(), dockerCpus: linux.cpus() });
 // Der Vorschlag für alle Projekte zusammen und ob er schon gilt (siehe `plan` in limits.js).
 function limitPlan() {
   const found = limitRules.plan(config.pools.map((pool) => ({ repo: pool.repo, jobs: metrics.jobsView(pool.repo) })), limitRange());
@@ -560,7 +430,7 @@ function status() {
         : null;
       entry.runners.push({
         kind: 'Linux', name: slot.base ? slot.name : `Platz ${index + 1}`, state: slot.retired && slot.state !== 'aus' ? `${slot.state}, läuft aus` : slot.state, job,
-        cpu: parts.reduce((sum, p) => sum + p.cpu, 0) / dockerCpus * 100, cores: parts.reduce((sum, p) => sum + p.cpu, 0), memory: parts.reduce((sum, p) => sum + p.memory, 0), cpuBase: `${dockerCpus} Kerne der Docker-VM`,
+        cpu: parts.reduce((sum, p) => sum + p.cpu, 0) / linux.cpus() * 100, cores: parts.reduce((sum, p) => sum + p.cpu, 0), memory: parts.reduce((sum, p) => sum + p.memory, 0), cpuBase: `${linux.cpus()} Kerne der Docker-VM`,
         note: [`Platz ${index + 1}`, `${slot.jobs} Job${slot.jobs === 1 ? '' : 's'} seit dem Start`, slot.lastResult && `zuletzt ${slot.lastResult}`, slot.error && `Fehler: ${slot.error}`].filter(Boolean).join(' · '),
       });
     });
@@ -569,7 +439,7 @@ function status() {
   return {
     at: new Date().toISOString(),
     machine: {
-      cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus, dockerMemory, docker: linuxReady ? 'bereit' : (linuxError ?? 'startet'),
+      cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus: linux.cpus(), dockerMemory: linux.memory(), docker: linux.ready() ? 'bereit' : (linux.error() ?? 'startet'),
       usage, vmTight: vmFree(), // { free }, wenn die Docker-VM kaum noch Arbeitsspeicher frei hat, sonst null
       limits: config.limits, series: metrics.series(),
       limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },
@@ -657,7 +527,7 @@ const actions = {
         if (found.here) { await routing.set(repo, false); log(`${VARIABLE} entfernt – die Jobs gehen wieder an GitHubs Runner`, repo); }
       })().catch(logError(repo, `${VARIABLE} bleibt, wie es ist`));
       routing.forget(repo);
-      await removeRegistrations(repo);
+      await linux.removeRegistrations(repo);
       delete state.learned[repo];
       delete state.rejected[repo];
       saveState();
@@ -708,7 +578,7 @@ const actions = {
   // Speicher in GB, Kerne als Anzahl. Arbeitende und schon bereite Paare behalten ihre Limits bis zum nächsten Aufbau.
   // Mit `repo` gelten sie nur für dieses Projekt; `inherit` nimmt dessen eigene Werte wieder weg.
   async 'limits/set'({ repo, inherit, ...input }) {
-    if (!linuxReady) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
+    if (!linux.ready()) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
     const settings = repo ? settingsOf(repo) : null;
     if (repo && !settings) throw new Error('Diesen Pool gibt es nicht.');
     const text = (limits) => `Runner ${limits.runnerMemory} und ${limits.runnerCpus} Kerne, Docker ${limits.dockerMemory} und ${limits.dockerCpus} Kerne`;
@@ -722,7 +592,7 @@ const actions = {
   // Übernimmt den Vorschlag aus den Messwerten als Ganzes: den Standard für alle und eigene Limits für die Ausreißer.
   // Gemessene Projekte, die nicht als Ausreißer gelten, verlieren dabei ihre eigenen Werte.
   async 'limits/plan'() {
-    if (!linuxReady) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
+    if (!linux.ready()) throw new Error('Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.');
     const found = limitPlan();
     if (!found) throw new Error('Für einen Vorschlag fehlen noch Messwerte.');
     config.limits = { ...config.limits, ...limitRules.normalize(found.shared, config.limits, limitRange()) };
@@ -765,7 +635,7 @@ async function shutdown() {
   auth.close().catch(() => {}); // ein `gh`, das noch auf die Bestätigung im Browser wartet, bliebe sonst zurück
   await Promise.all([...pools.values()].flatMap((pool) => pool.slots.map((slot) => { slot.aborted = true; return teardown(slot); })));
   for (const settings of config.pools) { await docker(['rm', '-f', buildService(settings.repo)]); await docker(['network', 'rm', buildNetwork(settings.repo)]); }
-  await removeLeftovers();
+  await linux.removeLeftovers();
   log('Beendet.');
   hooks.onExit();
 }
@@ -857,7 +727,7 @@ watchQuota();
 setInterval(watchQuota, MINUTE);
 scanWaiting();
 setInterval(scanWaiting, WAITING_INTERVAL_MS);
-setInterval(() => refreshImage().catch(logError(null, 'Runner-Abbild')), IMAGE_INTERVAL_MS);
+setInterval(() => linux.refreshImage().catch(logError(null, 'Runner-Abbild')), IMAGE_INTERVAL_MS);
 refreshGitHub();
 setInterval(refreshGitHub, GITHUB_INTERVAL_MS);
 setInterval(refreshActive, GITHUB_ACTIVE_INTERVAL_MS);
@@ -865,9 +735,9 @@ setInterval(measure, MEASURE_INTERVAL_MS);
 setInterval(() => {
   for (const pool of pools.values()) { replenish(pool); renewService(pool).catch(logError(pool.repo)); }
 }, MINUTE);
-setInterval(() => { if (linuxReady) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
+setInterval(() => { if (linux.ready()) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 
 for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
-linuxLoop();
+linux.linuxLoop();
 
 module.exports = { PORT, DATA_DIR, ENTRY: access.entry, hooks, status, shutdown, release, log };

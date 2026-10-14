@@ -1,5 +1,5 @@
 // Die Reserve eines Pools und sein Anhalten: Was über den einzelnen Platz hinausgeht, aber noch kein Cache und keine
-// Vorlage ist. Hier liegt, wie die Reserve sich füllt (`replenish`), erneuert (`renewReserve`) und abgebaut wird
+// Vorlage ist. Hier liegt, wie ein Pool entsteht und vorbereitet wird (`startPool`, `preparePool`), wie die Reserve sich füllt (`replenish`), erneuert (`renewReserve`) und abgebaut wird
 // (`discardReserve`), wie die Zahl der Plätze der Einstellung folgt (`reconcile`) und wie ein Pool zur Ruhe kommt,
 // damit an seinen Caches gearbeitet werden kann (`quiesce`, `withPoolAtRest`, `rebuildIdle`).
 //
@@ -7,20 +7,22 @@
 // `provision` und entfernt sie mit `removePair`, ein Platz füllt die Reserve nach und baut sie ab, wenn der Pool ruht.
 // Keine der beiden Dateien lädt die andere; backend.js reicht jeder Seite die Funktionen der anderen herein.
 //
-//   Pool     { repo, slots, reserve, hold, prepared, removed, renewing, … }   (angelegt in `startPool` in backend.js)
+//   Pool     { repo, slots, reserve, hold, prepared, removed, renewing, … }   (angelegt in `startPool`)
 //   Reserve  Einträge { cancel, ready, built, promise }; `promise` liefert das Paar oder `null`, nie einen Fehler
 
 const limitRules = require('./limits');
 
 //   log(text, repo, kind), sleep(ms)
+//   pools                   Map Repo -> Pool; `startPool` trägt neue Pools ein
 //   settingsOf(repo), limitsOf(repo), stopping(), linuxReady()
 //   provision(pool, cancelled), removePair(repo, base, runnerId), slotLoop(pool, slot), abortIdle(slot)   aus slots.js
-//   prepareCaches(repo)     Paket-Cache und Build-Dienst eines Repos neu bereitstellen (aus caches.js)
+//   prepareCaches(repo), measureSizes(pool)   Paket-Cache und Build-Dienst bereitstellen, Volumes messen (caches.js)
+//   refreshSeed(repo)       die Vorlage auffrischen (seed.js)
 function createPools({
-  log, sleep,
+  log, sleep, pools = new Map(),
   settingsOf, limitsOf, stopping, linuxReady,
   provision, removePair, slotLoop, abortIdle,
-  prepareCaches,
+  prepareCaches, refreshSeed = async () => {}, measureSizes = async () => {},
 }) {
   // Für `.catch(…)`: schreibt den Fehler zum Projekt ins Protokoll.
   const logError = (repo) => (error) => log(error.message, repo, 'error');
@@ -113,13 +115,32 @@ function createPools({
     return withPoolAtRest(pool, () => prepareCaches(pool.repo));
   }
 
+  async function startPool(repo) {
+    const pool = { repo, slots: [], reserve: [], hold: false, prepared: false, removed: false, seeded: new Set(), sizes: null };
+    pools.set(repo, pool);
+    reconcile(pool);
+    if (linuxReady()) await preparePool(pool);
+  }
+
+  async function preparePool(pool) {
+    // Ein neuer Pool kann zugleich von `startPool` und von der Schleife in `linuxLoop` (linux.js) erreicht werden.
+    if (pool.preparing) return;
+    pool.preparing = true;
+    pool.prepared = false;
+    try {
+      await prepareCaches(pool.repo);
+      await refreshSeed(pool.repo);
+    } catch (error) { log(`Vorbereitung – ${error.message}`, pool.repo, 'error'); } finally { pool.prepared = true; pool.preparing = false; }
+    measureSizes(pool);
+  }
+
   async function withPoolAtRest(pool, work) {
     while (pool.hold) await sleep(500);
     pool.hold = true;
     try { await quiesce(pool); return await work(); } finally { pool.hold = false; }
   }
 
-  return { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, rebuildIdle, withPoolAtRest };
+  return { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, rebuildIdle, withPoolAtRest, startPool, preparePool };
 }
 
 module.exports = { createPools };
