@@ -41,7 +41,7 @@ const pickSubnet = (range, random = Math.random) => subnetAt(range, Math.min(ran
 const alreadyExists = (stderr) => EXISTS.test(String(stderr ?? ''));
 
 // Legt ein Netz mit eigenem Subnetz an: `docker network create --subnet <…> <args>`. `docker(args)` liefert
-// `{ code, stderr }` (wie `docker` in backend.js), `args` sind die übrigen Argumente samt Name. Überschneidet sich
+// `{ code, stderr }` (wie `docker` aus engine.js), `args` sind die übrigen Argumente samt Name. Überschneidet sich
 // das Subnetz mit einem bestehenden Netz, kommt ein anderes dran, bis zu `attempts` Mal; jeder andere Fehler
 // endet sofort. Liefert das letzte Ergebnis von Docker, dazu `subnet` und `tries`.
 async function createNetwork(docker, args, { range = rangeFrom(), random = Math.random, attempts = ATTEMPTS } = {}) {

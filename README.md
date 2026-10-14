@@ -44,7 +44,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
 | `src/backend.js` | Verdrahtung der Module, GitHub-Abfragen, Messung, lokaler Dienst für die Oberfläche |
 | `src/engine.js` | Wo Docker läuft (heute Docker Desktop): Aufrufe der CLI, Endpunkt, WSL-Distro für die Messung der VM |
-| `src/linux.js` | Docker-Überwachung: vorbereiten, sobald Docker antwortet, regelmäßig prüfen, Runner-Abbild bauen, Reste abräumen |
+| `src/linux.js` | Die Docker-Überwachung: vorbereiten, sobald Docker antwortet, regelmäßig prüfen, Runner-Abbild bauen, Reste abräumen |
 | `src/slots.js` | Lebenslauf eines Platzes: ein Paar aufbauen, den Runner anmelden, einen Job bedienen, abräumen, im Leerlauf abbrechen |
 | `src/pools.js` | Einen Pool anlegen und vorbereiten, Reserve eines Pools (nachfüllen, erneuern, abbauen), Zahl der Plätze angleichen, einen Pool zur Ruhe bringen |
 | `src/seed.js` | Vorlage eines Repos: die Abbilder eines Jobs lernen, die Vorlage auffrischen, Kopieren und Auffrischen gegeneinander sperren |
@@ -73,8 +73,11 @@ Einstellungen, Gelerntes und Protokoll liegen unter `%APPDATA%\RunClub\data`.
 Umgebungsvariablen: `RUNCLUB_DATA` (Datenordner), `RUNCLUB_PORT` (Port des Dienstes, sonst 8770) und
 `RUNCLUB_SUBNETS` (Bereich, aus dem die Netze der Runner ihr Subnetz bekommen, sonst `10.213.0.0/16`; von /8 bis /24.
 Nötig nur, wenn der Bereich schon vergeben ist, etwa durch ein VPN). Für eine andere Docker-Engine als Docker Desktop:
-`RUNCLUB_DOCKER_HOST` (Endpunkt des Daemons, geht als `DOCKER_HOST` an die CLI) und `RUNCLUB_DOCKER_DISTRO` (WSL-Distro
-des Daemons für die Messung der VM, sonst `docker-desktop`; leer: keine Messung).
+`RUNCLUB_DOCKER_HOST` (Endpunkt des Daemons, geht als `DOCKER_HOST` an die CLI; am besten eine Named Pipe oder `ssh://`,
+ein `tcp://` nur mit TLS über `RUNCLUB_DOCKER_CERTS`, dem Ordner mit `ca.pem`, `cert.pem` und `key.pem`, weil sonst
+jeder, der den Port erreicht, auch ein Job, den Daemon steuert) und `RUNCLUB_DOCKER_DISTRO` (WSL-Distro des Daemons für
+die Messung der VM; ohne Angabe `docker-desktop`, mit eigenem Endpunkt keine; leer: keine Messung). Ohne
+`RUNCLUB_DOCKER_HOST` gilt, was die Docker-CLI ohnehin nimmt (auch ein `DOCKER_HOST` oder Kontext des Benutzers).
 
 Die Oberfläche und ihre Daten bekommt nur das eigene Fenster: Der Dienst ist unter Docker Desktop auch aus den
 Containern der Jobs erreichbar, deshalb verlangt er einen Schlüssel, der bei jedem Start neu entsteht

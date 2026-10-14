@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createSeed, LEARNED_DAYS, LEARNED_MAX } = require('../src/seed');
 const { DAY } = require('../src/units');
+const { createEngine } = require('../src/engine');
 
 const REPO = 'wer/App';
 const SEED = 'rc-seed-app';
@@ -31,15 +32,16 @@ function world() {
     state: { learned: {}, rejected: {} },
     pool: { repo: REPO, seeded: new Set() },
   };
-  const docker = async (args, options = {}) => {
+  // Docker über engine.js, wie in backend.js; nachgestellt ist nur `run`.
+  const run = async (command, args, options = {}) => {
     const name = brief(args);
     w.calls.push(name);
     w.details.push({ name, args, options });
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(name, args, options)) };
   };
+  const { docker, dockerList } = createEngine({ run, timeout: 99 });
   w.seed = createSeed({
-    docker,
-    dockerList: async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean),
+    docker, dockerList,
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); await turn(); },
     mark: MARK, dind: 'dind:test', longTimeout: 1234,

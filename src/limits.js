@@ -1,14 +1,14 @@
 // Limits je Job: wie viel Arbeitsspeicher und wie viele Kerne der Runner und sein Docker-Daemon bekommen.
 // In `runners.json` stehen sie, wie Docker sie liest (`4g`, `1536m`); die Oberfläche rechnet in GB und Kernen.
 
-const { GB } = require('./units');
+const { MB, GB } = require('./units');
 
 const bytesOf = (text) => {
   const match = String(text ?? '').trim().match(/^([\d.]+)\s*([gmk]?)b?$/i);
   if (!match) return 0;
   const unit = match[2].toLowerCase();
   const value = Number(match[1]);
-  return Number.isFinite(value) ? Math.round(value * (unit === 'g' ? GB : unit === 'm' ? 1048576 : unit === 'k' ? 1024 : 1)) : 0;
+  return Number.isFinite(value) ? Math.round(value * (unit === 'g' ? GB : unit === 'm' ? MB : unit === 'k' ? 1024 : 1)) : 0;
 };
 const memoryText = (gb) => (Number.isInteger(gb) ? `${gb}g` : `${Math.round(gb * 1024)}m`);
 

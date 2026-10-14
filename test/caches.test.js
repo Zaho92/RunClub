@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createCaches, SERVICE_FAILED } = require('../src/caches');
 const { MINUTE } = require('../src/units');
+const { createEngine } = require('../src/engine');
 
 const REPO = 'wer/App';
 const OLD = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 4, dockerMemory: '8g' };
@@ -26,15 +27,16 @@ function world() {
     pool: { repo: REPO, slots: [], reserve: [], hold: false, prepared: true, removed: false }, // wie `startPool`, schon vorbereitet
     livePairs: new Map(),
   };
-  const docker = async (args) => {
+  // Docker über engine.js, wie in backend.js; nachgestellt ist nur `run`.
+  const run = async (command, args) => {
     const name = brief(args);
     w.calls.push(name);
     w.details.push({ name, args });
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(name, args)) };
   };
+  const { docker, dockerList } = createEngine({ run, timeout: 99 });
   w.caches = createCaches({
-    docker,
-    dockerList: async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean),
+    docker, dockerList,
     log: (...entry) => w.logs.push(entry),
     dind: 'dind:test', buildkit: 'buildkit:test',
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),

@@ -9,10 +9,11 @@
 //   pool.renewingService  es wird gerade erneuert
 
 const { lastLine } = require('./run');
-const { MINUTE } = require('./units');
+const { MINUTE, MB } = require('./units');
 const { createNetwork, alreadyExists } = require('./subnets');
 const limitRules = require('./limits');
 
+const VOLUME_PREFIX = 'rc-';
 const SERVICE_FAILED = 'gescheitert'; // steht in `serviceBuilt`, wenn der Build-Dienst nicht zustande kam
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
@@ -79,8 +80,9 @@ function createCaches({
   }
 
   // Die Größe der Volumes eines Pools in Bytes (`pool.sizes`: { packages, images, build }); was fehlt, zählt 0.
+  // Alle Volumes von Caches und Vorlage beginnen mit `rc-` (siehe die Namen je Repo in backend.js).
   async function measureSizes(pool) {
-    const existing = new Set(await dockerList(['volume', 'ls', '-q', '--filter', 'name=rc-']));
+    const existing = new Set(await dockerList(['volume', 'ls', '-q', '--filter', `name=${VOLUME_PREFIX}`]));
     const parts = [['packages', cacheVolume(pool.repo)], ['images', seedVolume(pool.repo)], ['build', buildVolume(pool.repo)]].filter(([, volume]) => existing.has(volume));
     const sizes = { packages: 0, images: 0, build: 0 };
     if (parts.length) {
@@ -88,7 +90,7 @@ function createCaches({
       const result = await docker(['run', '--rm', ...mounts, '--entrypoint', 'sh', dind, '-c', 'du -sm /m/* 2>/dev/null']);
       for (const line of result.stdout.split('\n')) {
         const match = line.match(/^(\d+)\s+\/m\/(\w+)/);
-        if (match) sizes[match[2]] = Number(match[1]) * 1048576;
+        if (match) sizes[match[2]] = Number(match[1]) * MB;
       }
     }
     pool.sizes = sizes;

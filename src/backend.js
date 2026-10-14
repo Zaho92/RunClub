@@ -24,7 +24,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { run } = require('./run');
-const { SECOND, MINUTE, DAY, GB } = require('./units');
+const { SECOND, MINUTE, DAY, MB, GB } = require('./units');
 const { createAccess, pageHeaders, newNonce, same } = require('./access');
 const { readJson, writeJson } = require('./store');
 const { slug, sameRepo, clashes } = require('./images');
@@ -157,7 +157,8 @@ const { withSeed, refreshSeed, learnImages } = createSeed({
 
 // Der Lebenslauf eines Platzes liegt in slots.js: ein Paar aufbauen, anmelden, einen Job bedienen, abräumen. Was davon
 // hier gebraucht wird, behält seinen Namen. `metrics` entsteht weiter unten und wird deshalb erst beim Gebrauch gelesen;
-// ebenso die Reserve aus pools.js, die gleich darunter entsteht und ihrerseits die Plätze braucht.
+// ebenso die Reserve aus pools.js, die gleich darunter entsteht und ihrerseits die Plätze braucht, und die
+// Docker-Überwachung (`linux`) danach.
 const { livePairs, provision, removePair, teardown, slotLoop, abortIdle } = createSlots({
   docker, gh, log, sleep,
   host: HOST, mark: MARK, image: IMAGE, dind: DIND, longTimeout: DOCKER_LONG,
@@ -189,9 +190,9 @@ const { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolRe
 // Die Docker-Überwachung liegt in linux.js: Docker vorbereiten, sobald es antwortet, es danach prüfen, Reste abräumen.
 const linux = createLinux({
   docker, dockerList, gh, log, sleep,
-  host: HOST, mark: MARK, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'), pulled: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
-  unreachable: engine.unreachable,
-  livePairs, repos: () => config.pools.map((settings) => settings.repo), pools: () => [...pools.values()], preparePool,
+  host: HOST, mark: MARK, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'), requiredImages: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
+  unreachableText: engine.unreachableText,
+  livePairs, repos: () => config.pools.map((settings) => settings.repo), pools: () => pools.values(), preparePool,
   stopping: () => stopping,
   onReady: () => { startStatsFeed(); vmFeedMissing = false; startVmFeed(); },
   onAlive: () => startVmFeed(),
@@ -210,7 +211,7 @@ function startStatsFeed() {
       try {
         const entry = JSON.parse(line);
         const [value, unit] = entry.MemUsage.split('/')[0].trim().match(/^([\d.]+)\s*(\w+)$/).slice(1);
-        const factor = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: 1048576, GB: 1e9, GiB: 1073741824 }[unit] ?? 1;
+        const factor = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: MB, GB: 1e9, GiB: 1073741824 }[unit] ?? 1;
         const usage = { cpu: (parseFloat(entry.CPUPerc) || 0) / 100, memory: Number(value) * factor, at: Date.now() };
         if (entry.Name.startsWith('rc-')) containerStats.set(entry.Name, usage); else otherStats.set(entry.Name, usage);
       } catch { /* Kopfzeile oder unvollständige Zeile */ }
@@ -222,9 +223,10 @@ const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`; // 
 
 // Was die Docker-VM wirklich belegt, liest ein zweiter Dauerlauf in der VM selbst (siehe vmmemory.js); die Summe der
 // Container lässt Kernel und Daemon aus. Das geht nur, wenn der Daemon in einer WSL-Distro läuft (siehe engine.js;
-// bei Docker Desktop `docker-desktop`). Gibt es die Distro nicht, endet der Aufruf ohne Messwert: Dann bleibt es still bei der Summe der Container, bis Docker neu vorbereitet wird.
-// Neu gestartet wird nur von `linuxLoop`, wenn Docker gerade geantwortet hat: Der Aufruf würde eine angehaltene
-// Distro sonst selbst hochfahren.
+// bei Docker Desktop `docker-desktop`). Gibt es die Distro nicht, endet der Aufruf ohne Messwert: Dann bleibt es
+// still bei der Summe der Container, bis Docker neu vorbereitet wird. Neu gestartet wird nur aus der
+// Docker-Überwachung (linux.js, über `onReady` und `onAlive`), wenn Docker gerade geantwortet hat: Der Aufruf würde
+// eine angehaltene Distro sonst selbst hochfahren.
 const vmProbe = createVmMemory({
   onChange: (tight, sample) => {
     if (tight) log(`Die Docker-VM hat nur noch ${gbText(sample.available)} von ${gbText(sample.total)} Arbeitsspeicher frei.`, null, 'error');
@@ -738,6 +740,6 @@ setInterval(() => {
 setInterval(() => { if (linux.ready()) for (const pool of pools.values()) if (!pool.hold) measureSizes(pool); }, SIZES_INTERVAL_MS);
 
 for (const settings of config.pools) { startPool(settings.repo); routing.check(settings.repo).catch(() => {}); }
-linux.linuxLoop();
+linux.watch();
 
 module.exports = { PORT, DATA_DIR, ENTRY: access.entry, hooks, status, shutdown, release, log };

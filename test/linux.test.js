@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createLinux, MISSES, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/linux');
+const { createLinux, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/linux');
+const { createEngine } = require('../src/engine');
 
 const MARK = 'runclub.runner=test';
 const IMAGE = 'runner:test';
@@ -16,18 +17,19 @@ function world() {
     calls: [], logs: [], slept: [], prepared: [], ready: 0, alive: 0, stopping: false, answer: () => undefined, onSleep: () => {},
     runners: { runners: [] }, ghFails: null, livePairs: new Map(), repos: ['wer/App'], pools: [{ repo: 'wer/App', prepared: true }],
   };
-  const docker = async (args, options = {}) => {
+  // Docker über engine.js, wie in backend.js; nachgestellt ist nur `run`.
+  const run = async (command, args, options = {}) => {
     w.calls.push(brief(args));
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(brief(args), options)) };
   };
+  const { docker, dockerList, unreachableText } = createEngine({ run, timeout: 99 });
   w.linux = createLinux({
-    docker,
-    dockerList: async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean),
+    docker, dockerList,
     gh: async (args) => { w.calls.push(`gh ${args.join(' ')}`); if (w.ghFails) throw new Error(w.ghFails); return w.runners; },
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
-    host: 'PC', mark: MARK, image: IMAGE, imageDir: 'C:/rc/linux', pulled: ['dind:test', 'buildkit:test'], longTimeout: 1234,
-    unreachable: 'Docker ist nicht erreichbar – läuft Docker Desktop?',
+    host: 'PC', mark: MARK, image: IMAGE, imageDir: 'C:/rc/linux', requiredImages: ['dind:test', 'buildkit:test'], longTimeout: 1234,
+    unreachableText,
     livePairs: w.livePairs, repos: () => w.repos, pools: () => w.pools,
     preparePool: async (pool) => { w.prepared.push(pool.repo); assert.equal(pool.prepared, false); },
     stopping: () => w.stopping,
@@ -40,7 +42,7 @@ function world() {
 async function loopFor(w, rounds, each = () => {}) {
   let round = 0;
   w.onSleep = () => { each(round); round += 1; if (round >= rounds) w.stopping = true; };
-  await w.linux.linuxLoop();
+  await w.linux.watch();
 }
 
 const PREPARE = [
@@ -57,7 +59,7 @@ test('vor der ersten Antwort ist Docker nicht bereit, mit der Grenze von einem K
 test('antwortet Docker, wird es vorbereitet: Grenzen lesen, Abbild bauen, Abbilder laden, Reste des vorigen Laufs abräumen, Pools vorbereiten', async () => {
   const w = world();
   w.answer = (name, options) => {
-    if (name.startsWith('info --format {{.NCPU}}')) { assert.equal(options.timeout, 20000); return { stdout: '12 16000000000\n' }; }
+    if (name.startsWith('info --format {{.NCPU}}')) { assert.equal(options.timeout, PROBE_TIMEOUT); return { stdout: '12 16000000000\n' }; }
     if (name.startsWith('build') || name.startsWith('pull')) assert.equal(options.timeout, 1234);
     return undefined;
   };
@@ -111,6 +113,19 @@ test('erst nach mehreren ausbleibenden Antworten in Folge gilt Docker als weg; d
   assert.deepEqual(w.calls.slice(-(PREPARE.length + ORPHANS.length)), [...PREPARE, ...ORPHANS]);
   assert.equal(w.calls.some((name) => name.startsWith('gh ')), false);
   assert.deepEqual([w.ready, w.prepared], [2, ['wer/App', 'wer/App']]);
+});
+
+test('eine Antwort zwischendurch setzt die Zählung der ausbleibenden zurück', async () => {
+  const w = world();
+  await loopFor(w, 1);
+  // Zweimal keine Antwort, einmal eine, wieder zweimal keine: Nie sind es MISSES in Folge.
+  const pattern = [false, false, true, false, false, true];
+  assert.ok(MISSES > 2);
+  w.answer = (name) => (name === 'info --format ok' && pattern.shift() === false ? { code: 1 } : undefined);
+  w.stopping = false;
+  await loopFor(w, 6);
+  assert.equal(w.linux.ready(), true);
+  assert.equal(w.logs.some((entry) => entry[0].startsWith('Docker antwortet nicht mehr')), false);
 });
 
 test('lässt sich das Abbild nicht bauen, wird mit dem vorhandenen weitergearbeitet; ohne eines geht es nicht', async () => {
@@ -180,8 +195,10 @@ test('nach einer Unterbrechung geht nur, was zu keinem stehenden Paar gehört', 
     [`network ls --filter label=${MARK} --format {{.Name}}`]: { stdout: 'rc-app-1\nrc-app-2\n' },
   })[name];
   await w.linux.removeOrphans();
-  assert.deepEqual(w.calls.filter((name) => !name.includes('ls') && !name.startsWith('ps') && !name.includes('inspect')), [
-    'rm -f -v rc-app-2-runner', 'volume rm -f rc-app-2-work rc-app-2-docker', 'network rm rc-app-2',
+  assert.deepEqual(w.calls, [
+    `ps -a --filter label=${MARK} --format {{.Names}}`, 'rm -f -v rc-app-2-runner',
+    `volume ls -q --filter label=${MARK}`, 'volume rm -f rc-app-2-work rc-app-2-docker',
+    `network ls --filter label=${MARK} --format {{.Name}}`, 'network inspect rc-app-2 --format {{range .Containers}}{{println .Name}}{{end}}', 'network rm rc-app-2',
   ]);
   assert.deepEqual(w.logs, [['Reste nach der Unterbrechung entfernt: 1 Container, 2 Volumes']]);
 

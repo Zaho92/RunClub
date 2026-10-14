@@ -19,9 +19,12 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
    über den Daemon (rootless dind oder sysbox gegen den Ausbruch aus privilegierten Containern, siehe unten). Dagegen:
    RunClub müsste die Distro selbst einrichten, starten und aktuell halten, und die Windows-CLI erreicht den Daemon nur
    über einen Umweg (Aufruf über `wsl`, gesicherter TCP-Port oder Weiterleitung einer Named Pipe). Erster Schritt erledigt
-   (14.10.2026): Der Zugang zu Docker ist austauschbar (`src/engine.js`, Umgebungsvariablen `RUNCLUB_DOCKER_HOST` und
-   `RUNCLUB_DOCKER_DISTRO`; ohne Angabe wie bisher Docker Desktop). Als Nächstes ein Prototyp mit einer Engine in einer Distro `runclub` messen (Kosten je `docker`-Aufruf, Start nach dem Booten,
-   Speicher im Leerlauf gegenüber Docker Desktop).
+   (14.10.2026): Der Zugang zu Docker ist austauschbar (`src/engine.js`, Umgebungsvariablen `RUNCLUB_DOCKER_HOST`,
+   `RUNCLUB_DOCKER_CERTS` und `RUNCLUB_DOCKER_DISTRO`; ohne Angabe wie bisher Docker Desktop). Bedingung für den
+   Prototyp: Der Daemon ist nur über eine Named Pipe mit Rechten für den eigenen Benutzer, über `ssh://` oder über
+   `tcp://` mit TLS und Client-Zertifikat erreichbar, nie über ein offenes `tcp://` (ein Job käme sonst ohne Ausbruch
+   an den Daemon). Als Nächstes ein Prototyp mit einer Engine in einer Distro `runclub` messen (Kosten je
+   `docker`-Aufruf, Start nach dem Booten, Speicher im Leerlauf gegenüber Docker Desktop).
 4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
@@ -268,7 +271,10 @@ Richtigkeit:
     `refreshImage`, `removeOrphans`, `removeLeftovers`, `removeRegistrations`), dazu `startPool` und `preparePool` in
     `src/pools.js` und `measureSizes` in `src/caches.js`, alle mit Tests. Der Code ist unverändert umgezogen (Zeile für
     Zeile verglichen); anders sind die Namen des Hereingereichten, `stopping()` und `linuxReady()` als Abfrage, die
-    beiden zu ladenden Abbilder als Liste und die Messungen, die `linuxLoop` über `onReady` und `onAlive` startet.
+    beiden zu ladenden Abbilder als Liste, die Messungen, die `linuxLoop` über `onReady` und `onAlive` startet, die
+    Meldung „nicht erreichbar“ aus der Engine, `docker stats` über `docker()` mit `timeout: 0` und der Dauerlauf in der
+    VM über `engine.inVm` (jetzt mit `wsl --exec`, ohne die Shell der Distro). Nach dem Review: Ein Pool, der gerade
+    entfernt wird, wird nicht mehr vorbereitet. Im Betrieb geprüft am 14.10.2026: Start, Messung der VM, Demo-Lauf.
     Neu: `src/engine.js` als einzige Stelle, die weiß, wo Docker läuft (siehe „Docker Engine statt Docker Desktop“).
     In `src/backend.js` bleiben die Verdrahtung, die GitHub-Abfragen, die Messung und der Dienst.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.

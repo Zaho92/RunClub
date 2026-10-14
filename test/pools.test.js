@@ -55,6 +55,7 @@ function world() {
     slotLoop: (pool, slot) => { w.loops.push(slot); },
     abortIdle: async (slot) => { w.aborted.push(slot); w.calls.push(`abort ${slot.name ?? w.pool.slots.indexOf(slot) + 1}`); },
     prepareCaches: async (repo) => { w.calls.push(`caches ${repo}`); await w.caches(); },
+    pools: new Map(), refreshSeed: async () => {}, measureSizes: async () => {},
   });
   return w;
 }
@@ -537,6 +538,7 @@ function wired() {
     log, sleep, settingsOf, limitsOf, stopping: () => w.stopping, linuxReady: () => w.ready,
     provision, removePair, slotLoop, abortIdle,
     prepareCaches: async () => { w.caches += 1; },
+    pools: new Map(), refreshSeed: async () => {}, measureSizes: async () => {},
   });
   w.abortIdle = abortIdle;
   // Am Ende eines Tests: alle Schleifen beenden, damit nichts weiterläuft.
@@ -702,6 +704,15 @@ test('scheitert die Vorbereitung, steht das im Protokoll, und der Pool gilt trot
   assert.equal(s.pools.get(REPO).prepared, true);
   assert.deepEqual(s.logs, [['Vorbereitung – kein Platz', REPO, 'error']]);
   assert.deepEqual(s.calls.slice(2), [`caches ${REPO}`, `sizes ${REPO} true`]);
+});
+
+test('ein Pool, der gerade entfernt wird, wird nicht mehr vorbereitet', async () => {
+  const s = starter({ ready: false });
+  await s.api.startPool(REPO);
+  const pool = s.pools.get(REPO);
+  pool.removed = true;
+  await s.api.preparePool(pool);
+  assert.equal(s.calls.some((call) => call.startsWith('caches')), false);
 });
 
 test('zwei Vorbereitungen zugleich (Anlegen und Docker-Überwachung) laufen nur einmal', async () => {

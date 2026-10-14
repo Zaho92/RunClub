@@ -3,35 +3,50 @@
 // Docker Engine in einer eigenen WSL-Distro, siehe „Docker Engine statt Docker Desktop“ in TODO.md) braucht nur
 // andere Werte hier; der Rest von RunClub ruft Docker ausschließlich über dieses Modul auf.
 //
-//   RUNCLUB_DOCKER_HOST    Endpunkt des Daemons für die CLI (wird ihr als DOCKER_HOST mitgegeben), etwa
-//                          `tcp://127.0.0.1:2376` oder `npipe:////./pipe/runclub`. Ohne Angabe gilt, was die CLI
-//                          ohnehin nimmt (bei Docker Desktop dessen Daemon).
+//   RUNCLUB_DOCKER_HOST    Endpunkt des Daemons für die CLI (geht ihr als DOCKER_HOST mit), am besten eine Named Pipe
+//                          (`npipe:////./pipe/runclub`, nur für den eigenen Benutzer) oder `ssh://…`. Ein `tcp://`
+//                          ohne TLS gibt jedem, der den Port erreicht, die volle Gewalt über den Daemon, auch einem
+//                          Job aus seinem Container heraus: dann nur mit RUNCLUB_DOCKER_CERTS.
+//   RUNCLUB_DOCKER_CERTS   Ordner mit `ca.pem`, `cert.pem`, `key.pem` für einen `tcp://`-Endpunkt mit TLS (geht als
+//                          DOCKER_CERT_PATH mit DOCKER_TLS_VERIFY=1 an die CLI).
 //   RUNCLUB_DOCKER_DISTRO  WSL-Distro, in der der Daemon läuft; dort wird die Belegung der VM gemessen (vmmemory.js).
-//                          Ohne Angabe `docker-desktop`; leer gesetzt: keine Messung.
+//                          Ohne Angabe bei Docker Desktop `docker-desktop`, bei eigenem Endpunkt keine; leer: keine.
+//
+// Ohne RUNCLUB_DOCKER_HOST gilt, was die CLI ohnehin nimmt: ein DOCKER_HOST oder DOCKER_CONTEXT aus der Umgebung des
+// Benutzers oder sein mit `docker context use` gewählter Kontext, sonst Docker Desktop. RunClub setzt das nicht außer
+// Kraft; wer dort etwas anderes eingestellt hat, betreibt RunClub auf jenem Daemon.
 
 const DESKTOP_DISTRO = 'docker-desktop';
 
-// Liest die Engine aus der Umgebung. { host (oder null), distro (oder null), desktop (ob es Docker Desktop ist) }
+// Liest die Engine aus der Umgebung: { host, certs, distro }, jeweils oder null.
 function engineFrom(env = process.env) {
   const host = String(env.RUNCLUB_DOCKER_HOST ?? '').trim() || null;
-  const distro = env.RUNCLUB_DOCKER_DISTRO === undefined ? DESKTOP_DISTRO : String(env.RUNCLUB_DOCKER_DISTRO).trim() || null;
-  return { host, distro, desktop: !host && distro === DESKTOP_DISTRO };
+  const certs = String(env.RUNCLUB_DOCKER_CERTS ?? '').trim() || null;
+  const named = env.RUNCLUB_DOCKER_DISTRO;
+  const distro = named === undefined ? (host ? null : DESKTOP_DISTRO) : String(named).trim() || null;
+  return { host, certs, distro };
 }
 
-// `run` wie in run.js; `timeout` gilt für gewöhnliche Aufrufe, wer länger braucht, nennt seine Grenze selbst.
-//   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
+//   run(command, args, options)   wie in run.js
+//   timeout                       gilt für gewöhnliche Aufrufe; wer länger braucht, nennt seine Grenze selbst
+//   host, certs, distro           wie aus `engineFrom`
+// Liefert:
+//   docker(args, options)   wie `run('docker', …)`: `{ code, stdout, stderr }`, wirft nie. Eine `env` des Aufrufers
+//                           bleibt; was die Engine setzt, geht vor, damit kein Aufruf auf einen anderen Daemon zeigt.
 //   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
-//   inVm(script, options)   ein Shell-Skript in der VM; ohne Distro ein Ergebnis ohne Ausgabe (`code` -1)
-//   unreachable             die Meldung, wenn Docker nicht antwortet
-function createEngine({ run, timeout, host = null, distro = DESKTOP_DISTRO, desktop = true }) {
-  const env = host ? { DOCKER_HOST: host } : undefined;
-  const docker = (args, options) => run('docker', args, { timeout, ...options, ...(env ? { env } : {}) });
+//   inVm(script, options)   ein festes Shell-Skript in der VM (`wsl --exec`, ohne die Shell der Distro dazwischen);
+//                           ohne Distro ein Ergebnis ohne Ausgabe (`code` -1). Nie Daten von außen hineinschreiben.
+//   unreachableText         die Meldung, wenn Docker nicht antwortet
+function createEngine({ run, timeout, host = null, certs = null, distro = DESKTOP_DISTRO }) {
+  const desktop = !host && distro === DESKTOP_DISTRO;
+  const own = { ...(host ? { DOCKER_HOST: host } : {}), ...(certs ? { DOCKER_TLS_VERIFY: '1', DOCKER_CERT_PATH: certs } : {}) };
+  const docker = (args, options = {}) => run('docker', args, { timeout, ...options, ...(Object.keys(own).length ? { env: { ...options.env, ...own } } : {}) });
   const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean);
-  const inVm = (script, options) => (distro ? run('wsl', ['-d', distro, 'sh', '-c', script], options)
+  const inVm = (script, options) => (distro ? run('wsl', ['-d', distro, '--exec', 'sh', '-c', script], options)
     : Promise.resolve({ code: -1, stdout: '', stderr: 'keine Distro für die Messung', timedOut: false }));
-  const unreachable = desktop ? 'Docker ist nicht erreichbar – läuft Docker Desktop?'
+  const unreachableText = desktop ? 'Docker ist nicht erreichbar – läuft Docker Desktop?'
     : `Docker ist nicht erreichbar – läuft der Daemon${host ? ` unter ${host}` : ''}${distro ? ` in der WSL-Distro ${distro}` : ''}?`;
-  return { docker, dockerList, inVm, unreachable, distro };
+  return { docker, dockerList, inVm, unreachableText };
 }
 
 module.exports = { engineFrom, createEngine, DESKTOP_DISTRO };

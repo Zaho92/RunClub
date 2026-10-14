@@ -5,7 +5,7 @@
 // Abräumen von Resten (`removeLeftovers` beim Start und Beenden, `removeOrphans` nach einer Unterbrechung,
 // `removeRegistrations` bei GitHub).
 //
-// Wo Docker läuft, steht in engine.js; hier kommen nur `docker` und `dockerList` herein.
+// Wo Docker läuft, steht in engine.js; von dort kommen `docker`, `dockerList` und die Meldung `unreachableText`.
 
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
@@ -22,18 +22,18 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   log(text, repo, kind), sleep(ms)
 //   host, mark              Name des Rechners (Anfang der Runner-Namen) und Kennzeichen der eigenen Container
 //   image, imageDir         Name und Ordner (Dockerfile) des Runner-Abbilds
-//   pulled                  Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
+//   requiredImages          Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
-//   unreachable             die Meldung, wenn Docker nicht antwortet (aus engine.js)
+//   unreachableText         die Meldung, wenn Docker nicht antwortet (aus engine.js)
 //   livePairs               Name des Paars -> Repo (aus slots.js)
 //   repos(), pools()        die Repos mit Pool laut Einstellung, die stehenden Pools
 //   preparePool(pool)       Caches und Vorlage eines Pools bereitstellen
 //   stopping()
 //   onReady()               Docker ist (wieder) vorbereitet: die Messungen starten
-//   onAlive()               Docker hat gerade geantwortet
+//   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createLinux({
   docker, dockerList, gh, log, sleep,
-  host, mark, image, imageDir, pulled, longTimeout, unreachable,
+  host, mark, image, imageDir, requiredImages, longTimeout, unreachableText,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
 }) {
@@ -63,15 +63,21 @@ function createLinux({
 
   async function prepareLinux() {
     const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}'], { timeout: PROBE_TIMEOUT });
-    if (info.code !== 0) throw new Error(unreachable);
+    if (info.code !== 0) throw new Error(unreachableText);
     dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
     dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
     log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
     await buildImage();
-    for (const name of pulled) await docker(['pull', '-q', name], { timeout: longTimeout });
+    for (const name of requiredImages) await docker(['pull', '-q', name], { timeout: longTimeout });
     // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
     // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.
     if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; } else await removeOrphans();
+  }
+
+  // Ein Netz samt allem, was noch darin hängt (etwa der Build-Dienst).
+  async function removeNetwork(network) {
+    for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
+    await docker(['network', 'rm', network]);
   }
 
   // Nach einer Unterbrechung von Docker: War Docker beim Abräumen eines Paars nicht erreichbar, sind dessen Container,
@@ -82,10 +88,7 @@ function createLinux({
     if (containers.length) await docker(['rm', '-f', '-v', ...containers]);
     const volumes = orphaned(await dockerList(['volume', 'ls', '-q', '--filter', `label=${mark}`]), live);
     if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
-    for (const network of orphaned(await dockerList(['network', 'ls', '--filter', `label=${mark}`, '--format', '{{.Name}}']), live)) {
-      for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
-      await docker(['network', 'rm', network]);
-    }
+    for (const network of orphaned(await dockerList(['network', 'ls', '--filter', `label=${mark}`, '--format', '{{.Name}}']), live)) await removeNetwork(network);
     if (containers.length || volumes.length) log(`Reste nach der Unterbrechung entfernt: ${containers.length} Container, ${volumes.length} Volumes`);
   }
 
@@ -95,11 +98,7 @@ function createLinux({
     if (containers.length) await docker(['rm', '-f', '-v', ...containers]);
     const volumes = await dockerList(['volume', 'ls', '-q', '--filter', `label=${mark}`]);
     if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
-    const networks = await dockerList(['network', 'ls', '-q', '--filter', `label=${mark}`]);
-    for (const network of networks) {
-      for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
-      await docker(['network', 'rm', network]);
-    }
+    for (const network of await dockerList(['network', 'ls', '-q', '--filter', `label=${mark}`])) await removeNetwork(network);
     for (const repo of repos()) await removeRegistrations(repo);
   }
 
@@ -144,10 +143,11 @@ function createLinux({
     }
   }
 
+  // `watch` ist die Schleife (`linuxLoop`); sie endet erst, wenn RunClub endet.
   return {
-    linuxLoop, prepareLinux, refreshImage, removeOrphans, removeLeftovers, removeRegistrations,
+    watch: linuxLoop, prepareLinux, refreshImage, removeOrphans, removeLeftovers, removeRegistrations,
     ready: () => linuxReady, error: () => linuxError, cpus: () => dockerCpus, memory: () => dockerMemory,
   };
 }
 
-module.exports = { createLinux, MISSES, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };
+module.exports = { createLinux, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };

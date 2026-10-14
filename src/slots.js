@@ -8,7 +8,7 @@
 // Build-Dienstes, die Einstellungen und Limits eines Repos. Zustand, den beide Seiten brauchen (`stopping`,
 // `linuxReady`, `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
-//   Pool    { repo, slots, reserve, seeded, removed, … }   (angelegt in `startPool` in backend.js)
+//   Pool    { repo, slots, reserve, seeded, removed, … }   (angelegt in `startPool` in pools.js)
 //   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, kept, … }
 //   Paar    { id, base, copied, extras, limits }; `base` ist der Name, den Container, Volumes und Netz tragen
 //

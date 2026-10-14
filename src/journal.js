@@ -10,9 +10,10 @@
 //          ihrer Sprache; `text` ist derselbe Satz deutsch, für die Datei.
 
 const fs = require('node:fs');
+const { MB } = require('./units');
 
 const KEEP = 300; // Einträge im Speicher
-const FILE_MAX = 2 * 1048576; // darüber beginnt eine neue Datei; die alte bleibt als `.1` liegen
+const FILE_MAX = 2 * MB; // darüber beginnt eine neue Datei; die alte bleibt als `.1` liegen
 const TEXT_MAX = 2000; // Zeichen je Meldung; Jobnamen und Fehlertexte kommen von außen und können beliebig lang sein
 const KINDS = ['info', 'error', 'run', 'done', 'fail', 'cancel'];
 
