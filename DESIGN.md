@@ -175,6 +175,19 @@ components:
     typography: "{typography.label}"
     rounded: "{rounded.float}"
     padding: "3px 9px"
+  info:
+    backgroundColor: "transparent"
+    textColor: "{colors.muted}"
+    size: "18px"
+  info-hover:
+    textColor: "{colors.ink}"
+  info-panel:
+    backgroundColor: "{colors.raised}"
+    textColor: "{colors.text}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.float}"
+    padding: "10px 14px 11px"
+    width: "44ch"
 ---
 
 # Design System: RunClub
@@ -257,7 +270,7 @@ Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, i
 - **Kennzahl** (`figure`; 300, 26 px, Zeilenhöhe 1,25): Der aktuelle Wert über einer Verlaufskurve, mit der Bezugsgröße in 13 px `muted` dahinter.
 - **Body** (300, 14 px, Zeilenhöhe 1,45): Lauftext, Tabellenzellen, Zeiten in den Pills.
 - **Body betont** (400, 14 px): Namen von Jobs und Projekten, in `ink`.
-- **Meta** (400, 13 px): Unterzeilen, Hinweise, Legende, Tabellen, Schaltflächen.
+- **Meta** (400, 13 px): Unterzeilen, Hinweise, Legende, Tabellen, Schaltflächen, die Info-Fläche.
 - **Label** (400, 12 px): Beschriftung über Kennzahlen, zweite Zeile in Leiste und Pill, Tags, Tooltip.
 - **Achse** (400, 11 px): Zeitachse unter den Kurven.
 - **Wortmarke** (600, 22 px): „RunClub“ oben in der Leiste; die einzige Stelle mit kräftigem Schnitt.
@@ -285,7 +298,7 @@ Umbrüche:
 
 ## Elevation & Depth
 
-Das System ist flach. Es gibt keinen Schatten, keinen Verlauf und keine Unschärfe. Tiefe entsteht aus Tonstufen: `rail` liegt unter `ground`, `surface` darüber, `raised` noch eine Stufe höher. Was schwebt (Tooltip, Meldung), ist `raised` mit einem Rahmen in `track`, nicht mit Schatten abgehoben. Flächen, die noch nicht dran sind, sind gar keine: Wartende und ausgesetzte Pills sind durchsichtig mit gestricheltem Rand.
+Das System ist flach. Es gibt keinen Schatten, keinen Verlauf und keine Unschärfe. Tiefe entsteht aus Tonstufen: `rail` liegt unter `ground`, `surface` darüber, `raised` noch eine Stufe höher. Was schwebt (Tooltip, Info-Fläche, Meldung), ist `raised` mit einem Rahmen in `track`, nicht mit Schatten abgehoben. Flächen, die noch nicht dran sind, sind gar keine: Wartende und ausgesetzte Pills sind durchsichtig mit gestricheltem Rand.
 
 ### Named Rules
 **Die Tonstufen-Regel.** Eine Fläche hebt sich durch die nächsthellere Stufe und einen 1 px breiten Rahmen ab, nie durch einen Schatten. Die Reihenfolge ist fest: `rail`, `ground`, `surface`, `raised`.
@@ -344,24 +357,35 @@ Zurückhaltend und klein; sie gehören zum Einrichten, nicht zum Zustand.
 - Eine gefüllte Hauptschaltfläche gibt es nicht.
 
 ### Bediensymbole
-Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“. Der Bogen im Uhrzeigersinn heißt „Runner neu aufbauen“; der Bogen zurück an den Anfang mit dem Dreieck darin heißt „erneut starten“, für den Lauf wie für den einzelnen Job.
+Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“. Der Bogen im Uhrzeigersinn heißt „Runner neu aufbauen“; der Bogen zurück an den Anfang mit dem Dreieck darin heißt „erneut starten“, für den Lauf wie für den einzelnen Job. Das „i“ im Kreis heißt „mehr dazu“ und steht nur am Info-Element.
+
+### Info-Element
+Erklärungen stehen nicht als Textwand in der Fläche, sondern hinter einem kleinen „i“. **Die Kurz-in-der-Fläche-Regel:** Sichtbar bleibt, was etwas ist, sein Zustand und was zu tun ist, in einer knappen Zeile. Gründe, Folgen, Hintergrund und was man beim dritten Mal nicht mehr liest, stehen im Info. Was aus der Fläche verschwindet, steht dort; nichts geht verloren. Rückfragen und Fehlermeldungen bleiben vollständig sichtbar; ein roter Warnsatz behält Störung und Ausweg in der Fläche, nur die Erläuterung wandert ins Info.
+- **Symbol:** ein Knopf (18 px, Trefferfläche größer) mit dem gezeichneten „i“ im Kreis (16er-Raster, Strich 1,7), in `muted`, überfahren und bei Fokus `ink`. Er steht direkt hinter einem Titel: der Überschrift einer Haltestelle oder Ansicht, dem Titel einer Zeile, einer Beschriftung über einer Kennzahl. Eine Zeile ohne Titel trägt ihn am Ende ihres Satzes. Je Titel höchstens eins.
+- **Info-Fläche:** wie der Tooltip `raised` mit Rahmen 1 px `track` und Radius 6 px, aber mehrzeilig: höchstens 44ch breit, Innenabstand 10 px 14 px, 13 px in `text` mit Zeilenhöhe 1,45; Code darin in `ink`. Mehrere Absätze stehen mit 7 px Abstand, der zustandsabhängige zuerst, das Allgemeine danach. Sie hängt am Symbol (nicht am Mauszeiger), steht darunter und nur ohne Platz darunter darüber, und bleibt seitlich im Fenster.
+- **Bedienung:** Überfahren und Tastaturfokus öffnen sie; der Zeiger kann vom Symbol auf die Fläche wandern, um zu lesen oder zu markieren (Verlassen schließt erst nach 180 ms, damit der Spalt dazwischen nicht schließt). Verlassen, Fokuswechsel und Escape schließen sie. Ein Klick hält sie fest, ein zweiter Klick oder ein Klick daneben schließt sie. Der Knopf steht neben der Überschrift, nicht in ihr, damit sie ihren Namen behält. Vorleseprogramme hören den Bezug als Namen des Knopfs („Mehr zu …“) und die Erklärung, die verborgen im Knopf steht, als seine Beschreibung.
+- **Wo:** Einstellungen: „Angemeldet als …“, die Störungen der Anmeldung, die Zeile eines freiwilligen Rechts, der Einmalcode beim Ergänzen, die Haltestellen Projekte, Limits je Job und Protokoll, „Darstellung“, der Weg der Jobs ohne `CI_RUNNER`, „Limit großzügig“, die Vorschläge, der Satz unter dem Speicherbalken. Verbrauch: die Haltestellen „Die letzten 24 Stunden“, „GitHub-Anfragen“ und „GitHub-Minuten“, die Beschriftung der Speicherspitzen. Ohne Projekte: die Überschrift des ersten Schritts.
 
 ### Haltestelle
-Die Gliederung der Einstellungen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
+Die Gliederung der Einstellungen. Hinter der Überschrift kann ein Info-Element stehen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
 
 ### GitHub (Anmeldung)
 Die erste Haltestelle der Einstellungen, weil die Anmeldung die Voraussetzung für alles danach ist und die Strecke sich
 so in der Reihenfolge des Einrichtens liest. Es ist die Anmeldung von `gh`, dieselbe wie im Terminal. Der Inhalt sind
 Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, rechts die Schaltfläche, Haarlinie darunter.
-- **Angemeldet:** „Angemeldet als …“, darunter in einem Satz, was RunClub darf und wie weit das Recht dahinter reicht
-  (keine Liste von Kürzeln), und welche Rechte die Anmeldung außerdem trägt, ohne dass RunClub sie nutzt (`gh` verlangt
-  von sich aus mehr). Rechts „Abmelden“. Abmelden fragt nach, weil es Jobs trifft und auch `gh` im Terminal abmeldet;
-  rot ist es nicht, weil sich wieder anmelden lässt. Fehlt ein freiwilliges Recht, folgt eine Zeile ohne Titel mit dem
-  Satz, wofür es gebraucht würde und wie weit es reicht, und „Recht ergänzen“. Das ist keine Störung und bleibt `muted`.
-  Der Name eines Rechts steht immer in Mono. Die Sätze der Zeilen sind höchstens so breit wie Lauftext (56ch).
+- **Angemeldet:** „Angemeldet als …“ mit Info-Element, darunter kurz, wofür RunClub die Anmeldung nutzt (keine Liste
+  von Kürzeln). Im Info: was RunClub genau tut und wie weit das Recht dahinter reicht, wofür es `user` nutzt, welche
+  Rechte die Anmeldung außerdem trägt, ohne dass RunClub sie nutzt (`gh` verlangt von sich aus mehr), und dass es
+  dieselbe Anmeldung ist wie die von `gh` im Terminal. Rechts „Abmelden“. Abmelden fragt nach, weil es Jobs trifft und
+  auch `gh` im Terminal abmeldet; rot ist es nicht, weil sich wieder anmelden lässt. Das Anmelden verlangt `repo` und
+  `user` in einem Schritt. Fehlt ein freiwilliges Recht (nach einer Anmeldung im Terminal), folgt eine Zeile ohne
+  Titel mit einem kurzen Satz, wofür es gebraucht würde, dem Info-Element am Satzende (was RunClub damit liest, wie weit
+  es reicht, warum es fehlt) und „Recht ergänzen“. Das ist keine Störung und bleibt `muted`. Der Name eines Rechts
+  steht immer in Mono. Die Sätze der Zeilen sind höchstens so breit wie Lauftext (56ch).
 - **Störung mit Ausweg:** Nicht angemeldet, ein fehlendes Pflichtrecht und ein fehlendes `gh` sind rot: der Titel der
-  Zeile in `fail-text`, der Satz darunter in `text`, rechts der Ausweg („Bei GitHub anmelden“, „Recht ergänzen“). Fehlt
-  `gh`, gibt es keine Schaltfläche, nur den Satz mit dem Link, wo es `gh` gibt. Dazu trägt „Einstellungen“ in der Leiste
+  Zeile in `fail-text` mit Info-Element, der kurze Satz darunter in `text` (was fehlt oder nicht geht), rechts der
+  Ausweg („Bei GitHub anmelden“, „Recht ergänzen“). Wozu RunClub es braucht, steht im Info. Fehlt `gh`, gibt es keine
+  Schaltfläche, nur den Satz mit dem Link, wo es `gh` gibt. Dazu trägt „Einstellungen“ in der Leiste
   die zweite Zeile in `fail-text`, und in der Übersicht steht ein Warn-Tag. Solange ein Pflichtrecht fehlt, steht nur
   dieses zur Wahl; die freiwilligen folgen, sobald es ergänzt ist. Ein gescheiterter Ablauf steht als Satz in
   `fail-text` in der Zeile, um die es ging, über deren Titel und Satz: beim Ergänzen in der Zeile des Rechts, sonst in
@@ -371,24 +395,26 @@ Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, recht
   Klick markiert ihn ganz), ein Satz in `text`, was zu tun
   ist, und eine Zeile Schaltflächen in der Reihenfolge des Gebrauchs: „Code kopieren“ (Symbol mit Wort), „GitHub öffnen“
   (ein Link, der im Browser aufgeht) und abgesetzt am rechten Ende „Abbrechen“. Beim Ergänzen nennt der Satz das Konto,
-  als das zu bestätigen ist, und das Recht, weil im Browser ein anderes Konto angemeldet sein kann. Rot ist hier
+  als das zu bestätigen ist, und das Recht, weil im Browser ein anderes Konto angemeldet sein kann; was dann geschieht,
+  steht im Info an der Beschriftung „Einmalcode“. Rot ist hier
   nichts. Bis der Code da ist, steht nur ein Satz in `muted` mit „Abbrechen“.
 - **Ohne Projekte** steht bei fehlender Anmeldung statt „Noch kein Projekt“ der Schritt „Zuerst bei GitHub anmelden“:
-  Überschrift, ein Satz, die Schaltfläche „Bei GitHub anmelden“; während des Ablaufs derselbe Einmalcode. Dass hier noch
+  Überschrift mit Info-Element, ein Satz, die Schaltfläche „Bei GitHub anmelden“; während des Ablaufs derselbe Einmalcode. Dass hier noch
   niemand angemeldet ist, ist der Anfang und keine Störung; auch die Zeile in der Leiste ist dann `muted`. Fehlt `gh`
-  oder ein Pflichtrecht, nennt die Überschrift das, und die Zeile dazu steht ohne ihren Titel direkt darunter, beim
+  oder ein Pflichtrecht, nennt die Überschrift das, und die Zeile dazu steht ohne ihren Titel (das Info dann am Ende
+  ihres Satzes) direkt darunter, beim
   Pflichtrecht gefolgt von der Zeile des Kontos; rot sind dort die Zeile in der Leiste und ein gescheiterter Ablauf.
   Die Zeilen des ersten Schritts tragen keine Haarlinie. „Alle Projekte“ trägt in der Leiste keine zweite Zeile,
   solange es kein Projekt gibt.
 
 
 ### Projektzeile
-Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 8 px. Im Kopf stehen Pfeil, Name, die Summe der Caches in `muted` und rechts die Zahl der Plätze mit eins weniger und eins mehr. Ein Klick auf den Kopf klappt die Zeile nach unten auf (dieselbe Bewegung wie die Pill: `grid-template-rows` 0fr → 1fr in 280 ms, der Pfeil dreht sich); es ist immer nur eine offen. Aufgeklappt, durch eine Haarlinie abgesetzt: wohin die Jobs gehen, die Limits des Projekts (Segmentschalter „Wie alle“ oder „Eigene“; mit eigenen Werten dieselben vier Regler wie im Abschnitt Limits), die Caches als Zeilen mit Größe und Symbol zum Leeren, darunter die Schaltflächen. Ein Projekt mit eigenen Limits trägt im Kopf das Tag „eigene Limits“. Passen die Limits nicht zum gemessenen Bedarf, steht das ebenfalls als Tag im Kopf und als Satz bei den Limits: „Limit erreicht“ und „Limit knapp“ (über 85 %) als Warnung in Rot, „Limit großzügig“ (mehr als das Doppelte des Bedarfs) gedämpft. Überfahren hebt eine geschlossene Zeile eine Stufe.
+Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 8 px. Im Kopf stehen Pfeil, Name, die Summe der Caches in `muted` und rechts die Zahl der Plätze mit eins weniger und eins mehr. Ein Klick auf den Kopf klappt die Zeile nach unten auf (dieselbe Bewegung wie die Pill: `grid-template-rows` 0fr → 1fr in 280 ms, der Pfeil dreht sich); es ist immer nur eine offen. Aufgeklappt, durch eine Haarlinie abgesetzt: wohin die Jobs gehen, die Limits des Projekts (Segmentschalter „Wie alle“ oder „Eigene“; mit eigenen Werten dieselben vier Regler wie im Abschnitt Limits), die Caches als Zeilen mit Größe und Symbol zum Leeren, darunter die Schaltflächen. Ein Projekt mit eigenen Limits trägt im Kopf das Tag „eigene Limits“. Passen die Limits nicht zum gemessenen Bedarf, steht das ebenfalls als Tag im Kopf und als Satz bei den Limits: „Limit erreicht“ und „Limit knapp“ (über 85 %) als Warnung in Rot, „Limit großzügig“ (mehr als das Doppelte des Bedarfs) gedämpft; warum großzügig weniger schützt, steht im Info am Satz. Der Vorschlag aus den Messwerten steht als ein Satz in `text`, woraus er entsteht, im Info dahinter. Lesen die Workflows `CI_RUNNER` nicht, sagt ein roter Satz das mit dem Ausdruck für `runs-on`; was der Ausdruck tut, steht im Info. Überfahren hebt eine geschlossene Zeile eine Stufe.
 
 Die letzte Zeile der Liste ist „Projekt hinzufügen“: durchsichtig mit gestricheltem Rand in `cap`, weil hier noch nichts ist.
 
 ### Speicherbalken
-Was alle Plätze zusammen an Arbeitsspeicher dürfen, gemessen an der Docker-VM. Über dem Balken die Kennzahl (`figure`) mit der Bezugsgröße. Der Balken selbst: je Platz ein Feld (26 px hoch, Radius 6 px), nach Projekten gruppiert und darunter beschriftet; die Breite eines Feldes folgt dem Limit seines Projekts. Ein Projekt mit eingeschaltetem Cache trägt am Ende seiner Gruppe ein weiteres Feld für seinen Build-Dienst (Fläche `cap`, so breit wie sein Docker-Limit); die Beschriftung nennt ihn eigens („2 × 8 GB + Build 4 GB“). Der Build-Dienst läuft auch, während der Pool pausiert: Ein pausiertes Projekt zeigt dann nur dieses Feld. Die Build-Dienste zählen zuerst, in den Rest passen die Plätze. Felder, die mit vollem Limit in die VM passen, sind gefüllt (`raised`, Rahmen `cap`); die übrigen durchsichtig mit gestricheltem Rand. Eine senkrechte Marke in `track` zeigt die Grenze der VM. Rot wird die Kennzahl erst, wenn schon ein einzelner Job (mit dem Build-Dienst seines Projekts) mehr darf, als die VM hat; dass nicht alle Plätze zugleich hineinpassen, ist der Normalfall und steht als Satz in `muted` darunter, mit der Abhilfe.
+Was alle Plätze zusammen an Arbeitsspeicher dürfen, gemessen an der Docker-VM. Über dem Balken die Kennzahl (`figure`) mit der Bezugsgröße. Der Balken selbst: je Platz ein Feld (26 px hoch, Radius 6 px), nach Projekten gruppiert und darunter beschriftet; die Breite eines Feldes folgt dem Limit seines Projekts. Ein Projekt mit eingeschaltetem Cache trägt am Ende seiner Gruppe ein weiteres Feld für seinen Build-Dienst (Fläche `cap`, so breit wie sein Docker-Limit); die Beschriftung nennt ihn eigens („2 × 8 GB + Build 4 GB“). Der Build-Dienst läuft auch, während der Pool pausiert: Ein pausiertes Projekt zeigt dann nur dieses Feld. Die Build-Dienste zählen zuerst, in den Rest passen die Plätze. Felder, die mit vollem Limit in die VM passen, sind gefüllt (`raised`, Rahmen `cap`); die übrigen durchsichtig mit gestricheltem Rand. Eine senkrechte Marke in `track` zeigt die Grenze der VM. Rot wird die Kennzahl erst, wenn schon ein einzelner Job (mit dem Build-Dienst seines Projekts) mehr darf, als die VM hat; dass nicht alle Plätze zugleich hineinpassen, ist der Normalfall und steht als kurzer Satz in `muted` darunter („…; das ist üblich“). Das Info am Satz sagt, warum es üblich ist, was mehr Sicherheit gibt, und wie der Balken zu lesen ist.
 
 ### Regler
 Schiene 4 px, voll gerundet, links vom Griff `chart`, rechts `edge`; Griff 16 px, rund, `ink`. Links die Beschriftung, rechts der Wert in `ink`. Ein Vorschlag steht als gepunktete senkrechte Marke in `ink` durch die Schiene. Während des Ziehens rechnet der Speicherbalken mit; gespeichert wird beim Loslassen.
@@ -420,10 +446,12 @@ Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Pr
 Die zweite Haltestelle in „Verbrauch“: der Stand des Anfragelimits des GitHub-Kontos in dieser Stunde. Im Kopf rechts,
 was noch frei ist und wann das Fenster wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und der
 Bezugsgröße, eine Schiene über die volle Breite mit derselben Größe und der gepunkteten Marke, ab der es knapp ist (dieselbe
-Schiene wie bei den Speicherspitzen) und ein Satz in `muted`. Ab der Marke fragt RunClub seltener ab. Das ist keine
-Störung und vergeht von selbst: Der Satz steht dann in `text`, und „Verbrauch“ trägt in der Leiste eine zweite Zeile
-in `muted`. Erst an der Reserve (2 %), wenn RunClub gar nicht mehr abfragt, wird es rot: Kennzahl, Schiene und der
-erste Satz, der die Uhrzeit nennt, zu der es weitergeht; der Rest des Satzes nennt in `text` den Ausweg. Die Zeile in
+Schiene wie bei den Speicherspitzen). Ist alles in Ordnung, steht darunter nichts: Für wen das Limit gilt und was die
+Marke bedeutet, sagt das Info an der Überschrift. Ab der Marke fragt RunClub seltener ab. Das ist keine Störung und
+vergeht von selbst: Ein kurzer Satz in `text` nennt, bis wann, und „Verbrauch“ trägt in der Leiste eine zweite Zeile
+in `muted`; was daraus folgt, steht im Info. Erst an der Reserve (2 %), wenn RunClub gar nicht mehr abfragt, wird es
+rot: Kennzahl, Schiene und der erste Satz, der die Uhrzeit nennt, zu der es weitergeht; der Rest des Satzes nennt in
+`text` den Ausweg, das Info, was so lange weiterläuft. Die Zeile in
 der Leiste ist dann `fail-text`, und in der Übersicht steht ein Warn-Tag mit der Uhrzeit.
 
 ### GitHub-Minuten
@@ -432,25 +460,28 @@ eigenen Runnern verbraucht hat. So heißt es überall in der Oberfläche, auch i
 GitHub-Minuten“); im Code und in der übrigen Doku ist es das Minuten-Kontingent. Im Kopf rechts, was noch frei ist und
 an welchem Tag es wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und den enthaltenen Minuten,
 dieselbe Schiene mit der gepunkteten Marke bei 85 % und ein Satz in `muted`: woraus die Zahl besteht (Linux, Windows,
-macOS, soweit vorhanden), was davon berechnet wird, und wie viele Minuten RunClub für den Tarif annimmt. Diese Zahl ist eine Annahme aus dem Tarif;
-die Tabelle dazu steht nur in `src/minutes.js` (`INCLUDED`) und kommt mit dem Stand in die Oberfläche. Kennt RunClub
-für den Tarif keine Zahl, steht die Kennzahl allein, ohne Grenze und Schiene, und der Satz nennt die Tarife, die es
-kennt. Die Zustände und ihre Regeln stehen in `src/minutes.js`; die Oberfläche liest sie nur ab.
-- **Knapp** (ab der Marke) ist keine Störung: ein Satz in `text` über dem Satz in `muted`, und die zweite Zeile in der
-  Leiste in `muted`.
+macOS, soweit vorhanden), was davon berechnet wird, und der Tarif mit seinen enthaltenen Minuten („Tarif Free mit
+2.000 Minuten im Monat.“). Das Info an der Überschrift nennt, was die Tarife enthalten (gebildet aus der Tabelle im
+Stand, `plans`; sie steht nur in `src/minutes.js`, `INCLUDED`), dass jede Minute gleich zählt, gleich auf welchem
+Betriebssystem, und was bei einem anderen Tarif gilt; je nach Zustand steht davor, was daraus folgt. Kennt RunClub für
+den Tarif keine Zahl, steht die Kennzahl allein, ohne Grenze und Schiene, und der Satz sagt das. Die Zustände und ihre
+Regeln stehen in `src/minutes.js`; die Oberfläche liest sie nur ab.
+- **Knapp** (ab der Marke) ist keine Störung: ein kurzer Satz in `text` über dem Satz in `muted` (was ohne Minuten
+  geschieht, steht im Info), und die zweite Zeile in der Leiste in `muted`.
 - **Aufgebraucht** (das Enthaltene ist erreicht, nichts wurde bezahlt: Ohne Budget startet GitHub in privaten Repos
   keine Läufe mehr) ist rot, weil es einen Ausweg gibt: Kennzahl, Schiene und der erste Satz, der den Tag nennt, an dem
   es weitergeht; der Rest nennt in `text` den Ausweg (Projekte auf die eigenen Runner holen oder bei GitHub ein Budget
-  setzen), darunter die Schaltfläche „Zu den Projekten“. Ob ein Budget gesetzt ist, sieht RunClub nicht; der Satz sagt deshalb „ohne Budget“. Die Zeile in der Leiste
+  setzen), darunter die Schaltfläche „Zu den Projekten“. Ob ein Budget gesetzt ist, sieht RunClub nicht; der Satz sagt
+  deshalb „ohne Budget“. Dass es private Repos auf GitHubs Runnern betrifft und warum ein Pool hilft, steht im Info. Die Zeile in der Leiste
   ist dann `fail-text`. Ein Warn-Tag in der Übersicht gibt es dafür nicht; dort stehen die betroffenen Repos als Zeilen
   „Keine GitHub-Minuten“.
 - **Bezahlt** (das Enthaltene ist erreicht, und es wird berechnet) ist weder knapp noch rot: Wer bezahlt, hat ein
   Budget gesetzt. Der Kopf nennt dann statt des Freien, wie viele Minuten berechnet sind und was sie bisher kosten. Ein
-  Satz in `text` sagt, was daraus folgt: GitHub berechnet nur bis zum Budget und startet danach nichts mehr; diese
-  Grenze sieht RunClub nicht. Die Leiste meldet nichts. Wird schon unter dem Enthaltenen etwas berechnet (etwa ein
+  kurzer Satz in `text` sagt, was daraus folgt: GitHub berechnet bis zum Budget und startet danach nichts mehr; dass
+  RunClub diese Grenze nicht sieht, steht im Info. Die Leiste meldet nichts. Wird schon unter dem Enthaltenen etwas berechnet (etwa ein
   größerer Runner), steht das nur im Satz in `muted`; knapp ist es dann nicht, weil es ein Budget gibt.
-- **Ohne das Recht `user`** steht in der Haltestelle nur ein Satz in `muted` mit der Schaltfläche „In den
-  Einstellungen ergänzen“, die zur Haltestelle „GitHub“ führt. Das Recht ist freiwillig; rot ist hier nichts.
+- **Ohne das Recht `user`** steht in der Haltestelle nur ein kurzer Satz in `muted` mit der Schaltfläche „In den
+  Einstellungen ergänzen“, die zur Haltestelle „GitHub“ führt; was das Recht zeigt und wie weit es reicht, steht im Info. Das Recht ist freiwillig; rot ist hier nichts.
 - **Ohne Stand** (noch nicht gelesen, oder die Abfrage ist gescheitert) steht dort ein Satz in `muted`, damit die
   Haltestelle nicht erst später dazukommt und die Projekte nach unten schiebt. Der Grund eines Fehlers steht im
   Protokoll; die Schaltfläche „Zum Protokoll“ führt hin. Ohne Anmeldung fehlt die Haltestelle; lassen sich die Rechte der Anmeldung nicht lesen, wird die Abfrage
@@ -458,7 +489,8 @@ kennt. Die Zustände und ihre Regeln stehen in `src/minutes.js`; die Oberfläche
 
 
 ### Protokoll
-Die letzte Haltestelle der Einstellungen. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und
+Die letzte Haltestelle der Einstellungen; das Info an der Überschrift sagt, woher die Meldungen kommen, was Kopieren
+und Speichern nehmen und warum gefiltert die allgemeinen Fehler bleiben. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und
 Projekt in Meta `muted` (Spalten 92 px und 128 px), ein Zustandssymbol (16 px) und der Text in Body. Von heute steht
 die Uhrzeit, von früher Tag und Uhrzeit ohne Sekunden. Ein Symbol trägt nur, was ein Ergebnis ist: Job fertig, Job
 gescheitert, Job abgebrochen, Fehler. Der Beginn eines Jobs bleibt ohne Symbol, weil Gelb „läuft jetzt“ heißt. Der
@@ -470,7 +502,7 @@ Projektspalte, und die allgemeinen Fehler bleiben dabei, weil dort oft die Ursac
 aufgeklappt rollt die Liste in sich (höchstens 496 px), damit „Weniger zeigen“ erreichbar bleibt.
 
 ### Tooltip und Meldung
-`raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden.
+`raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px, eine Zeile) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden. Was mehr als eine Zeile braucht, ist kein Tooltip, sondern ein Info-Element (siehe dort).
 
 ### Rückfrage
 Vor allem, was löscht oder Jobs trifft (leeren, Projekt entfernen, zurückschalten, beenden), fragt die App nach, im
@@ -507,6 +539,7 @@ Eine Kurve für alles Räumliche: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 
 - **Do** Auslastung als Verlauf über die Zeit zeigen, mit Obergrenze, Spitze und dem Beginn des Laufs als Bezug.
 - **Do** Schätzungen als solche kennzeichnen („ca.“, „üblich“, „grob geschätzt“) und in `muted` oder `text` halten, nicht hervorheben.
 - **Do** Offenes gestrichelt oder gepunktet und ohne Füllung zeichnen, Erledigtes und Laufendes durchgezogen.
+- **Do** in der Fläche kurz sagen, was ist und was zu tun ist; Gründe und Hintergrund gehören ins Info-Element.
 - **Do** `fail-text` für rote Schrift und `fail-edge` für rote Rahmen nehmen; `fail` selbst nur für gefüllte Symbole und die Warnkurve.
 
 ### Don't:

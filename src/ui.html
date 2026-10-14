@@ -298,6 +298,17 @@
   input { caret-color: var(--chart); }
   #tip { pointer-events: none; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
   #toast { left: 50%; bottom: 22px; transform: translateX(-50%); padding: 9px 16px; max-width: 90vw; }
+  /* Das Info-Element: ein kleines gezeichnetes „i“ neben einem Titel. Überfahren und Fokus zeigen die Erklärung in
+     einer Fläche wie der Tooltip, aber mehrzeilig und am Symbol verankert (siehe showInfo). */
+  .info { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; margin: 0 0 0 6px; padding: 0; vertical-align: -3px; background: none; border: 0; border-radius: 50%; color: var(--muted); cursor: help; transition: color .15s; }
+  .info::after { content: ""; position: absolute; inset: -5px; }
+  .info:hover, .info:focus-visible { color: var(--ink); }
+  .stophead h2, .h1row h1 { display: inline; }
+  .h1row { margin-bottom: 2px; }
+  .stophead .info, .h1row .info { vertical-align: 0; }
+  #info { position: fixed; z-index: 6; display: none; max-width: min(44ch, calc(100vw - 16px)); padding: 10px 14px 11px; background: var(--raised); color: var(--text); border: 1px solid var(--track); border-radius: 6px; font-size: 13px; font-weight: 400; line-height: 1.45; text-wrap: pretty; }
+  #info p { margin: 0; } #info p + p { margin-top: 7px; }
+  #info code { color: var(--ink); }
 
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
@@ -307,14 +318,14 @@
 <body>
 <div id="app"><div id="bar"></div><nav id="rail"></nav><main id="main"></main></div>
 <dialog id="ask" aria-labelledby="askTitle" aria-describedby="askText"><h2 id="askTitle"></h2><p id="askText"></p><div class="row"><button class="btn push" id="askNo"></button><button class="btn" id="askYes"></button></div></dialog>
-<div id="tip"></div><div id="toast" role="status"></div>
+<div id="tip"></div><div id="info" role="tooltip"></div><div id="toast" role="status"></div>
 <script nonce="__NONCE__">
 const TOKEN = '__TOKEN__';
 const TEXT = {
   de: {
     late: 'länger als üblich ({0})', approx: 'ca. {0}', started: 'Lauf gestartet', idleAll: 'Gerade läuft nichts.', fewer: 'Ein Platz weniger', more: 'Ein Platz mehr', seatN: 'Platz {0}', railLabel: 'Projekte',
     routeOn: 'Die Jobs dieses Repos laufen auf deinen Runnern (CI_RUNNER ist gesetzt).', routeOff: 'CI_RUNNER ist nicht gesetzt: Die Jobs dieses Repos gehen an GitHubs Runner.', routeFixed: 'Die Workflows verlangen fest eigene Runner. Eine Variable ist nicht nötig.',
-    routeNone: 'Die Workflows dieses Repos lesen CI_RUNNER nicht. Solange das so ist, gehen die Jobs an GitHubs Runner. In den Workflows gehört in runs-on:', routeTo: 'Auf eigene Runner umschalten', routeBack: 'Zurück zu GitHubs Runnern', confirmBack: 'CI_RUNNER wird für {0} entfernt. Die Jobs gehen dann an GitHubs Runner.',
+    routeNone: 'Die Workflows lesen CI_RUNNER nicht; die Jobs gehen an GitHubs Runner. In runs-on gehört:', routeTo: 'Auf eigene Runner umschalten', routeBack: 'Zurück zu GitHubs Runnern', confirmBack: 'CI_RUNNER wird für {0} entfernt. Die Jobs gehen dann an GitHubs Runner.',
     all: 'Alle Projekte', usage: 'Verbrauch', settings: 'Einstellungen', working: '{0} arbeiten · {1} bereit', ready: 'bereit', paused: 'pausiert',
     left: 'noch ca. {0} min', soon: 'gleich fertig', noRunner: 'wartet auf einen Runner', failed: 'Fehler', failedN: '{0} Fehler', finished: 'fertig', cancelled: 'abgebrochen',
     untilDone: 'bis der Lauf fertig ist', jobsDone: '{0} von {1} Jobs fertig', rough: 'grob geschätzt, für manche Jobs fehlen Erfahrungswerte', since: 'läuft seit {0}', took: 'Dauer {0}',
@@ -329,15 +340,14 @@ const TEXT = {
     wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
     day: 'Die letzten 24 Stunden',
     quotaTitle: 'GitHub-Anfragen', quotaLabel: 'In dieser Stunde verbraucht', quotaOf: 'von {0}', quotaReset: 'noch {0} frei · wieder voll um {1} (in {2} min)', quotaTightShort: 'GitHub-Anfragen knapp', quotaOutShort: 'GitHub-Limit erreicht', quotaOutTag: 'GitHub-Limit erreicht, weiter um {0}',
-    quotaOk: 'Das Limit gilt für dein ganzes GitHub-Konto; auch gh im Terminal und andere Werkzeuge zählen mit. Ab der gepunkteten Marke fragt RunClub seltener ab.',
-    quotaTight: 'Bis {0} fragt RunClub seltener ab; Läufe und Restzeiten erscheinen mit Verzögerung. Die Runner arbeiten unverändert.',
-    quotaOut: 'Bis {0} fragt RunClub GitHub nicht mehr ab.', quotaOutMore: 'Laufende Jobs arbeiten weiter, die Anzeige bleibt so lange stehen. Die letzten Anfragen sind für neue Runner reserviert; halte bis dahin an, was sonst an deinem Konto zieht (gh, andere Werkzeuge).',
+    quotaTight: 'Bis {0} fragt RunClub seltener ab.',
+    quotaOut: 'Bis {0} fragt RunClub GitHub nicht mehr ab.', quotaOutMore: 'Halte bis dahin an, was sonst an deinem Konto zieht (gh, andere Werkzeuge).',
     minutesTitle: 'GitHub-Minuten', minutesLabel: 'In diesem Monat auf GitHubs Runnern verbraucht', minutesReset: 'noch {0} frei · wieder voll am {1}', minutesResetOnly: 'zählt ab {0} neu', minutesOver: '{0} berechnet · bisher {1} · wieder voll am {2}', minutesTightShort: 'GitHub-Minuten knapp', minutesOutShort: 'GitHub-Minuten aufgebraucht',
-    minutesParts: 'Davon {0}.', minutesAll: 'Alles auf {0}.', minutesOther: 'andere', minutesAssumed: 'Für deinen Tarif ({1}) nimmt RunClub {0} enthaltene Minuten im Monat an; die Abrechnung von GitHub nennt diese Zahl nicht.', minutesNoPlan: 'Für deinen Tarif{1} kennt RunClub die enthaltenen Minuten nicht, nur für {0}. Deshalb steht die Zahl hier ohne Grenze.',
-    minutesBudget: 'Was über die enthaltenen Minuten hinausgeht, berechnet GitHub nur bis zu dem Budget, das dort gesetzt ist. Ist es erreicht, startet GitHub in privaten Repos auf seinen Runnern keine Läufe mehr; diese Grenze sieht RunClub nicht.', minutesBilled: '{0} Minuten davon werden berechnet und kosten bisher {1}.',
-    minutesTight: 'Die enthaltenen Minuten sind fast verbraucht. Sind sie weg, startet GitHub in privaten Repos auf seinen Runnern keine Läufe mehr, solange dort kein Budget gesetzt ist.',
-    minutesOut: 'Ohne Budget startet GitHub bis zum {0} in privaten Repos keine Läufe mehr auf seinen Runnern.', minutesOutMore: 'Die enthaltenen Minuten sind aufgebraucht. Hol die Projekte auf deine eigenen Runner („Pool anlegen“ in den Einstellungen) oder setz bei GitHub ein Budget.', toProjects: 'Zu den Projekten', toLog: 'Zum Protokoll',
-    minutesNoScope: 'Mit dem Recht {0} kann RunClub zeigen, wie viele Minuten du diesen Monat auf GitHubs Runnern verbraucht hast.', toAuth: 'In den Einstellungen ergänzen',
+    minutesParts: 'Davon {0}.', minutesAll: 'Alles auf {0}.', minutesOther: 'andere', minutesNoPlan: 'Den Tarif deines Kontos kennt RunClub nicht.',
+    minutesBudget: 'GitHub berechnet weiter bis zu deinem Budget und startet danach auf seinen Runnern keine Läufe mehr.', minutesBilled: '{0} Minuten davon werden berechnet und kosten bisher {1}.',
+    minutesTight: 'Die enthaltenen Minuten sind fast verbraucht.',
+    minutesOut: 'Ohne Budget startet GitHub bis zum {0} keine Läufe mehr auf seinen Runnern.', minutesOutMore: 'Hol die Projekte auf deine eigenen Runner oder setz bei GitHub ein Budget.', toProjects: 'Zu den Projekten', toLog: 'Zum Protokoll',
+    minutesNoScope: 'Mit dem Recht {0} zeigt RunClub hier deine GitHub-Minuten.', toAuth: 'In den Einstellungen ergänzen',
     minutesReading: 'Die Abrechnung ist noch nicht gelesen.', minutesFailed: 'Die Abrechnung ließ sich nicht lesen; RunClub versucht es wieder. Den Grund nennt das Protokoll.',
     projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
@@ -350,28 +360,37 @@ const TEXT = {
     limitsTitle: 'Limits je Job', limitsNew: 'für alle Projekte ohne eigene Werte', limitsShared: 'Wie alle', limitsOwn: 'Eigene', ownTag: 'eigene Limits', rebuild: 'Runner neu aufbauen', tagFull: 'Limit erreicht', tagTight: 'Limit knapp', tagGenerous: 'Limit großzügig',
     planText: 'Vorschlag: Standard Runner {0} GB, Docker {1} GB, je {2} Kerne.', planOwn: 'Eigene Limits für {0}.', planApplied: 'Die Limits entsprechen dem Vorschlag.',
     planWhy: 'Aus den Messwerten: Der Standard deckt die Projekte mit ähnlichem Bedarf, mit 50 % Luft über der höchsten Spitze. Wer deutlich mehr braucht, bekommt eigene Limits. Die gepunktete Marke zeigt den Vorschlag am Regler.',
-    fitFull: 'Ein Job hat sein Limit ausgeschöpft. Er braucht mehr Speicher, sonst bricht er ab.', fitTight: 'Ein Job kam seinem Limit nahe (über {2} %). Mit etwas mehr Speicher bleibt Luft.', fitGenerous: 'Das Limit ist mehr als doppelt so hoch wie der gemessene Bedarf. Das schadet nicht, schützt den Rechner aber weniger.', fitMeasuring: 'Wird noch gemessen ({0} von {1} Läufen); danach gibt es einen Vorschlag.',
+    fitFull: 'Ein Job hat sein Limit ausgeschöpft. Er braucht mehr Speicher, sonst bricht er ab.', fitTight: 'Ein Job kam seinem Limit nahe (über {2} %). Mit etwas mehr Speicher bleibt Luft.', fitGenerous: 'Das Limit ist mehr als doppelt so hoch wie der gemessene Bedarf.', fitMeasuring: 'Wird noch gemessen ({0} von {1} Läufen); danach gibt es einen Vorschlag.',
     limitsSharedNote: 'Es gelten die Limits für alle: Runner {0} GB und {2} Kerne, Docker {1} GB und {3} Kerne.', staleOne: 'Ein freier Runner trägt noch die alten Limits. Er wechselt sonst erst mit seinem nächsten Job.', staleMany: '{0} freie Runner tragen noch die alten Limits. Sie wechseln sonst erst mit ihrem nächsten Job.', budgetLabel: 'Speicher, wenn alle {0} Plätze zugleich arbeiten', budgetLabelService: 'Speicher, wenn alle {0} Plätze zugleich arbeiten, mit den Build-Diensten', budgetService: 'Build {0}', budgetOf: 'erlaubt · die Docker-VM hat {0}', vmMark: 'Docker-VM', minSlots: 'Mindestens 1 Platz', maxSlots: 'Höchstens 4 Plätze', addQuick: 'Aus deinem Konto:', addQuickTip: 'Pool für {0} anlegen',
-    budgetOverOne: 'Mit vollem Limit passt einer von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.',
-    budgetOver: 'Mit vollem Limit passen {0} von {1} Plätzen in die Docker-VM. Das ist üblich, weil Jobs ihr Limit selten ausschöpfen; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetOver1: 'Schon ein einzelner Job darf mehr belegen, als die Docker-VM hat. Senke die Limits oder gib der Docker-VM mehr Speicher.', budgetOk: 'Auch wenn alle Plätze zugleich arbeiten, bleibt die Docker-VM unter ihrer Grenze.',
-    capNote: 'Speicher von Runner und Docker zusammen: höchstens {0} GB je Job, damit das Limit unter dem Speicher der Docker-VM bleibt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
+    budgetOverOne: 'Mit vollem Limit passt einer von {1} Plätzen in die Docker-VM; das ist üblich.',
+    budgetOver: 'Mit vollem Limit passen {0} von {1} Plätzen in die Docker-VM; das ist üblich.', budgetOver1: 'Schon ein einzelner Job darf mehr belegen, als die Docker-VM hat. Senke die Limits oder gib der Docker-VM mehr Speicher.', budgetOk: 'Auch wenn alle Plätze zugleich arbeiten, bleibt die Docker-VM unter ihrer Grenze.',
+    capNote: 'Runner und Docker zusammen: höchstens {0} GB je Job, damit es in die Docker-VM passt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
     memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
     suggestText: 'Vorschlag: Runner {0} GB, Docker {1} GB, je {2} Kerne.', suggestSame: 'Die Limits entsprechen dem Vorschlag.', suggestWhy: 'Aus den Messwerten dieses Projekts: die höchste Spitze mit 50 % Luft. Die gepunktete Marke zeigt den Vorschlag am Regler.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
     authIn: 'Angemeldet als {0}', authWhat: 'RunClub nutzt die Anmeldung, um in deinen Repos Runner an- und abzumelden, Läufe zu lesen und erneut zu starten und {1} zu setzen. Das Recht dahinter ({0}) reicht weiter: Es erlaubt Lesen und Schreiben in allen deinen Repos, auch den privaten.', authExtra: 'Die Anmeldung trägt außerdem {0}; RunClub nutzt davon nichts.', authExtraOnly: 'Die Anmeldung trägt {0}; RunClub nutzt davon nichts.', authSame: 'Es ist dieselbe Anmeldung, die gh im Terminal nutzt.', authUnreadable: 'Welche Rechte diese Anmeldung hat, lässt sich nicht lesen.',
     authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach ist auch gh im Terminal abgemeldet. Kennt gh ein weiteres Konto, arbeiten gh und RunClub mit diesem weiter; sonst kann RunClub keine neuen Runner mehr anmelden. Laufende Jobs arbeiten zu Ende. Die Freigabe bei GitHub bleibt bestehen; widerrufen lässt sie sich dort unter Settings → Applications.',
-    authOut: 'Nicht bei GitHub angemeldet', authOutMore: 'Ohne Anmeldung kann RunClub keine Runner anmelden und keine Läufe lesen. Wer sich hier anmeldet, ist auch in gh im Terminal angemeldet.',
-    authNoGh: 'gh ist nicht installiert', authNoGhMore: 'RunClub spricht über die GitHub CLI (gh) mit GitHub. Es gibt sie unter {0}. Nach der Installation RunClub neu starten.',
-    authScope: 'GitHub-Recht fehlt', authScopeMore: 'Der Anmeldung fehlt: {0}. RunClub braucht das, um Runner anzumelden und Läufe zu lesen und erneut zu starten.', authGrant: 'Recht ergänzen',
-    authWhy_minutes: 'Freiwillig: Mit dem Recht {0} liest RunClub die Abrechnung deines Kontos und zeigt in „Verbrauch“, wie viele Minuten du diesen Monat auf GitHubs eigenen Runnern verbraucht hast. Das Recht reicht weiter: Es erlaubt auch, dein Profil zu ändern; RunClub tut das nicht.',
-    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authEnterScope: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige als {0}. Damit bekommt RunClub das Recht {1}. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authSilent: 'gh hat keinen Einmalcode ausgegeben.', authNoReason: 'gh hat keinen Grund genannt.',
+    authOut: 'Nicht bei GitHub angemeldet', authOutMore: 'Ohne Anmeldung kann RunClub keine Runner anmelden und keine Läufe lesen.',
+    authNoGh: 'gh ist nicht installiert', authNoGhMore: 'Installiere gh von {0} und starte RunClub danach neu.',
+    authScope: 'GitHub-Recht fehlt', authScopeMore: 'Der Anmeldung fehlt: {0}.', authGrant: 'Recht ergänzen',
+    authWhy_minutes: 'Freiwillig: Mit {0} zeigt „Verbrauch“ deine GitHub-Minuten.',
+    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authEnterScope: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige als {0} das Recht {1}. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authSilent: 'gh hat keinen Einmalcode ausgegeben.', authNoReason: 'gh hat keinen Grund genannt.',
     authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
-    authFirstTitle: 'Zuerst bei GitHub anmelden', authFirstText: 'RunClub meldet Runner in deinen Repos an und liest deren Läufe. Dafür braucht es einmal deine Anmeldung bei GitHub; wer sich hier anmeldet, ist auch in gh im Terminal angemeldet.',
-    starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll. Für jeden Job entsteht ein frischer Linux-Container mit eigenem Docker.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
+    authFirstTitle: 'Zuerst bei GitHub anmelden', authFirstText: 'Einmal nötig, damit RunClub Runner in deinen Repos anmelden und ihre Läufe lesen kann.',
+    starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
+    minutesOtherPlanHere: 'Deshalb steht hier nur das Verbrauchte, ohne Obergrenze.', infoSuggest: 'Vorschlag', infoMemory: 'Speicher',
+    infoAbout: 'Mehr zu „{0}“', scopeName: 'Recht {0}', authWhatShort: 'RunClub verwaltet damit Runner und Läufe in deinen Repos.', authUserHeld: 'Mit {0} liest RunClub außerdem die Abrechnung für die GitHub-Minuten in „Verbrauch“. Auch dieses Recht reicht weiter: Es erlaubt, dein Profil zu ändern; RunClub tut das nicht.',
+    authOutInfo: 'Wer sich hier anmeldet, ist auch in gh im Terminal angemeldet. GitHub fragt dabei nach den Rechten <code>repo</code> für Runner und Läufe und <code>user</code> für die GitHub-Minuten.', authNoGhInfo: 'RunClub spricht über die GitHub CLI (gh) mit GitHub. Ohne sie kann es keine Runner anmelden und keine Läufe lesen.', authScopeInfo: 'RunClub braucht das, um Runner anzumelden und Läufe zu lesen und erneut zu starten. Beim Ergänzen bestätigst du es im Browser mit einem Einmalcode.', authWhyInfo_minutes: 'RunClub liest damit die Abrechnung deines Kontos: wie viele Minuten du diesen Monat auf GitHubs eigenen Runnern verbraucht hast. Das Recht reicht weiter: Es erlaubt auch, dein Profil zu ändern; RunClub tut das nicht. Beim Anmelden in RunClub ist es dabei; es fehlt nur, wenn gh im Terminal ohne es angemeldet wurde.',
+    authEnterScopeInfo: 'Ist im Browser ein anderes Konto als {0} angemeldet, scheitert das Ergänzen.', projectsInfo: 'Jedes Projekt hat einen eigenen Pool. Plätze sind Jobs, die zugleich laufen können; jeder Job bekommt einen frischen Linux-Container mit eigenem Docker. Eine Reserve vorbereiteter Runner und die Caches (Pakete, Build-Layer, aus den Jobs gelernte Abbilder) fangen den Aufbau ab.', routeNoneInfo: 'Mit diesem Ausdruck nehmen die Jobs deine Runner, solange CI_RUNNER gesetzt ist, und sonst ubuntu-latest bei GitHub. CI_RUNNER setzt RunClub mit „Auf eigene Runner umschalten“.', fitGenerousInfo: 'Das schadet nicht, schützt den Rechner aber weniger: Ein Job, der aus dem Ruder läuft, darf mehr belegen, bevor er abbricht.',
+    limitsInfo: 'Ein Limit begrenzt, wie viel Speicher und wie viele Kerne ein Job belegen darf, getrennt für den Runner und sein Docker. Es schützt den Rechner vor einem Job, der aus dem Ruder läuft; reicht es dem Job nicht, bricht er ab. Projekte ohne eigene Werte nehmen die Limits hier.', budgetOverInfo: 'Jobs schöpfen ihr Limit selten aus; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetHow: 'Der Balken zeigt je Platz ein Feld, so breit wie das Limit seines Projekts. Ein Projekt mit Cache hat dazu seinen Build-Dienst; er zählt zuerst und läuft auch, während der Pool pausiert. Gefüllt ist, was mit vollem Limit in die Docker-VM passt, gestrichelt der Rest.', logInfo: 'Die letzten Meldungen aus runclub.log, die neueste oben. Kopieren und Speichern nehmen die ganze Datei. Auf ein Projekt gefiltert bleiben die allgemeinen Fehler dabei, weil dort oft die Ursache steht.',
+    dayInfo: 'Je Zeitabschnitt der höchste gemessene Wert. Wo eine Kurve abreißt, lief RunClub nicht.', quotaInfo: 'Das Limit gilt für dein ganzes GitHub-Konto; auch gh im Terminal und andere Werkzeuge zählen mit. Ab der gepunkteten Marke fragt RunClub seltener ab. Ist nur noch die Reserve übrig, fragt es gar nicht mehr, bis das Fenster wieder voll ist.', quotaTightInfo: 'Läufe und Restzeiten erscheinen so lange mit Verzögerung. Die Runner arbeiten unverändert.', quotaOutInfo: 'Laufende Jobs arbeiten weiter, die Anzeige bleibt so lange stehen. Die letzten Anfragen sind für neue Runner reserviert.',
+    minutesPlan: 'Tarif {0} mit {1} Minuten im Monat.', minutesPlanUnknown: 'Für den Tarif {0} kennt RunClub die enthaltenen Minuten nicht.', minutesPlans: 'Enthaltene Minuten im Monat: {0}.', minutesEqual: 'Jede Minute zählt gleich, gleich auf welchem Betriebssystem.',
+    minutesOtherPlan: 'Für andere Tarife steht nur das Verbrauchte da, ohne Obergrenze.', minutesTightInfo: 'Sind sie weg, startet GitHub in privaten Repos auf seinen Runnern keine Läufe mehr, solange dort kein Budget gesetzt ist.', minutesOutInfo: 'Die enthaltenen Minuten sind aufgebraucht; das betrifft private Repos auf GitHubs Runnern. Mit einem Pool („Pool anlegen“ in den Einstellungen) laufen die Jobs auf diesem Rechner und brauchen keine Minuten. Ob bei GitHub ein Budget gesetzt ist, sieht RunClub nicht.', minutesBudgetInfo: 'Das gilt für private Repos auf GitHubs Runnern. Wie hoch das Budget ist und wann es erreicht ist, sieht RunClub nicht.',
+    minutesBilledInfo: 'Schon unter den enthaltenen Minuten kann GitHub etwas berechnen, etwa für größere Runner.', peakInfo: 'Gemessen am Limit dieses Projekts, getrennt für Runner und Docker. Ab der gepunkteten Marke ({0} %) gilt eine Spitze als knapp. In der Tabelle tritt der Wert hervor, der die Schiene bestimmt.',
   },
   en: {
     late: 'longer than usual ({0})', approx: 'about {0}', started: 'run started', idleAll: 'Nothing is running right now.', fewer: 'One slot fewer', more: 'One more slot', seatN: 'Slot {0}', railLabel: 'Projects',
     routeOn: 'This repo\'s jobs run on your runners (CI_RUNNER is set).', routeOff: 'CI_RUNNER is not set: this repo\'s jobs go to GitHub\'s runners.', routeFixed: 'The workflows always ask for self-hosted runners. No variable needed.',
-    routeNone: 'This repo\'s workflows do not read CI_RUNNER. Until they do, jobs go to GitHub\'s runners. In the workflows, runs-on should be:', routeTo: 'Switch to my runners', routeBack: 'Back to GitHub\'s runners', confirmBack: 'CI_RUNNER is removed for {0}. Jobs will then go to GitHub\'s runners.',
+    routeNone: 'The workflows do not read CI_RUNNER; jobs go to GitHub’s runners. runs-on should be:', routeTo: 'Switch to my runners', routeBack: 'Back to GitHub\'s runners', confirmBack: 'CI_RUNNER is removed for {0}. Jobs will then go to GitHub\'s runners.',
     all: 'All projects', usage: 'Usage', settings: 'Settings', working: '{0} working · {1} ready', ready: 'ready', paused: 'paused',
     left: 'about {0} min left', soon: 'almost done', noRunner: 'waiting for a runner', failed: 'failed', failedN: '{0} failed', finished: 'done', cancelled: 'cancelled',
     untilDone: 'until the run is done', jobsDone: '{0} of {1} jobs done', rough: 'rough estimate, some jobs have no history yet', since: 'running for {0}', took: 'took {0}',
@@ -386,15 +405,14 @@ const TEXT = {
     wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
     day: 'The last 24 hours',
     quotaTitle: 'GitHub requests', quotaLabel: 'Used this hour', quotaOf: 'of {0}', quotaReset: '{0} left · full again at {1} (in {2} min)', quotaTightShort: 'GitHub requests running low', quotaOutShort: 'GitHub limit reached', quotaOutTag: 'GitHub limit reached, back at {0}',
-    quotaOk: 'The limit covers your whole GitHub account; gh in the terminal and other tools count too. Past the dotted mark, RunClub polls GitHub less often.',
-    quotaTight: 'Until {0} RunClub polls less often; runs and remaining times show up late. Runners keep working as usual.',
-    quotaOut: 'Until {0} RunClub stops polling GitHub.', quotaOutMore: 'Running jobs carry on; the display stays frozen until then. The last requests are reserved for new runners; pause whatever else uses your account (gh, other tools).',
+    quotaTight: 'Until {0} RunClub polls less often.',
+    quotaOut: 'Until {0} RunClub stops polling GitHub.', quotaOutMore: 'Until then, pause whatever else uses your account (gh, other tools).',
     minutesTitle: 'GitHub minutes', minutesLabel: 'Used on GitHub’s runners this month', minutesReset: '{0} left · full again on {1}', minutesResetOnly: 'resets on {0}', minutesOver: '{0} billed · {1} so far · full again on {2}', minutesTightShort: 'GitHub minutes running low', minutesOutShort: 'GitHub minutes used up',
-    minutesParts: 'Of these, {0}.', minutesAll: 'All on {0}.', minutesOther: 'other', minutesAssumed: 'For your plan ({1}) RunClub assumes {0} included minutes a month; GitHub’s billing data does not report that number.', minutesNoPlan: 'RunClub does not know the included minutes for your plan{1}, only for {0}, so the number stands here without a limit.',
-    minutesBudget: 'GitHub charges for minutes beyond the included ones only up to the budget set on GitHub. Once it is reached, GitHub won’t start runs in private repos on its runners; RunClub cannot see that limit.', minutesBilled: '{0} of these minutes are billed and cost {1} so far.',
-    minutesTight: 'The included minutes are almost used up. Once they are gone, GitHub won’t start runs in private repos on its runners unless a budget is set there.',
-    minutesOut: 'Without a budget, GitHub won’t start runs in private repos on its runners until {0}.', minutesOutMore: 'The included minutes are used up. Move the projects to your own runners (“Create pool” in the settings) or set a budget on GitHub.', toProjects: 'Go to projects', toLog: 'Open log',
-    minutesNoScope: 'With the {0} permission RunClub can show how many minutes you have used on GitHub’s runners this month.', toAuth: 'Add in settings',
+    minutesParts: 'Of these, {0}.', minutesAll: 'All on {0}.', minutesOther: 'other', minutesNoPlan: 'RunClub does not know your account’s plan.',
+    minutesBudget: 'GitHub keeps charging up to your budget and starts no more runs on its runners after that.', minutesBilled: '{0} of these minutes are billed and cost {1} so far.',
+    minutesTight: 'The included minutes are almost used up.',
+    minutesOut: 'Without a budget, GitHub won’t start runs on its runners until {0}.', minutesOutMore: 'Move the projects to your own runners or set a budget on GitHub.', toProjects: 'Go to projects', toLog: 'Open log',
+    minutesNoScope: 'With the {0} permission RunClub shows your GitHub minutes here.', toAuth: 'Add in settings',
     minutesReading: 'The billing data has not been read yet.', minutesFailed: 'The billing data could not be read; RunClub will try again. The log says why.',
     projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
@@ -407,23 +425,32 @@ const TEXT = {
     limitsTitle: 'Limits per job', limitsNew: 'for all projects without their own', limitsShared: 'Shared', limitsOwn: 'Own', ownTag: 'own limits', rebuild: 'Rebuild runners', tagFull: 'limit reached', tagTight: 'limit tight', tagGenerous: 'limit generous',
     planText: 'Suggestion: default runner {0} GB, Docker {1} GB, {2} cores each.', planOwn: 'Own limits for {0}.', planApplied: 'The limits match the suggestion.',
     planWhy: 'From the measurements: the default covers the projects with similar needs, with 50% headroom above the highest peak. A project that needs considerably more gets its own limits. The dotted mark shows the suggestion on the slider.',
-    fitFull: 'A job used up its limit. It needs more memory, or it will be cut off.', fitTight: 'A job came close to its limit (over {2}%). A little more memory leaves headroom.', fitGenerous: 'The limit is more than twice the measured need. That does no harm, but protects the machine less.', fitMeasuring: 'Still measuring ({0} of {1} runs); a suggestion follows after that.',
+    fitFull: 'A job used up its limit. It needs more memory, or it will be cut off.', fitTight: 'A job came close to its limit (over {2}%). A little more memory leaves headroom.', fitGenerous: 'The limit is more than twice the measured need.', fitMeasuring: 'Still measuring ({0} of {1} runs); a suggestion follows after that.',
     limitsSharedNote: 'The shared limits apply: runner {0} GB and {2} cores, Docker {1} GB and {3} cores.', staleOne: 'One idle runner still carries the old limits. Otherwise it changes with its next job.', staleMany: '{0} idle runners still carry the old limits. Otherwise they change with their next job.', budgetLabel: 'Memory when all {0} slots work at once', budgetLabelService: 'Memory when all {0} slots work at once, with the build services', budgetService: 'build {0}', budgetOf: 'allowed · the Docker VM has {0}', vmMark: 'Docker VM', minSlots: 'At least 1 slot', maxSlots: 'At most 4 slots', addQuick: 'From your account:', addQuickTip: 'Create a pool for {0}',
-    budgetOverOne: 'At full limit, one of {1} slots fits into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.',
-    budgetOver: 'At full limit, {0} of {1} slots fit into the Docker VM. That is common, because jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetOver1: 'A single job may already use more than the Docker VM has. Lower the limits or give the Docker VM more memory.', budgetOk: 'Even with all slots working at once, the Docker VM stays below its limit.',
-    capNote: 'Runner and Docker memory together: at most {0} GB per job, so the limit stays below the Docker VM’s memory.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
+    budgetOverOne: 'At full limit, one of {1} slots fits into the Docker VM; that is common.',
+    budgetOver: 'At full limit, {0} of {1} slots fit into the Docker VM; that is common.', budgetOver1: 'A single job may already use more than the Docker VM has. Lower the limits or give the Docker VM more memory.', budgetOk: 'Even with all slots working at once, the Docker VM stays below its limit.',
+    capNote: 'Runner and Docker together: at most {0} GB per job, so it fits into the Docker VM.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
     memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
     suggestText: 'Suggestion: runner {0} GB, Docker {1} GB, {2} cores each.', suggestSame: 'The limits match the suggestion.', suggestWhy: 'From this project’s measurements: the highest peak plus 50% headroom. The dotted mark shows the suggestion on the slider.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
     authIn: 'Signed in as {0}', authWhat: 'RunClub uses the sign-in to register and remove runners in your repos, read runs and start them again, and set {1}. The permission behind it ({0}) reaches further: it allows reading and writing in all your repos, private ones included.', authExtra: 'The sign-in also carries {0}; RunClub uses none of it.', authExtraOnly: 'The sign-in carries {0}; RunClub uses none of it.', authSame: 'It is the same sign-in gh uses in the terminal.', authUnreadable: 'The permissions of this sign-in cannot be read.',
     authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'This signs gh in the terminal out as well. If gh knows another account, gh and RunClub carry on with that one; otherwise RunClub can no longer register new runners. Running jobs finish. The authorization on GitHub stays in place; you can revoke it there under Settings → Applications.',
-    authOut: 'Not signed in to GitHub', authOutMore: 'Without a sign-in RunClub cannot register runners or read runs. Signing in here also signs in gh in the terminal.',
-    authNoGh: 'gh is not installed', authNoGhMore: 'RunClub talks to GitHub through the GitHub CLI (gh). Get it at {0}. Restart RunClub after installing.',
-    authScope: 'GitHub permission missing', authScopeMore: 'The sign-in lacks: {0}. RunClub needs it to register runners, read runs and start them again.', authGrant: 'Add permission',
-    authWhy_minutes: 'Optional: with the {0} permission RunClub reads your account’s billing and shows under “Usage” how many minutes you have used on GitHub’s own runners this month. The permission reaches further: it also allows changing your profile; RunClub does not do that.',
-    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authEnterScope: 'Open GitHub in the browser, enter this code there and confirm as {0}. That gives RunClub the {1} permission. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authSilent: 'gh did not print a one-time code.', authNoReason: 'gh gave no reason.',
+    authOut: 'Not signed in to GitHub', authOutMore: 'Without a sign-in RunClub cannot register runners or read runs.',
+    authNoGh: 'gh is not installed', authNoGhMore: 'Install gh from {0}, then restart RunClub.',
+    authScope: 'GitHub permission missing', authScopeMore: 'The sign-in lacks: {0}.', authGrant: 'Add permission',
+    authWhy_minutes: 'Optional: with {0}, “Usage” shows your GitHub minutes.',
+    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authEnterScope: 'Open GitHub in the browser, enter this code there and confirm the {1} permission as {0}. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authSilent: 'gh did not print a one-time code.', authNoReason: 'gh gave no reason.',
     authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
-    authFirstTitle: 'First, sign in to GitHub', authFirstText: 'RunClub registers runners in your repos and reads their runs. It needs you to sign in to GitHub once; that also signs in gh in the terminal.',
-    starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for. Every job gets a fresh Linux container with its own Docker.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
+    authFirstTitle: 'First, sign in to GitHub', authFirstText: 'Needed once so RunClub can register runners in your repos and read their runs.',
+    starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
+    minutesOtherPlanHere: 'So only the minutes used are shown here, without an upper limit.', infoSuggest: 'Suggestion', infoMemory: 'Memory',
+    infoAbout: 'More about “{0}”', scopeName: '{0} permission', authWhatShort: 'RunClub uses it to manage runners and runs in your repos.', authUserHeld: 'With {0} RunClub also reads the billing for the GitHub minutes under “Usage”. This permission reaches further too: it allows changing your profile; RunClub does not do that.',
+    authOutInfo: 'Signing in here also signs in gh in the terminal. GitHub asks for the permissions <code>repo</code> for runners and runs and <code>user</code> for the GitHub minutes.', authNoGhInfo: 'RunClub talks to GitHub through the GitHub CLI (gh). Without it, RunClub cannot register runners or read runs.', authScopeInfo: 'RunClub needs it to register runners, read runs and start them again. To add it, you confirm in the browser with a one-time code.', authWhyInfo_minutes: 'RunClub uses it to read your account’s billing: how many minutes you have used on GitHub’s own runners this month. The permission reaches further: it also allows changing your profile; RunClub does not do that. Signing in through RunClub includes it; it is only missing if gh in the terminal was signed in without it.',
+    authEnterScopeInfo: 'If the browser is signed in to an account other than {0}, adding it fails.', projectsInfo: 'Every project has its own pool. Slots are jobs that can run at the same time; every job gets a fresh Linux container with its own Docker. A reserve of prepared runners and the caches (packages, build layers, images learned from the jobs) take the setup off the job.', routeNoneInfo: 'With this expression jobs use your runners while CI_RUNNER is set, and ubuntu-latest on GitHub otherwise. RunClub sets CI_RUNNER with “Switch to my runners”.', fitGenerousInfo: 'That does no harm, but protects the machine less: a job that runs away may use more before it is cut off.',
+    limitsInfo: 'A limit caps how much memory and how many cores a job may use, separately for the runner and its Docker. It protects the machine from a job that runs away; if the limit is too small for a job, the job is cut off. Projects without their own values use the limits here.', budgetOverInfo: 'Jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetHow: 'The bar shows one field per slot, as wide as its project’s limit. A project with a cache adds its build service; it counts first and keeps running while the pool is paused. Filled fields fit into the Docker VM at full limit, dashed ones do not.', logInfo: 'The latest messages from runclub.log, newest first. Copy and Save take the whole file. Filtered by project, the general errors stay in, because that is often where the cause is.',
+    dayInfo: 'The highest value measured in each period. Where a curve breaks off, RunClub was not running.', quotaInfo: 'The limit covers your whole GitHub account; gh in the terminal and other tools count too. Past the dotted mark RunClub polls less often. Once only the reserve is left, it stops polling until the window is full again.', quotaTightInfo: 'Runs and remaining times show up late until then. Runners keep working as usual.', quotaOutInfo: 'Running jobs carry on; the display stays frozen until then. The last requests are reserved for new runners.',
+    minutesPlan: '{0} plan with {1} minutes a month.', minutesPlanUnknown: 'RunClub does not know the included minutes for the {0} plan.', minutesPlans: 'Included minutes a month: {0}.', minutesEqual: 'Every minute counts the same, whatever the operating system.',
+    minutesOtherPlan: 'For other plans only the minutes used are shown, without an upper limit.', minutesTightInfo: 'Once they are gone, GitHub won’t start runs in private repos on its runners unless a budget is set there.', minutesOutInfo: 'The included minutes are used up; this affects private repos on GitHub’s runners. With a pool (“Create pool” in the settings) the jobs run on this machine and need no minutes. RunClub cannot see whether a budget is set on GitHub.', minutesBudgetInfo: 'This applies to private repos on GitHub’s runners. RunClub cannot see how high the budget is or when it is reached.',
+    minutesBilledInfo: 'GitHub can bill some minutes even below the included ones, for example for larger runners.', peakInfo: 'Measured against this project’s limit, separately for runner and Docker. Past the dotted mark ({0}%) a peak counts as tight. In the table, the value that sets the bar stands out.',
   },
 };
 const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off', 'läuft aus': 'retiring' };
@@ -559,37 +586,46 @@ function authBody(first) {
   // `above`: die Meldung eines gescheiterten Ablaufs, wenn sie zu dieser Zeile gehört; sie steht in der Zeile, damit
   // sie nicht als Nachsatz der vorigen gelesen wird. Als erster Schritt steht der Titel der Störung schon in der
   // Überschrift der Ansicht, und die Zeilen kommen ohne Haarlinie aus.
-  const line = (title, hint, control, alarm, above = '') => '<div class="arow' + (first ? ' bare' : '') + '"><div>' + above + (title && !(first && alarm) ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + '</div></div>' + (control ?? '') + '</div>';
+  // `more`: die Absätze des Info-Elements; es steht am Titel, in einer Zeile ohne Titel am Ende des Satzes.
+  const line = (title, hint, control, alarm, above = '', more = [], about = title) => {
+    const titled = title && !(first && alarm);
+    const tip = info(about, ...more);
+    return '<div class="arow' + (first ? ' bare' : '') + '"><div>' + above + (titled ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' + tip : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + (titled ? '' : tip) + '</div></div>' + (control ?? '') + '</div>';
+  };
   const codes = (scopes) => scopes.map((scope) => '<code>' + esc(scope) + '</code>').join(', ');
   if (flow?.state === 'starting') return line('', t('authStarting'), act('auth/cancel', t('cancel')));
-  // Beim Ergänzen sagt der Satz, als wer zu bestätigen ist und wofür: Im Browser kann ein anderes Konto angemeldet sein.
-  // Erst der Code, dann die Seite, auf der er einzugeben ist.
-  if (flow?.state === 'waiting') return '<div class="flow"><div><div class="k">' + t('authCode') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + (flow.kind === 'scope' && a.login && flow.scopes?.length ? t('authEnterScope', esc(a.login), codes(flow.scopes)) : t('authEnter')) + '</div>' +
+  // Beim Ergänzen sagt der Satz, als wer welches Recht zu bestätigen ist; was bei einem anderen Konto im Browser
+  // geschieht, steht im Info am Einmalcode. Erst der Code, dann die Seite, auf der er einzugeben ist.
+  const scoping = flow?.kind === 'scope' && a.login && flow.scopes?.length;
+  if (flow?.state === 'waiting') return '<div class="flow"><div><div class="k">' + t('authCode') + (scoping ? info(t('authCode'), t('authEnterScopeInfo', esc(a.login))) : '') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + (scoping ? t('authEnterScope', esc(a.login), codes(flow.scopes)) : t('authEnter')) + '</div>' +
     '<div class="row"><button class="btn" data-copy="' + esc(flow.code) + '">' + glyph('copy') + t('authCopy') + '</button><a class="btn" href="' + esc(flow.url) + '" target="_blank" rel="noopener">' + t('authOpen') + '</a><span class="row push">' + act('auth/cancel', t('cancel')) + '</span></div></div>';
   // Warum ein Ablauf scheiterte, sagt die Oberfläche in ihrer Sprache; nur was `gh` selbst meldet, steht wörtlich da.
   const why = flow?.state !== 'failed' ? '' : [{ late: t('authLate'), silent: t('authSilent') }[flow.why], flow.error ?? (flow.why === 'gh' ? t('authNoReason') : '')].filter(Boolean).join(' ');
   const failed = why ? '<div class="note measure c-fail fault">' + esc(t(flow.kind === 'login' ? 'authFailed' : 'authScopeFailed', why)) + '</div>' : '';
   // Der Link führt zu GitHub: Nur solche öffnet das Fenster der App im Browser (siehe main.js).
-  if (a.state === 'missing') return line(t('authNoGh'), t('authNoGhMore', '<a href="https://github.com/cli/cli#installation" target="_blank" rel="noopener">github.com/cli/cli</a>'), '', true);
-  if (a.state === 'out') return first ? failed + '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true, failed);
+  if (a.state === 'missing') return line(t('authNoGh'), t('authNoGhMore', '<a href="https://github.com/cli/cli#installation" target="_blank" rel="noopener">github.com/cli/cli</a>'), '', true, '', [t('authNoGhInfo')]);
+  if (a.state === 'out') return first ? failed + '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true, failed, [t('authOutInfo')]);
   if (a.state !== 'in') return '<div class="note">' + t('authChecking') + '</div>';
-  // Was RunClub darf, und was die Anmeldung darüber hinaus trägt (`gh` verlangt von sich aus mehr).
+  // In der Zeile steht kurz, wofür RunClub die Anmeldung nutzt. Im Info: wie weit das Recht dahinter reicht, was die
+  // Anmeldung darüber hinaus trägt (`gh` verlangt von sich aus mehr) und dass es die Anmeldung von gh ist.
   const lacking = a.missing.length > 0;
-  const what = !a.scopes ? t('authUnreadable') : [lacking ? '' : t('authWhat', codes(a.required ?? []), '<code>CI_RUNNER</code>'), a.extra?.length ? t(lacking ? 'authExtraOnly' : 'authExtra', codes(a.extra)) : ''].filter(Boolean).join(' ');
+  const minutesScope = a.optional.some((entry) => entry.purpose === 'minutes');
+  const what = !a.scopes ? [] : [lacking ? '' : t('authWhat', codes(a.required ?? []), '<code>CI_RUNNER</code>'), !lacking && !minutesScope && a.scopes.includes('user') ? t('authUserHeld', '<code>user</code>') : '', a.extra?.length ? t(lacking ? 'authExtraOnly' : 'authExtra', codes(a.extra)) : ''];
   // Wofür ein freiwilliges Recht gebraucht würde; für einen unbekannten Zweck steht nur das Recht da.
   const purpose = (entry) => (({ minutes: t('authWhy_minutes', codes([entry.scope])) })[entry.purpose] ?? codes([entry.scope]));
+  const purposeMore = (entry) => (({ minutes: t('authWhyInfo_minutes') })[entry.purpose] ?? '');
   // Abmelden trifft Jobs und fragt deshalb nach; rot ist es nicht, weil sich wieder anmelden lässt.
-  const account = (above) => line(t('authIn', a.login ?? ''), [what, t('authSame')].filter(Boolean).join(' '), act('auth/logout', t('authLogout'), ' data-confirm="' + esc(t('authConfirmOut')) + '"'), false, above);
+  const account = (above) => line(t('authIn', a.login ?? ''), !a.scopes ? t('authUnreadable') : lacking ? t('authSame') : t('authWhatShort'), act('auth/logout', t('authLogout'), ' data-confirm="' + esc(t('authConfirmOut')) + '"'), false, above, [...what, a.scopes && lacking ? '' : t('authSame')]);
   // Fehlt ein Pflichtrecht, steht nur dieses zur Wahl; die freiwilligen folgen, sobald es ergänzt ist. Als erster
   // Schritt steht der Ausweg vor dem Konto.
   if (lacking) {
-    const fix = line(t('authScope'), t('authScopeMore', codes(a.missing)), act('auth/scope', t('authGrant')), true, failed);
+    const fix = line(t('authScope'), t('authScopeMore', codes(a.missing)), act('auth/scope', t('authGrant')), true, failed, [t('authScopeInfo')]);
     return first ? fix + account('') : account('') + fix;
   }
   // Die Meldung eines gescheiterten Ergänzens steht in der Zeile des Rechts, um das es ging; sonst beim Konto.
   const mine = (entry) => Boolean(failed) && flow.kind === 'scope' && (flow.scopes ?? []).includes(entry.scope);
   return account(a.optional.some(mine) ? '' : failed) +
-    a.optional.map((entry) => line('', purpose(entry), act('auth/scope', t('authGrant'), ' data-scope="' + esc(entry.scope) + '"'), false, mine(entry) ? failed : '')).join('');
+    a.optional.map((entry) => line('', purpose(entry), act('auth/scope', t('authGrant'), ' data-scope="' + esc(entry.scope) + '"'), false, mine(entry) ? failed : '', [purposeMore(entry)], t('scopeName', entry.scope))).join('');
 }
 
 function renderRail() {
@@ -810,8 +846,8 @@ const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].fi
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
 const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
-// Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz.
-const viewHead = (title, sub, cls) => '<div class="head"><div><h1>' + title + '</h1><div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
+// Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz, `more` ist ein Info-Element am Titel.
+const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
 
 // Repos ohne Pool, in denen nichts vorankommt: je eine Zeile mit dem Angebot, einen Pool anzulegen. Entweder warten
 // Jobs auf einen eigenen Runner (welche, steht im Tooltip), oder Läufe sind nicht gestartet, weil die Minuten bei
@@ -863,7 +899,8 @@ function renderOverview(entries, single) {
 
 // Haltestelle „GitHub-Anfragen“: Kennzahl und Schiene zeigen das Verbrauchte, wie bei den Speicherspitzen mit der
 // Marke, ab der es knapp ist; ab dort fragt RunClub seltener ab. Was noch frei ist und wann es weitergeht, steht im Kopf.
-// Rot ist nur das erreichte Limit: Knapp verlangt nichts und vergeht von selbst.
+// Rot ist nur das erreichte Limit: Knapp verlangt nichts und vergeht von selbst. Ein Satz steht nur, wenn es knapp oder
+// erreicht ist; was das Limit ist und was daraus folgt, steht im Info an der Überschrift.
 function quotaStop() {
   const q = data.quota;
   if (!q) return '';
@@ -874,12 +911,13 @@ function quotaStop() {
   return routeStop('github', t('quotaTitle'), t('quotaReset', count(q.remaining), until, left),
     '<div><div class="k">' + t('quotaLabel') + '</div><div class="v' + (out ? ' c-fail' : '') + '">' + count(q.limit - q.remaining) + ' <small>' + t('quotaOf', count(q.limit)) + '</small></div></div>' +
     '<div class="um solo">' + fillBar((q.limit - q.remaining) / q.limit, out, q.tightAt) + '</div>' +
-    '<div class="note measure' + (tight ? ' strong' : '') + '">' + (out ? '<span class="c-fail">' + t('quotaOut', until) + '</span> <span class="ink">' + t('quotaOutMore') + '</span>' : t(tight ? 'quotaTight' : 'quotaOk', until)) + '</div>');
+    (out ? '<div class="note measure strong"><span class="c-fail">' + t('quotaOut', until) + '</span> <span class="ink">' + t('quotaOutMore') + '</span></div>' : tight ? '<div class="note measure strong">' + t('quotaTight', until) + '</div>' : ''),
+    [out ? t('quotaOutInfo') : tight ? t('quotaTightInfo') : '', t('quotaInfo')]);
 }
 
 // Haltestelle „GitHub-Minuten“: was das Konto in diesem Monat auf GitHubs eigenen Runnern verbraucht hat, gebaut wie
-// die GitHub-Anfragen. Die Grenze ist eine Annahme aus dem Tarif (siehe minutes.js); ohne sie gibt es nur die
-// Kennzahl. Knapp verlangt nichts. Rot ist das Aufgebrauchte, weil es einen Ausweg gibt: eigene Runner oder ein Budget.
+// die GitHub-Anfragen. Die Grenze sind die enthaltenen Minuten des Tarifs (Tabelle in minutes.js); ohne sie gibt es nur
+// die Kennzahl. In der Fläche steht der Zustand kurz, Gründe und Folgen stehen im Info an der Überschrift. Knapp verlangt nichts. Rot ist das Aufgebrauchte, weil es einen Ausweg gibt: eigene Runner oder ein Budget.
 // Wer über das Enthaltene hinaus bezahlt, hat ein Budget: Das ist weder knapp noch rot, aber der Kopf nennt die Kosten.
 // Fehlt das freiwillige Recht dafür, steht hier nur der Satz mit dem Weg zur Haltestelle „GitHub“ der Einstellungen;
 // solange es noch keinen Stand gibt, ein Satz dazu, damit die Haltestelle nicht erst später dazukommt.
@@ -887,7 +925,7 @@ function minutesStop() {
   const m = data.minutes;
   const lacking = data.auth?.optional.find((entry) => entry.purpose === 'minutes');
   const only = (body) => routeStop('minutes', t('minutesTitle'), '', body);
-  if (!m) return !lacking ? '' : only('<div class="row"><span class="rt note">' + t('minutesNoScope', '<code>' + esc(lacking.scope) + '</code>') + '</span><button class="btn" data-view="settings" data-goto="auth">' + t('toAuth') + '</button></div>');
+  if (!m) return !lacking ? '' : routeStop('minutes', t('minutesTitle'), '', '<div class="row"><span class="rt note">' + t('minutesNoScope', '<code>' + esc(lacking.scope) + '</code>') + '</span><button class="btn" data-view="settings" data-goto="auth">' + t('toAuth') + '</button></div>', [t('authWhyInfo_minutes')]);
   if (m.state === 'reading') return only('<div class="note measure">' + t('minutesReading') + '</div>');
   if (m.state === 'failed') return only('<div class="row"><span class="rt note">' + t('minutesFailed') + '</span><button class="btn" data-view="settings" data-goto="log">' + t('toLog') + '</button></div>');
   const count = whole;
@@ -898,21 +936,26 @@ function minutesStop() {
   // Der Monat der Abrechnung wechselt nach Weltzeit.
   const day = new Date(m.resetAt).toLocaleDateString(locale(), { day: 'numeric', month: 'long', timeZone: 'UTC' });
   const systems = [['Linux', m.systems.linux], ['Windows', m.systems.windows], ['macOS', m.systems.macos], [t('minutesOther'), m.systems.other]].filter(([, value]) => value > 0);
-  // Woraus die Zahl besteht, was davon berechnet wird, und woher die Grenze kommt.
+  // Woraus die Zahl besteht, was davon berechnet wird, und der Tarif mit seinen enthaltenen Minuten.
   const about = [
     systems.length > 1 ? t('minutesParts', systems.map(([name, value]) => name + ' ' + count(value)).join(', ')) : systems.length ? t('minutesAll', systems[0][0]) : '',
     m.paid && !paid ? t('minutesBilled', count(m.paid), money) : '',
-    m.included ? t('minutesAssumed', count(m.included), esc(planName(m.plan))) : t('minutesNoPlan', esc(new Intl.ListFormat(locale(), { type: 'conjunction' }).format(Object.keys(m.plans ?? {}).map(planName))), m.plan ? ' (' + esc(planName(m.plan)) + ')' : ''),
+    m.included ? t('minutesPlan', esc(planName(m.plan)), count(m.included)) : m.plan ? t('minutesPlanUnknown', esc(planName(m.plan))) : t('minutesNoPlan'),
   ].filter(Boolean).join(' ');
+  // Im Info: was die Tarife enthalten (die Tabelle kommt mit dem Stand), dass jede Minute gleich zählt, und was für
+  // einen anderen Tarif gilt.
+  const plans = Object.entries(m.plans ?? {}).map(([name, minutes]) => esc(planName(name)) + ' ' + count(minutes)).join(', ');
+  const general = [plans ? t('minutesPlans', plans) : '', t('minutesEqual'), t(m.included ? 'minutesOtherPlan' : 'minutesOtherPlanHere')].filter(Boolean).join(' ');
   const side = !m.included ? t('minutesResetOnly', day) : paid ? t('minutesOver', count(m.paid), money, day) : t('minutesReset', count(Math.max(0, m.included - m.used)), day);
   // Bezahlt: Was es kostet, steht schon im Kopf; hier nur, was daraus folgt.
   const lead = out ? '<span class="c-fail">' + t('minutesOut', day) + '</span> <span class="ink">' + t('minutesOutMore') + '</span>' : paid ? t('minutesBudget') : tight ? t('minutesTight') : '';
+  const leadMore = out ? t('minutesOutInfo') : paid ? t('minutesBudgetInfo') : tight ? t('minutesTightInfo') : m.paid ? t('minutesBilledInfo') : '';
   return routeStop('minutes', t('minutesTitle'), side,
     '<div><div class="k">' + t('minutesLabel') + '</div><div class="v' + (out ? ' c-fail' : '') + '">' + count(m.used) + (m.included ? ' <small>' + t('of', count(m.included)) + '</small>' : '') + '</div></div>' +
     (m.included ? '<div class="um solo">' + fillBar(m.used / m.included, out, m.tightAt) + '</div>' : '') +
     (lead ? '<div class="note measure strong">' + lead + '</div>' : '') +
     (out ? '<div class="row"><button class="btn" data-view="settings" data-goto="projects">' + t('toProjects') + '</button></div>' : '') +
-    '<div class="note measure">' + about + '</div>');
+    '<div class="note measure">' + about + '</div>', [leadMore, general]);
 }
 
 function renderUsage() {
@@ -943,7 +986,7 @@ function renderUsage() {
     const rows = u.jobs.map((j) => '<tr><td>' + jobLabel(j, true) + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
     // Was am nächsten an seinem Limit liegt: welcher Job, welche Seite, wie viel.
     const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * tightAt).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
-    const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
+    const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + info(t('peakTitle'), t('peakInfo', Math.round(tightAt * 100))) + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
       (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', jobLabel(u.jobs.find((j) => j[near[3]] === near[1])), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
     const body = !rows ? '<div class="note">' + t('noUsage') + '</div>' : peaks +
       '<div class="scroll"><table class="fixed"><tr><th>' + t('job') + '</th><th class="r">' + t('ramRunner') + '</th><th class="r">' + t('ramDocker') + '</th><th class="r">' + t('cpuPeak') + '</th><th class="r">' + t('cpuAvg') + '</th><th class="r">' + t('usualTime') + '</th><th class="r">' + t('runs') + '</th></tr>' + rows + '</table></div>' +
@@ -951,7 +994,7 @@ function renderUsage() {
     return routeStop('p' + index, shortRepo(entry.repo), u.jobs.length ? t(u.jobs.length === 1 ? 'jobMeasured' : 'jobsMeasured', u.jobs.length) : '', body);
   }).join('');
   put(main, '<div class="stack set"><div class="head"><div><h1>' + t('usage') + '</h1></div></div><div class="route">' +
-    routeStop('day', t('day'), '', '<div class="trio">' + chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div>') +
+    routeStop('day', t('day'), '', '<div class="trio">' + chart('dayVmMem', t('vmMem'), '', '', src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, false, []) + chart('dayVmCpu', t('vmCpu'), '', '', src('vmCpu'), m.dockerCpus, (v) => num(v), false, []) + chart('dayHostMem', t('hostMem'), '', '', src('hostMemory'), m.memoryTotal, gb, false, []) + '</div>', [t('dayInfo')]) +
     quotaStop() + minutesStop() + projects + '</div></div>');
 }
 
@@ -970,8 +1013,23 @@ const GLYPHS = {
   rerun: '<path d="M3.4 8a4.6 4.6 0 1 0 1.5-3.4M3.4 2.6v2.6H6M7 6.2v3.6l3-1.8z"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   save: '<path d="M8 2.5v8M4.8 7.4L8 10.5l3.2-3.1M3 13.5h10"/>',
+  // Mehr dazu: das „i“ im Kreis; steht nur am Info-Element.
+  info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 4.9v.1"/>',
 };
 const glyph = (name, cls) => '<svg class="g' + (cls ? ' ' + cls : '') + '" viewBox="0 0 16 16" aria-hidden="true">' + GLYPHS[name] + '</svg>';
+// Das Info-Element neben einem Titel: In der Fläche steht kurz, was es ist und was zu tun ist; Gründe, Folgen und
+// Hintergrund stehen hier. `about` ist der Titel, zu dem es gehört (für Vorleseprogramme). `parts` sind die Absätze,
+// fertiges HTML aus der Texttabelle, in dem Werte von außen schon durch esc gegangen sind; leere fallen weg.
+// Die Erklärung steht verborgen im Knopf und ist seine Beschreibung für Vorleseprogramme; die Info-Fläche zeigt eine
+// Kopie. Die Kennung folgt aus dem Inhalt, damit derselbe Stand dasselbe HTML ergibt; gleiche Kennungen tragen gleichen Text.
+const info = (about, ...parts) => {
+  const html = parts.filter(Boolean).map((part) => '<p>' + part + '</p>').join('');
+  if (!html) return '';
+  let hash = 0;
+  for (const c of about + html) hash = (hash * 31 + c.charCodeAt(0)) | 0;
+  const id = 'info-' + (hash >>> 0).toString(36);
+  return '<button type="button" class="info" aria-label="' + esc(t('infoAbout', about)) + '" aria-describedby="' + id + '">' + glyph('info') + '<span class="ib" id="' + id + '" hidden>' + html + '</span></button>';
+};
 const GIB = 1073741824;
 const LIMIT_KEYS = ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'];
 let openRepo = store.get('open', ''); // das aufgeklappte Projekt in den Einstellungen
@@ -997,9 +1055,10 @@ function logTime(iso) {
 const firstStop = () => (view === 'usage' ? 'day' : data?.auth ? 'auth' : 'projects');
 let hereStop = ''; // die Haltestelle, an der die Seite gerade steht; leer heißt: an der ersten
 const here = () => hereStop || firstStop();
-// Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt.
-const routeStop = (key, title, side, body) => '<section class="stop' + (here() === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
-  '<div class="stophead"><h2 class="grow">' + esc(title) + '</h2>' + (side ? '<span class="note">' + side + '</span>' : '') + '</div>' + body + '</section>';
+// Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt. `more`: die Absätze
+// des Info-Elements an der Überschrift.
+const routeStop = (key, title, side, body, more = []) => '<section class="stop' + (here() === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
+  '<div class="stophead"><div class="grow"><h2>' + esc(title) + '</h2>' + info(title, ...more) + '</div>' + (side ? '<span class="note">' + side + '</span>' : '') + '</div>' + body + '</section>';
 let draft = null; // Limits, solange ein Regler bewegt wird: { repo ('' = für alle), values: { runnerMemory, … } }
 
 function renderSettings() {
@@ -1043,7 +1102,7 @@ function renderSettings() {
   const suggested = (hints, saved, repo) => {
     if (!hints) return '<div class="note">' + t('suggestNone') + '</div>';
     const same = LIMIT_KEYS.every((key) => hints[key] === saved[key]);
-    return '<div class="row"><span class="rt note"><span class="ink">' + (same ? t('suggestSame') : t('suggestText', gbShort(hints.runnerMemory), gbShort(hints.dockerMemory), hints.runnerCpus)) + '</span><br>' + t('suggestWhy') + '</span>' +
+    return '<div class="row"><span class="rt note"><span class="ink">' + (same ? t('suggestSame') : t('suggestText', gbShort(hints.runnerMemory), gbShort(hints.dockerMemory), hints.runnerCpus)) + '</span>' + info(t('infoSuggest'), t('suggestWhy')) + '</span>' +
       (same ? '' : button('gauge', t('suggestApply'), { do: 'limits/set', ...(repo ? { repo } : {}), ...Object.fromEntries(LIMIT_KEYS.map((key) => [key, hints[key]])) })) + '</div>';
   };
 
@@ -1058,7 +1117,7 @@ function renderSettings() {
     const r = p.routing;
     const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
     const route = !r ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' ? ' c-fail' : '') + '">' +
-      (r.error ? esc(r.error) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
+      (r.error ? esc(r.error) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet + info('runs-on', t('routeNoneInfo')) : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
       (r.uses === 'fixed' ? '' : r.here ? button('route', t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button('route', t('routeTo'), { do: 'pool/routing', repo, on: '1' })) + '</div>';
     const caches = (p.cache ? crow(t('packages'), '', size('packages'), clear('packages', t('clearOf', t('packages')))) + crow(t('layers'), '', size('build'), clear('build', t('clearOf', t('layers'))))
       : '<div class="crow"><span class="dim">' + t('cacheIsOff') + '</span><span></span><span></span></div>') +
@@ -1069,7 +1128,7 @@ function renderSettings() {
     const fit = p.limits?.fit ?? { state: 'ok' };
     const pressing = fit.state === 'full' || fit.state === 'tight';
     const fitTag = { full: t('tagFull'), tight: t('tagTight'), generous: t('tagGenerous') }[fit.state];
-    const fitNote = fit.state === 'ok' ? '' : '<div class="note' + (pressing ? ' c-fail' : '') + '">' + t({ full: 'fitFull', tight: 'fitTight', generous: 'fitGenerous', measuring: 'fitMeasuring' }[fit.state], fit.runs, lv.needRuns ?? 5, Math.round(lv.tightAt * 100)) + '</div>';
+    const fitNote = fit.state === 'ok' ? '' : '<div class="note' + (pressing ? ' c-fail' : '') + '">' + t({ full: 'fitFull', tight: 'fitTight', generous: 'fitGenerous', measuring: 'fitMeasuring' }[fit.state], fit.runs, lv.needRuns ?? 5, Math.round(lv.tightAt * 100)) + (fit.state === 'generous' ? info(t('tagGenerous'), t('fitGenerousInfo')) : '') + '</div>';
     const mine = limitsFor(entry);
     const choice = (text, pressed, values) => '<button data-do="limits/set" data-repo="' + esc(repo) + '"' + attrs(values) + ' aria-pressed="' + pressed + '">' + text + '</button>';
     const limits = !p.limits ? '' : '<div class="plim"><div class="row"><b class="grow">' + t('limitsTitle') + '</b><span class="seg">' + choice(t('limitsShared'), !own, { inherit: '1' }) + choice(t('limitsOwn'), own, Object.fromEntries(LIMIT_KEYS.map((key) => [key, mine[key]]))) + '</span></div>' +
@@ -1121,7 +1180,7 @@ function renderSettings() {
   const segments = active.map((entry, index) => '<div class="bseg" style="flex:' + (allowed(entry) / GIB).toFixed(3) + '"><div>' + cells(entry, index) + '</div><span><b>' + esc(shortRepo(entry.repo)) + '</b>' + caption(entry) + '</span></div>').join('');
   const budget = !slots || !vm ? '' : '<div><div class="k">' + t(services ? 'budgetLabelService' : 'budgetLabel', slots) + '</div><div class="v' + (tooBig ? ' c-fail' : '') + '">' + gbClean(total) + ' <small>' + t('budgetOf', gbClean(vm)) + '</small></div>' +
     '<div class="budget">' + segments + (total < vm ? '<div style="flex:' + ((vm - total) / GIB).toFixed(3) + '"></div>' : '') + '<div class="bcap' + (capAt > 60 ? ' end' : '') + '" style="left:' + capAt.toFixed(2) + '%"><span>' + t('vmMark') + '</span></div></div>' +
-    '<div class="note measure' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + '</div></div>';
+    '<div class="note measure' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + info(t('infoMemory'), over && !tooBig ? t('budgetOverInfo') : '', t('budgetHow')) + '</div></div>';
   // Freie Runner tragen ihre Limits bis zum nächsten Job; wer nicht warten will, baut sie neu auf.
   const stale = withPool.reduce((sum, entry) => sum + (entry.pool.limits?.stale ?? 0), 0);
   const rebuild = !stale ? '' : '<div class="row"><span class="rt note">' + t(stale === 1 ? 'staleOne' : 'staleMany', stale) + '</span>' + button('rebuild', t('rebuild'), { do: 'pool/rebuild' }) + '</div>';
@@ -1129,14 +1188,14 @@ function renderSettings() {
   const plan = lv.plan;
   const outliers = plan ? withPool.filter((entry) => plan.own[entry.repo]).map((entry) => esc(shortRepo(entry.repo))) : [];
   const planned = !plan ? '<div class="note">' + t('suggestNone') + '</div>' : '<div class="row"><span class="rt note">' +
-    '<span class="ink">' + (plan.applied ? t('planApplied') : t('planText', gbShort(plan.shared.runnerMemory), gbShort(plan.shared.dockerMemory), plan.shared.runnerCpus) + (outliers.length ? ' ' + t('planOwn', outliers.join(', ')) : '')) + '</span><br>' + t('planWhy') + '</span>' +
+    '<span class="ink">' + (plan.applied ? t('planApplied') : t('planText', gbShort(plan.shared.runnerMemory), gbShort(plan.shared.dockerMemory), plan.shared.runnerCpus) + (outliers.length ? ' ' + t('planOwn', outliers.join(', ')) : '')) + '</span>' + info(t('infoSuggest'), t('planWhy')) + '</span>' +
     (plan.applied ? '' : button('gauge', t('suggestApply'), { do: 'limits/plan' })) + '</div>';
   const limitsAll = '<div class="vary">' + budget + '</div>' + sliders(shared, plan?.shared, '') + '<div class="vary">' + planned + '</div><div class="vary">' + rebuild + '</div>';
 
   // --- App und Protokoll ---
-  const arow = (title, hint, control) => '<div class="arow"><div><b>' + title + '</b>' + (hint ? '<div class="note">' + hint + '</div>' : '') + '</div>' + control + '</div>';
+  const arow = (title, hint, control, more = '') => '<div class="arow"><div><b>' + title + '</b>' + (more ? info(title, more) : '') + (hint ? '<div class="note">' + hint + '</div>' : '') + '</div>' + control + '</div>';
   const app = (data.app ? arow(t('autostart'), '', '<input type="checkbox" class="sw" id="autostart" aria-label="' + t('autostart') + '"' + (data.app.autostart ? ' checked' : '') + '>') : '') +
-    arow(t('view'), t('viewHint'), seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode)) + arow(t('language'), '', seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang)) +
+    arow(t('view'), '', seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode), t('viewHint')) + arow(t('language'), '', seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang)) +
     '<div class="row" style="padding-top:12px">' + button('power', t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, { cls: 'danger push' }) + '</div>';
   // Filtern lässt sich nach jedem Projekt mit Pool und nach jedem, von dem noch Meldungen da sind (ein entfernter Pool).
   const logRepos = [...new Set([...withPool.map((entry) => entry.repo), ...logData.map((entry) => entry.repo).filter(Boolean)])];
@@ -1157,8 +1216,8 @@ function renderSettings() {
   // „GitHub“ steht vorn: Die Anmeldung ist die Voraussetzung für alles danach, und die Strecke liest sich so in der
   // Reihenfolge des Einrichtens. Ist alles in Ordnung, sind es zwei Zeilen.
   const html = '<div class="stack set"><div class="head"><div><h1>' + t('settings') + '</h1></div></div><div class="route">' +
-    (data.auth ? stop('auth', 'GitHub', '', authBody()) : '') + stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add) +
-    stop('limits', t('limitsTitle'), t('limitsNew'), limitsAll) + stop('app', t('app'), '', app) + stop('log', t('log'), !logShown.length ? '' : logShown.length === 1 ? t('logSideOne') : !logOpen && logShown.length > LOG_SHORT ? t('logSideOf', LOG_SHORT, logShown.length) : t('logSide', logShown.length), log) + '</div></div>';
+    (data.auth ? stop('auth', 'GitHub', '', authBody()) : '') + stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add, [t('projectsInfo')]) +
+    stop('limits', t('limitsTitle'), t('limitsNew'), limitsAll, [t('limitsInfo')]) + stop('app', t('app'), '', app) + stop('log', t('log'), !logShown.length ? '' : logShown.length === 1 ? t('logSideOne') : !logOpen && logShown.length > LOG_SHORT ? t('logSideOf', LOG_SHORT, logShown.length) : t('logSide', logShown.length), log, [t('logInfo')]) + '</div></div>';
   // Nicht neu aufbauen, solange im Eingabefeld etwas steht, das noch nicht abgeschickt ist.
   if (document.activeElement?.id === 'addRepo' && document.activeElement.value && main.dataset.html) return;
   put(main, html);
@@ -1174,8 +1233,8 @@ function renderEmpty() {
   // Ohne Anmeldung lässt sich kein Projekt anlegen: Dann ist sie der erste Schritt.
   // Fehlt `gh` oder ein Recht, sagt die Überschrift das, und der Satz dazu steht in der Zeile darunter.
   const trouble = authTrouble();
-  if (trouble) { put(main, '<div class="stack empty">' + (data.auth.state === 'out' ? viewHead(esc(t('authFirstTitle')), t('authFirstText')) : viewHead(esc(trouble), '')) + authBody(true) + '</div>'); return; }
-  put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText')) + '<div class="row">' +
+  if (trouble) { put(main, '<div class="stack empty">' + (data.auth.state === 'out' ? viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) : viewHead(esc(trouble), '')) + authBody(true) + '</div>'); return; }
+  put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText'), '', info(t('firstTitle'), t('projectsInfo'))) + '<div class="row">' +
     (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
 
@@ -1191,6 +1250,7 @@ function render() {
   else if (entry) renderOverview([entry], true);
   else { view = 'all'; renderOverview(data.repos, false); }
   tick();
+  placeInfo(); // die Info-Fläche folgt ihrem Symbol, wenn der neue Stand es verschoben hat
 }
 
 // Laufende Zeiten zählen zwischen den Abfragen in der Seite weiter.
@@ -1331,6 +1391,58 @@ document.addEventListener('focusin', (event) => {
   showTip(el.dataset.tip, box.left, box.top - 32);
 });
 document.addEventListener('focusout', () => { document.getElementById('tip').style.display = 'none'; });
+
+// Die Info-Fläche: zeigt die Erklärung eines Info-Elements (siehe info), am Symbol verankert. Sie steht unter ihm und
+// nur, wenn dort kein Platz ist, darüber; seitlich bleibt sie im Fenster. Überfahren, Tastaturfokus und Klick öffnen
+// sie; Verlassen, Fokuswechsel und Escape schließen sie. Der Inhalt ist eine Kopie der verborgenen Erklärung im Knopf (`.ib`).
+let infoAt = null; // das Info-Element, dessen Erklärung gerade steht
+let infoHeld = false; // per Klick festgehalten: bleibt beim Verlassen stehen
+function placeInfo() {
+  const box = document.getElementById('info');
+  if (!infoAt) return;
+  // Hat ein neuer Stand das Element ersetzt, gehört die Fläche zu nichts mehr.
+  if (!infoAt.isConnected) { hideInfo(); return; }
+  const at = infoAt.getBoundingClientRect();
+  const below = at.bottom + 8;
+  box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, at.left - 14)) + 'px';
+  box.style.top = (below + box.offsetHeight <= window.innerHeight - 8 ? below : Math.max(8, at.top - 8 - box.offsetHeight)) + 'px';
+}
+function showInfo(el) {
+  const box = document.getElementById('info');
+  if (infoAt !== el) infoHeld = false;
+  infoAt = el;
+  box.innerHTML = el.querySelector('.ib')?.innerHTML ?? '';
+  box.style.display = 'block';
+  placeInfo();
+}
+function hideInfo() {
+  infoAt = null;
+  infoHeld = false;
+  document.getElementById('info').style.display = 'none';
+}
+const infoOf = (target) => (target?.closest ? target.closest('.info') : null);
+// Zeiger auf dem Symbol oder auf der Fläche selbst: Die Fläche lässt sich zum Lesen und Markieren erreichen.
+const inInfo = (target) => Boolean(target?.closest && (target.closest('#info') || (infoAt && target.closest('.info') === infoAt)));
+// Zwischen Symbol und Fläche liegt ein Spalt: Verlassen schließt deshalb erst nach einem Augenblick, und wer Symbol
+// oder Fläche bis dahin wieder erreicht, behält sie.
+let infoLeave = 0;
+document.addEventListener('mouseover', (event) => { if (inInfo(event.target)) clearTimeout(infoLeave); const el = infoOf(event.target); if (el && el !== infoAt) showInfo(el); });
+document.addEventListener('mouseout', (event) => {
+  if (!infoAt || !inInfo(event.target) || inInfo(event.relatedTarget) || infoHeld || infoAt.matches(':focus-visible')) return;
+  clearTimeout(infoLeave);
+  infoLeave = setTimeout(() => { if (infoAt && !infoHeld && !infoAt.matches(':hover, :focus-visible') && !document.getElementById('info').matches(':hover')) hideInfo(); }, 180);
+});
+document.addEventListener('focusin', (event) => { const el = infoOf(event.target); if (el && el.matches(':focus-visible')) showInfo(el); else if (infoAt && !el && !infoHeld && !infoAt.matches(':hover')) hideInfo(); });
+document.addEventListener('focusout', (event) => { if (infoAt && infoOf(event.target) === infoAt && !infoHeld && !infoAt.matches(':hover')) hideInfo(); });
+// Ein Klick hält die Fläche fest, ein zweiter schließt sie; ein Klick daneben auch.
+document.addEventListener('click', (event) => {
+  const el = infoOf(event.target);
+  if (el) { if (infoAt === el && infoHeld) hideInfo(); else { showInfo(el); infoHeld = true; } return; }
+  if (infoHeld && !event.target.closest?.('#info')) hideInfo();
+});
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && infoAt) hideInfo(); });
+document.getElementById('main').addEventListener('scroll', placeInfo, { passive: true });
+window.addEventListener('resize', placeInfo);
 document.addEventListener('mouseleave', () => { document.getElementById('tip').style.display = 'none'; });
 
 // Verlauf unter dem Mauszeiger: Zeitpunkt und Wert, dazu eine Linie an der Stelle.
