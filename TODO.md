@@ -270,4 +270,5 @@ erstes Code- und Sicherheits-Review mit Korrekturen (Zugriff nur mit Schlüssel,
 Einstellungen und Verbrauch als Strecke mit Haltestellen, Limits je Job einstellbar mit Vorschlag aus den Messwerten,
 auch je Projekt; freie Runner lassen sich mit neuen Limits neu aufbauen · eigene Rückfrage statt des Dialogs von
 Windows, Fenster ohne Titelleiste von Windows · Protokoll als Liste mit Zeit, Projekt und Zustandssymbol, Filter nach
-Projekt, ganze Datei speichern oder kopieren.
+Projekt, ganze Datei speichern oder kopieren · Info-Symbole statt Textwände in Einstellungen und Verbrauch (vom Nutzer
+am 14.10.2026 im Fenster bestätigt, auch das Hinüberführen des Zeigers auf die Info-Fläche).
