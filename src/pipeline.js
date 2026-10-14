@@ -71,20 +71,40 @@ function parseWorkflow(text) {
 
 // Unter welchen Namen ein Job der Datei bei GitHub läuft. Der Name aus der Datei steht immer vollständig am Anfang,
 // danach ist nur erlaubt, was GitHub selbst anhängt – „Test“ trifft deshalb nicht „Tests bauen“:
-//   Ausdruck im Namen   `Test ${{ matrix.os }}` → „Test ubuntu-latest“: Der Ausdruck steht für beliebigen Text.
+//   Ausdruck im Namen   `Test ${{ matrix.os }}` → „Test ubuntu-latest“: Der Ausdruck steht für beliebigen Text, auch
+//                       für keinen („Test“). Das Leerzeichen daneben bleibt Pflicht, sobald er etwas ergibt.
 //   Matrix              „Name (Wert, Wert)“
 //   Aufruf (`uses:`)    „Name / innerer Job“, mit Matrix „Name (Wert) / innerer Job“. Nur für solche Jobs, denn
-//                       sonst träfe „Build“ einen fremden Job, der „Build / Docker“ heißt.
+//                       sonst träfe „Build“ einen fremden Job, der „Build / Docker“ heißt. Aus demselben Grund trifft
+//                       `Test ${{ matrix.os }}` keinen fremden „Test / Docker“.
 const EXPRESSION = /\$\{\{.*?\}\}/g;
 const EXPRESSIONS_MAX = 3; // mehr Ausdrücke in einem Jobnamen werden nicht mehr als Muster gelesen
+const CALL = ' / '; // so trennt GitHub den aufrufenden vom aufgerufenen Job
 function matcherOf(defined) {
   // Jeder Ausdruck steht für beliebigen Text. Mehrere davon machen das Prüfen eines langen Jobnamens beliebig teuer;
   // Ausdrücke direkt hintereinander zählen deshalb als einer, und mit mehr als EXPRESSIONS_MAX gilt nur der genaue Name.
   const parts = defined.name.split(EXPRESSION).filter((part, index, all) => part || index === 0 || index === all.length - 1);
   const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const name = parts.length - 1 > EXPRESSIONS_MAX ? literal(defined.name) : parts.map(literal).join('.*');
-  return new RegExp(defined.uses ? `^${name}( \\(.*\\))? / ` : `^${name}( \\(.*)?$`);
+  // Ein Ausdruck samt den Leerzeichen, die ihn vom festen Text trennen: Ergibt er nichts, fallen sie mit ihm weg.
+  const expression = (before, after) => {
+    const left = /\s$/.test(before);
+    const right = /^\s/.test(after);
+    if (left && right) return '\\s(?:.*\\s)?';
+    if (left) return '(?:\\s.*)?';
+    if (right) return '(?:.*\\s)?';
+    return '.*';
+  };
+  const name = parts.length - 1 > EXPRESSIONS_MAX ? literal(defined.name) : parts.map((part, index) => {
+    const fixed = literal(part.replace(index > 0 ? /^\s+/ : /^/, '').replace(index < parts.length - 1 ? /\s+$/ : /$/, ''));
+    return index < parts.length - 1 ? fixed + expression(part, parts[index + 1]) : fixed;
+  }).join('');
+  const pattern = new RegExp(defined.uses ? `^${name}( \\(.*\\))?${CALL}` : `^${name}( \\(.*)?$`);
+  const called = !defined.uses && !defined.name.includes(CALL); // ein „ / “ im Namen gehört dann zu einem fremden Aufruf
+  return { test: (job) => pattern.test(job) && !(called && job.includes(CALL)) };
 }
+
+// Wie ein angekündigter Job heißt, solange GitHub seinen Namen noch nicht ausgewertet hat: „Test …“.
+const announced = (defined) => defined.name.replace(EXPRESSION, '…');
 
 // Ordnet Jobs nach ihren Abhängigkeiten in Stufen: 0 hat keine, sonst eine mehr als die tiefste Abhängigkeit.
 function stagesOf(jobs) {
@@ -112,6 +132,15 @@ function createPipelines({ gh, dataDir }) {
 
   const key = (workflow, job) => `${workflow} / ${job}`;
   const estimate = (repo, workflow, job) => median(memoryOf(repo).durations[key(workflow, job)] ?? []);
+  // Ein angekündigter Job läuft bei GitHub oft unter anderem Namen (Ausdruck, Matrix): dann zählen alle gelernten Jobs
+  // desselben Workflows, die zu ihm passen.
+  function estimateOf(repo, workflow, defined, matcher) {
+    const prefix = key(workflow, '');
+    const durations = Object.entries(memoryOf(repo).durations)
+      .filter(([name]) => name.startsWith(prefix) && matcher.test(name.slice(prefix.length)))
+      .flatMap(([, values]) => values);
+    return estimate(repo, workflow, defined.name) ?? median(durations);
+  }
   const jobsOfRun = async (repo, id) => (await gh(['api', `repos/${repo}/actions/runs/${id}/jobs?per_page=100`])).jobs;
 
   async function workflowOf(repo, run) {
@@ -168,7 +197,7 @@ function createPipelines({ gh, dataDir }) {
       };
     });
     const present = new Map(jobs.map((job) => [job.name, job]));
-    const pending = (name) => ({ id: null, name, status: 'pending', conclusion: null, runner: null, own: true, startedAt: null, completedAt: null, url: run.html_url, estimate: estimate(repo, run.name, name), needs: [], step: null });
+    const pending = (name, guess = estimate(repo, run.name, name)) => ({ id: null, name, status: 'pending', conclusion: null, runner: null, own: true, startedAt: null, completedAt: null, url: run.html_url, estimate: guess, needs: [], step: null });
     if (definition) {
       // Ein Job der Datei kann als mehrere Jobs laufen (Matrix, Aufruf) und dort anders heißen: siehe matcherOf.
       // Jeder echte Job gehört zu höchstens einem Job der Datei: zu dem, der genau so heißt, sonst zu dem mit dem
@@ -184,10 +213,15 @@ function createPipelines({ gh, dataDir }) {
       }
       const actual = (defined) => found.get(defined);
       const nameOf = new Map(definition.map((defined) => [defined.id, defined]));
-      for (const defined of definition) if (!actual(defined).length && run.status !== 'completed') { const job = pending(defined.name); jobs.push(job); present.set(job.name, job); }
       for (const defined of definition) {
-        const parents = defined.needs.map((id) => nameOf.get(id)).filter(Boolean).flatMap((parent) => { const found = actual(parent); return found.length ? found : [present.get(parent.name)].filter(Boolean); });
-        for (const job of [...actual(defined), present.get(defined.name)].filter(Boolean)) job.needs = [...new Set(parents.map((parent) => parent.name))].filter((name) => name !== job.name);
+        if (actual(defined).length || run.status === 'completed') continue;
+        const job = pending(announced(defined), estimateOf(repo, run.name, defined, matchers.get(defined)));
+        jobs.push(job);
+        present.set(job.name, job);
+      }
+      for (const defined of definition) {
+        const parents = defined.needs.map((id) => nameOf.get(id)).filter(Boolean).flatMap((parent) => { const found = actual(parent); return found.length ? found : [present.get(announced(parent))].filter(Boolean); });
+        for (const job of [...actual(defined), present.get(announced(defined))].filter(Boolean)) job.needs = [...new Set(parents.map((parent) => parent.name))].filter((name) => name !== job.name);
       }
     } else if (run.status !== 'completed') {
       for (const name of (Object.hasOwn(memory.jobsOf, run.name) ? memory.jobsOf[run.name] : [])) if (!present.has(name)) jobs.push(pending(name));

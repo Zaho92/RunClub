@@ -151,11 +151,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 `;
-const EXPR = 'Test ${{ matrix.os }}';
+const EXPR = 'Test …'; // so heißt `Test ${{ matrix.os }}`, solange GitHub den Job nicht angelegt hat
 
-async function renamed(activeJobs) {
+// `durations`: schon gelernte Dauern des Workflows „CI“, Jobname -> Sekunden.
+async function renamed(activeJobs, durations = {}) {
   const gh = async (args) => args[1].includes('/contents/') ? { content: Buffer.from(RENAMED).toString('base64') } : { jobs: activeJobs };
-  const pipelines = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
+  const learned = Object.fromEntries(Object.entries(durations).map(([name, values]) => [`CI / ${name}`, values]));
+  fs.writeFileSync(path.join(dataDir, 'history.json'), JSON.stringify({ [REPO]: { durations: learned, jobsOf: {}, seen: [] } }));
+  const pipelines = createPipelines({ gh, dataDir });
   await pipelines.refresh(REPO, [{ id: 2, name: 'CI', status: 'in_progress', conclusion: null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', path: '.github/workflows/ci.yml', head_sha: 'abc', run_started_at: iso(-60) }]);
   const [pipeline] = pipelines.view(REPO, 4);
   return { pipeline, pending: pipeline.jobs.filter((j) => j.status === 'pending').map((j) => j.name), needs: (name) => pipeline.jobs.find((j) => j.name === name).needs };
@@ -201,6 +205,30 @@ test('ein Job schluckt keinen fremden mit ähnlichem Namen', async () => {
   for (const name of strangers) assert.deepEqual(needs(name), []);
   // „Test“ gehört zum Job, der genau so heißt – nicht zum Job mit dem Ausdruck im Namen.
   assert.deepEqual((await renamed([done('Vorbereiten', 10), done('Test', 10)])).pending, [EXPR, 'lint', 'Ausliefern']);
+});
+
+test('ein Ausdruck im Namen steht nie für „ / “ und darf leer sein', () => {
+  const { matcherOf } = require('../src/pipeline');
+  const test = matcherOf({ name: 'Test ${{ matrix.os }}' });
+  assert.equal(test.test('Test ubuntu-latest'), true);
+  assert.equal(test.test('Test'), true); // der Ausdruck ergab nichts
+  assert.equal(test.test('Test (18)'), true);
+  assert.equal(test.test('Test / Docker'), false); // gehört zu einem fremden Aufruf
+  assert.equal(test.test('Tests bauen'), false);
+  const middle = matcherOf({ name: 'Bau ${{ inputs.ziel }} fertig' });
+  assert.deepEqual(['Bau x fertig', 'Bau fertig', 'Bau  fertig', 'Baufertig', 'Bau xfertig'].map((name) => middle.test(name)), [true, true, true, false, false]);
+  const call = matcherOf({ name: 'Ausliefern ${{ inputs.ziel }}', uses: true });
+  assert.equal(call.test('Ausliefern / Bauen'), true);
+  assert.equal(call.test('Ausliefern prod / Bauen'), true);
+  assert.equal(call.test('Ausliefern prod'), false);
+});
+
+test('ein angekündigter Job hat die Dauer der passenden gelernten Jobs', async () => {
+  const { pipeline } = await renamed([done('Vorbereiten', 10)], { 'Test ubuntu-latest': [100], 'Test windows-latest': [200, 300], 'lint (18)': [40], Vorbereiten: [10] });
+  const estimate = (name) => pipeline.jobs.find((j) => j.name === name).estimate;
+  assert.equal(estimate(EXPR), 200);
+  assert.equal(estimate('lint'), 40);
+  assert.equal(estimate('Ausliefern'), null); // nichts gelernt
 });
 
 test('viele Ausdrücke im Namen werden nicht zum teuren Muster', async () => {
