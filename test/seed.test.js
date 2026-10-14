@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { createSeed, LEARNED_DAYS, LEARNED_MAX } = require('../src/seed');
 const { DAY } = require('../src/units');
 const { createEngine } = require('../src/engine');
+const { turn, settle } = require('./support');
 
 const REPO = 'wer/App';
 const SEED = 'rc-seed-app';
@@ -11,8 +12,6 @@ const MARK = 'runclub.runner=test';
 const GONE = 'Error response from daemon: manifest for weg:1 not found: manifest unknown: manifest unknown';
 const BUSY = 'toomanyrequests: You have reached your unauthenticated pull rate limit.';
 
-const turn = () => new Promise((resolve) => setImmediate(resolve));
-async function settle() { for (let turns = 0; turns < 20; turns += 1) await turn(); }
 const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
 
 // Ein Aufruf von Docker in Kurzform: im Lade-Daemon nur, was dort geschieht.
@@ -22,7 +21,7 @@ function brief(args) {
   return args.join(' ');
 }
 
-// Docker und der Rest von backend.js nachgestellt. `calls` hält die Aufrufe an Docker in ihrer Reihenfolge,
+// Docker und der Rest nachgestellt. `calls` hält die Aufrufe an Docker in ihrer Reihenfolge,
 // `answer(name, args, options)` kann einem Aufruf ein Ergebnis geben (sonst gelingt er ohne Ausgabe).
 // Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
 function world() {
@@ -32,7 +31,7 @@ function world() {
     state: { learned: {}, rejected: {} },
     pool: { repo: REPO, seeded: new Set() },
   };
-  // Docker über engine.js, wie in backend.js; nachgestellt ist nur `run`.
+  // Docker über engine.js, wie im Betrieb; nachgestellt ist nur `run`.
   const run = async (command, args, options = {}) => {
     const name = brief(args);
     w.calls.push(name);

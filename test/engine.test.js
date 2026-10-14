@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { engineFrom, createEngine, DESKTOP_DISTRO } = require('../src/engine');
+const { EventEmitter } = require('node:events');
+const { engineFrom, createEngine, DESKTOP_DISTRO, EXPOSED_PING } = require('../src/engine');
 
 // `run` nachgestellt: merkt sich jeden Aufruf und antwortet mit `answer`.
 function fakeRun(answer = { code: 0, stdout: '', stderr: '' }) {
@@ -72,4 +73,33 @@ test('gemessen wird in der Distro der Engine, ohne deren Shell dazwischen; ohne 
   assert.deepEqual(none.calls, []);
   assert.equal(result.code, -1);
   assert.equal(result.stdout, '');
+});
+
+// Ein nachgestelltes `http.get`: `answer` ist der Text, den der Port liefert, oder ein Fehler.
+function fakeGet(answer, calls = []) {
+  return (url, options, onResponse) => {
+    calls.push([url, options.timeout]);
+    const request = new EventEmitter();
+    request.destroy = () => request.emit('error', new Error('abgebrochen'));
+    setImmediate(() => {
+      if (answer instanceof Error) { request.emit('error', answer); return; }
+      const response = new EventEmitter();
+      onResponse(response);
+      response.emit('data', answer);
+      response.emit('end');
+    });
+    return request;
+  };
+}
+
+test('ein ungeschützter Daemon auf Port 2375 wird erkannt, nur bei Docker Desktop', async () => {
+  const calls = [];
+  const run = async () => ({ code: 0, stdout: '', stderr: '' });
+  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet('OK', calls) }).exposedDaemon(), true);
+  assert.deepEqual(calls, [[EXPOSED_PING, 2000]]);
+  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })) }).exposedDaemon(), false);
+  assert.equal(await createEngine({ run, timeout: 1, get: fakeGet('etwas anderes') }).exposedDaemon(), false);
+  const other = [];
+  assert.equal(await createEngine({ run, timeout: 1, host: 'npipe:////./pipe/runclub', get: fakeGet('OK', other) }).exposedDaemon(), false);
+  assert.deepEqual(other, []);
 });

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createLinux, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/linux');
+const { createLinux, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/linux');
 const { createEngine } = require('../src/engine');
 
 const MARK = 'runclub.runner=test';
@@ -10,7 +10,7 @@ const IMAGE = 'runner:test';
 // Ein Aufruf von Docker in Kurzform.
 const brief = (args) => args.join(' ');
 
-// Docker, GitHub und der Rest von backend.js nachgestellt. `calls` hält die Aufrufe an Docker und GitHub in ihrer
+// Docker, GitHub und der Rest nachgestellt. `calls` hält die Aufrufe an Docker und GitHub in ihrer
 // Reihenfolge; `answer(name)` kann einem Docker-Aufruf ein Ergebnis geben (sonst gelingt er ohne Ausgabe).
 // `sleep` merkt sich die Dauer und ruft `onSleep`, mit dem ein Test die Schleife steuert oder beendet.
 function world() {
@@ -18,7 +18,7 @@ function world() {
     calls: [], logs: [], slept: [], prepared: [], ready: 0, alive: 0, stopping: false, answer: () => undefined, onSleep: () => {},
     runners: { runners: [] }, ghFails: null, livePairs: new Map(), repos: ['wer/App'], pools: [{ repo: 'wer/App', prepared: true }],
   };
-  // Docker über engine.js, wie in backend.js; nachgestellt ist nur `run`.
+  // Docker über engine.js, wie im Betrieb; nachgestellt ist nur `run`.
   const run = async (command, args, options = {}) => {
     w.calls.push(brief(args));
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(brief(args), options)) };
@@ -30,7 +30,7 @@ function world() {
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
     host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, image: IMAGE, imageDir: 'C:/rc/linux', requiredImages: ['dind:test', 'buildkit:test'], longTimeout: 1234,
-    unreachableText,
+    unreachableText, exposedDaemon: async () => w.exposed,
     livePairs: w.livePairs, repos: () => w.repos, pools: () => w.pools,
     preparePool: async (pool) => { w.prepared.push(pool.repo); assert.equal(pool.prepared, false); },
     stopping: () => w.stopping,
@@ -227,4 +227,17 @@ test('nach einer Unterbrechung geht nur, was zu keinem stehenden Paar gehört', 
   const quiet = world();
   await quiet.linux.removeOrphans();
   assert.deepEqual(quiet.logs, []);
+});
+
+test('gibt Docker seinen Daemon ohne Schutz frei, steht das nach der Vorbereitung im Protokoll', async () => {
+  const w = world();
+  w.exposed = true;
+  await loopFor(w, 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(w.logs.filter(([text]) => text === EXPOSED_TEXT), [[EXPOSED_TEXT, null, 'error']]);
+
+  const safe = world();
+  safe.exposed = false;
+  await loopFor(safe, 1);
+  assert.equal(safe.logs.some(([text]) => text === EXPOSED_TEXT), false);
 });

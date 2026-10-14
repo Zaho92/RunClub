@@ -16,6 +16,7 @@ const PROBE_TIMEOUT = 20 * SECOND;
 const READY_PAUSE = 30 * SECOND; // Abstand der Prüfungen, solange Docker antwortet
 const WAIT_PAUSE = 15 * SECOND; // … und solange es noch nicht vorbereitet ist
 const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
+const EXPOSED_TEXT = 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.';
 
 //   docker(args, options), dockerList(args)   aus engine.js
 //   gh(args)                Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
@@ -26,6 +27,7 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   requiredImages          Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
 //   unreachableText         die Meldung, wenn Docker nicht antwortet (aus engine.js)
+//   exposedDaemon()         ob der Daemon ohne Schutz auf tcp://localhost:2375 frei liegt (aus engine.js)
 //   livePairs               Name des Paars -> Repo (aus slots.js)
 //   repos(), pools()        die Repos mit Pool laut Einstellung, die stehenden Pools
 //   preparePool(pool)       Caches und Vorlage eines Pools bereitstellen
@@ -34,7 +36,7 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createLinux({
   docker, dockerList, gh, log, sleep,
-  host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText,
+  host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText, exposedDaemon = async () => false,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
 }) {
@@ -120,6 +122,11 @@ function createLinux({
     } catch (error) { log(`Abmelden alter Runner – ${error.message}`, repo, 'error'); }
   }
 
+  // Geprüft wird, sobald Docker (wieder) vorbereitet ist: Der Schalter in Docker Desktop kann inzwischen umgelegt sein.
+  async function warnIfExposed() {
+    if (await exposedDaemon()) log(EXPOSED_TEXT, null, 'error');
+  }
+
   // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
   async function linuxLoop() {
     let misses = 0;
@@ -132,6 +139,7 @@ function createLinux({
           linuxError = null;
           misses = 0;
           onReady();
+          warnIfExposed();
           for (const pool of pools()) await preparePool(pool);
         } catch (error) {
           if (linuxError !== error.message) log(error.message, null, 'error');
@@ -159,4 +167,4 @@ function createLinux({
   };
 }
 
-module.exports = { createLinux, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };
+module.exports = { createLinux, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };

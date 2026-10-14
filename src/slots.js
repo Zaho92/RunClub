@@ -4,7 +4,7 @@
 // abbrechen (`abortIdle`) und die Schleife, die das wiederholt (`slotLoop`).
 //
 // Was zum Pool im Ganzen gehört, kommt als Funktion herein: die Reserve (`replenish`, `discardReserve`, beide aus
-// pools.js), die Vorlage (`withSeed`, `learnImages`, beide aus seed.js), aus backend.js die Namen der Caches und des
+// pools.js), die Vorlage (`withSeed`, `learnImages`, beide aus seed.js), aus names.js die Namen der Caches und des
 // Build-Dienstes, die Einstellungen und Limits eines Repos. Zustand, den beide Seiten brauchen (`stopping`,
 // `linuxReady`, `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
@@ -12,7 +12,7 @@
 //   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, kept, … }
 //   Paar    { id, base, copied, extras, limits }; `base` ist der Name, den Container, Volumes und Netz tragen
 //
-// Zustände eines Platzes: startet, bereit, arbeitet, räumt auf, gestört, wartet, pausiert, wartet auf Docker, aus.
+// Zustände eines Platzes: siehe states.js.
 
 const crypto = require('node:crypto');
 const { lastLine } = require('./run');
@@ -22,6 +22,7 @@ const { resultKind, resultText } = require('./journal');
 const limitRules = require('./limits');
 const { SOCKET_DIR, SERVICE_USER, PIDS_MAX } = require('./caches');
 const { SECOND } = require('./units');
+const { SLOT, busy } = require('./states');
 
 const ROUND_PAUSE = 5 * SECOND; // nach einem unerwarteten Fehler, bevor der Platz es wieder versucht
 const REATTACH_MAX = 5; // so oft wird nach einem Abriss der Verbindung wieder mitgelesen
@@ -124,7 +125,7 @@ function createSlots({
   }
 
   async function serveOneJob(pool, slot) {
-    Object.assign(slot, { state: 'startet', job: null, finished: false, error: null, aborted: false, building: true });
+    Object.assign(slot, { state: SLOT.STARTING, job: null, finished: false, error: null, aborted: false, building: true });
     // Ein Paar, dessen Anmeldung zuletzt scheiterte, steht noch: Es wird wieder genommen statt eines aus der Reserve.
     let pair = slot.kept ?? null;
     slot.kept = null;
@@ -172,9 +173,9 @@ function createSlots({
     const follow = (line) => {
       const started = line.match(/Running job: (.+)$/);
       const finished = line.match(/Job (.+) completed with result: (\w+)/);
-      if (/Listening for Jobs/.test(line) && slot.state === 'startet') slot.state = 'bereit';
-      if (started && slot.state !== 'arbeitet') {
-        Object.assign(slot, { state: 'arbeitet', job: started[1], jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
+      if (/Listening for Jobs/.test(line) && slot.state === SLOT.STARTING) slot.state = SLOT.READY;
+      if (started && slot.state !== SLOT.WORKING) {
+        Object.assign(slot, { state: SLOT.WORKING, job: started[1], jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
         log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run', { job: started[1], runner: slot.name });
         refreshRepo(pool.repo);
         timer(() => refreshRepo(pool.repo), 4000);
@@ -230,14 +231,14 @@ function createSlots({
         await sleep(ROUND_PAUSE);
       });
     }
-    slot.state = 'aus';
+    slot.state = SLOT.OFF;
     pool.slots = pool.slots.filter((other) => other !== slot);
   }
 
   // Eine Runde des Platzes: warten, solange der Pool ruht, sonst einen Job bedienen und das Paar abräumen.
   async function slotRound(pool, slot) {
     if (!linuxReady() || poolResting(pool)) {
-      slot.state = !linuxReady() ? 'wartet auf Docker' : settingsOf(pool.repo)?.paused ? 'pausiert' : 'wartet';
+      slot.state = !linuxReady() ? SLOT.NO_DOCKER : settingsOf(pool.repo)?.paused ? SLOT.PAUSED : SLOT.WAITING;
       await discardReserve(pool);
       await sleep(1000);
       return;
@@ -246,7 +247,7 @@ function createSlots({
       await serveOneJob(pool, slot);
     } catch (error) {
       if (!slot.aborted) {
-        Object.assign(slot, { error: error.message, state: 'gestört' });
+        Object.assign(slot, { error: error.message, state: SLOT.BROKEN });
         log(error.message, pool.repo, 'error');
         if (!slot.kept) await teardown(slot);
         // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
@@ -257,26 +258,38 @@ function createSlots({
         return;
       }
     }
-    slot.state = 'räumt auf';
+    slot.state = SLOT.CLEANING;
     await teardown(slot);
   }
 
   // Ein Paar ohne Job vorzeitig beenden.
   async function abortIdle(slot) {
-    if (slot.state === 'arbeitet' || slot.state === 'räumt auf') return;
+    if (busy(slot)) return;
     slot.aborted = true;
     // Der Runner-Container kann gerade erst entstehen: so lange entfernen, bis der Platz sein Paar abgeräumt hat.
     // Hat der Runner inzwischen doch einen Job angenommen, läuft der zu Ende.
     const { base } = slot;
-    for (let attempt = 0; attempt < 60 && base && slot.base === base && slot.state !== 'arbeitet'; attempt += 1) {
+    for (let attempt = 0; attempt < 60 && base && slot.base === base && slot.state !== SLOT.WORKING; attempt += 1) {
       await docker(['rm', '-f', `${base}-runner`]);
       if (slot.base === base) await sleep(1000);
     }
     // Der Abbruch gilt nicht mehr: Sonst würden die Abbilder dieses Jobs nicht gelernt.
-    if (slot.state === 'arbeitet') slot.aborted = false;
+    if (slot.state === SLOT.WORKING) slot.aborted = false;
   }
 
   return { livePairs, provision, removePair, teardown, serveOneJob, slotLoop, abortIdle, slotWanted };
 }
 
-module.exports = { createSlots };
+// Der Platz merkt sich den Workflow seines Jobs: Am Ende nennt der Runner nur den Jobnamen (siehe metrics.js).
+// `jobs`: die laufenden Jobs des Repos, wie GitHub sie meldet ({ runner, workflow }; siehe remote.js).
+function noteWorkflows(pool, jobs) {
+  for (const slot of pool?.slots ?? []) {
+    if (slot.state === SLOT.WORKING) slot.workflow = jobs.find((job) => job.runner === slot.name)?.workflow || slot.workflow;
+  }
+}
+
+// Die Anmeldungen der freien Plätze aller Pools: `[{ repo, runnerId }]`. Sie lassen sich bei GitHub zurücknehmen,
+// ohne dass ein Job verloren geht.
+const idleRegistrations = (pools) => [...pools].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job).map((slot) => ({ repo: slot.repo, runnerId: slot.runnerId })));
+
+module.exports = { createSlots, noteWorkflows, idleRegistrations };

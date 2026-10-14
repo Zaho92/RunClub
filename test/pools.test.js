@@ -1,22 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPools } = require('../src/pools');
-const { createSlots } = require('../src/slots');
+const { createRunners } = require('../src/runners');
+const { createNames, DEFAULT_PORT } = require('../src/names');
+const { runnerView } = require('../src/status');
 const limitRules = require('../src/limits');
+const { turn, until, settle } = require('./support');
 
 const REPO = 'wer/App';
 const MARK = 'runclub.runner=test';
 const OLD = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 4, dockerMemory: '8g' };
 const NEW = { ...OLD, dockerMemory: '6g' };
 const NEWER = { ...OLD, dockerMemory: '5g' };
-
-const turn = () => new Promise((resolve) => setImmediate(resolve));
-async function until(condition) {
-  for (let turns = 0; turns < 1000; turns += 1) { if (condition()) return; await turn(); }
-  throw new Error('Die Bedingung trat nicht ein.');
-}
-// Lässt alles laufen, was ohne weiteres Zutun laufen kann.
-async function settle() { for (let turns = 0; turns < 20; turns += 1) await turn(); }
 
 function basics() {
   return {
@@ -26,7 +21,7 @@ function basics() {
   };
 }
 
-// Die Plätze aus slots.js und der Rest von backend.js nachgestellt. `calls` hält in ihrer Reihenfolge, was die Reserve
+// Die Plätze aus slots.js und der Rest nachgestellt. `calls` hält in ihrer Reihenfolge, was die Reserve
 // von den Plätzen verlangt. Ein Aufbau (`builds`) bleibt offen, bis der Test ihn mit `finish` oder `fail` beendet.
 // Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
 function world() {
@@ -502,10 +497,10 @@ test('rebuildIdle wartet auf `hold` und entscheidet erst danach, ob ein Job läu
   assert.equal(ended.pool.renewing, undefined);
 });
 
-// --- Mit den echten Plätzen aus slots.js, verdrahtet wie in backend.js; nachgestellt sind nur Docker und GitHub ---
+// --- Mit den echten Plätzen, verdrahtet von runners.js wie im Betrieb; nachgestellt sind nur Docker und GitHub ---
 
 function wired() {
-  const w = { ...basics(), ends: new Map(), emit: new Map(), ids: 0, caches: 0 };
+  const w = { ...basics(), ends: new Map(), emit: new Map(), ids: 0 };
   const docker = async (args, options = {}) => {
     const name = args[0] === 'run' ? `run ${args[args.indexOf('--name') + 1]}` : args[0] === 'rm' ? `rm ${args.at(-1)}` : args.slice(0, 2).join(' ');
     w.calls.push(name);
@@ -525,25 +520,14 @@ function wired() {
   };
   const sleep = async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); };
   const log = (...entry) => w.logs.push(entry);
-  const settingsOf = (repo) => (repo === REPO ? w.settings : undefined);
-  const limitsOf = () => w.limits;
-  const { provision, removePair, teardown, slotLoop, abortIdle } = createSlots({
-    docker, gh, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
-    host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234,
+  w.pools = createRunners({
+    docker, dockerList: async () => [], gh, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
+    host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1234,
+    settings: { settingsOf: (repo) => (repo === REPO ? w.settings : undefined), limitsOf: () => w.limits, state: { learned: {}, rejected: {} }, saveState: () => {} },
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
-    settingsOf, limitsOf, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
-    stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: (...args) => w.pools.poolResting(...args),
-    withSeed: (repo, exclusive, work) => work(), learnImages: async () => {},
-    replenish: (...args) => w.pools.replenish(...args), discardReserve: (...args) => w.pools.discardReserve(...args),
-    refreshRepo: () => {}, forgetStats: () => {},
+    stopping: () => w.stopping, linuxReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
   });
-  w.pools = createPools({
-    log, sleep, settingsOf, limitsOf, stopping: () => w.stopping, linuxReady: () => w.ready,
-    provision, removePair, teardown, slotLoop, abortIdle,
-    prepareCaches: async () => { w.caches += 1; },
-    pools: new Map(), refreshSeed: async () => {}, measureSizes: async () => {},
-  });
-  w.abortIdle = abortIdle;
+  w.abortIdle = w.pools.slots.abortIdle;
   // Am Ende eines Tests: alle Schleifen beenden, damit nichts weiterläuft.
   w.finish = async () => {
     w.stopping = true;
@@ -553,7 +537,11 @@ function wired() {
   return w;
 }
 
-const names = (w) => w.pool.slots.map((slot) => `${slot.name} ${slot.retired && slot.state !== 'aus' ? `${slot.state}, läuft aus` : slot.state}`);
+// Die Plätze, wie die Oberfläche sie sieht (siehe status.js): Name, Zustand und ob er ausläuft.
+const names = (w) => w.pool.slots.map((slot, index) => {
+  const runner = runnerView({ slot, index, repo: REPO, jobs: [], statsOf: () => undefined, cpus: 1 });
+  return `${slot.name} ${runner.state}${runner.retiring ? ', läuft aus' : ''}`;
+});
 const count = (w, call) => w.calls.filter((name) => name === call).length;
 
 test('echte Plätze: Ein Platz nimmt sein Paar aus der Reserve, und sie füllt sich nach', async () => {

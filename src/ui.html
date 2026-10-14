@@ -335,7 +335,7 @@ const TEXT = {
     noMinutesOne: 'Keine GitHub-Minuten: Ein Lauf ist seit {1} nicht gestartet', noMinutesMany: 'Keine GitHub-Minuten: {0} Läufe sind seit {1} nicht gestartet', noMinutesTip: 'Die GitHub-Minuten sind aufgebraucht. Mit einem Pool laufen die Jobs auf diesem Rechner und brauchen keine.',
     rerun: 'Erneut starten', rerunFailed: 'Nur Gescheiterte', rerunJob: 'Job erneut starten', rerunTip: 'Alle Jobs dieses Laufs noch einmal ausführen', rerunFailedTip: 'Nur die gescheiterten Jobs noch einmal ausführen; die gelungenen behalten ihr Ergebnis', rerunDone: 'Erneut gestartet. Bei GitHub dauert es einen Augenblick, bis der Lauf wieder erscheint.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
     peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
-    reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', github: 'GitHub: {0}',
+    reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', dockerStarting: 'startet', github: 'GitHub: {0}',
     runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
     wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
     day: 'Die letzten 24 Stunden',
@@ -400,7 +400,7 @@ const TEXT = {
     noMinutesOne: 'No GitHub minutes: one run has not started for {1}', noMinutesMany: 'No GitHub minutes: {0} runs have not started for {1}', noMinutesTip: 'The GitHub minutes are used up. With a pool the jobs run on this machine and need none.',
     rerun: 'Re-run', rerunFailed: 'Failed only', rerunJob: 'Re-run job', rerunTip: 'Run all jobs of this run again', rerunFailedTip: 'Run only the failed jobs again; the successful ones keep their result', rerunDone: 'Re-run started. It takes GitHub a moment to show the run again.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
     peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
-    reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', github: 'GitHub: {0}',
+    reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', dockerStarting: 'starting', github: 'GitHub: {0}',
     runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
     wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
     day: 'The last 24 hours',
@@ -486,6 +486,8 @@ const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/
 const shortRepo = (repo) => repo.split('/')[1]; // der Name ohne den Besitzer
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
 const stateText = (state) => (lang === 'de' ? state : state.split(', ').map((part) => STATES_EN[part] ?? part).join(', '));
+// Der Zustand eines Runners samt „läuft aus“, wenn der Platz wegfällt, sobald er frei ist.
+const runnerState = (r) => (r.retiring ? r.state + ', läuft aus' : r.state);
 const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
 const icon = (state) => '<span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[state] + '</svg></span>';
 const jobState = (j) => j.status === 'in_progress' ? 'run' : j.status !== 'completed' ? 'wait' : ({ success: 'done', failure: 'fail', timed_out: 'fail', cancelled: 'cancel', skipped: 'skip' })[j.conclusion] ?? 'done';
@@ -630,7 +632,7 @@ function authBody(first) {
 
 function renderRail() {
   const runners = data.repos.flatMap((r) => r.runners);
-  const count = (state) => runners.filter((r) => r.state.startsWith(state)).length;
+  const count = (state) => runners.filter((r) => r.state === state).length;
   // Fehlt die Anmeldung, geht das allem anderen vor: Ohne sie lässt sich an den Limits nichts tun.
   const signIn = authTrouble();
   const trouble = limitTrouble();
@@ -815,11 +817,11 @@ function seats(entries) {
   for (const entry of entries) {
     const short = shortRepo(entry.repo);
     entry.runners.forEach((r, index) => {
-      if (!r.state.startsWith('arbeitet')) return;
+      if (r.state !== 'arbeitet') return;
       rows.push('<tr><td style="white-space:nowrap">' + esc(many ? short + ' ' + (index + 1) : index + 1) + '</td><td class="cut" title="' + esc(r.job?.job ?? '') + '">' + esc(r.job?.job ?? '') + '</td><td class="r">' + mb(r.memory) + '</td><td class="r">' + num(r.cores ?? 0) + '</td></tr>');
     });
-    const rest = entry.runners.filter((r) => !r.state.startsWith('arbeitet'));
-    const states = [...new Set(rest.map((r) => r.state))].map((state) => rest.filter((r) => r.state === state).length + ' ' + stateText(state)).join(', ');
+    const rest = entry.runners.filter((r) => r.state !== 'arbeitet');
+    const states = [...new Set(rest.map(runnerState))].map((state) => rest.filter((r) => runnerState(r) === state).length + ' ' + stateText(state)).join(', ');
     if (rest.length) idle.push((many ? short + ': ' : '') + states);
   }
   const reserve = entries.reduce((sum, e) => sum + (e.pool?.reserve ?? 0), 0);
@@ -844,7 +846,7 @@ const minutesTrouble = () => { const { tight, out } = minutesState(); return tig
 const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
 // Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
-const warnings = (entries) => [data.machine.docker === 'bereit' ? '' : t('docker', data.machine.docker), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+const warnings = (entries) => [data.machine.docker.ready ? '' : t('docker', data.machine.docker.error ?? t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz, `more` ist ein Info-Element am Titel.
 const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';

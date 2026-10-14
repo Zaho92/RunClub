@@ -7,7 +7,7 @@ const { createMetrics } = require('../src/metrics');
 
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
 const fresh = (options) => createMetrics({ dataDir: tempDir(), ...options });
-const GB = 1073741824;
+const { GB } = require('../src/units');
 
 test('ein Job merkt sich Spitzen und Durchschnitt, Runner und Docker getrennt', () => {
   const metrics = fresh();

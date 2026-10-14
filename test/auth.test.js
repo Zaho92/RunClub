@@ -6,7 +6,7 @@ const { GH_ENV } = require('../src/github');
 
 const CODE = 'AB12-CD34';
 const DEVICE = 'https://github.com/login/device';
-const MINUTE = 60000;
+const { MINUTE } = require('../src/units');
 // Was `gh auth status --active --hostname github.com --json hosts` schreibt (so von gh 2.96.0 abgelesen).
 const hosts = (scopes, extra) => JSON.stringify({ hosts: { 'github.com': [{ state: 'success', active: true, host: 'github.com', login: 'Zaho92', tokenSource: 'keyring', scopes, gitProtocol: 'https', ...extra }] } });
 const SIGNED_IN = hosts('gist, project, read:org, repo, workflow');

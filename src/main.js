@@ -5,6 +5,7 @@
 const { app, BrowserWindow, Tray, Menu, shell } = require('electron');
 const path = require('node:path');
 const { SECOND } = require('./units');
+const { SLOT } = require('./states');
 
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const TRAY_ICON = path.join(__dirname, '..', 'build', 'tray.png');
@@ -49,8 +50,8 @@ function showWindow() {
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
   });
   // Die Einstiegsadresse trägt den Schlüssel dieses Programmlaufs; damit bekommt nur dieses Fenster die Oberfläche.
-  const url = backend.ENTRY;
-  const home = `http://127.0.0.1:${backend.PORT}/`; // wie die Einstiegsadresse (siehe access.js)
+  const url = backend.entry;
+  const home = `http://127.0.0.1:${backend.port}/`; // wie die Einstiegsadresse (siehe access.js)
   window.loadURL(url);
   // Das Fenster bleibt bei der eigenen Oberfläche; alles andere öffnet der Browser oder gar nichts.
   window.webContents.on('will-navigate', (event, target) => { if (!target.startsWith(home)) event.preventDefault(); });
@@ -82,8 +83,8 @@ function refreshTray() {
 function refreshTooltip() {
   if (!tray || quitting) return;
   const runners = backend.status().repos.flatMap((repo) => repo.runners);
-  const count = (state) => runners.filter((runner) => runner.state.startsWith(state)).length;
-  tray.setToolTip(`RunClub – ${count('arbeitet')} arbeiten, ${count('bereit')} bereit`);
+  const count = (state) => runners.filter((runner) => runner.state === state).length;
+  tray.setToolTip(`RunClub – ${count(SLOT.WORKING)} arbeiten, ${count(SLOT.READY)} bereit`);
 }
 
 async function quit() {
@@ -106,10 +107,13 @@ app.on('second-instance', showWindow);
 app.on('window-all-closed', () => { /* läuft im Infobereich weiter */ });
 
 app.whenReady().then(() => {
-  backend = require('./backend');
-  backend.hooks.onExit = () => { quitting = true; app.exit(0); };
-  backend.hooks.status = () => ({ app: { autostart: autostart() } });
-  backend.hooks.actions['app/autostart'] = async ({ on }) => setAutostart(on);
+  backend = require('./backend').start({
+    hooks: {
+      onExit: () => { quitting = true; app.exit(0); },
+      status: () => ({ app: { autostart: autostart() } }),
+      actions: { 'app/autostart': async ({ on }) => setAutostart(on) },
+    },
+  });
 
   watchSession();
   tray = new Tray(TRAY_ICON);

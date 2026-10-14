@@ -19,7 +19,7 @@ function brief(args) {
   return args.join(' ');
 }
 
-// Docker und der Rest von backend.js nachgestellt. `calls` hält die Aufrufe an Docker in ihrer Reihenfolge,
+// Docker und der Rest nachgestellt. `calls` hält die Aufrufe an Docker in ihrer Reihenfolge,
 // `answer(name, args)` kann einem Aufruf ein Ergebnis geben (sonst gelingt er).
 function world() {
   const w = {
@@ -27,7 +27,7 @@ function world() {
     settings: { repo: REPO, parallel: 2, cache: true, paused: false },
     pool: { repo: REPO, slots: [], reserve: [], hold: false, prepared: true, removed: false }, // wie `startPool`, schon vorbereitet
   };
-  // Docker über engine.js, wie in backend.js; nachgestellt ist nur `run`.
+  // Docker über engine.js, wie im Betrieb; nachgestellt ist nur `run`.
   const run = async (command, args) => {
     const name = brief(args);
     w.calls.push(name);

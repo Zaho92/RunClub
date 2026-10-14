@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createSlots } = require('../src/slots');
+const { createSlots, noteWorkflows, idleRegistrations } = require('../src/slots');
+const { turn, until } = require('./support');
 
 const REPO = 'wer/App';
 const BASE = 'rc-app-a1b2c3'; // `rc-<repo>-<kennung>`
@@ -16,13 +17,7 @@ function brief(args) {
   return args.join(' ');
 }
 
-const turn = () => new Promise((resolve) => setImmediate(resolve));
-async function until(condition) {
-  for (let turns = 0; turns < 1000; turns += 1) { if (condition()) return; await turn(); }
-  throw new Error('Die Bedingung trat nicht ein.');
-}
-
-// Docker, GitHub und der Rest von backend.js nachgestellt. `calls` hält die Aufrufe an Docker und GitHub in ihrer
+// Docker, GitHub und der Rest nachgestellt. `calls` hält die Aufrufe an Docker und GitHub in ihrer
 // Reihenfolge, `answer(name, args, options)` kann einem Docker-Aufruf ein Ergebnis geben (sonst gelingt er).
 // Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
 function world() {
@@ -602,4 +597,19 @@ test('ein Platz ist nur gewollt, solange das Programm läuft, der Pool besteht u
   assert.equal(w.slots.slotWanted({ removed: true }, w.slot), false);
   w.stopping = true;
   assert.equal(w.slots.slotWanted(w.pool, w.slot), false);
+});
+
+test('noteWorkflows: ein arbeitender Platz merkt sich den Workflow seines Jobs; ohne Angabe bleibt der alte', () => {
+  const pool = { slots: [{ name: 'PC-linux-1', state: 'arbeitet', workflow: '' }, { name: 'PC-linux-2', state: 'arbeitet', workflow: 'CI' }, { name: 'PC-linux-3', state: 'bereit' }] };
+  noteWorkflows(pool, [{ runner: 'PC-linux-1', workflow: 'Release' }, { runner: 'PC-linux-3', workflow: 'CI' }, { runner: 'PC-linux-2', workflow: '' }]);
+  assert.deepEqual(pool.slots.map((slot) => slot.workflow), ['Release', 'CI', undefined]);
+  noteWorkflows(undefined, []); // ein Repo ohne Pool
+});
+
+test('idleRegistrations: nur Plätze mit Anmeldung und ohne Job', () => {
+  const pools = [
+    { slots: [{ repo: 'wer/a', runnerId: 1, job: null }, { repo: 'wer/a', runnerId: 2, job: 'Bauen' }, { repo: 'wer/a', runnerId: null }] },
+    { slots: [{ repo: 'wer/b', runnerId: 3 }] },
+  ];
+  assert.deepEqual(idleRegistrations(pools), [{ repo: 'wer/a', runnerId: 1 }, { repo: 'wer/b', runnerId: 3 }]);
 });

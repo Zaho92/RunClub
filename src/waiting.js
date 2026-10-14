@@ -24,7 +24,7 @@ const REASON = { RUNNER: 'runner', MINUTES: 'minutes' }; // warum in einem Repo 
 // Ausgabengrenze oder Budget erreicht, Konto wegen der Abrechnung gesperrt. Der genaue Wortlaut wechselt.
 const NOT_STARTED = /job was not started because.*(billing|payment|spending|budget)/i;
 
-// Welche Repos sich anzusehen lohnen: solche, für die ein Pool möglich wäre (`free`, siehe listRepos in backend.js)
+// Welche Repos sich anzusehen lohnen: solche, für die ein Pool möglich wäre (`free`, siehe listRepos in remote.js)
 // und die zuletzt bewegt wurden.
 function candidates(repos, now = Date.now()) {
   return repos

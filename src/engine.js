@@ -17,7 +17,13 @@
 // Benutzers oder sein mit `docker context use` gewählter Kontext, sonst Docker Desktop. RunClub setzt das nicht außer
 // Kraft; wer dort etwas anderes eingestellt hat, betreibt RunClub auf jenem Daemon.
 
+const http = require('node:http');
+const { SECOND } = require('./units');
+
 const DESKTOP_DISTRO = 'docker-desktop';
+// Docker Desktop kann seinen Daemon ohne TLS auf diesem Port freigeben (Settings → General).
+const EXPOSED_PING = 'http://127.0.0.1:2375/_ping';
+const PROBE_TIMEOUT = 2 * SECOND;
 
 // Liest die Engine aus der Umgebung: { host, certs, distro }, jeweils oder null.
 function engineFrom(env = process.env) {
@@ -38,7 +44,9 @@ function engineFrom(env = process.env) {
 //   inVm(script, options)   ein festes Shell-Skript in der VM (`wsl --exec`, ohne die Shell der Distro dazwischen);
 //                           ohne Distro ein Ergebnis ohne Ausgabe (`code` -1). Nie Daten von außen hineinschreiben.
 //   unreachableText         die Meldung, wenn Docker nicht antwortet
-function createEngine({ run, timeout, host = null, certs = null, distro = host ? null : DESKTOP_DISTRO }) {
+//   exposedDaemon()         ob Docker Desktop seinen Daemon ohne Schutz auf tcp://localhost:2375 freigibt (Promise)
+// `get` wie `http.get`; in Tests steuerbar.
+function createEngine({ run, timeout, host = null, certs = null, distro = host ? null : DESKTOP_DISTRO, get = http.get }) {
   const desktop = !host && distro === DESKTOP_DISTRO;
   // Mit eigenem Endpunkt gelten nur dessen TLS-Angaben; ein leerer Wert zählt für die CLI wie ein fehlender.
   const own = host ? { DOCKER_HOST: host, DOCKER_TLS_VERIFY: certs ? '1' : '', DOCKER_CERT_PATH: certs ?? '' } : {};
@@ -48,7 +56,20 @@ function createEngine({ run, timeout, host = null, certs = null, distro = host ?
     : Promise.resolve({ code: -1, stdout: '', stderr: 'keine Distro für die Messung', timedOut: false }));
   const unreachableText = desktop ? 'Docker ist nicht erreichbar – läuft Docker Desktop?'
     : `Docker ist nicht erreichbar – läuft der Daemon${host ? ` unter ${host}` : ''}${distro ? ` in der WSL-Distro ${distro}` : ''}?`;
-  return { docker, dockerList, inVm, unreachableText };
+  // Ein Daemon ohne Schutz auf dem Windows-localhost ist aus jedem Container erreichbar (host.docker.internal): Ein Job
+  // steuerte damit ganz Docker, ohne erst ausbrechen zu müssen. Nur bei Docker Desktop gibt es diesen Schalter.
+  const exposedDaemon = () => new Promise((resolve) => {
+    if (!desktop) { resolve(false); return; }
+    const request = get(EXPOSED_PING, { timeout: PROBE_TIMEOUT }, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve(body.trim() === 'OK'));
+      response.on('error', () => resolve(false));
+    });
+    request.on('timeout', () => request.destroy());
+    request.on('error', () => resolve(false)); // nichts lauscht dort: so soll es sein
+  });
+  return { docker, dockerList, inVm, unreachableText, exposedDaemon };
 }
 
-module.exports = { engineFrom, createEngine, DESKTOP_DISTRO };
+module.exports = { engineFrom, createEngine, DESKTOP_DISTRO, EXPOSED_PING };

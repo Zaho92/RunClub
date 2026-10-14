@@ -6,7 +6,7 @@
 //
 // Der Lebenslauf eines Platzes liegt in slots.js. Beide Seiten brauchen einander: Die Reserve baut Paare mit
 // `provision` und entfernt sie mit `removePair`, ein Platz füllt die Reserve nach und baut sie ab, wenn der Pool ruht.
-// Keine der beiden Dateien lädt die andere; backend.js reicht jeder Seite die Funktionen der anderen herein.
+// Keine der beiden Dateien lädt die andere; runners.js reicht jeder Seite die Funktionen der anderen herein.
 //
 //   Pool     { repo, slots, reserve, leaving, hold, prepared, removed, renewing, … }   (angelegt in `startPool`)
 //   Reserve  Einträge { cancel, ready, built, promise }; `promise` liefert das Paar oder `null`, nie einen Fehler.
@@ -14,6 +14,7 @@
 
 const limitRules = require('./limits');
 const { errorLog } = require('./journal');
+const { SLOT, busy } = require('./states');
 
 //   log(text, repo, kind), sleep(ms)
 //   pools                   Map Repo -> Pool; `startPool` trägt neue Pools ein
@@ -82,7 +83,7 @@ function createPools({
   // Freie Paare und Reserve, die noch mit anderen Limits gebaut sind als den jetzt geltenden.
   function staleSlots(pool) {
     const current = limitRules.key(limitsOf(pool.repo));
-    return pool.slots.filter((slot) => (slot.base || slot.building) && slot.built && slot.built !== current && slot.state !== 'arbeitet' && slot.state !== 'räumt auf');
+    return pool.slots.filter((slot) => (slot.base || slot.building) && slot.built && slot.built !== current && !busy(slot));
   }
   function staleCount(pool) {
     const current = limitRules.key(limitsOf(pool.repo));
@@ -99,10 +100,10 @@ function createPools({
     // neue, und der Pool hätte vorübergehend mehr Runner als eingestellt.
     for (const slot of pool.slots) {
       if (active.length >= wanted) break;
-      if (slot.retired && slot.state !== 'aus') { slot.retired = false; active.push(slot); }
+      if (slot.retired && slot.state !== SLOT.OFF) { slot.retired = false; active.push(slot); }
     }
     for (let index = active.length; index < wanted; index += 1) {
-      const slot = { repo: pool.repo, state: 'startet', jobs: 0 };
+      const slot = { repo: pool.repo, state: SLOT.STARTING, jobs: 0 };
       pool.slots.push(slot);
       slotLoop(pool, slot);
     }
@@ -129,7 +130,7 @@ function createPools({
   // (ein Cache wird geleert): Startet in der Wartezeit ein Job, würde der Pool sonst bis zu dessen Ende stillstehen.
   async function rebuildIdle(pool) {
     while (pool.hold) await sleep(500);
-    if (pool.slots.some((slot) => slot.state === 'arbeitet')) return Promise.all([renewReserve(pool), ...staleSlots(pool).map((slot) => abortIdle(slot))]);
+    if (pool.slots.some((slot) => slot.state === SLOT.WORKING)) return Promise.all([renewReserve(pool), ...staleSlots(pool).map((slot) => abortIdle(slot))]);
     return withPoolAtRest(pool, () => prepareCaches(pool.repo));
   }
 

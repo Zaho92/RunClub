@@ -18,6 +18,7 @@ const { lastLine } = require('./run');
 const { MINUTE, MB } = require('./units');
 const { createNetwork, alreadyExists } = require('./subnets');
 const limitRules = require('./limits');
+const { busy } = require('./states');
 
 const VOLUME_PREFIX = 'rc-';
 const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren (siehe linux/docker-shim.sh)
@@ -50,7 +51,7 @@ function createCaches({
     if (!settingsOf(pool.repo)?.cache || (!retry && (!pool.serviceBuilt || pool.serviceBuilt === serviceKey(pool.repo)))) return;
     if (retry && Date.now() < pool.serviceRetryAt) return;
     if (stopping() || pool.removed || pool.hold || pool.renewingService || pool.preparing || !pool.prepared || !linuxReady()) return;
-    if (pool.slots.some((slot) => slot.state === 'arbeitet' || slot.state === 'räumt auf')) return;
+    if (pool.slots.some(busy)) return;
     pool.renewingService = true;
     try {
       log(retry ? 'Versuche erneut, den Build-Dienst anzulegen' : 'Lege den Build-Dienst mit den neuen Limits an', pool.repo);
@@ -128,7 +129,7 @@ function createCaches({
     try { pool.sizes = await sizesOf(pool.repo); } finally { pool.measuring = false; }
   }
 
-  // Alle Volumes von Caches und Vorlage beginnen mit `rc-` (siehe die Namen je Repo in backend.js).
+  // Alle Volumes von Caches und Vorlage beginnen mit `rc-` (siehe names.js).
   async function sizesOf(repo) {
     const existing = new Set(await dockerList(['volume', 'ls', '-q', '--filter', `name=${VOLUME_PREFIX}`]));
     const parts = [['packages', cacheVolume(repo)], ['images', seedVolume(repo)], ['build', buildVolume(repo)]].filter(([, volume]) => existing.has(volume));

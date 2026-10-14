@@ -138,7 +138,7 @@ function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = Date.now, 
 }
 
 // Für `.catch(…)`: `errorLog(log)(repo, what)` schreibt einen Fehler zum Projekt ins Protokoll, auf Wunsch mit dem,
-// was gerade versucht wurde. `log(text, repo, kind)` wie in backend.js.
+// was gerade versucht wurde. `log(text, repo, kind)` wie in `start` (backend.js).
 const errorLog = (log) => (repo, what) => (error) => log(what ? `${what} – ${error.message}` : error.message, repo, 'error');
 
 module.exports = { createJournal, resultKind, resultText, line, errorLog };

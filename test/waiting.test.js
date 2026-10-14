@@ -2,9 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { deepFreeze: frozen } = require('../src/github');
 const { createWaiting, candidates, wantsOwnRunner, neverStarted, minutesNote } = require('../src/waiting');
+const { DAY } = require('../src/units');
 
 const NOW = new Date('2026-10-13T12:00:00Z').getTime();
-const daysAgo = (days) => new Date(NOW - days * 24 * 3600000).toISOString();
+const daysAgo = (days) => new Date(NOW - days * DAY).toISOString();
 
 test('angesehen werden nur Repos, für die ein Pool möglich ist und die zuletzt bewegt wurden', () => {
   const repos = [
