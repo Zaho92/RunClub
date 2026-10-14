@@ -1,5 +1,5 @@
 // Die Docker-Überwachung: Docker kann später starten als RunClub, zwischendurch ausfallen oder neu starten.
-// `linuxLoop` bereitet Docker vor, sobald es antwortet (`prepareLinux`: Grenzen der VM lesen, Runner-Abbild bauen,
+// `watchLoop` bereitet Docker vor, sobald es antwortet (`prepareDocker`: Grenzen der VM lesen, Runner-Abbild bauen,
 // Abbilder von Daemon und Build-Dienst laden, Reste abräumen), prüft es danach regelmäßig und gibt es erst nach
 // mehreren ausbleibenden Antworten verloren. Dazu das tägliche Neubauen des Runner-Abbilds (`refreshImage`) und das
 // Abräumen von Resten (`removeLeftovers` beim Start und Beenden, `removeOrphans` nach einer Unterbrechung,
@@ -34,7 +34,7 @@ const EXPOSED_TEXT = 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:
 //   stopping()
 //   onReady()               Docker ist (wieder) vorbereitet: die Messungen starten
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
-function createLinux({
+function createDockerWatch({
   docker, dockerList, gh, log, sleep,
   host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText, exposedDaemon = async () => false,
   livePairs, repos, pools, preparePool, stopping,
@@ -42,8 +42,8 @@ function createLinux({
 }) {
   let dockerCpus = 1;
   let dockerMemory = 0;
-  let linuxReady = false;
-  let linuxError = null;
+  let dockerReady = false;
+  let dockerError = null;
   let leftoversRemoved = false;
 
   // Das Runner-Abbild bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
@@ -59,12 +59,12 @@ function createLinux({
   // Bei langer Laufzeit veraltet der Runner im Abbild, und GitHub weist zu alte Runner ab: täglich neu bauen. Neue
   // Paare starten von selbst mit dem neuen Abbild; laufende Jobs berührt das nicht.
   async function refreshImage() {
-    if (stopping() || !linuxReady) return;
+    if (stopping() || !dockerReady) return;
     log('Baue das Runner-Abbild neu (tägliche Auffrischung) …');
     await buildImage();
   }
 
-  async function prepareLinux() {
+  async function prepareDocker() {
     const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}'], { timeout: PROBE_TIMEOUT });
     if (info.code !== 0) throw new Error(unreachableText);
     dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
@@ -128,43 +128,43 @@ function createLinux({
   }
 
   // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
-  async function linuxLoop() {
+  async function watchLoop() {
     let misses = 0;
     while (!stopping()) {
-      if (!linuxReady) {
+      if (!dockerReady) {
         try {
-          await prepareLinux();
+          await prepareDocker();
           for (const pool of pools()) pool.prepared = false;
-          linuxReady = true;
-          linuxError = null;
+          dockerReady = true;
+          dockerError = null;
           misses = 0;
           onReady();
           warnIfExposed();
           for (const pool of pools()) await preparePool(pool);
         } catch (error) {
-          if (linuxError !== error.message) log(error.message, null, 'error');
-          linuxError = error.message;
+          if (dockerError !== error.message) log(error.message, null, 'error');
+          dockerError = error.message;
         }
       } else if ((await docker(['info', '--format', 'ok'], { timeout: PROBE_TIMEOUT })).code !== 0) {
         // Eine einzelne ausbleibende Antwort (volle VM, kurzer Hänger) heißt nicht, dass Docker weg ist:
         // Erst nach mehreren in Folge warten die Plätze und alles wird neu vorbereitet.
         misses += 1;
         if (misses >= MISSES) {
-          linuxReady = false;
+          dockerReady = false;
           log('Docker antwortet nicht mehr – die Linux-Runner warten.', null, 'error');
         }
         await sleep(MISS_PAUSE);
         continue;
       } else { misses = 0; onAlive(); }
-      await sleep(linuxReady ? READY_PAUSE : WAIT_PAUSE);
+      await sleep(dockerReady ? READY_PAUSE : WAIT_PAUSE);
     }
   }
 
-  // `watch` ist die Schleife (`linuxLoop`); sie endet erst, wenn RunClub endet.
+  // `watch` ist die Schleife (`watchLoop`); sie endet erst, wenn RunClub endet.
   return {
-    watch: linuxLoop, prepareLinux, refreshImage, removeOrphans, removeLeftovers, removeRegistrations,
-    ready: () => linuxReady, error: () => linuxError, cpus: () => dockerCpus, memory: () => dockerMemory,
+    watch: watchLoop, prepareDocker, refreshImage, removeOrphans, removeLeftovers, removeRegistrations,
+    ready: () => dockerReady, error: () => dockerError, cpus: () => dockerCpus, memory: () => dockerMemory,
   };
 }
 
-module.exports = { createLinux, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };
+module.exports = { createDockerWatch, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };

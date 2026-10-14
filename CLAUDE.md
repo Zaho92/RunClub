@@ -7,7 +7,7 @@ Was noch ansteht: `TODO.md`. Wofür die App da ist: `PRODUCT.md`. Wie sie aussie
 
 - Kein Build-Schritt, keine Laufzeit-Abhängigkeiten: reines Node (CommonJS) und eine HTML-Datei. Electron ist die einzige Entwicklungs-Abhängigkeit.
 - Kommentare und Meldungen sind deutsch, Bezeichner im Code englisch. Die Oberfläche gibt es deutsch und englisch: Jeder neue Text kommt in beide Tabellen in `src/ui.html`.
-- Neue Logik kommt als eigenes Modul ohne Nebenwirkungen beim Laden (wie `src/pipeline.js`, `src/metrics.js`) und bekommt Tests in `test/`. `src/backend.js` startet beim Laden und ist deshalb nicht direkt testbar.
+- Neue Logik kommt als eigenes Modul ohne Nebenwirkungen beim Laden (wie `src/pipeline.js`, `src/metrics.js`) und bekommt Tests in `test/`. `src/backend.js` ist nur Verdrahtung (`start()`); Logik gehört nicht dorthin, sondern in ein Modul.
 - Die Syntaxprüfung lehnt CRLF in `linux/` ab: Diese Dateien laufen im Runner-Container; mit Windows-Zeilenenden scheitert dort jeder `docker`-Aufruf.
 - Prüfen: `npm run check` (Syntax, auch des Skripts in `src/ui.html`) und `npm test`.
 

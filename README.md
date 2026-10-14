@@ -42,13 +42,19 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | Pfad | Inhalt |
 | --- | --- |
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
-| `src/backend.js` | Verdrahtung der Module, GitHub-Abfragen, Messung, lokaler Dienst für die Oberfläche |
+| `src/backend.js` | Nur Verdrahtung: `start()` legt die Module an, startet die Takte und den lokalen Dienst und beendet alles wieder |
+| `src/settings.js`, `src/names.js` | Einstellungen und Gelerntes im Datenordner; Namen der Abbilder, Kennzeichen und Namen der Caches und Build-Dienste je Repo |
+| `src/runners.js` | Verdrahtet Vorlage, Plätze, Caches und Pools miteinander (auch für die Tests) |
+| `src/remote.js` | Was bei GitHub gelesen wird: Läufe und Jobs, Anfragelimit, Repos des Kontos, wartende Läufe, Sichtbarkeit der Repos; Läufe erneut starten |
+| `src/account.js` | Anmeldung bei GitHub und Minuten-Kontingent im selben Takt |
+| `src/usage.js` | Messung: `docker stats`, Belegung der VM, Auslastung von Windows, Verbrauch je Job |
+| `src/status.js`, `src/actions.js`, `src/server.js` | Was die Oberfläche sieht, was sie auslösen kann, und der lokale Dienst dafür |
 | `src/engine.js` | Wo Docker läuft (heute Docker Desktop): Aufrufe der CLI, Endpunkt, WSL-Distro für die Messung der VM |
-| `src/linux.js` | Die Docker-Überwachung: vorbereiten, sobald Docker antwortet, regelmäßig prüfen, Runner-Abbild bauen, Reste abräumen |
+| `src/dockerwatch.js` | Die Docker-Überwachung: vorbereiten, sobald Docker antwortet, regelmäßig prüfen, Runner-Abbild bauen, Reste abräumen |
 | `src/slots.js` | Lebenslauf eines Platzes: ein Paar aufbauen, den Runner anmelden, einen Job bedienen, abräumen, im Leerlauf abbrechen |
 | `src/pools.js` | Einen Pool anlegen und vorbereiten, Reserve eines Pools (nachfüllen, erneuern, abbauen), Zahl der Plätze angleichen, einen Pool zur Ruhe bringen |
 | `src/seed.js` | Vorlage eines Repos: die Abbilder eines Jobs lernen, die Vorlage auffrischen, Kopieren und Auffrischen gegeneinander sperren |
-| `src/caches.js` | Paket-Cache und Build-Dienst eines Repos bereitstellen, den Build-Dienst mit neuen Limits oder nach einem Fehlschlag neu anlegen, die Volumes messen |
+| `src/caches.js` | Paket-Cache und Build-Dienst eines Repos (ohne Rechte, über einen Socket erreichbar) bereitstellen, mit neuen Limits oder nach einem Fehlschlag neu anlegen, leeren, die Volumes messen |
 | `src/pipeline.js` | Läufe mit ihren Jobs, Abhängigkeiten aus der Workflow-Datei (`needs`), übliche Dauer, Restzeit |
 | `src/metrics.js` | Verlauf der Auslastung von Windows und Docker-VM, Verbrauch je Job |
 | `src/vmmemory.js` | Belegung der Docker-VM aus `/proc/meminfo` (mit Kernel und Daemon), Regel für die Warnung, wenn kaum noch Speicher frei ist |
@@ -61,7 +67,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/journal.js` | Protokoll: Einträge mit Zeit, Projekt, Meldung und Art; die letzten im Speicher und für den nächsten Start in `runclub.log.entries`, alle lesbar in `runclub.log` |
 | `src/subnets.js` | Netze der Paare und Build-Dienste: je ein zufälliges /28 aus einem eigenen Bereich statt aus Dockers knappem Vorrat |
 | `src/waiting.js` | Läufe ohne Pool, die nicht vorankommen: Repos des Kontos, in denen Jobs auf einen eigenen Runner warten oder Läufe am aufgebrauchten Kontingent von GitHub gescheitert sind |
-| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/units.js` | Programmaufrufe mit Zeitgrenze und Abbruch von außen (das Programm wird unter Windows nur in PATH gesucht), Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare, Einheiten für Zeit und Speicher |
+| `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/states.js`, `src/units.js`, `src/numbers.js` | Programmaufrufe mit Zeitgrenze und Abbruch von außen (das Programm wird unter Windows nur in PATH gesucht), Dateien im Datenordner, Regeln für gelernte Abbilder, Namen der Runner-Paare, Zustände eines Platzes, Einheiten für Zeit und Speicher, Median |
 | `src/ui.html` | Oberfläche: Projektleiste, Netzplan je Lauf, Auslastung, Verbrauch, Einstellungen (Deutsch und Englisch) |
 | `src/fonts/` | Schrift Overpass (OFL), liegt in der App, damit sie ohne Internet funktioniert |
 | `linux/` | Abbild der Runner |

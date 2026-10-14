@@ -34,13 +34,13 @@ const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legt
 //   settingsOf(repo), limitsOf(repo), poolOf(repo) (der Pool oder undefined)
 //   cacheVolume(repo), seedVolume(repo), buildVolume(repo), buildSocket(repo), buildService(repo), buildNetwork(repo)
 //                           die Namen je Repo
-//   stopping(), linuxReady()
+//   stopping(), dockerReady()
 function createCaches({
   docker, dockerList, log,
   dind, buildkit, serviceMark,
   settingsOf, limitsOf, poolOf,
   cacheVolume, seedVolume, buildVolume, buildSocket, buildService, buildNetwork,
-  stopping, linuxReady,
+  stopping, dockerReady,
 }) {
   const serviceKey = (repo) => limitRules.dockerKey(limitsOf(repo));
 
@@ -50,7 +50,7 @@ function createCaches({
     const retry = Boolean(pool.serviceFailed);
     if (!settingsOf(pool.repo)?.cache || (!retry && (!pool.serviceBuilt || pool.serviceBuilt === serviceKey(pool.repo)))) return;
     if (retry && Date.now() < pool.serviceRetryAt) return;
-    if (stopping() || pool.removed || pool.hold || pool.renewingService || pool.preparing || !pool.prepared || !linuxReady()) return;
+    if (stopping() || pool.removed || pool.hold || pool.renewingService || pool.preparing || !pool.prepared || !dockerReady()) return;
     if (pool.slots.some(busy)) return;
     pool.renewingService = true;
     try {

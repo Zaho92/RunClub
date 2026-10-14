@@ -49,7 +49,7 @@ function world() {
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
     seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
-    stopping: () => w.stopping, linuxReady: () => w.ready, poolResting: () => w.resting,
+    stopping: () => w.stopping, dockerReady: () => w.ready, poolResting: () => w.resting,
     withSeed: (repo, exclusive, work) => { assert.equal(exclusive, false); return work(); },
     learnImages: async (pool, slot) => { w.learned.push(slot.job); w.onLearn?.(pool, slot); },
     replenish: (pool) => w.replenished.push(pool.repo),
@@ -579,7 +579,7 @@ test('wirft etwas beim Abräumen, steht das im Protokoll, und der Platz macht we
     log: (...entry) => w.logs.push(entry), sleep: async (ms) => { w.slept.push(ms); await turn(); },
     host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234, metrics: {},
     settingsOf: () => w.settings, limitsOf: () => LIMITS, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
-    stopping: () => w.stopping, linuxReady: () => true, poolResting: () => true,
+    stopping: () => w.stopping, dockerReady: () => true, poolResting: () => true,
     withSeed: (repo, exclusive, work) => work(), learnImages: async () => {}, replenish: () => {}, discardReserve: discard,
     refreshRepo: () => {}, forgetStats: () => {},
   });

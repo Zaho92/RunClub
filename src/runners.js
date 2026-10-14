@@ -20,13 +20,13 @@ const { createPools } = require('./pools');
 //   longTimeout             Zeitgrenze für Kopieren und Laden
 //   settings                `settingsOf`, `limitsOf`, `state`, `saveState` (siehe settings.js)
 //   metrics                 `meter()`, `recordJob(repo, record)` (siehe metrics.js)
-//   stopping(), linuxReady()
+//   stopping(), dockerReady()
 //   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen (siehe remote.js)
 //   forgetStats(name)       die Messwerte eines Containers verwerfen (siehe usage.js)
 function createRunners({
   docker, dockerList, gh, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, names, image, dind, buildkit, longTimeout,
-  settings, metrics, stopping, linuxReady, refreshRepo, forgetStats,
+  settings, metrics, stopping, dockerReady, refreshRepo, forgetStats,
 }) {
   const pools = new Map(); // Repo -> Pool (siehe pools.js)
   const { settingsOf, limitsOf } = settings;
@@ -44,7 +44,7 @@ function createRunners({
     docker, gh, log, sleep, timer, newId,
     host, mark: names.mark, image, dind, longTimeout, metrics,
     settingsOf, limitsOf, seedVolume: names.seedVolume, cacheVolume: names.cacheVolume, buildSocket: names.buildSocket,
-    stopping, linuxReady, poolResting: (pool) => reserve.poolResting(pool),
+    stopping, dockerReady, poolResting: (pool) => reserve.poolResting(pool),
     withSeed: seed.withSeed, learnImages: seed.learnImages,
     replenish: (pool) => reserve.replenish(pool), discardReserve: (pool, keep) => reserve.discardReserve(pool, keep),
     refreshRepo, forgetStats,
@@ -56,12 +56,12 @@ function createRunners({
     settingsOf, limitsOf, poolOf,
     cacheVolume: names.cacheVolume, seedVolume: names.seedVolume, buildVolume: names.buildVolume, buildSocket: names.buildSocket,
     buildService: names.buildService, buildNetwork: names.buildNetwork,
-    stopping, linuxReady,
+    stopping, dockerReady,
   });
 
   reserve = createPools({
     log, sleep, pools,
-    settingsOf, limitsOf, stopping, linuxReady,
+    settingsOf, limitsOf, stopping, dockerReady,
     provision: slots.provision, removePair: slots.removePair, teardown: slots.teardown, slotLoop: slots.slotLoop, abortIdle: slots.abortIdle,
     prepareCaches: caches.prepareCaches, refreshSeed: seed.refreshSeed, measureSizes: caches.measureSizes,
   });

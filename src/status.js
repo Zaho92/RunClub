@@ -26,7 +26,7 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 //   runners                 `pools` (Map), `reserveSize(pool)`, `staleCount(pool)` (siehe runners.js)
 //   remote                  `view(repo)` (siehe remote.js)
 //   pipelines, metrics, usage, routing, waiting, account, githubApi   siehe die gleichnamigen Module
-//   docker                  `ready()`, `error()`, `cpus()`, `memory()` (die Docker-Überwachung aus linux.js)
+//   docker                  `ready()`, `error()`, `cpus()`, `memory()` (die Docker-Überwachung aus dockerwatch.js)
 //   buildService(repo)      Name des Build-Dienstes (siehe names.js)
 //   logStamp()              Kennung des Protokolls; ändert sie sich, holt die Oberfläche es neu
 //   uiFile                  die Datei der Seite; ändert sie sich, lädt die Seite sich neu

@@ -18,14 +18,14 @@ const { SLOT, busy } = require('./states');
 
 //   log(text, repo, kind), sleep(ms)
 //   pools                   Map Repo -> Pool; `startPool` trägt neue Pools ein
-//   settingsOf(repo), limitsOf(repo), stopping(), linuxReady()
+//   settingsOf(repo), limitsOf(repo), stopping(), dockerReady()
 //   provision(pool, cancelled), removePair(repo, base, runnerId), teardown(slot), slotLoop(pool, slot), abortIdle(slot)
 //                           aus slots.js
 //   prepareCaches(repo), measureSizes(pool)   Paket-Cache und Build-Dienst bereitstellen, Volumes messen (caches.js)
 //   refreshSeed(repo)       die Vorlage auffrischen (seed.js)
 function createPools({
   log, sleep, pools,
-  settingsOf, limitsOf, stopping, linuxReady,
+  settingsOf, limitsOf, stopping, dockerReady,
   provision, removePair, teardown, slotLoop, abortIdle,
   prepareCaches, refreshSeed, measureSizes,
 }) {
@@ -36,7 +36,7 @@ function createPools({
   const reserveSize = (pool) => settingsOf(pool.repo)?.reserve ?? Math.min(2, settingsOf(pool.repo)?.parallel ?? 0);
 
   function replenish(pool) {
-    if (stopping() || pool.removed || !linuxReady() || poolResting(pool)) return;
+    if (stopping() || pool.removed || !dockerReady() || poolResting(pool)) return;
     // Was gerade abgebaut wird, zählt mit: Sonst stünden beim Erneuern kurz doppelt so viele Paare.
     while (pool.reserve.length + pool.leaving < reserveSize(pool)) {
       const entry = { cancel: false, ready: false, built: limitRules.key(limitsOf(pool.repo)) };
@@ -138,11 +138,11 @@ function createPools({
     const pool = { repo, slots: [], reserve: [], leaving: 0, hold: false, prepared: false, removed: false, seeded: new Set(), sizes: null };
     pools.set(repo, pool);
     reconcile(pool);
-    if (linuxReady()) await preparePool(pool);
+    if (dockerReady()) await preparePool(pool);
   }
 
   async function preparePool(pool) {
-    // Ein neuer Pool kann zugleich von `startPool` und von der Schleife in `linuxLoop` (linux.js) erreicht werden.
+    // Ein neuer Pool kann zugleich von `startPool` und von der Schleife in `watchLoop` (dockerwatch.js) erreicht werden.
     if (pool.preparing || pool.removed) return; // ein Pool, der gerade entfernt wird, braucht nichts mehr
     pool.preparing = true;
     pool.prepared = false;

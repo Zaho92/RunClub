@@ -44,7 +44,7 @@ function world() {
     poolOf: (repo) => (repo === REPO ? w.pool : undefined),
     cacheVolume: () => 'rc-cache-app', seedVolume: () => 'rc-seed-app', buildVolume: () => 'rc-build-app', buildSocket: () => 'rc-buildsock-app',
     buildService: () => 'rc-buildkit-app', buildNetwork: () => 'rc-buildnet-app',
-    stopping: () => w.stopping, linuxReady: () => w.ready,
+    stopping: () => w.stopping, dockerReady: () => w.ready,
   });
   return w;
 }

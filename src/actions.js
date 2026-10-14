@@ -18,7 +18,7 @@ const NO_POOL = 'Diesen Pool gibt es nicht.';
 //   settings                siehe settings.js
 //   runners                 siehe runners.js
 //   remote, routing, waiting, metrics, account   siehe die gleichnamigen Module
-//   docker                  `ready()`, `removeRegistrations(repo)` (die Docker-Überwachung aus linux.js)
+//   docker                  `ready()`, `removeRegistrations(repo)` (die Docker-Überwachung aus dockerwatch.js)
 //   limitRange(), limitPlan()   siehe status.js
 //   log(text, repo, kind), logError(repo, what)
 //   shutdown()              RunClub beenden

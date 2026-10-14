@@ -6,7 +6,7 @@
 //               der Container lässt Kernel und Daemon aus. Das geht nur, wenn der Daemon in einer WSL-Distro läuft
 //               (siehe engine.js). Gibt es die Distro nicht, endet der Aufruf ohne Messwert: Dann bleibt es still bei
 //               der Summe der Container, bis Docker neu vorbereitet wird. Neu gestartet wird nur, wenn Docker gerade
-//               geantwortet hat (`dockerReady`, `dockerAlive` aus linux.js): Der Aufruf würde eine angehaltene Distro
+//               geantwortet hat (`onDockerReady`, `onDockerAlive` aus dockerwatch.js): Der Aufruf würde eine angehaltene Distro
 //               sonst selbst hochfahren.
 //   Je Job      Jeder Messtakt gibt den Verbrauch von Runner und Daemon eines arbeitenden Platzes an dessen Messung
 //               (`slot.meter`, siehe metrics.js); jeder dritte Takt wird ein Punkt im Verlauf.
@@ -92,7 +92,7 @@ function createUsage({
   }
 
   // Docker ist (wieder) vorbereitet: beide Messungen starten, auch die in der VM, wenn sie zuletzt ohne Wert blieb.
-  function dockerReady() {
+  function onDockerReady() {
     startStatsFeed();
     vmFeedMissing = false;
     startVmFeed();
@@ -125,7 +125,7 @@ function createUsage({
   const vmTight = () => { const sample = vmProbe.tight() ? vmProbe.current() : null; return sample ? { free: sample.available } : null; };
 
   return {
-    dockerReady, dockerAlive: startVmFeed, measure, vmTight,
+    onDockerReady, onDockerAlive: startVmFeed, measure, vmTight,
     view: () => usage,
     statsOf: (name) => own.get(name), // Verbrauch eines eigenen Containers oder undefined
     forget: (name) => own.delete(name),

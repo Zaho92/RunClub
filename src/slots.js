@@ -6,7 +6,7 @@
 // Was zum Pool im Ganzen gehört, kommt als Funktion herein: die Reserve (`replenish`, `discardReserve`, beide aus
 // pools.js), die Vorlage (`withSeed`, `learnImages`, beide aus seed.js), aus names.js die Namen der Caches und des
 // Build-Dienstes, die Einstellungen und Limits eines Repos. Zustand, den beide Seiten brauchen (`stopping`,
-// `linuxReady`, `poolResting`), wird bei jedem Gebrauch frisch erfragt.
+// `dockerReady`, `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
 //   Pool    { repo, slots, reserve, seeded, removed, … }   (angelegt in `startPool` in pools.js)
 //   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, kept, … }
@@ -34,7 +34,7 @@ const REATTACH_MAX = 5; // so oft wird nach einem Abriss der Verbindung wieder m
 //   longTimeout             Zeitgrenze für das Kopieren der Vorlage
 //   metrics                 `{ meter(), recordJob(repo, record) }` (siehe metrics.js)
 //   settingsOf(repo), limitsOf(repo), seedVolume(repo), cacheVolume(repo), buildSocket(repo)
-//   stopping(), linuxReady(), poolResting(pool)
+//   stopping(), dockerReady(), poolResting(pool)
 //   withSeed(repo, exclusive, work), learnImages(pool, slot), replenish(pool), discardReserve(pool)
 //   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen
 //   forgetStats(name)       die Messwerte eines Containers verwerfen
@@ -42,7 +42,7 @@ function createSlots({
   docker, gh, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, mark, image, dind, longTimeout, metrics,
   settingsOf, limitsOf, seedVolume, cacheVolume, buildSocket,
-  stopping, linuxReady, poolResting,
+  stopping, dockerReady, poolResting,
   withSeed, learnImages, replenish, discardReserve, refreshRepo, forgetStats,
 }) {
   const livePairs = new Map(); // Name des Paars -> Repo, vom Beginn des Aufbaus bis zum Abräumen
@@ -54,7 +54,7 @@ function createSlots({
       await docker(['volume', 'rm', '-f', `${base}-work`, `${base}-sock`, `${base}-docker`]);
       await docker(['network', 'rm', base]);
       for (const name of [`${base}-runner`, `${base}-dind`]) forgetStats(name);
-    } finally { livePairs.delete(base); } // sonst hielte `removeOrphans` (linux.js) ein halb abgeräumtes Paar für stehend
+    } finally { livePairs.delete(base); } // sonst hielte `removeOrphans` (dockerwatch.js) ein halb abgeräumtes Paar für stehend
     if (runnerId) {
       // 404 heißt: schon weg (der Runner meldet sich nach seinem Job selbst ab). Alles andere bleibt bei GitHub als
       // toter Eintrag stehen, bis der nächste Start aufräumt, und gehört deshalb ins Protokoll.
@@ -237,8 +237,8 @@ function createSlots({
 
   // Eine Runde des Platzes: warten, solange der Pool ruht, sonst einen Job bedienen und das Paar abräumen.
   async function slotRound(pool, slot) {
-    if (!linuxReady() || poolResting(pool)) {
-      slot.state = !linuxReady() ? SLOT.NO_DOCKER : settingsOf(pool.repo)?.paused ? SLOT.PAUSED : SLOT.WAITING;
+    if (!dockerReady() || poolResting(pool)) {
+      slot.state = !dockerReady() ? SLOT.NO_DOCKER : settingsOf(pool.repo)?.paused ? SLOT.PAUSED : SLOT.WAITING;
       await discardReserve(pool);
       await sleep(1000);
       return;
@@ -252,9 +252,9 @@ function createSlots({
         if (!slot.kept) await teardown(slot);
         // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
         // zurück, nachdem er hier gewirkt hat.
-        for (let waited = 0; waited < 60 && slotWanted(pool, slot) && linuxReady() && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
+        for (let waited = 0; waited < 60 && slotWanted(pool, slot) && dockerReady() && !poolResting(pool) && !slot.aborted; waited += 1) await sleep(1000);
         // Ein behaltenes Paar geht, wenn der Platz nicht gleich weitermacht oder es nicht mehr zu den Limits passt.
-        if (slot.aborted || !slotWanted(pool, slot) || !linuxReady() || poolResting(pool) || slot.built !== limitRules.key(limitsOf(pool.repo))) await teardown(slot);
+        if (slot.aborted || !slotWanted(pool, slot) || !dockerReady() || poolResting(pool) || slot.built !== limitRules.key(limitsOf(pool.repo))) await teardown(slot);
         return;
       }
     }

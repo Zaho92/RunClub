@@ -43,7 +43,7 @@ const { createUsage } = require('./usage');
 const { createRemote, WAITING_INTERVAL } = require('./remote');
 const { createRunners } = require('./runners');
 const { idleRegistrations } = require('./slots');
-const { createLinux } = require('./linux');
+const { createDockerWatch } = require('./dockerwatch');
 const { createAccount } = require('./account');
 const { createStatus } = require('./status');
 const { createActions } = require('./actions');
@@ -104,23 +104,23 @@ function start({
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
     onPublic: (repo) => actionsApi.pauseForPublic(repo),
   });
-  let linux = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist
+  let dockerWatch = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist
   const usage = createUsage({ docker, inVm: engine.inVm, metrics, pools: () => runners.pools.values(), log, stopping: isStopping });
 
   // --- Die Runner und die Docker-Überwachung ---
   runners = createRunners({
     docker, dockerList, gh, log, sleep,
     host: os.hostname(), names, image: IMAGE, dind: DIND, buildkit: BUILDKIT, longTimeout: DOCKER_LONG,
-    settings, metrics, stopping: isStopping, linuxReady: () => linux.ready(),
+    settings, metrics, stopping: isStopping, dockerReady: () => dockerWatch.ready(),
     refreshRepo: remote.refreshRepo, forgetStats: usage.forget,
   });
-  linux = createLinux({
+  dockerWatch = createDockerWatch({
     docker, dockerList, gh, log, sleep,
     host: os.hostname(), mark: names.mark, serviceMark: names.serviceMark, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'),
     requiredImages: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
     unreachableText: engine.unreachableText, exposedDaemon: engine.exposedDaemon,
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
-    stopping: isStopping, onReady: usage.dockerReady, onAlive: usage.dockerAlive,
+    stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,
   });
 
   // --- Konto, Oberfläche, Aufrufe ---
@@ -130,7 +130,7 @@ function start({
   });
   const uiFile = path.join(__dirname, 'ui.html');
   const { status, limitRange, limitPlan } = createStatus({
-    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, docker: linux,
+    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, docker: dockerWatch,
     buildService: names.buildService, logStamp, uiFile, extra: appStatus,
   });
 
@@ -141,7 +141,7 @@ function start({
     stopTimers();
     log('Beende die Runner …');
     await runners.dismantle(SHUTDOWN_WAIT);
-    await linux.removeLeftovers(); // auch die Build-Dienste und ihre Netze
+    await dockerWatch.removeLeftovers(); // auch die Build-Dienste und ihre Netze
     log('Beendet.');
     onExit();
   }
@@ -155,7 +155,7 @@ function start({
   }
 
   actionsApi = createActions({
-    gh, settings, runners, remote, routing, waiting, metrics, account, docker: linux, limitRange, limitPlan, log, logError, shutdown,
+    gh, settings, runners, remote, routing, waiting, metrics, account, docker: dockerWatch, limitRange, limitPlan, log, logError, shutdown,
   });
 
   // --- Lokaler Dienst ---
@@ -189,26 +189,26 @@ function start({
   every(EVERY.account, account.watch);
   every(EVERY.quota, remote.watchQuota);
   every(EVERY.waiting, remote.scanWaiting);
-  later(EVERY.image, () => linux.refreshImage().catch(logError(null, 'Runner-Abbild')));
+  later(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, 'Runner-Abbild')));
   every(EVERY.github, remote.refreshAll);
   later(EVERY.githubActive, remote.refreshActive);
   later(EVERY.measure, usage.measure);
   later(EVERY.reserve, () => {
     for (const pool of runners.pools.values()) { runners.replenish(pool); runners.caches.renewService(pool).catch(logError(pool.repo)); }
   });
-  later(EVERY.sizes, () => { if (linux.ready()) for (const pool of runners.pools.values()) if (!pool.hold) runners.caches.measureSizes(pool); });
+  later(EVERY.sizes, () => { if (dockerWatch.ready()) for (const pool of runners.pools.values()) if (!pool.hold) runners.caches.measureSizes(pool); });
   // Ein Paar, das mitten im Job endet (beim Beenden, nach einem Absturz), kann seinen Runner nicht abmelden: GitHub führt
   // ihn noch eine Weile als beschäftigt. Ist er frei und ohne Verbindung, wird er hier abgemeldet.
   later(EVERY.housekeeping, () => {
     for (const pool of runners.pools.values()) {
       if (pool.removed || !githubApi.mayPoll(pool.repo)) continue;
       remote.watchVisibility(pool.repo);
-      linux.removeRegistrations(pool.repo, { keep: new Set(pool.slots.filter((slot) => slot.base).map((slot) => slot.name)), offline: true });
+      dockerWatch.removeRegistrations(pool.repo, { keep: new Set(pool.slots.filter((slot) => slot.base).map((slot) => slot.name)), offline: true });
     }
   });
 
   for (const repo of settings.repos()) { runners.startPool(repo); routing.check(repo).catch(() => {}); remote.watchVisibility(repo); }
-  linux.watch();
+  dockerWatch.watch();
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, shutdown);
 
   return { port, entry: access.entry, status, shutdown, release, log };

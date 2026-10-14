@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createLinux, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/linux');
+const { createDockerWatch, EXPOSED_TEXT, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/dockerwatch');
 const { createEngine } = require('../src/engine');
 
 const MARK = 'runclub.runner=test';
@@ -24,7 +24,7 @@ function world() {
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(brief(args), options)) };
   };
   const { docker, dockerList, unreachableText } = createEngine({ run, timeout: 99 });
-  w.linux = createLinux({
+  w.linux = createDockerWatch({
     docker, dockerList,
     gh: async (args) => { w.calls.push(`gh ${args.join(' ')}`); if (w.ghFails) throw new Error(w.ghFails); return w.runners; },
     log: (...entry) => w.logs.push(entry),
@@ -140,10 +140,10 @@ test('lässt sich das Abbild nicht bauen, wird mit dem vorhandenen weitergearbei
     if (name.startsWith('image inspect')) return present ? undefined : { code: 1 };
     return undefined;
   };
-  await w.linux.prepareLinux();
+  await w.linux.prepareDocker();
   assert.deepEqual(w.logs.at(-1), ['Das Runner-Abbild ließ sich nicht neu bauen (ERROR: failed to solve: kein Netz); die Runner nutzen das vorhandene.', null, 'error']);
   present = false;
-  await assert.rejects(w.linux.prepareLinux(), /Das Runner-Abbild ließ sich nicht bauen: ERROR: failed to solve: kein Netz/);
+  await assert.rejects(w.linux.prepareDocker(), /Das Runner-Abbild ließ sich nicht bauen: ERROR: failed to solve: kein Netz/);
 });
 
 test('das tägliche Neubauen geschieht nur, wenn Docker bereit ist und RunClub nicht endet', async () => {

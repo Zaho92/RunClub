@@ -31,7 +31,7 @@ function world() {
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
-    stopping: () => w.stopping, linuxReady: () => w.ready,
+    stopping: () => w.stopping, dockerReady: () => w.ready,
     provision: (pool, cancelled) => {
       const number = w.builds.length + 1;
       const build = { cancelled, pair: { id: String(number), base: `rc-app-${number}` } };
@@ -525,7 +525,7 @@ function wired() {
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1234,
     settings: { settingsOf: (repo) => (repo === REPO ? w.settings : undefined), limitsOf: () => w.limits, state: { learned: {}, rejected: {} }, saveState: () => {} },
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
-    stopping: () => w.stopping, linuxReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
+    stopping: () => w.stopping, dockerReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
   });
   w.abortIdle = w.pools.slots.abortIdle;
   // Am Ende eines Tests: alle Schleifen beenden, damit nichts weiterläuft.
@@ -665,7 +665,7 @@ function starter({ ready = true, failCaches = null } = {}) {
   s.api = createPools({
     log: (...entry) => s.logs.push(entry), sleep: turn, pools: s.pools,
     settingsOf: (repo) => ({ repo, parallel: 2, cache: true, paused: false }), limitsOf: () => OLD,
-    stopping: () => false, linuxReady: () => s.ready,
+    stopping: () => false, dockerReady: () => s.ready,
     provision: async () => null, removePair: async () => {}, slotLoop: (pool, slot) => s.calls.push(`loop ${pool.repo} ${pool.slots.indexOf(slot) + 1}`), abortIdle: async () => {},
     prepareCaches: async (repo) => { s.calls.push(`caches ${repo}`); if (failCaches) throw new Error(failCaches); },
     refreshSeed: async (repo) => { s.calls.push(`seed ${repo}`); },
