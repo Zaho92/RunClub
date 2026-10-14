@@ -161,12 +161,13 @@ function createSlots({
     if (slot.aborted) return;
 
     // Der Runner teilt das Netz des Daemons: Ports, die ein Job veröffentlicht, liegen für ihn auf localhost.
-    // Die Anmeldung kommt über die Umgebung herein und verlässt sie gleich wieder: Sonst stünde sie in der Umgebung jedes
-    // Job-Schritts, und ein `env` schriebe sie ins Protokoll bei GitHub.
+    // Die Anmeldung kommt über die Umgebung herein und geht als ACTIONS_RUNNER_INPUT_JITCONFIG an den Runner, der sie
+    // liest und aus seiner Umgebung nimmt. So steht sie weder in der Umgebung der Job-Schritte (ein `env` schriebe sie
+    // ins Protokoll bei GitHub) noch in einer Befehlszeile, die `ps` zeigt.
     const start = [
       `if [ -n "$RC_BUILDER" ]; then docker buildx create --name "$RC_BUILDER" --driver remote --driver-opt default-load=true unix://${SOCKET_DIR}/buildkitd.sock >/dev/null 2>&1 || unset RC_BUILDER; fi`,
-      'jit="$JITCONFIG"; unset JITCONFIG',
-      'exec ./run.sh --jitconfig "$jit"',
+      'export ACTIONS_RUNNER_INPUT_JITCONFIG="$JITCONFIG"; unset JITCONFIG',
+      'exec ./run.sh',
     ].join('; ');
     const follow = (line) => {
       const started = line.match(/Running job: (.+)$/);

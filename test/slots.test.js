@@ -125,8 +125,8 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
     '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc',
     '-e', 'JITCONFIG', 'runner:test', 'bash', '-c']);
-  // Die Anmeldung verlässt die Umgebung, bevor der Runner startet: Job-Schritte sehen sie nicht.
-  assert.match(runner.args.at(-1), /jit="\$JITCONFIG"; unset JITCONFIG; exec \.\/run\.sh --jitconfig "\$jit"$/);
+  // Die Anmeldung geht über die Umgebung an den Runner, nicht über die Befehlszeile.
+  assert.match(runner.args.at(-1), /export ACTIONS_RUNNER_INPUT_JITCONFIG="\$JITCONFIG"; unset JITCONFIG; exec \.\/run\.sh$/);
   assert.match(runner.args.at(-1), /--driver remote --driver-opt default-load=true unix:\/\/\/run\/rc-buildkit\/buildkitd\.sock /);
   assert.equal(runner.options.timeout, 0);
   assert.deepEqual(runner.options.env, { JITCONFIG: 'geheim' }); // die Anmeldung steht nicht in der Befehlszeile
