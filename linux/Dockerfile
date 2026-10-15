@@ -5,7 +5,7 @@
 # Node und .NET-SDK sind per Digest festgenagelt: Das Abbild hält den Socket des Docker-Daemons im Job, ein
 # untergeschobenes Abbild wäre so mächtig wie dieser. Neue Stände schlägt Dependabot vor (.github/dependabot.yml).
 # Der Runner selbst folgt bewusst dem neuesten Stand: GitHub weist zu alte Runner ab.
-FROM node:24-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS node
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS node
 FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS dotnet
 
 FROM ghcr.io/actions/actions-runner:latest
