@@ -54,13 +54,18 @@ Stand: 15.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
   (Commit nach `95f6a0c`), aber nicht noch einmal gelesen. Der nächste Durchgang prüft die Änderungen danach.
 - Ein sechster Durchgang lief am 15.10.2026 über den ganzen Stand mit Schwerpunkt `95f6a0c..9686428` (Daemons ohne
   Rechte, festgenagelte Abbilder): Richtigkeit, Sicherheit, Standards. Alle Befunde sind behoben oder nach Entscheidung
-  des Nutzers vermerkt (Fork-PRs, `--network host`).
+  des Nutzers vermerkt (Fork-PRs, `--network host`), im Commit `1098b74`. Darüber lief ein Abschluss-Review
+  (`9686428..1098b74`, Richtigkeit, Sicherheit, Standards); was es fand, ist im Commit danach behoben (vor allem: Ende
+  und Ergebnis eines Jobs nicht mehr aus der Ausgabe des Runners), aber nicht noch einmal gelesen. Der nächste
+  Durchgang prüft die Änderungen danach.
 
 ## Aus den Reviews noch offen
 
 Der fünfte Durchgang (14.10.2026, über den Stand nach `08949b0`) und das Abschluss-Review über seine Korrekturen
-(`e427360..95f6a0c`) sind abgearbeitet, ebenso der sechste (15.10.2026); behoben ist, was hier nicht mehr steht. Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umgesetzt), `node` und das .NET-SDK sind
-festgenagelt und Dependabot meldet neue Stände (umgesetzt); der Weg aus den Jobs zum localhost von Windows bleibt offen. Noch offen:
+(`e427360..95f6a0c`) sind abgearbeitet, ebenso der sechste (15.10.2026); behoben ist, was hier nicht mehr steht.
+Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umgesetzt), `node` und das .NET-SDK sind
+festgenagelt und Dependabot meldet neue Stände (umgesetzt); der localhost von Windows bleibt für die Jobs erreichbar
+(siehe unten). Noch offen:
 
 1. **Seccomp-Profil für Daemon und Build-Dienst.** Beide laufen ohne Rechte, brauchen dafür aber `seccomp=unconfined`
    (eigene Namensräume). Ein eigenes Profil, das nur das Nötige erlaubt, verkleinerte die Angriffsfläche am Kernel weiter.
@@ -161,7 +166,7 @@ Bewusst so gelassen:
   aufbauen“ zu unterscheiden.
 - **Zuordnung im Netzplan** für Matrix-Jobs, Namen mit Ausdruck und aufgerufene Workflows: Die Namensformen von GitHub
   stammen aus der Dokumentation, nicht aus einem echten Lauf. Die eigenen Workflows nutzen nichts davon.
-- **Tägliches Neubauen des Runner-Abbilds** und der Start ohne Netz mit vorhandenem Abbild: nur am Code geprüft.
+- **Tägliches Neubauen der Abbilder von Runner und Docker-Daemon** und der Start ohne Netz mit vorhandenem Abbild: nur am Code geprüft.
 - **Pause auf Bitte von GitHub** (403/429 mit `retry-after`): nur gegen ein nachgestelltes `gh` getestet.
 - **GitHub-Anfragen knapp und aufgebraucht.** Echt gemessen ist nur der Normalfall (bedingte Abfragen zählen nicht; im
   Leerlauf 0 statt rund 36 Anfragen in drei Minuten). Seltener abfragen, nicht mehr abfragen und die Meldungen dazu
@@ -236,8 +241,10 @@ Bewusst so gelassen:
   ob ein Abbild aus der Vorlage einem frisch geladenen gleicht (Verdacht aus dem sechsten Durchgang, unbelegt: `cp -a`
   aus busybox übernimmt womöglich keine erweiterten Attribute wie `user.overlay.opaque`, sodass in kopierten Abbildern
   gelöschte Ordner unterer Schichten wieder auftauchen. Prüfweg: ein Abbild, das einen Ordner einer unteren Schicht
-  ersetzt, einmal aus der Vorlage und einmal frisch geladen vergleichen), und ob ein Pool, der wegen eines öffentlich
-  gewordenen Repos pausiert ist, nach einem Neustart pausiert bleibt (`pausedPublic`; nur am Test geprüft).
+  ersetzt, einmal aus der Vorlage und einmal frisch geladen vergleichen).
+- **Pause eines öffentlich gewordenen Repos über einen Neustart** (`pausedPublic` in `src/actions.js`, seit `7d36a3b`):
+  nur am Test geprüft. Echt prüfen: Der Pool eines Repos, das öffentlich wurde, bleibt nach einem Neustart der App
+  pausiert und wird erst wieder frei, wenn das Repo privat ist.
 - **Korrekturen aus dem sechsten Durchgang** (15.10.2026), nur an Tests geprüft; wirksam erst nach einem Neustart der
   App:
   - Der Lade-Container der Vorlage hinterlässt kein anonymes Volume mehr (`docker rm -v`). Im Betrieb: Nach einem
@@ -245,14 +252,23 @@ Bewusst so gelassen:
     Volumes; ältere bleiben, bis jemand sie entfernt.
   - Scheitert das Vorbereiten der Volumes eines Paars (Rechte, Kopie der Vorlage), steht „Volumes ließen sich nicht
     vorbereiten: …“ im Protokoll, und das Paar geht, statt mit einem Daemon zu starten, der nicht hochkommt.
-  - Beim Beenden während des Auffrischens der Vorlage steht kein roter Eintrag „Lade-Daemon wurde nicht bereit“ mehr.
-  - Ein Job kann sein Ende nicht mehr vortäuschen: Es gilt das letzte „completed with result“ vor dem Ende des Runners,
-    unter dem Namen aus „Running job“; Name und Ergebnis sind gekürzt. Nach jedem Job fragt der Platz einmal mehr
-    `docker inspect` (läuft der Runner noch?). Im Betrieb: Ergebnisse und Verbrauch erscheinen wie bisher, ein bis
-    zwei Sekunden später.
-  - Der Runner-Container gibt `NET_RAW`, `MKNOD` und `SETFCAP` ab. Geprüft an einem eigenen Container aus dem
-    Runner-Abbild: `sudo`, `apt-get install` (auch eines Pakets, das Capabilities setzen will), `ping`, `dotnet`,
-    `node` gehen. Im Betrieb nachsehen, ob ein Workflow etwas davon braucht (Meldungen wie „Operation not permitted“).
+  - Beim Beenden während des Auffrischens der Vorlage steht kein roter Eintrag „Lade-Daemon wurde nicht bereit“ mehr,
+    und der Lade-Container geht trotzdem.
+  - Scheitert das Lesen von `CI_RUNNER` beim Start, steht das im Protokoll; ebenso, wenn sich `access.key` nicht
+    schreiben lässt. `npm run backend` legt seine Daten ohne `RUNCLUB_DATA` jetzt unter `%APPDATA%\RunClub\backend` ab.
+  - Ein Job kann seinen Verbrauch nicht mehr verkürzen: Die Dauer läuft bis zum Ende des Runner-Containers, der Name
+    kommt aus der ersten „Running job“-Zeile, das Ergebnis aus der Ausgabe ist vorläufig und wird durch das von GitHub
+    ersetzt, sobald die üblichen Abfragen den Job des Runners abgeschlossen sehen (`confirmResults` in
+    `src/metrics.js`). Nach jedem Job fragt der Platz einmal mehr `docker inspect` (läuft der Runner noch?). Ein Runner
+    endet spätestens nach 24 Stunden (`RUNNER_MAX` in `src/slots.js`; ein Workflow mit längerem `timeout-minutes`
+    bräche dort ab), und sein Container-Protokoll in der Docker-VM ist auf zweimal 20 MB begrenzt. Im Betrieb:
+    Ergebnisse und Verbrauch erscheinen wie bisher, ein bis zwei Sekunden später; in `metrics.json` tragen die neuen
+    Durchläufe `runner` und nach der Bestätigung `confirmed: true`. Bekannt: Beendet man die App, während ein Runner
+    nach seinem Job noch aufräumt, wird dieser Job nicht mehr verbucht.
+  - Der Runner-Container gibt `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` und `NET_BIND_SERVICE` ab.
+    Geprüft an einem eigenen Container aus dem Runner-Abbild: `sudo`, `sudo -u`, `apt-get install` (auch eines Pakets,
+    das Capabilities setzen will), `ping`, `dotnet`, `node` gehen. Ein Dienst, den ein Schritt per `sudo` direkt im
+    Runner auf einem Port unter 1024 startet, geht nicht mehr. Im Betrieb nachsehen, ob ein Workflow etwas davon braucht (Meldungen wie „Operation not permitted“).
 
 ## Offene Entscheidungen des Nutzers
 

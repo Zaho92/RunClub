@@ -19,6 +19,8 @@ const JOB_KEEP = 20; // gemerkte Durchläufe je Job und Workflow
 const NAME_KEEP = 100; // … und je Jobname über alle Workflows
 const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
 const FIELDS = ['hostCpu', 'hostMemory', 'vmCpu', 'vmMemory'];
+// Ergebnis eines Jobs, wie GitHub es nennt (`conclusion`), in den Wörtern des Runners.
+const CONCLUSIONS = Object.freeze({ success: 'Succeeded', failure: 'Failed', timed_out: 'Failed', cancelled: 'Canceled', skipped: 'Skipped' });
 
 // `now`: die Uhr in Millisekunden; in Tests steuerbar.
 function createMetrics({ dataDir, now: clock = Date.now }) {
@@ -84,7 +86,8 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     };
   }
 
-  // `record`: { job, workflow, result, duration, ...meter().finish() }; `workflow` ist leer, wenn er nicht bekannt war.
+  // `record`: { job, workflow, runner, result, duration, ...meter().finish() }; `workflow` ist leer, wenn er nicht bekannt
+  // war; `result` ist vorläufig, bis `confirmResults` es durch das von GitHub ersetzt.
   function recordJob(repo, record) {
     const list = ensure(ensure(jobs, repo, () => ({})), String(record.job), () => []);
     const workflow = String(record.workflow ?? '');
@@ -100,6 +103,22 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
       for (const name of names.sort((a, b) => last(a).localeCompare(last(b))).slice(0, names.length - JOBS_MAX)) delete jobs[repo][name];
     }
     save();
+  }
+
+  // Das Ergebnis eines Durchlaufs stammt aus der Ausgabe des Runners, in die auch der Job schreiben kann (siehe
+  // `serveOneJob` in slots.js), und ist deshalb vorläufig. Meldet GitHub den Job eines Runners als abgeschlossen, gilt
+  // dessen Ergebnis. `done`: [{ runner, conclusion }]; ein Runner-Name gehört zu genau einem Job.
+  function confirmResults(repo, done) {
+    const results = new Map(done.filter((job) => job.runner && Object.hasOwn(CONCLUSIONS, job.conclusion)).map((job) => [job.runner, CONCLUSIONS[job.conclusion]]));
+    let changed = false;
+    for (const list of Object.values(own(jobs, repo) ?? {})) {
+      for (const record of list) {
+        if (!record.runner || record.confirmed || !results.has(record.runner)) continue;
+        Object.assign(record, { result: results.get(record.runner), confirmed: true });
+        changed = true;
+      }
+    }
+    if (changed) save();
   }
 
   const forget = (repo) => { delete jobs[repo]; save(); };
@@ -139,7 +158,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
   // Die letzte halbe Stunde, je Messgröße eine Reihe.
   const series = () => ({ at: recent.map((p) => p.at), ...Object.fromEntries(FIELDS.map((field) => [field, recent.map((p) => Math.round(p[field] * 100) / 100)])) });
 
-  return { sample, meter, recordJob, forget, jobsView, series, dayMinutes: () => { prune(clock()); return minutes; }, save };
+  return { sample, meter, recordJob, confirmResults, forget, jobsView, series, dayMinutes: () => { prune(clock()); return minutes; }, save };
 }
 
 module.exports = { createMetrics };

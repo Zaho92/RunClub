@@ -2,9 +2,8 @@
 // `watchLoop` bereitet Docker vor, sobald es antwortet (`prepareDocker`: Grenzen der VM lesen, die eigenen Abbilder
 // von Runner und Docker-Daemon bauen, das Abbild des Build-Dienstes laden, Reste abräumen), prüft es danach regelmäßig
 // und gibt es erst nach mehreren ausbleibenden Antworten verloren. Dazu das tägliche Neubauen der eigenen Abbilder
-// (`refreshImage`, wegen des Runners) und das
-// Abräumen von Resten (`removeLeftovers` beim Start und Beenden, `removeOrphans` nach einer Unterbrechung,
-// `removeRegistrations` bei GitHub).
+// (`refreshImage`, wegen des Runners) und das Abräumen von Resten (`removeLeftovers` beim Start und Beenden,
+// `removeOrphans` nach einer Unterbrechung, `removeRegistrations` bei GitHub).
 //
 // Wo Docker läuft, steht in engine.js; von dort kommen `docker`, `dockerList` und die Meldung `unreachableText`.
 

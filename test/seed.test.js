@@ -185,7 +185,7 @@ test('endet RunClub, während der Lade-Daemon startet, bricht das Auffrischen st
   w.answer = (name) => { if (name === 'exec info') { w.stopping = true; return { code: 1 }; } return undefined; };
   await w.seed.refreshSeed(REPO);
   assert.equal(w.calls.filter((name) => name === 'exec info').length, 1);
-  assert.equal(w.calls.at(-1), 'exec info'); // den Lade-Container räumt das Beenden ab
+  assert.equal(w.calls.at(-1), `rm -f -v ${LOADER}`);
   assert.deepEqual(w.logs.filter((entry) => entry[2] === 'error'), []);
   assert.deepEqual([...w.pool.seeded], ['alt:1']);
   assert.equal(w.saved, 0);

@@ -50,14 +50,21 @@ test('beim Abmelden von Windows nur die freien Runner abmelden; Beenden bleibt d
 test('startPools startet jeden Pool und protokolliert, wenn CI_RUNNER sich nicht lesen lässt', async () => {
   const w = world();
   const started = [];
-  w.lifecycle.startPools(['wer/App', 'wer/Zwei'], {
+  w.lifecycle.startPools(['wer/App', 'wer/Zwei', 'wer/Drei'], {
     startPool: (repo) => started.push(`Pool ${repo}`),
-    checkRouting: async (repo) => { if (repo === 'wer/Zwei') throw new Error('gh: Not Found (HTTP 404)'); },
+    // So meldet routing.js einen Fehler beim Lesen; werfen sollte es nicht, aber auch das kommt ins Protokoll.
+    checkRouting: async (repo) => {
+      if (repo === 'wer/Drei') throw new Error('unerwartet');
+      return { value: null, error: repo === 'wer/Zwei' ? 'gh: Forbidden (HTTP 403)' : null };
+    },
     watchVisibility: (repo) => started.push(`Sichtbarkeit ${repo}`),
   });
   await new Promise(setImmediate);
-  assert.deepEqual(started, ['Pool wer/App', 'Sichtbarkeit wer/App', 'Pool wer/Zwei', 'Sichtbarkeit wer/Zwei']);
-  assert.deepEqual(w.logs, [['CI_RUNNER ließ sich nicht lesen – gh: Not Found (HTTP 404)', 'wer/Zwei', 'error']]);
+  assert.deepEqual(started, ['Pool wer/App', 'Sichtbarkeit wer/App', 'Pool wer/Zwei', 'Sichtbarkeit wer/Zwei', 'Pool wer/Drei', 'Sichtbarkeit wer/Drei']);
+  assert.deepEqual(w.logs, [
+    ['CI_RUNNER ließ sich nicht lesen – gh: Forbidden (HTTP 403)', 'wer/Zwei', 'error'],
+    ['CI_RUNNER ließ sich nicht lesen – unerwartet', 'wer/Drei', 'error'],
+  ]);
 });
 
 test('saveKey legt den Schlüssel als Datei ab und meldet, wenn das nicht geht', (t) => {
@@ -67,4 +74,5 @@ test('saveKey legt den Schlüssel als Datei ab und meldet, wenn das nicht geht',
   assert.equal(w.lifecycle.saveKey(path.join(dir, 'access.key'), 'schluessel'), true);
   assert.equal(fs.readFileSync(path.join(dir, 'access.key'), 'utf8'), 'schluessel\n');
   assert.equal(w.lifecycle.saveKey(path.join(dir, 'fehlt', 'access.key'), 'schluessel'), false);
+  assert.match(w.logs.at(-1)[0], /^Der Schlüssel ließ sich nicht ablegen – ENOENT/);
 });

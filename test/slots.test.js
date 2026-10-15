@@ -1,7 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX } = require('../src/slots');
-const { READY_TRIES } = require('../src/dind');
+const { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_MAX, RUNNER_LOG_MAX, ROUND_PAUSE, IDLE_PAUSE, BROKEN_PAUSE } = require('../src/slots');
+const { READY_TRIES, DAEMON_POLL } = require('../src/dind');
+const { SECOND, HOUR } = require('../src/units');
+
+const PAUSE_STEPS = BROKEN_PAUSE / SECOND; // die Pause nach einem Fehler, in Sekundenschritten
 const { turn, until } = require('./support');
 
 const REPO = 'wer/App';
@@ -90,7 +93,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
       onLine(line);
       states.push(w.slot.state);
     }
-    assert.deepEqual(w.slot.outcome?.result, 'Succeeded'); // gemeldet wird es erst, wenn der Runner endet
+    assert.equal(w.slot.outcome?.result, 'Succeeded'); // gemeldet wird es erst, wenn der Runner endet
     return { code: 0 };
   };
   w.onLearn = (pool, slot) => { slot.retired = true; }; // nach diesem Job endet der Platz
@@ -122,14 +125,16 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   const runner = call(`run ${BASE}-runner`);
   assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '-i', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
     '--cpus', '6', '--memory', '4g', '--pids-limit', '8192',
-    '--cap-drop', 'NET_RAW', '--cap-drop', 'MKNOD', '--cap-drop', 'SETFCAP', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
+    '--cap-drop', 'NET_RAW', '--cap-drop', 'MKNOD', '--cap-drop', 'SETFCAP',
+    '--cap-drop', 'SETPCAP', '--cap-drop', 'SYS_CHROOT', '--cap-drop', 'NET_BIND_SERVICE', '--log-opt', `max-size=${RUNNER_LOG_MAX}`, '--log-opt', 'max-file=2',
+    '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
     '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
     '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc',
     'runner:test', 'bash', '-c']);
   // Die Anmeldung geht über die Umgebung an den Runner, nicht über die Befehlszeile.
   assert.match(runner.args.at(-1), /read -r ACTIONS_RUNNER_INPUT_JITCONFIG; export ACTIONS_RUNNER_INPUT_JITCONFIG; exec \.\/run\.sh$/);
   assert.match(runner.args.at(-1), /--driver remote --driver-opt default-load=true unix:\/\/\/run\/rc-buildkit\/buildkitd\.sock /);
-  assert.equal(runner.options.timeout, 0);
+  assert.equal(runner.options.timeout, RUNNER_MAX);
   assert.equal(runner.options.input, 'geheim\n'); // die Anmeldung steht weder in der Befehlszeile noch in den Einstellungen des Containers
   assert.equal(runner.options.env, undefined);
 
@@ -141,7 +146,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   const [repo, record] = w.recorded[0];
   assert.equal(repo, REPO);
   assert.equal(typeof record.duration, 'number');
-  assert.deepEqual({ ...record, duration: 0 }, { job: 'Bauen', workflow: '', result: 'Succeeded', duration: 0, peakMemory: 5 });
+  assert.deepEqual({ ...record, duration: 0 }, { job: 'Bauen', workflow: '', runner: RUNNER, result: 'Succeeded', duration: 0, peakMemory: 5 });
   assert.deepEqual(w.refreshed, [REPO, REPO]); // beim Beginn und beim Ende …
   assert.deepEqual(w.timers.map((timer) => timer.ms), [REFRESH_AGAIN]); // … und kurz nach dem Beginn noch einmal
   w.timers[0].work();
@@ -226,7 +231,7 @@ test('endet der Runner ohne Job, ist der Platz gestört: Fehler ins Protokoll, A
   assert.deepEqual(w.logs, [[message, REPO, 'error']]);
   assert.deepEqual(paused, { state: 'gestört', error: message, base: null });
   assert.deepEqual(w.calls.slice(-6), [`run ${BASE}-runner`, ALIVE(BASE), ...REMOVE, UNREGISTER]); // kein Job: Die Anmeldung wird zurückgenommen
-  assert.deepEqual(w.slept, [1000]);
+  assert.deepEqual(w.slept, [IDLE_PAUSE]);
   assert.deepEqual(w.learned, []);
   assert.deepEqual(w.recorded, []);
   assert.equal(w.slot.state, 'aus');
@@ -241,7 +246,7 @@ test('ohne Fehlerausgabe nennt die Meldung den Code; nach der Pause versucht der
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual(w.logs.map(([text]) => text), ['Runner endete ohne Job (Code 137)', 'Runner endete ohne Job (Code 137)']);
-  assert.equal(w.slept.length, 61); // eine Minute Pause in Sekundenschritten, dann der zweite Versuch
+  assert.equal(w.slept.length, PAUSE_STEPS + 1); // eine Minute Pause in Sekundenschritten, dann der zweite Versuch
   assert.equal(w.calls.filter((name) => name === UNREGISTER).length, 2);
 });
 
@@ -265,7 +270,7 @@ test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause
   let paused = null;
   w.onSleep = () => {
     if (w.slept.length === 1) paused = { state: w.slot.state, error: w.slot.error, base: w.slot.base, live: [...w.slots.livePairs] };
-    if (w.slept.length === 60) w.ghFails = null;
+    if (w.slept.length === PAUSE_STEPS) w.ghFails = null;
   };
   w.answer = (name, args, { onLine }) => {
     if (!isRunner(name)) return undefined;
@@ -279,7 +284,7 @@ test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause
   assert.deepEqual(w.calls, [...BUILD, REGISTER, REGISTER, `run ${BASE}-runner`, ALIVE(BASE), ...REMOVE]); // ein Aufbau, zwei Anmeldungen
   assert.deepEqual(paused, { state: 'gestört', error: 'gh: Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
   assert.deepEqual(w.logs[0], ['gh: Forbidden (HTTP 403)', REPO, 'error']);
-  assert.equal(w.slept.length, 60);
+  assert.equal(w.slept.length, PAUSE_STEPS);
   assert.deepEqual(w.replenished, [REPO]); // die Reserve gibt kein zweites Paar her
   assert.equal(w.slot.jobs, 1);
   assert.equal(w.slots.livePairs.size, 0);
@@ -294,7 +299,7 @@ test('ein Paar ohne Anmeldung wird abgebaut, wenn der Platz endet, und nichts wi
   assert.deepEqual(w.logs, [['gh: Forbidden (HTTP 403)', REPO, 'error']]);
   assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]);
   assert.equal(w.slot.error, 'gh: Forbidden (HTTP 403)');
-  assert.deepEqual(w.slept, [1000]);
+  assert.deepEqual(w.slept, [IDLE_PAUSE]);
   assert.equal(w.slot.state, 'aus');
   assert.equal(w.slots.livePairs.size, 0);
 });
@@ -315,7 +320,7 @@ test('ein Paar ohne Anmeldung wird abgebaut, wenn der Pool ruht oder die Limits 
   changed.ghFails = 'gh: Forbidden (HTTP 403)';
   changed.onSleep = () => {
     if (changed.slept.length === 1) changed.limits = { ...LIMITS, dockerMemory: '6g' };
-    if (changed.slept.length === 61) changed.stopping = true;
+    if (changed.slept.length === PAUSE_STEPS + 1) changed.stopping = true;
   };
   await changed.slots.slotLoop(changed.pool, changed.slot);
   // Nach der Pause entsteht ein neues Paar mit den geltenden Limits, statt das alte noch einmal anzumelden.
@@ -403,7 +408,7 @@ test('Abbruch im Leerlauf entfernt den Runner und meldet ihn bei GitHub ab', asy
   await loop;
 
   assert.deepEqual(w.calls.slice(-5), [`rm -f ${BASE}-runner`, ...REMOVE, UNREGISTER]); // nach einem Abbruch wird nicht weiter mitgelesen
-  assert.deepEqual(w.slept, [1000]);
+  assert.deepEqual(w.slept, [IDLE_PAUSE]);
   assert.deepEqual(w.logs, []); // ein Abbruch ist kein Fehler
   assert.deepEqual(w.learned, []);
   assert.equal(w.slot.aborted, true);
@@ -507,7 +512,7 @@ test('lässt sich das Paar nicht aufbauen, bleibt nichts davon stehen', async ()
   slow.answer = (name) => (name === `exec ${BASE}-dind info` ? { code: 1 } : undefined);
   await assert.rejects(slow.slots.provision(slow.pool, () => false), { message: 'Docker-Daemon wurde nicht bereit' });
   assert.equal(slow.slept.length, READY_TRIES);
-  assert.ok(slow.slept.every((ms) => ms === 1000));
+  assert.ok(slow.slept.every((ms) => ms === DAEMON_POLL));
   assert.deepEqual(slow.calls.slice(-REMOVE.length), REMOVE);
 });
 
@@ -525,7 +530,7 @@ test('ruht der Pool oder fehlt Docker, wartet der Platz und die Reserve wird abg
 
   assert.deepEqual(states, ['wartet auf Docker', 'pausiert', 'wartet']);
   assert.equal(w.discarded, 3);
-  assert.deepEqual(w.slept, [1000, 1000, 1000]);
+  assert.deepEqual(w.slept, [IDLE_PAUSE, IDLE_PAUSE, IDLE_PAUSE]);
   assert.deepEqual(w.calls, []);
   assert.equal(w.slot.state, 'aus');
 });
@@ -574,7 +579,8 @@ test('reißt die Verbindung zu `docker run` ab, während der Runner weiterläuft
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual(w.calls.slice(-7), [`run ${BASE}-runner`, ALIVE(BASE), `logs -f ${BASE}-runner`, ALIVE(BASE), ...REMOVE]);
-  assert.deepEqual(w.details.find((call) => call.name === `logs -f ${BASE}-runner`).options.timeout, 0);
+  const reattach = w.details.find((call) => call.name === `logs -f ${BASE}-runner`).options.timeout;
+  assert.ok(reattach > 0 && reattach <= RUNNER_MAX); // dieselbe Frist wie für den Runner, nicht neu
   assert.deepEqual(w.logs.map(([text]) => text), [
     `Job „Bauen“ läuft auf ${RUNNER}`,
     `Die Verbindung zu ${RUNNER} riss ab; es wird weiter mitgelesen`,
@@ -602,7 +608,7 @@ test('wirft etwas beim Abräumen, steht das im Protokoll, und der Platz macht we
   });
   await slots.slotLoop(w.pool, w.slot);
   assert.deepEqual(w.logs, [['Platz – Docker antwortet nicht', REPO, 'error']]);
-  assert.deepEqual(w.slept, [5000, 1000]); // erst die Pause nach dem Fehler, dann die übliche Runde
+  assert.deepEqual(w.slept, [ROUND_PAUSE, IDLE_PAUSE]); // erst die Pause nach dem Fehler, dann die übliche Runde
   assert.equal(w.slot.state, 'aus');
   assert.deepEqual(w.pool.slots, []);
 });
@@ -675,4 +681,20 @@ test('Jobname und Ergebnis aus der Ausgabe des Runners werden gekürzt; ein Ende
   assert.equal(w.recorded[0][1].result.length, RESULT_MAX);
   assert.equal(w.slot.lastResult.length, JOB_NAME_MAX + 2 + RESULT_MAX);
   assert.equal(w.logs[0][3].job.length, JOB_NAME_MAX);
+});
+
+test('läuft ein Runner über die Frist, wird er entfernt, und der Job zählt ohne Ergebnis', async () => {
+  const w = world();
+  w.answer = (name, args, { onLine }) => {
+    if (!isRunner(name)) return undefined;
+    onLine('Running job: Bauen');
+    onLine('Job Bauen completed with result: Succeeded'); // danach hält ein Schritt den Runner am Leben
+    return { code: -1, stderr: 'keine Antwort', timedOut: true };
+  };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.deepEqual(w.calls.slice(-4), [`rm -f ${BASE}-runner`, ...REMOVE]); // ohne erneutes Mitlesen
+  assert.deepEqual(w.recorded, []);
+  assert.deepEqual(w.logs.at(-1), [`Job „Bauen“ endete ohne Ergebnis (nach ${RUNNER_MAX / HOUR} h beendet)`, REPO, 'error', { job: 'Bauen' }]);
 });

@@ -58,7 +58,7 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
     let timedOut = false;
     let aborted = false;
     let grace = null;
-    const late = () => ({ code: -1, stdout, stderr: `keine Antwort nach ${Math.round(timeout / 1000)} s`, timedOut: true });
+    const late = () => ({ code: -1, stdout, stderr: `keine Antwort nach ${Math.round(timeout / SECOND)} s`, timedOut: true });
     const stopped = () => ({ code: -1, stdout, stderr: 'abgebrochen', timedOut: false, aborted: true });
     const done = (result) => { clearTimeout(timer); clearTimeout(grace); signal?.removeEventListener('abort', abort); resolve(result); };
     // Nach der Zeitgrenze oder dem Abbruch von außen wird das Programm beendet. Hält ein Kind von ihm die Ausgabe

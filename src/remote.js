@@ -25,9 +25,10 @@ const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne 
 //   poolOf(repo)            der stehende Pool oder undefined
 //   stopping(), timer (wie `setTimeout`)
 //   onPublic(repo), onPrivate(repo)   ein Repo mit Pool ist öffentlich bzw. wieder privat (siehe actions.js)
+//   confirmResults(repo, done)   Ergebnisse abgeschlossener Jobs der eigenen Runner, wie GitHub sie meldet (siehe metrics.js)
 function createRemote({
   gh, githubApi, pipelines, routing, waiting, log, logError,
-  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, onPublic, onPrivate,
+  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, onPublic, onPrivate, confirmResults = () => {},
 }) {
   const states = new Map(); // Repo -> { jobs, runs, error }
   const busy = new Set(); // Repos, deren Abfrage gerade läuft
@@ -40,7 +41,8 @@ function createRemote({
     busy.add(repo);
     try {
       const runs = (await gh(['api', `repos/${repo}/actions/runs?per_page=${RUNS_PER_REPO}`])).workflow_runs;
-      const jobs = (await pipelines.refresh(repo, runs)).flatMap((pipeline) => pipeline.jobs
+      const active = await pipelines.refresh(repo, runs);
+      const jobs = active.flatMap((pipeline) => pipeline.jobs
         .filter((job) => job.status !== 'completed' && job.status !== 'pending')
         .map((job) => ({ workflow: pipeline.workflow, job: job.name, branch: pipeline.branch, status: job.status, runner: job.runner, own: job.own, startedAt: job.startedAt, url: job.url, estimate: job.estimate, step: job.step })));
       states.set(repo, {
@@ -48,6 +50,10 @@ function createRemote({
         runs: runs.map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
       });
       noteWorkflows(poolOf(repo), jobs);
+      // Abgeschlossene Jobs der eigenen Runner, auch aus dem letzten fertigen Lauf: Ihr Ergebnis bei GitHub gilt (siehe metrics.js).
+      const done = [...active, pipelines.lastOf(repo)].filter(Boolean).flatMap((pipeline) => pipeline.jobs)
+        .filter((job) => job.status === 'completed' && job.own && job.runner).map((job) => ({ runner: job.runner, conclusion: job.conclusion }));
+      if (done.length) confirmResults(repo, done);
     } catch (error) {
       states.set(repo, { ...(states.get(repo) ?? { jobs: [], runs: [] }), error: error.message });
     } finally {

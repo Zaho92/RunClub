@@ -42,7 +42,8 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | Pfad | Inhalt |
 | --- | --- |
 | `src/main.js` | Fenster, Infobereich, Start mit Windows |
-| `src/backend.js` | Nur Verdrahtung: `start()` legt die Module an, startet die Takte und den lokalen Dienst und beendet alles wieder |
+| `src/backend.js` | Nur Verdrahtung: `start()` legt die Module an, startet die Takte und den lokalen Dienst und beendet alles wieder (Ablauf in `src/lifecycle.js`) |
+| `src/lifecycle.js` | Start und Ende eines Programmlaufs: Takte, Start der Pools, Schlüsseldatei, Beenden, schnelles Abmelden beim Abmelden von Windows |
 | `src/settings.js`, `src/names.js` | Einstellungen und Gelerntes im Datenordner; Namen der Abbilder, Kennzeichen und Namen der Caches und Build-Dienste je Repo |
 | `src/runners.js` | Verdrahtet Vorlage, Plätze, Caches und Pools miteinander (auch für die Tests) |
 | `src/remote.js` | Was bei GitHub gelesen wird: Läufe und Jobs, Anfragelimit, Repos des Kontos, wartende Läufe, Sichtbarkeit der Repos; Läufe erneut starten |
@@ -76,7 +77,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `scripts/make-icon.js` | zeichnet das Symbol nach `build/` (`npm run icon`) |
 
 Einstellungen, Gelerntes und Protokoll liegen unter `%APPDATA%\RunClub\data`.
-`npm run backend` startet nur den Dienst, ohne Fenster (Daten dann in `data/`); die Adresse zum Öffnen steht dann in der Konsole.
+`npm run backend` startet nur den Dienst, ohne Fenster (Daten dann unter `%APPDATA%\RunClub\backend`, getrennt von denen der App); die Adresse zum Öffnen steht dann in der Konsole.
 
 Umgebungsvariablen: `RUNCLUB_DATA` (Datenordner), `RUNCLUB_PORT` (Port des Dienstes, sonst 8770) und
 `RUNCLUB_SUBNETS` (Bereich, aus dem die Netze der Runner ihr Subnetz bekommen, sonst `10.213.0.0/16`; von /8 bis /24.
@@ -96,8 +97,10 @@ also auch für andere lokale Dienste, und die Adresse mit dem Schlüssel bleibt 
 Kein Container der Runner läuft mit `--privileged`: Der Docker-Daemon jedes Jobs und der Build-Dienst laufen als
 gewöhnliche Benutzer (rootless). Wer aus einem Container ausbricht, den ein Job startet, landet im Daemon-Container
 seines Jobs, nicht in der Docker-VM. Die Schritte des Jobs selbst haben im Runner-Container per `sudo` root, mit
-Dockers üblichen Capabilities ohne `NET_RAW`, `MKNOD` und `SETFCAP`. Gegen jeden Angriff schützt das nicht; auf den
-Runnern soll nur Code laufen, dem du vertraust. Pools gibt es deshalb nur für private Repos, und wird ein Repo öffentlich, pausiert sein Pool.
+Dockers üblichen Capabilities ohne `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` und `NET_BIND_SERVICE`; wer
+aus dem Runner-Container ausbricht, ist root in der Docker-VM. Gegen jeden Angriff schützt das nicht; auf den Runnern
+soll nur Code laufen, dem du vertraust. Pools gibt es deshalb nur für private Repos, und wird ein Repo öffentlich,
+pausiert sein Pool.
 Neue Versionen der festgenagelten Abbilder (`linux/Dockerfile`, `linux/pins.Dockerfile`) schlägt Dependabot vor.
 
 Was der Daemon ohne Rechte für Jobs ändert: Er hat sein eigenes Netz im Daemon-Container. Ports, die ein Job

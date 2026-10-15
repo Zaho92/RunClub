@@ -48,19 +48,27 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
   }
 
   // Je Repo mit Pool: den Pool starten, die Repo-Variable CI_RUNNER lesen, die Sichtbarkeit prüfen. Liest sich die
-  // Variable nicht, steht das im Protokoll; der Pool arbeitet trotzdem.
+  // Variable nicht (`error` im Ergebnis, siehe routing.js), steht das im Protokoll; der Pool arbeitet trotzdem.
   function startPools(repos, { startPool, checkRouting, watchVisibility }) {
     for (const repo of repos) {
       startPool(repo);
-      checkRouting(repo).catch((error) => log(`CI_RUNNER ließ sich nicht lesen – ${error.message}`, repo, 'error'));
+      const failed = (message) => log(`CI_RUNNER ließ sich nicht lesen – ${message}`, repo, 'error');
+      checkRouting(repo).then((info) => { if (info?.error) failed(info.error); }, (error) => failed(error.message));
       watchVisibility(repo);
     }
   }
 
   // Der Schlüssel steht nur in der Konsole und in einer Datei im Datenordner des Nutzers, nie im Protokoll, das die
-  // Oberfläche zeigt. Liefert, ob die Datei geschrieben ist; sonst bleibt nur die Konsole.
+  // Oberfläche zeigt. Scheitert das Schreiben, gälte sonst still ein alter Schlüssel in der Datei: Das kommt ins
+  // Protokoll, und es bleibt nur die Konsole.
   function saveKey(file, key) {
-    try { fs.writeFileSync(file, `${key}\n`); return true; } catch { return false; }
+    try {
+      fs.writeFileSync(file, `${key}\n`);
+      return true;
+    } catch (error) {
+      log(`Der Schlüssel ließ sich nicht ablegen – ${error.message}`, null, 'error');
+      return false;
+    }
   }
 
   return { stopping: () => stopping, every, everyAfter, shutdown, release, startPools, saveKey };

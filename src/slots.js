@@ -9,7 +9,7 @@
 // `dockerReady`, `poolResting`), wird bei jedem Gebrauch frisch erfragt.
 //
 //   Pool    { repo, slots, reserve, seeded, removed, … }   (angelegt in `startPool` in pools.js)
-//   Platz   { repo, state, jobs, base, name, runnerId, job, aborted, building, retired, kept, … }
+//   Platz   { repo, state, jobs, base, name, runnerId, job, outcome, aborted, building, retired, kept, … }
 //   Paar    { id, base, copied, extras, limits }; `base` ist der Name, den Container, Volumes und Netz tragen
 //
 // Zustände eines Platzes: siehe states.js.
@@ -21,7 +21,7 @@ const { createNetwork } = require('./subnets');
 const { resultKind, resultText } = require('./journal');
 const limitRules = require('./limits');
 const { SOCKET_DIR, SOCKET, SERVICE_USER, PIDS_MAX } = require('./caches');
-const { SECOND } = require('./units');
+const { SECOND, HOUR } = require('./units');
 const { waitForDaemon, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { unregisterRunner } = require('./github');
 const { runnerName } = require('./names');
@@ -38,10 +38,15 @@ const REFRESH_AGAIN = 4 * SECOND; // GitHub zeigt einen eben begonnenen Job oft 
 // die Oberfläche gingen. GitHub erlaubt für Jobnamen weniger; Ergebnisse sind kurze Wörter (Succeeded, Failed, Canceled).
 const JOB_NAME_MAX = 200;
 const RESULT_MAX = 20;
+// Ein Job auf GitHub dauert ohne eigenes timeout-minutes höchstens sechs Stunden; mehr als einen Tag lässt RunClub einen
+// Runner nicht laufen, damit ein Job ihn nicht über sein Ende hinaus am Leben hält.
+const RUNNER_MAX = 24 * HOUR;
+const RUNNER_LOG_MAX = '20m'; // Protokoll eines Runner-Containers in der Docker-VM, je Datei (zwei Dateien)
 // Der Runner-Container läuft ohne Rechte, aber die Job-Schritte haben per `sudo` root darin. Was kein üblicher Schritt
-// braucht, gibt er ab: rohe Sockets (`ping` geht ohne), Geräte anlegen, Capabilities an Dateien setzen. Geprüft mit
-// `sudo`, `apt-get install`, `ping`, `dotnet` und `node`; AUDIT_WRITE bleibt, sonst warnt jedes `sudo` im Protokoll.
-const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP'];
+// braucht, gibt er ab: rohe Sockets (`ping` geht ohne), Geräte anlegen, Capabilities an Dateien setzen oder weitergeben,
+// `chroot`, Ports unter 1024 (Dienste eines Jobs laufen über seinen Docker-Daemon). Geprüft mit `sudo`, `sudo -u`,
+// `apt-get install`, `ping`, `dotnet` und `node`; AUDIT_WRITE bleibt, sonst warnt jedes `sudo` im Protokoll.
+const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT', 'NET_BIND_SERVICE'];
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
 //   gh(args, body)          Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
@@ -186,20 +191,15 @@ function createSlots({
       'read -r ACTIONS_RUNNER_INPUT_JITCONFIG; export ACTIONS_RUNNER_INPUT_JITCONFIG',
       'exec ./run.sh',
     ].join('; ');
-    // Die Ausgabe des Runners enthält auch, was die Schritte des Jobs schreiben (`echo … > /proc/1/fd/1`). Glaubhaft
-    // sind deshalb nur zwei Zeilen: die erste „Running job“ (vorher läuft kein Schritt) und die letzte „completed with
-    // result“ vor dem Ende des Runners (danach läuft kein Schritt mehr; einer, der sich der Aufräumung des Runners
-    // entzieht, hat dafür nur den Augenblick bis zum Ende des Containers). Sonst könnte ein Job sein Ende vortäuschen:
-    // Dauer und Messwerte gingen verkürzt in den Verbrauch und damit in den Vorschlag der Limits ein. Das Ergebnis gilt
-    // deshalb erst, wenn der Runner endet (`settleJob`); den Namen nennt die Zeile vom Beginn.
-    // `read` zählt die Zeilen eines Lesedurchgangs: Nach einem Abriss beginnt `docker logs` von vorn, und schon Gelesenes
-    // wirkt kein zweites Mal.
-    let read = 0;
-    let done = 0;
+    // Die Ausgabe des Runners enthält auch, was die Schritte des Jobs schreiben (`echo … > /proc/1/fd/1`), und die
+    // Schritte laufen unter demselben Benutzer wie der Runner (sie können ihn auch beenden). Glaubhaft ist deshalb nur
+    // die erste Zeile „Running job“: Vorher läuft kein Schritt, sie nennt Beginn und Namen des Jobs. Ende und Dauer
+    // kommen von außen (der Container endet; `settleJob`), die Messwerte ohnehin (`docker stats`). Das Ergebnis aus der
+    // letzten Zeile „completed with result“ ist nur vorläufig: Es wird gemerkt und durch das Ergebnis ersetzt, das
+    // GitHub für den Job dieses Runners meldet (`confirmResults` in metrics.js, aus den Abfragen in remote.js).
+    // Nach einem Abriss beginnt `docker logs` von vorn; wiederholte Zeilen ändern nichts, weil nur die erste
+    // „Running job“ zählt und vom Ergebnis nur die letzte.
     const follow = (line) => {
-      read += 1;
-      if (read <= done) return;
-      done = read;
       const started = line.match(/Running job: (.+)$/);
       const finished = line.match(/Job .+ completed with result: (\w+)/);
       if (/Listening for Jobs/.test(line) && slot.state === SLOT.STARTING) slot.state = SLOT.READY;
@@ -210,27 +210,35 @@ function createSlots({
         refreshRepo(pool.repo);
         timer(() => refreshRepo(pool.repo), REFRESH_AGAIN);
       }
-      if (finished && slot.job) slot.outcome = { result: finished[1].slice(0, RESULT_MAX), at: Date.now() };
+      if (finished && slot.job) slot.outcome = { result: finished[1].slice(0, RESULT_MAX) };
     };
+    // Ein Runner endet spätestens nach RUNNER_MAX, auch wenn ein Job ihn am Leben hält, nachdem GitHub ihn beendet hat.
+    const deadline = Date.now() + RUNNER_MAX;
     let runner = await docker(['run', '--rm', '-i', '--label', mark, '--name', `${pair.base}-runner`, '--network', `container:${pair.base}-dind`,
       '--cpus', String(limits.runnerCpus), '--memory', limits.runnerMemory, '--pids-limit', String(PIDS_MAX),
       ...RUNNER_CAP_DROP.flatMap((cap) => ['--cap-drop', cap]),
+      // Was ein Job ausgibt, landet im Protokoll des Containers in der Docker-VM: begrenzt, sonst füllte es ihre Platte.
+      '--log-opt', `max-size=${RUNNER_LOG_MAX}`, '--log-opt', 'max-file=2',
       '-v', `${pair.base}-work:/home/runner/_work`, '-v', `${pair.base}-sock:/sock`, ...pair.extras,
       image, 'bash', '-c', start], {
-      timeout: 0, // läuft, solange der Job läuft
+      timeout: RUNNER_MAX,
       input: `${jit.encoded_jit_config}\n`,
       onLine: follow,
     });
     // Endet der Aufruf, während der Runner weiterläuft (Docker Desktop verlor kurz die Verbindung), wird weiter
-    // mitgelesen, statt das Paar mitten im Job abzuräumen. Schon gelesene Zeilen wirken dabei kein zweites Mal.
-    // Gelesen wird, bis der Runner wirklich endet: Auch ein schon gemeldetes Ergebnis kann vorgetäuscht sein.
-    for (let attempt = 0; attempt < REATTACH_MAX && !slot.aborted && await runnerAlive(pair.base); attempt += 1) {
+    // mitgelesen, statt das Paar mitten im Job abzuräumen.
+    for (let attempt = 0; attempt < REATTACH_MAX && !runner.timedOut && !slot.aborted && await runnerAlive(pair.base); attempt += 1) {
       log(`Die Verbindung zu ${slot.name} riss ab; es wird weiter mitgelesen`, pool.repo, 'error');
-      read = 0;
-      runner = await docker(['logs', '-f', `${pair.base}-runner`], { timeout: 0, onLine: follow });
+      runner = await docker(['logs', '-f', `${pair.base}-runner`], { timeout: Math.max(SECOND, deadline - Date.now()), onLine: follow });
+    }
+    if (runner.timedOut) {
+      await docker(['rm', '-f', `${pair.base}-runner`]);
+      slot.outcome = null; // ein Ergebnis aus der Zeit davor ist nicht das Ende
+      runner = { ...runner, stderr: `nach ${RUNNER_MAX / HOUR} h beendet` };
     }
     // Nach einem Abbruch ist nichts mehr zu melden, außer der Runner hatte doch schon einen Job angenommen (der
-    // Abbruch kam einen Augenblick zu spät); beim Beenden der App gilt auch das nicht.
+    // Abbruch kam einen Augenblick zu spät); beim Beenden der App gilt auch das nicht: Dann wird auch ein Job, der
+    // gerade noch fertig wurde, nicht mehr verbucht.
     if (slot.aborted && (!slot.job || stopping())) return;
     if (!slot.job) throw new Error(`Runner endete ohne Job (${lastLine(runner.stderr) || `Code ${runner.code}`})`);
     if (slot.outcome) settleJob(pool, slot);
@@ -244,10 +252,10 @@ function createSlots({
     await learnImages(pool, slot);
   }
 
-  // Der Job ist zu Ende, mit dem letzten Ergebnis, das der Runner gemeldet hat: Verbrauch merken, melden.
+  // Der Job ist zu Ende: Verbrauch bis zum Ende des Runners merken, mit dem vorläufigen Ergebnis, melden.
   function settleJob(pool, slot) {
-    const { result, at } = slot.outcome;
-    if (slot.meter) metrics.recordJob(pool.repo, { job: slot.job, workflow: slot.workflow, result, duration: Math.round((at - new Date(slot.jobStartedAt)) / SECOND), ...slot.meter.finish() });
+    const { result } = slot.outcome;
+    if (slot.meter) metrics.recordJob(pool.repo, { job: slot.job, workflow: slot.workflow, runner: slot.name, result, duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / SECOND), ...slot.meter.finish() });
     slot.meter = null;
     refreshRepo(pool.repo);
     Object.assign(slot, { lastResult: `${slot.job}: ${result}`, jobs: slot.jobs + 1 });
@@ -340,4 +348,4 @@ const pairNames = (pool) => new Set(pool.slots.filter((slot) => slot.base).map((
 // ohne dass ein Job verloren geht.
 const idleRegistrations = (pools) => [...pools].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job).map((slot) => ({ repo: slot.repo, runnerId: slot.runnerId })));
 
-module.exports = { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_CAP_DROP };
+module.exports = { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_CAP_DROP, RUNNER_MAX, RUNNER_LOG_MAX, ROUND_PAUSE, IDLE_PAUSE, BROKEN_PAUSE };

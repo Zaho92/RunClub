@@ -71,7 +71,9 @@ const EVERY = {
 //                           Oberfläche), `onExit()` (nach dem Beenden; ohne Angabe endet der Prozess)
 function start({
   port = Number(process.env.RUNCLUB_PORT) || DEFAULT_PORT,
-  dataDir = process.env.RUNCLUB_DATA || path.join(__dirname, '..', 'data'),
+  // Allein gestartet liegen die Daten im Profil des Nutzers, getrennt von denen der App: Im Ordner des Repos könnten
+  // andere Benutzer des Rechners den Schlüssel lesen (access.key).
+  dataDir = process.env.RUNCLUB_DATA || path.join(process.env.APPDATA || os.homedir(), 'RunClub', 'backend'),
   hooks = {},
 } = {}) {
   const { actions: appActions = {}, status: appStatus = () => ({}), onExit = () => process.exit(0) } = hooks;
@@ -120,6 +122,7 @@ function start({
     gh, githubApi, pipelines, routing, waiting, log, logError,
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
     onPublic: (repo) => actionsApi.pauseForPublic(repo), onPrivate: (repo) => actionsApi.allowPrivate(repo),
+    confirmResults: metrics.confirmResults,
   });
   let dockerWatch = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist
   const usage = createUsage({ docker, inVm: engine.inVm, metrics, pools: () => runners.pools.values(), log, stopping: isStopping });
@@ -178,7 +181,7 @@ function start({
   every(EVERY.account, account.watch);
   every(EVERY.quota, remote.watchQuota);
   every(EVERY.waiting, remote.scanWaiting);
-  everyAfter(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, 'Runner-Abbild')));
+  everyAfter(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, 'Abbilder von Runner und Docker-Daemon')));
   every(EVERY.github, remote.refreshAll);
   everyAfter(EVERY.githubActive, remote.refreshActive);
   everyAfter(EVERY.measure, usage.measure);

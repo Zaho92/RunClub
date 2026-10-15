@@ -12,7 +12,7 @@ function world() {
   const w = {
     calls: [], logs: [], timers: [], public: [], private: [], time: 1000000, checked: [], scanned: null, stopping: false, may: () => true,
     settings: { [REPO]: { repo: REPO } }, pools: { [REPO]: { slots: [] } }, quota: null,
-    answers: {}, pipelines: [],
+    answers: {}, pipelines: [], confirmed: [],
   };
   const gh = async (args) => {
     const at = args.at(-1);
@@ -23,7 +23,8 @@ function world() {
   w.remote = createRemote({
     gh,
     githubApi: { mayPoll: (...args) => w.may(...args), refreshQuota: async () => w.quota },
-    pipelines: { refresh: async () => w.pipelines },
+    pipelines: { refresh: async () => w.pipelines, lastOf: () => w.last ?? null },
+    confirmResults: (repo, done) => w.confirmed.push([repo, done]),
     routing: { check: async (repo) => { w.checked.push(repo); } },
     waiting: { scan: async (found) => { w.scanned = found; } },
     log: (...entry) => w.logs.push(entry),
@@ -53,6 +54,19 @@ test('ein Repo abfragen: Läufe, laufende Jobs, und der arbeitende Platz erfähr
   assert.equal(view.error, null);
   assert.equal(w.pools[REPO].slots[0].workflow, 'CI');
   assert.equal(w.remote.view('wer/Fremd'), null);
+});
+
+test('abgeschlossene Jobs der eigenen Runner gehen mit dem Ergebnis von GitHub an die Messung, auch aus dem letzten fertigen Lauf', async () => {
+  const w = world();
+  w.answers[`repos/${REPO}/actions/runs?per_page=20`] = { workflow_runs: [RUN] };
+  w.pipelines = [{ ...PIPELINE, jobs: [
+    { name: 'Bauen', status: 'completed', conclusion: 'failure', own: true, runner: 'PC-linux-1' },
+    { name: 'Fremd', status: 'completed', conclusion: 'success', own: false, runner: 'GitHub Actions 3' },
+    { name: 'Testen', status: 'in_progress', conclusion: null, own: true, runner: 'PC-linux-2' },
+  ] }];
+  w.last = { ...PIPELINE, jobs: [{ name: 'Alt', status: 'completed', conclusion: 'success', own: true, runner: 'PC-linux-0' }] };
+  await w.remote.refreshRepo(REPO);
+  assert.deepEqual(w.confirmed, [[REPO, [{ runner: 'PC-linux-1', conclusion: 'failure' }, { runner: 'PC-linux-0', conclusion: 'success' }]]]);
 });
 
 test('scheitert die Abfrage, bleiben Jobs und Läufe stehen und der Fehler kommt dazu', async () => {

@@ -230,3 +230,21 @@ test('Minuten aus der Zukunft fallen heraus (die Uhr wurde zurückgestellt)', ()
   fs.writeFileSync(path.join(dataDir, 'metrics.json'), JSON.stringify({ minutes: [{ at: now - 60000 }, { at: now + 3600000 }], jobs: {} }));
   assert.deepEqual(createMetrics({ dataDir, now: () => now }).dayMinutes().map((entry) => entry.at), [now - 60000]);
 });
+
+test('das Ergebnis aus der Ausgabe des Runners gilt nur, bis GitHub das des Jobs meldet', () => {
+  const dataDir = tempDir();
+  const metrics = createMetrics({ dataDir });
+  // Ein Job hat „Succeeded“ in die Ausgabe geschrieben, ist bei GitHub aber gescheitert.
+  metrics.recordJob('wer/was', { job: 'Bauen', workflow: 'CI', runner: 'PC-linux-1', result: 'Succeeded', duration: 10, samples: 0 });
+  metrics.recordJob('wer/was', { job: 'Bauen', workflow: 'CI', runner: 'PC-linux-2', result: 'Succeeded', duration: 600, samples: 0 });
+  metrics.confirmResults('wer/was', [{ runner: 'PC-linux-1', conclusion: 'failure' }, { runner: 'PC-linux-2', conclusion: 'success' }, { runner: 'PC-linux-9', conclusion: 'success' }]);
+  const [row] = metrics.jobsView('wer/was');
+  assert.equal(row.duration, 600); // üblich ist nur der echte Erfolg
+  assert.equal(row.lastResult, 'Succeeded');
+  // Ein bestätigtes Ergebnis bleibt, auch wenn später etwas anderes käme; unbekannte Ergebnisse ändern nichts.
+  metrics.confirmResults('wer/was', [{ runner: 'PC-linux-2', conclusion: 'failure' }, { runner: 'PC-linux-1', conclusion: 'neutral' }]);
+  assert.equal(metrics.jobsView('wer/was')[0].duration, 600);
+  // Gesichert ist es auch.
+  const again = createMetrics({ dataDir });
+  assert.equal(again.jobsView('wer/was')[0].duration, 600);
+});
