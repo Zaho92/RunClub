@@ -25,7 +25,8 @@ const RUNNERS_PAGE = 100; // Runner je Abfrage bei GitHub; mehr hat ein Repo mit
 //   log(text, repo, kind), sleep(ms)
 //   host, mark              Name des Rechners (Anfang der Runner-Namen) und Kennzeichen der eigenen Container
 //   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze (siehe caches.js)
-//   image, imageDir         Name und Ordner (Dockerfile) des Runner-Abbilds
+//   builds                  die selbst gebauten Abbilder: [{ image, dir, args, what }] (Name, Ordner mit Dockerfile,
+//                           weitere Argumente für `docker build`, Bezeichnung für Meldungen); das erste ist das Runner-Abbild
 //   requiredImages          Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
 //   unreachableText         die Meldung, wenn Docker nicht antwortet (aus engine.js)
@@ -39,7 +40,7 @@ const RUNNERS_PAGE = 100; // Runner je Abfrage bei GitHub; mehr hat ein Repo mit
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createDockerWatch({
   docker, dockerList, gh, log, sleep,
-  host, mark, serviceMark, image, imageDir, requiredImages, longTimeout, unreachableText, exposure = async () => null,
+  host, mark, serviceMark, builds, requiredImages, longTimeout, unreachableText, exposure = async () => null,
   buildService, buildNetwork,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
@@ -50,14 +51,16 @@ function createDockerWatch({
   let dockerError = null;
   let leftoversRemoved = false;
 
-  // Das Runner-Abbild bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
+  // Die eigenen Abbilder bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
   // nur ganz ohne Abbild geht es nicht.
-  async function buildImage() {
-    const build = await docker(['build', '--pull', '-q', '-t', image, imageDir], { timeout: longTimeout });
-    if (build.code === 0) return;
-    const reason = lastLine(build.stderr);
-    if ((await docker(['image', 'inspect', '--format', 'ok', image])).code !== 0) throw new Error(`Das Runner-Abbild ließ sich nicht bauen: ${reason}`);
-    log(`Das Runner-Abbild ließ sich nicht neu bauen (${reason}); die Runner nutzen das vorhandene.`, null, 'error');
+  async function buildImages() {
+    for (const { image, dir, args = [], what } of builds) {
+      const build = await docker(['build', '--pull', '-q', ...args, '-t', image, dir], { timeout: longTimeout });
+      if (build.code === 0) continue;
+      const reason = lastLine(build.stderr);
+      if ((await docker(['image', 'inspect', '--format', 'ok', image])).code !== 0) throw new Error(`${what} ließ sich nicht bauen: ${reason}`);
+      log(`${what} ließ sich nicht neu bauen (${reason}); die Runner nutzen das vorhandene.`, null, 'error');
+    }
   }
 
   // Bei langer Laufzeit veraltet der Runner im Abbild, und GitHub weist zu alte Runner ab: täglich neu bauen. Neue
@@ -65,7 +68,7 @@ function createDockerWatch({
   async function refreshImage() {
     if (stopping() || !dockerReady) return;
     log('Baue das Runner-Abbild neu (tägliche Auffrischung) …');
-    await buildImage();
+    await buildImages();
   }
 
   async function prepareDocker() {
@@ -74,7 +77,7 @@ function createDockerWatch({
     dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
     dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
     log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
-    await buildImage();
+    await buildImages();
     for (const name of requiredImages) await docker(['pull', '-q', name], { timeout: longTimeout });
     // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
     // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.

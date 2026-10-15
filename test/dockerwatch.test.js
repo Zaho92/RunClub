@@ -13,6 +13,13 @@ const brief = (args) => args.join(' ');
 // Docker, GitHub und der Rest nachgestellt. `calls` hält die Aufrufe an Docker und GitHub in ihrer
 // Reihenfolge; `answer(name)` kann einem Docker-Aufruf ein Ergebnis geben (sonst gelingt er ohne Ausgabe).
 // `sleep` merkt sich die Dauer und ruft `onSleep`, mit dem ein Test die Schleife steuert oder beendet.
+// Die eigenen Abbilder: das des Runners und das des Docker-Daemons, gebaut auf dem festgenagelten Abbild.
+const BUILDS = [
+  { image: IMAGE, dir: 'C:/rc/linux', what: 'Das Runner-Abbild' },
+  { image: 'dind:test', dir: 'C:/rc/linux/dind', args: ['--build-arg', 'BASE=docker:pin'], what: 'Das Abbild des Docker-Daemons' },
+];
+const BUILT = ['build --pull -q -t runner:test C:/rc/linux', 'build --pull -q --build-arg BASE=docker:pin -t dind:test C:/rc/linux/dind'];
+
 function world() {
   const w = {
     calls: [], logs: [], slept: [], prepared: [], ready: 0, alive: 0, stopping: false, answer: () => undefined, onSleep: () => {},
@@ -29,7 +36,7 @@ function world() {
     gh: async (args) => { w.calls.push(`gh ${args.join(' ')}`); if (w.ghFails) throw new Error(w.ghFails); return w.runners; },
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
-    host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, image: IMAGE, imageDir: 'C:/rc/linux', requiredImages: ['dind:test', 'buildkit:test'], longTimeout: 1234,
+    host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, builds: BUILDS, requiredImages: ['buildkit:test'], longTimeout: 1234,
     unreachableText, exposure: async () => w.exposure ?? null,
     buildService: (repo) => `rc-buildkit-${repo.split('/')[1].toLowerCase()}`, buildNetwork: (repo) => `rc-buildnet-${repo.split('/')[1].toLowerCase()}`,
     livePairs: w.livePairs, repos: () => w.repos, pools: () => w.pools,
@@ -48,7 +55,7 @@ async function loopFor(w, rounds, each = () => {}) {
 }
 
 const PREPARE = [
-  'info --format {{.NCPU}} {{.MemTotal}}', 'build --pull -q -t runner:test C:/rc/linux', 'pull -q dind:test', 'pull -q buildkit:test',
+  'info --format {{.NCPU}} {{.MemTotal}}', ...BUILT, 'pull -q buildkit:test',
 ];
 const NAMED = (repo) => [`rm -f rc-buildkit-${repo}`, `network inspect rc-buildnet-${repo} --format {{range .Containers}}{{println .Name}}{{end}}`, `network rm rc-buildnet-${repo}`];
 const LEFTOVERS = [
@@ -144,7 +151,10 @@ test('lässt sich das Abbild nicht bauen, wird mit dem vorhandenen weitergearbei
     return undefined;
   };
   await w.watch.prepareDocker();
-  assert.deepEqual(w.logs.at(-1), ['Das Runner-Abbild ließ sich nicht neu bauen (ERROR: failed to solve: kein Netz); die Runner nutzen das vorhandene.', null, 'error']);
+  assert.deepEqual(w.logs.filter(([, , kind]) => kind === 'error'), [
+    ['Das Runner-Abbild ließ sich nicht neu bauen (ERROR: failed to solve: kein Netz); die Runner nutzen das vorhandene.', null, 'error'],
+    ['Das Abbild des Docker-Daemons ließ sich nicht neu bauen (ERROR: failed to solve: kein Netz); die Runner nutzen das vorhandene.', null, 'error'],
+  ]);
   present = false;
   await assert.rejects(w.watch.prepareDocker(), /Das Runner-Abbild ließ sich nicht bauen: ERROR: failed to solve: kein Netz/);
 });
@@ -157,7 +167,7 @@ test('das tägliche Neubauen geschieht nur, wenn Docker bereit ist und RunClub n
   w.calls.length = 0;
   w.stopping = false;
   await w.watch.refreshImage();
-  assert.deepEqual(w.calls, ['build --pull -q -t runner:test C:/rc/linux']);
+  assert.deepEqual(w.calls, BUILT);
   assert.deepEqual(w.logs.at(-1), ['Baue das Runner-Abbild neu (tägliche Auffrischung) …']);
   w.stopping = true;
   w.calls.length = 0;

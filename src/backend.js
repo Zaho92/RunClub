@@ -5,10 +5,11 @@
 // Runner-Container und eigenem Docker-Daemon; nach dem Job wird es samt Volumes entfernt. Der Docker-Socket
 // des Rechners und Windows-Ordner werden nie hineingereicht, die Anmeldung bei GitHub gilt für einen Job.
 //
-// Das trennt Jobs voneinander, ist aber keine Sicherheitsgrenze: Der Docker-Daemon eines Jobs läuft privilegiert,
-// und wer in einem Job Code ausführt, kann daraus in die Docker-VM ausbrechen. Auf diesen Runnern darf deshalb nur
-// Code laufen, dem der Nutzer vertraut – Pools für öffentliche Repos werden nicht angelegt, und wird ein Repo mit
-// Pool öffentlich, pausiert sein Pool.
+// Kein Container läuft mit Rechten: Der Docker-Daemon eines Jobs und der Build-Dienst laufen als gewöhnliche Benutzer
+// in eigenen Namensräumen (siehe dind.js und caches.js). Wer aus einem Job-Container ausbricht, landet im Daemon-Container
+// seines Paars, nicht in der Docker-VM. Eine Grenze gegen jeden Angriff ist das trotzdem nicht (ein Fehler im Kernel
+// reicht weiter): Auf diesen Runnern soll nur Code laufen, dem der Nutzer vertraut – Pools für öffentliche Repos werden
+// nicht angelegt, und wird ein Repo mit Pool öffentlich, pausiert sein Pool.
 //
 // Was zwischen den Jobs eines Repos bleibt (alles abschaltbar und in der Oberfläche zu leeren):
 //   Pakete      Volume, im Runner als NuGet- und npm-Ordner gesetzt. Jobs schreiben hinein.
@@ -33,6 +34,7 @@ const { createAccess } = require('./access');
 const { createJournal, errorLog } = require('./journal');
 const { createSettings } = require('./settings');
 const { createNames, pinnedImages, DEFAULT_PORT, IMAGE } = require('./names');
+const { DAEMON_IMAGE } = require('./dind');
 const { createGitHub } = require('./github');
 const { engineFrom, createEngine } = require('./engine');
 const { createMetrics } = require('./metrics');
@@ -111,14 +113,18 @@ function start({
   // --- Die Runner und die Docker-Überwachung ---
   runners = createRunners({
     docker, dockerList, gh, log, sleep,
-    host: os.hostname(), names, image: IMAGE, dind: DIND, buildkit: BUILDKIT, longTimeout: DOCKER_LONG,
+    host: os.hostname(), names, image: IMAGE, dind: DAEMON_IMAGE, buildkit: BUILDKIT, longTimeout: DOCKER_LONG,
     settings, metrics, stopping: isStopping, dockerReady: () => dockerWatch.ready(),
     refreshRepo: remote.refreshRepo, forgetStats: usage.forget,
   });
   dockerWatch = createDockerWatch({
     docker, dockerList, gh, log, sleep,
-    host: os.hostname(), mark: names.mark, serviceMark: names.serviceMark, image: IMAGE, imageDir: path.join(__dirname, '..', 'linux'),
-    requiredImages: [DIND, BUILDKIT], longTimeout: DOCKER_LONG,
+    host: os.hostname(), mark: names.mark, serviceMark: names.serviceMark,
+    builds: [
+      { image: IMAGE, dir: path.join(__dirname, '..', 'linux'), what: 'Das Runner-Abbild' },
+      { image: DAEMON_IMAGE, dir: path.join(__dirname, '..', 'linux', 'dind'), args: ['--build-arg', `BASE=${DIND}`], what: 'Das Abbild des Docker-Daemons' },
+    ],
+    requiredImages: [BUILDKIT], longTimeout: DOCKER_LONG,
     unreachableText: engine.unreachableText, exposure: engine.exposure, buildService: names.buildService, buildNetwork: names.buildNetwork,
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
     stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,

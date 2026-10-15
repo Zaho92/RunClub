@@ -62,10 +62,10 @@ test('bereitstellen legt Paket-Cache, Netz und Build-Dienst ohne Rechte mit den 
   assert.deepEqual(w.calls, PREPARE);
   const args = (name) => w.details.find((call) => call.name === name).args;
   assert.deepEqual(args('run cache'),
-    ['run', '--rm', '-v', 'rc-cache-app:/c', '--entrypoint', 'sh', 'dind:test', '-c', 'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
+    ['run', '--rm', '-v', 'rc-cache-app:/c', '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c', 'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
   assert.deepEqual(args('network create rc-buildnet-app').slice(-3), ['--label', 'runclub.service=test', 'rc-buildnet-app']);
   // Build-Layer des früheren Dienstes mit Rechten gehören root: Sie werden geleert, dann gehören beide Volumes dem Dienst.
-  assert.deepEqual(args('run volumes'), ['run', '--rm', '-v', 'rc-build-app:/b', '-v', 'rc-buildsock-app:/s', '--entrypoint', 'sh', 'dind:test', '-c',
+  assert.deepEqual(args('run volumes'), ['run', '--rm', '-v', 'rc-build-app:/b', '-v', 'rc-buildsock-app:/s', '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c',
     '[ "$(stat -c %u /b)" = 1000 ] || find /b -mindepth 1 -delete; chown 1000:1000 /b /s']);
   assert.deepEqual(args('run rc-buildkit-app'),
     ['run', '-d', '--name', 'rc-buildkit-app', '--label', 'runclub.service=test', '--label', `runclub.limits=${KEY_OLD}`,
@@ -264,7 +264,7 @@ test('gemessen werden nur die Volumes, die es gibt, in Bytes; was fehlt, zählt 
   assert.deepEqual(pool.sizes, { packages: 12 * 1048576, images: 0, build: 3 * 1048576 });
   assert.equal(pool.measuring, false);
   const du = w.details.find((call) => call.args.includes('du -sm /m/* 2>/dev/null')).args;
-  assert.deepEqual(du, ['run', '--rm', '-v', 'rc-cache-app:/m/packages:ro', '-v', 'rc-build-app:/m/build:ro', '--entrypoint', 'sh', 'dind:test', '-c', 'du -sm /m/* 2>/dev/null']);
+  assert.deepEqual(du, ['run', '--rm', '-v', 'rc-cache-app:/m/packages:ro', '-v', 'rc-build-app:/m/build:ro', '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c', 'du -sm /m/* 2>/dev/null']);
 
   // Ohne ein einziges Volume wird nichts gestartet.
   const empty = world();

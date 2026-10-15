@@ -67,6 +67,7 @@ const isRunner = (name) => name === `run ${BASE}-runner`;
 const PROVISION = [
   `network create ${BASE}`,
   `volume create --label ${MARK} ${BASE}-work`, `volume create --label ${MARK} ${BASE}-sock`, `volume create --label ${MARK} ${BASE}-docker`,
+  `run ${BASE}-seed`, // Rechte der Volumes setzen, die Vorlage kopieren
 ];
 const REMOVE = [
   `rm -f -v ${BASE}-runner ${BASE}-dind ${BASE}-seed`,
@@ -97,7 +98,6 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
 
   assert.deepEqual(w.calls, [
     ...PROVISION,
-    `run ${BASE}-seed`,
     `run ${BASE}-dind`,
     `exec ${BASE}-dind info`,
     REGISTER,
@@ -108,12 +108,15 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   assert.deepEqual(w.body, { name: RUNNER, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' });
 
   const call = (name) => w.details.find((detail) => detail.name === name);
-  assert.deepEqual(call(`run ${BASE}-seed`).args, ['run', '--rm', '--label', MARK, '--name', `${BASE}-seed`, '-v', 'rc-seed-app:/seed:ro', '-v', `${BASE}-docker:/var/lib/docker`,
-    '--entrypoint', 'sh', 'dind:test', '-c', 'cp -a /seed/. /var/lib/docker/']);
+  assert.deepEqual(call(`run ${BASE}-seed`).args, ['run', '--rm', '--label', MARK, '--name', `${BASE}-seed`, '-v', 'rc-seed-app:/seed:ro',
+    '-v', `${BASE}-work:/w`, '-v', `${BASE}-sock:/s`, '-v', `${BASE}-docker:/d`, '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c', 'chown 1001:1001 /w /s /d && cp -a /seed/. /d/']);
   assert.deepEqual(call(`run ${BASE}-seed`).options, { timeout: 1234 });
-  assert.deepEqual(call(`run ${BASE}-dind`).args, ['run', '-d', '--label', MARK, '--name', `${BASE}-dind`, '--privileged', '--network', BASE,
-    '--cpus', '4', '--memory', '8g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/var/lib/docker`,
-    '--entrypoint', 'sh', 'dind:test', '-c', 'chown 1001:1001 /home/runner/_work && exec dockerd-entrypoint.sh dockerd --host=unix:///sock/docker.sock --group=123']);
+  // Der Daemon läuft ohne Rechte (siehe dind.js).
+  assert.deepEqual(call(`run ${BASE}-dind`).args, ['run', '-d', '--label', MARK, '--name', `${BASE}-dind`,
+    '--device', '/dev/net/tun', '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
+    '--network', BASE, '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',
+    '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/home/rootless/.local/share/docker`,
+    'dind:test', 'dockerd', '--host=unix:///sock/docker.sock']);
   const runner = call(`run ${BASE}-runner`);
   assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '-i', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
     '--cpus', '6', '--memory', '4g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
@@ -171,7 +174,9 @@ test('während des Jobs steht der Platz mit Paar, Namen und Anmeldung da; abgeba
   assert.deepEqual(during.live, [[BASE, REPO]]);
   assert.equal(removing, 'räumt auf');
   assert.deepEqual(w.logs.at(-1), ['Job „Tests“ – Fehler', REPO, 'fail', { job: 'Tests' }]);
-  assert.ok(!w.calls.includes(`run ${BASE}-seed`)); // ohne Vorlage wird nichts kopiert
+  const prepare = w.details.find((detail) => detail.name === `run ${BASE}-seed`).args;
+  assert.equal(prepare.at(-1), 'chown 1001:1001 /w /s /d'); // ohne Vorlage wird nichts kopiert, nur die Rechte gesetzt
+  assert.equal(prepare.includes('rc-seed-app:/seed:ro'), false);
 });
 
 test('ein Paar aus der Reserve wird übernommen, mit den Limits, mit denen es gebaut wurde', async () => {

@@ -20,9 +20,9 @@ const { slug } = require('./images');
 const { createNetwork } = require('./subnets');
 const { resultKind, resultText } = require('./journal');
 const limitRules = require('./limits');
-const { SOCKET_DIR, SOCKET, SERVICE_USER, RUNNER_USER, PIDS_MAX } = require('./caches');
+const { SOCKET_DIR, SOCKET, SERVICE_USER, PIDS_MAX } = require('./caches');
 const { SECOND } = require('./units');
-const { waitForDaemon, PAIR_SOCKET, DOCKER_GROUP } = require('./dind');
+const { waitForDaemon, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { unregisterRunner } = require('./github');
 const { runnerName } = require('./names');
 const { SLOT, busy } = require('./states');
@@ -96,22 +96,22 @@ function createSlots({
     if (network.code !== 0) return giveUp(new Error(`Netz lässt sich nicht anlegen: ${lastLine(network.stderr)}`));
     for (const volume of ['work', 'sock', 'docker']) await docker(['volume', 'create', ...label, `${base}-${volume}`]);
 
-    // Kopie der Vorlage in den Speicher des Daemons – in einem eigenen Container, bevor der Daemon startet.
+    // Die Volumes gehören dem Benutzer von Daemon und Runner; die Vorlage kommt als Kopie in den Speicher des Daemons.
+    // Beides in einem eigenen Container, bevor der Daemon startet.
     await withSeed(pool.repo, false, async () => {
-      pair.copied = new Set(pool.seeded);
-      if (!pair.copied.size || cancelled()) return;
-      await docker(['run', '--rm', ...label, '--name', `${base}-seed`, '-v', `${seedVolume(pool.repo)}:/seed:ro`, '-v', `${base}-docker:/var/lib/docker`,
-        '--entrypoint', 'sh', dind, '-c', 'cp -a /seed/. /var/lib/docker/'], { timeout: longTimeout });
+      pair.copied = cancelled() ? new Set() : new Set(pool.seeded);
+      const seed = pair.copied.size ? ['-v', `${seedVolume(pool.repo)}:/seed:ro`] : [];
+      await docker(['run', '--rm', ...label, '--name', `${base}-seed`, ...seed, '-v', `${base}-work:/w`, '-v', `${base}-sock:/s`, '-v', `${base}-docker:/d`,
+        ...asRoot(dind), `chown ${RUNNER_USER}:${RUNNER_USER} /w /s /d${seed.length ? ' && cp -a /seed/. /d/' : ''}`], { timeout: longTimeout });
     });
     if (cancelled()) return giveUp();
 
-    // Der Daemon des Jobs: eigenes Netz, eigener Speicher, erreichbar nur über den geteilten Socket.
-    // Der Arbeitsordner liegt in beiden Containern am selben Pfad, damit `docker run -v "$PWD:..."` stimmt.
-    const daemon = await docker(['run', '-d', ...label, '--name', `${base}-dind`, '--privileged', '--network', base,
+    // Der Daemon des Jobs, ohne Rechte (siehe dind.js): eigenes Netz, eigener Speicher, erreichbar nur über den geteilten
+    // Socket. Der Arbeitsordner liegt in beiden Containern am selben Pfad, damit `docker run -v "$PWD:..."` stimmt.
+    const daemon = await docker(['run', '-d', ...label, '--name', `${base}-dind`, ...DAEMON_FLAGS, '--network', base,
       '--cpus', String(limits.dockerCpus), '--memory', limits.dockerMemory, '--pids-limit', String(PIDS_MAX), // gilt auch für die Container des Jobs darin
-      '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:/var/lib/docker`,
-      '--entrypoint', 'sh', dind, '-c',
-      `chown ${RUNNER_USER}:${RUNNER_USER} /home/runner/_work && exec dockerd-entrypoint.sh dockerd --host=${PAIR_SOCKET} --group=${DOCKER_GROUP}`]);
+      '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:${DATA_ROOT}`,
+      dind, ...DAEMON_COMMAND]);
     if (daemon.code !== 0) return giveUp(new Error(`Docker-Daemon startet nicht: ${lastLine(daemon.stderr)}`));
     const ready = await waitForDaemon({ docker, sleep, container: `${base}-dind`, host: PAIR_SOCKET, cancelled });
     if (cancelled()) return giveUp();

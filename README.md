@@ -91,8 +91,11 @@ Containern der Jobs erreichbar, deshalb verlangt er einen Schlüssel, der bei je
 stattdessen in einem gewöhnlichen Browser öffnet, sollte wissen: Das Cookie gilt dort für alle Ports auf `127.0.0.1`,
 also auch für andere lokale Dienste, und die Adresse mit dem Schlüssel bleibt im Verlauf.
 
-Die Runner trennen Jobs voneinander, sind aber keine Sicherheitsgrenze: Der Docker-Daemon eines Jobs läuft
-privilegiert. Auf ihnen darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.
+Kein Container der Runner läuft mit Rechten: Der Docker-Daemon jedes Jobs und der Build-Dienst laufen ohne
+`--privileged` als gewöhnliche Benutzer (rootless). Wer aus einem Job ausbricht, landet im Daemon-Container seines
+Jobs, nicht in der Docker-VM. Gegen jeden Angriff schützt das nicht; auf den Runnern soll nur Code laufen, dem du
+vertraust. Pools gibt es deshalb nur für private Repos, und wird ein Repo öffentlich, pausiert sein Pool.
+Neue Versionen der festgenagelten Abbilder (`linux/Dockerfile`, `linux/pins.Dockerfile`) schlägt Dependabot vor.
 
 ## Entwicklung
 

@@ -19,12 +19,12 @@ const { MINUTE, MB } = require('./units');
 const { createNetwork, alreadyExists } = require('./subnets');
 const limitRules = require('./limits');
 const { busy } = require('./states');
+const { RUNNER_USER, asRoot } = require('./dind');
 
 const VOLUME_PREFIX = 'rc-';
 const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren
 const SOCKET = `${SOCKET_DIR}/buildkitd.sock`; // derselbe Pfad steht in linux/docker-shim.sh
 const SERVICE_USER = 1000; // unter diesem Benutzer läuft der Build-Dienst; die Paare kommen über seine Gruppe an den Socket
-const RUNNER_USER = 1001; // der Benutzer `runner` im Runner-Abbild; ihm gehören Arbeitsordner und Paket-Cache
 const RETRY_MAX = 30 * MINUTE; // längster Abstand zwischen zwei Versuchen, den Build-Dienst anzulegen
 const LIMITS_LABEL = 'runclub.limits';
 const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legte sonst die ganze Docker-VM lahm
@@ -32,7 +32,8 @@ const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legt
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
 //   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
 //   log(text, repo, kind)
-//   dind, buildkit          Abbild des Docker-Daemons (hier nur als Werkzeug für die Volumes) und des Build-Diensts
+//   dind, buildkit          Abbild des Docker-Daemons (hier nur als Werkzeug für die Volumes, siehe dind.js) und des
+//                           Build-Diensts
 //   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze; was es trägt, räumt der nächste Start ab
 //   settingsOf(repo), limitsOf(repo), poolOf(repo) (der Pool oder undefined)
 //   cacheVolume(repo), seedVolume(repo), buildVolume(repo), buildSocket(repo), buildService(repo), buildNetwork(repo)
@@ -73,7 +74,7 @@ function createCaches({
     await docker(['rm', '-f', buildService(repo)]);
     // Seine Volumes müssen dem Benutzer des Dienstes gehören. Build-Layer eines früheren Dienstes mit Rechten gehören
     // root und taugen ihm nicht: Sie werden einmal geleert.
-    await docker(['run', '--rm', '-v', `${buildVolume(repo)}:/b`, '-v', `${buildSocket(repo)}:/s`, '--entrypoint', 'sh', dind, '-c',
+    await docker(['run', '--rm', '-v', `${buildVolume(repo)}:/b`, '-v', `${buildSocket(repo)}:/s`, ...asRoot(dind),
       `[ "$(stat -c %u /b)" = ${SERVICE_USER} ] || find /b -mindepth 1 -delete; chown ${SERVICE_USER}:${SERVICE_USER} /b /s`]);
     const service = await docker(['run', '-d', '--name', buildService(repo), '--label', serviceMark, '--label', `${LIMITS_LABEL}=${serviceKey(repo)}`,
       '--restart', 'no', '--network', buildNetwork(repo),
@@ -91,7 +92,7 @@ function createCaches({
   async function prepareCaches(repo) {
     if (!settingsOf(repo)?.cache) { await removeService(repo); return; }
     await docker(['volume', 'create', cacheVolume(repo)]);
-    await docker(['run', '--rm', '-v', `${cacheVolume(repo)}:/c`, '--entrypoint', 'sh', dind, '-c',
+    await docker(['run', '--rm', '-v', `${cacheVolume(repo)}:/c`, ...asRoot(dind),
       `mkdir -p /c/nuget /c/npm && chown ${RUNNER_USER}:${RUNNER_USER} /c /c/nuget /c/npm`]);
     await docker(['volume', 'create', buildVolume(repo)]);
     await docker(['volume', 'create', buildSocket(repo)]);
@@ -141,7 +142,7 @@ function createCaches({
     const sizes = { packages: 0, images: 0, build: 0 };
     if (!parts.length) return sizes;
     const mounts = parts.flatMap(([key, volume]) => ['-v', `${volume}:/m/${key}:ro`]);
-    const result = await docker(['run', '--rm', ...mounts, '--entrypoint', 'sh', dind, '-c', 'du -sm /m/* 2>/dev/null']);
+    const result = await docker(['run', '--rm', ...mounts, ...asRoot(dind), 'du -sm /m/* 2>/dev/null']);
     for (const line of result.stdout.split('\n')) {
       const match = line.match(/^(\d+)\s+\/m\/(\w+)/);
       if (match) sizes[match[2]] = Number(match[1]) * MB;
@@ -152,4 +153,4 @@ function createCaches({
   return { prepareCaches, renewService, removeService, removeCaches, measureSizes };
 }
 
-module.exports = { createCaches, SOCKET_DIR, SOCKET, SERVICE_USER, RUNNER_USER, PIDS_MAX };
+module.exports = { createCaches, SOCKET_DIR, SOCKET, SERVICE_USER, PIDS_MAX };

@@ -12,7 +12,7 @@
 
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
-const { waitForDaemon, PAIR_SOCKET } = require('./dind');
+const { waitForDaemon, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { permanentPullError, daysSince, pruneOlder } = require('./images');
 const { errorLog } = require('./journal');
 
@@ -67,8 +67,12 @@ function createSeed({
       if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
       log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
       await docker(['volume', 'create', seed]);
-      await docker(['run', '-d', '--label', mark, '--name', loader, '--privileged', '-v', `${seed}:/var/lib/docker`, dind]);
-      const ready = await waitForDaemon({ docker, sleep, container: loader, cancelled: stopping });
+      // Der Lade-Daemon läuft ohne Rechte wie der Daemon eines Paars (siehe dind.js), sonst taugte die Vorlage diesem
+      // nicht. Eine Vorlage aus der Zeit, als die Daemons Rechte hatten, gehört root: Sie wird einmal geleert.
+      await docker(['run', '--rm', '-v', `${seed}:/d`, ...asRoot(dind),
+        `[ "$(stat -c %u /d)" = ${RUNNER_USER} ] || { find /d -mindepth 1 -delete; chown ${RUNNER_USER}:${RUNNER_USER} /d; }`]);
+      await docker(['run', '-d', '--label', mark, '--name', loader, ...DAEMON_FLAGS, '-v', `${seed}:${DATA_ROOT}`, dind, ...DAEMON_COMMAND]);
+      const ready = await waitForDaemon({ docker, sleep, container: loader, host: PAIR_SOCKET, cancelled: stopping });
       // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
       if (!ready) { await docker(['rm', '-f', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
       const present = new Set();
@@ -76,7 +80,7 @@ function createSeed({
       for (const image of wanted) {
         // Endet RunClub, bleibt die Vorlage, wie sie war; den Lade-Container räumt das Beenden ab.
         if (stopping()) return;
-        const pull = await docker(['exec', loader, 'docker', 'pull', '-q', image], { timeout: longTimeout });
+        const pull = await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'pull', '-q', image], { timeout: longTimeout });
         if (pull.code === 0) { present.add(image); continue; }
         log(`${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`, repo, 'error');
         // Eine Störung (Netz, Anfragelimit) geht vorüber: Was schon in der Vorlage liegt, bleibt dort.
@@ -85,11 +89,11 @@ function createSeed({
         (state.rejected[repo] ??= {})[image] = new Date().toISOString();
         delete state.learned[repo]?.[image];
       }
-      const existing = await dockerList(['exec', loader, 'docker', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
+      const existing = await dockerList(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
       for (const image of existing) if (retry.has(image)) present.add(image);
       const obsolete = existing.filter((image) => !present.has(image) && IMAGE_NAME.test(image));
-      if (obsolete.length) await docker(['exec', loader, 'docker', 'rmi', '-f', ...obsolete]);
-      await docker(['exec', loader, 'docker', 'image', 'prune', '-f']);
+      if (obsolete.length) await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'rmi', '-f', ...obsolete]);
+      await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'image', 'prune', '-f']);
       await docker(['stop', loader]);
       await docker(['rm', loader]);
       if (pool) pool.seeded = present;

@@ -56,31 +56,18 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 ## Aus den Reviews noch offen
 
 Der fünfte Durchgang (14.10.2026, über den Stand nach `08949b0`) und das Abschluss-Review über seine Korrekturen
-(`e427360..95f6a0c`) sind abgearbeitet; behoben ist, was hier nicht mehr steht. Offen bleibt nur, was eine
-Entscheidung braucht:
+(`e427360..95f6a0c`) sind abgearbeitet; behoben ist, was hier nicht mehr steht. Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umgesetzt), `node` und das .NET-SDK sind
+festgenagelt und Dependabot meldet neue Stände (umgesetzt); der Weg aus den Jobs zum localhost von Windows bleibt offen. Noch offen:
 
-1. **Privilegierte Container sind keine Sicherheitsgrenze.** Der Docker-Daemon jedes Paars (`slots.js`) und der
-   Lade-Daemon der Vorlage (`seed.js`) laufen `--privileged`; ein Job erreicht nach dem Ausbruch die Volumes aller
-   Repos, die Anmeldungen anderer Paare und vermutlich das Windows-Laufwerk mit `access.key` und der Anmeldung von `gh`
-   (Recht `repo` auf das ganze Konto). Der Build-Dienst läuft schon ohne Rechte. Bis das gelöst ist, gibt es Pools nur
-   für private Repos, und ein Repo, das öffentlich wird, pausiert seinen Pool. Optionen: rootless dind (geht mit Docker
-   Desktop; offen, ob `docker run -v "$PWD:…"` im geteilten Arbeitsordner noch stimmt; 1–2 Tage mit echten Jobs;
-   empfohlener erster Schritt), Enhanced Container Isolation (nur mit Docker Business, unter WSL2 schwächer), Sysbox in
-   einer eigenen Engine (WSL2 nicht offiziell unterstützt; zusammen mit „Docker Engine statt Docker Desktop“). Vor einer
-   Veröffentlichung klären. Danach braucht der Build-Dienst ein eigenes seccomp-Profil statt `unconfined`: Dann ist er
-   die schwächste Stelle.
-2. **Jobs erreichen den localhost von Windows** über `host.docker.internal`, also jeden Dienst dort. RunClub warnt,
-   wenn Docker seinen Daemon ohne Schutz auf Port 2375 freigibt oder ein eigener `tcp://`-Endpunkt ohne TLS eingestellt
-   ist. Möglich wäre, den Weg aus den Netzen der Paare zu sperren (eine Regel in der Docker-VM, nach jedem Neustart von
-   Docker neu); das träfe aber auch Jobs, die einen Dienst auf diesem Rechner brauchen. Entscheidung des Nutzers.
-3. **`node` und das .NET-SDK im Runner-Abbild folgen dem neuesten Stand.** Das Abbild hält den Socket des
-   privilegierten Daemons, ein untergeschobenes Abbild wäre so gut wie root in der VM. Festnageln per Digest geht nur
-   zusammen mit etwas, das neue Digests meldet (Renovate oder ein Workflow, der ein Issue öffnet); sonst veralten
-   Sicherheitskorrekturen. `docker:dind` und `moby/buildkit` sind festgenagelt (Version und Digest in `src/names.js`,
-   zuletzt am 14.10.2026 geprüft: Docker 29.9.0, buildkit 0.34.0); von Zeit zu Zeit bewusst anheben.
+1. **Seccomp-Profil für Daemon und Build-Dienst.** Beide laufen ohne Rechte, brauchen dafür aber `seccomp=unconfined`
+   (eigene Namensräume). Ein eigenes Profil, das nur das Nötige erlaubt, verkleinerte die Angriffsfläche am Kernel weiter.
+   Erst angehen, wenn RunClub veröffentlicht wird.
 
 Bewusst so gelassen:
 
+- **Jobs erreichen den localhost von Windows** über `host.docker.internal` (Entscheidung des Nutzers, 15.10.2026):
+  Sperren bräche Jobs, die einen Dienst auf diesem Rechner brauchen. RunClub warnt, wenn Docker seinen Daemon dort ohne
+  Schutz anbietet.
 - **Caches sind zwischen Branches beschreibbar** (entschieden am 13.10.2026: Läufe auf Branches blieben sonst
   langsamer). Dazu gehört: Jeder Job eines Repos steuert dessen Build-Dienst über den Socket ganz (bauen, den Cache
   leeren, vermutlich auch frühere Builds desselben Repos lesen). Andere Repos erreicht er nicht.

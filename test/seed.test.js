@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { DAEMON_FLAGS, DAEMON_COMMAND, DATA_ROOT } = require('../src/dind');
 const { createSeed, LEARNED_DAYS, LEARNED_MAX } = require('../src/seed');
 const { DAY } = require('../src/units');
 const { createEngine } = require('../src/engine');
@@ -16,7 +17,7 @@ const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
 
 // Ein Aufruf von Docker in Kurzform: im Lade-Daemon nur, was dort geschieht.
 function brief(args) {
-  if (args[0] === 'run') return `run ${args[args.indexOf('--name') + 1]}`;
+  if (args[0] === 'run') return args.includes('--name') ? `run ${args[args.indexOf('--name') + 1]}` : 'run prepare';
   if (args[0] === 'exec') return `exec ${args.slice(args.indexOf('docker') + 1).filter((arg) => !['-q', '-f', '--format', 'ok', '{{.Repository}}:{{.Tag}}', '-H', 'unix:///sock/docker.sock'].includes(arg)).join(' ')}`;
   return args.join(' ');
 }
@@ -127,12 +128,16 @@ test('auffrischen lädt das Gewünschte, entfernt das Überholte und merkt sich,
   w.answer = (name) => (name === 'exec image ls' ? { stdout: 'fest:1\nneu:1\nvergessen:1\n<none>:<none>\n' } : undefined);
   await w.seed.refreshSeed(REPO);
   assert.deepEqual(w.calls, [
-    `rm -f ${LOADER}`, `volume create ${SEED}`, `run ${LOADER}`, 'exec info',
+    `rm -f ${LOADER}`, `volume create ${SEED}`, 'run prepare', `run ${LOADER}`, 'exec info',
     'exec pull fest:1', 'exec pull neu:1', 'exec image ls', 'exec rmi vergessen:1', 'exec image prune',
     `stop ${LOADER}`, `rm ${LOADER}`,
   ]);
   const loader = w.details.find((call) => call.name === `run ${LOADER}`).args;
-  assert.deepEqual(loader, ['run', '-d', '--label', MARK, '--name', LOADER, '--privileged', '-v', `${SEED}:/var/lib/docker`, 'dind:test']);
+  // Ohne Rechte wie der Daemon eines Paars; eine Vorlage aus der Zeit mit Rechten wird vorher einmal geleert.
+  assert.deepEqual(loader, ['run', '-d', '--label', MARK, '--name', LOADER, ...DAEMON_FLAGS, '-v', `${SEED}:${DATA_ROOT}`, 'dind:test', ...DAEMON_COMMAND]);
+  assert.deepEqual(w.details.find((call) => call.name === 'run prepare').args, ['run', '--rm', '-v', `${SEED}:/d`, '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c',
+    '[ "$(stat -c %u /d)" = 1001 ] || { find /d -mindepth 1 -delete; chown 1001:1001 /d; }']);
+  assert.equal(loader.includes('--privileged'), false);
   assert.equal(w.details.find((call) => call.name === 'exec pull fest:1').options.timeout, 1234);
   assert.deepEqual([...w.pool.seeded], ['fest:1', 'neu:1']);
   assert.deepEqual(Object.keys(w.state.learned[REPO]), ['neu:1']);
