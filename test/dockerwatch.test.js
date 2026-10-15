@@ -190,14 +190,17 @@ test('Reste eines früheren Laufs: alles Gekennzeichnete samt Build-Diensten, Ne
   w.runners = { runners: [
     { id: 1, name: 'PC-linux-a1', busy: false }, { id: 2, name: 'PC-linux-b2', busy: true }, { id: 3, name: 'ANDERER-linux-c3', busy: false },
   ] };
-  await w.watch.removeLeftovers();
+  // Beim Beenden meldet es, wie weit es ist (siehe shutdown.js).
+  await w.watch.removeLeftovers((name, count) => w.calls.push(`Stufe ${name}${count === undefined ? '' : ` ${count}`}`));
   assert.deepEqual(w.calls, [
+    'Stufe cleanup',
     ...NAMED('app'), ...NAMED('zwei'), // ältere Versionen legten sie ohne Kennzeichen an
     `ps -aq --filter label=${MARK}`, `ps -aq --filter label=${SERVICE_MARK}`, 'rm -f -v c1 c2 b1', `volume ls -q --filter label=${MARK}`, 'volume rm -f v1',
     `network ls -q --filter label=${MARK}`, 'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}', 'network disconnect -f n1 rc-fremd', 'network rm n1',
     `network ls -q --filter label=${SERVICE_MARK}`, 'network inspect n2 --format {{range .Containers}}{{println .Name}}{{end}}', 'network rm n2',
-    'gh api repos/wer/App/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/App/actions/runners/1',
-    'gh api repos/wer/Zwei/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/Zwei/actions/runners/1',
+    'Stufe signoff 2',
+    'gh api repos/wer/App/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/App/actions/runners/1', 'Stufe signedOff',
+    'gh api repos/wer/Zwei/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/Zwei/actions/runners/1', 'Stufe signedOff',
   ]);
 });
 

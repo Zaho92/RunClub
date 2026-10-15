@@ -54,6 +54,7 @@ const { createActions } = require('./actions');
 const { createServer, mergeActions } = require('./server');
 const { createHousekeeping } = require('./housekeeping');
 const { createLifecycle } = require('./lifecycle');
+const { createShutdown } = require('./shutdown');
 
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
@@ -86,13 +87,17 @@ function start({
   const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...about });
   const logError = errorLog(log);
   // Start und Ende; was das Beenden braucht, entsteht erst weiter unten.
+  const progress = createShutdown({
+    dataDir, wait: SHUTDOWN_WAIT, repos: () => [...runners.pools.keys()], remaining: (repo) => (runners.pools.has(repo) ? runners.remaining(runners.pools.get(repo)) : null),
+  });
   const lifecycle = createLifecycle({
     log,
     // Die Messung sichern, ein `gh`, das noch auf die Bestätigung im Browser wartet, nicht zurücklassen.
     beforeStop: () => { metrics.save(); account.close(); },
     dismantle: () => runners.dismantle(SHUTDOWN_WAIT),
-    removeLeftovers: () => dockerWatch.removeLeftovers(),
+    removeLeftovers: (step) => dockerWatch.removeLeftovers(step),
     releaseIdle: () => runners.releaseIdle(),
+    progress,
     onExit,
   });
   const isStopping = lifecycle.stopping;
@@ -155,7 +160,7 @@ function start({
   const uiFile = path.join(__dirname, 'ui.html');
   const { status, limitRange, limitPlan } = createStatus({
     settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch,
-    buildService: names.buildService, logStamp, uiFile, extra: appStatus,
+    buildService: names.buildService, logStamp, uiFile, shutdown: progress.view, extra: appStatus,
   });
 
   actionsApi = createActions({

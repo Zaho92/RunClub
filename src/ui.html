@@ -30,6 +30,26 @@
   .shell .brand { -webkit-app-region: drag; }
   .shell #main { grid-row: 2; padding-top: 6px; }
   .shell .band { top: -6px; margin-top: -6px; padding-top: 6px; }
+  /* Beim Beenden gehört das ganze Fenster dem Abbau (siehe renderShutdown): keine Leiste, im Streifen die Wortmarke. */
+  .ending #app { grid-template-columns: minmax(0, 1fr); }
+  .ending #rail { display: none; }
+  .shell.ending #bar { grid-column: 1; padding: 0 14px; font-weight: 600; font-size: 15px; line-height: 32px; color: var(--muted); }
+  .shell.ending #bar::before { content: "RunClub"; }
+  .ending #main { grid-column: 1; padding: 30px 64px 40px; }
+  .ending #main > .stack { max-width: 820px; margin: 0 auto; gap: 30px; }
+  .ending .lede { max-width: 56ch; margin: 6px 0 0; }
+  .ending .eta .sub { display: block; margin-bottom: 4px; }
+  .ending .plan { gap: 48px; }
+  .ending .plan > .col:first-of-type { flex-grow: 1.4; }
+  .ending .plan > .col:not(:first-of-type) { min-width: 220px; }
+  .ending .col { max-width: none; }
+  .ending .pill { pointer-events: none; }
+  .ending .s-wait .tm { color: var(--muted); }
+  /* Gekürzt wird beim Abbruch nur der Name des Jobs, nie was mit ihm geschieht oder seine Anführungszeichen. */
+  .ending .abort { display: flex; min-width: 0; }
+  .ending .abort > span { flex: none; }
+  .ending .abort > span:first-child { margin-right: .3em; }
+  .ending .abort > .jn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
   /* Projektleiste */
   #rail { background: var(--rail); padding: 22px 14px 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
@@ -376,7 +396,11 @@ const TEXT = {
     authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authEnterScope: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige als {0} das Recht {1}. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authSilent: 'gh hat keinen Einmalcode ausgegeben.', authNoReason: 'gh hat keinen Grund genannt.',
     authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
     authFirstTitle: 'Zuerst bei GitHub anmelden', authFirstText: 'Einmal nötig, damit RunClub Runner in deinen Repos anmelden und ihre Läufe lesen kann.',
-    starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.', quitting: 'Wird beendet …',
+    starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.',
+    endTitle: 'RunClub wird beendet', endText: 'Runner, Build-Dienste und ihre Daten werden abgebaut, damit bei GitHub und in Docker nichts liegen bleibt. Das Fenster schließt sich danach von selbst.', endLeft: 'noch etwa', endSoFar: 'bisher', endOver: 'länger als geschätzt, bisher',
+    endRemoved: '{0} von {1} Runnern abgebaut', endRemovedAll: '{0} Runner abgebaut', endRemovedOne: '1 Runner abgebaut', endNone: 'keine Runner', endQuote: ['„', '“'], endAborting: 'Abbruch',
+    endCleanup: 'Aufräumen', endCleanupWhat: 'Build-Dienste, Netze, Volumes', endSignoff: 'Abmelden', endSignoffWhat: 'bei GitHub, {0} Projekte', endSignoffOne: 'bei GitHub, 1 Projekt', endSignoffDone: 'bei GitHub, {0} von {1} Projekten',
+    endHint: 'Die Schätzung stammt vom letzten Beenden ({0}). Länger dauert es nur, wenn ein Runner gerade entsteht: Auf ihn wird höchstens {1} Sekunden gewartet.', endHintFirst: 'Wie lange das Beenden dauert, weiß RunClub ab dem nächsten Mal. Auf einen Runner, der gerade entsteht, wird höchstens {0} Sekunden gewartet.',
     minutesOtherPlanHere: 'Deshalb steht hier nur das Verbrauchte, ohne Obergrenze.', infoSuggest: 'Vorschlag', infoMemory: 'Speicher',
     infoAbout: 'Mehr zu „{0}“', scopeName: 'Recht {0}', authWhatShort: 'RunClub verwaltet damit Runner und Läufe in deinen Repos.', authUserHeld: 'Mit {0} liest RunClub außerdem die Abrechnung für die GitHub-Minuten in „Verbrauch“. Auch dieses Recht reicht weiter: Es erlaubt, dein Profil zu ändern; RunClub tut das nicht.',
     authOutInfo: 'Wer sich hier anmeldet, ist auch in gh im Terminal angemeldet. GitHub fragt dabei nach den Rechten <code>repo</code> für Runner und Läufe und <code>user</code> für die GitHub-Minuten.', authNoGhInfo: 'RunClub spricht über die GitHub CLI (gh) mit GitHub. Ohne sie kann es keine Runner anmelden und keine Läufe lesen.', authScopeInfo: 'RunClub braucht das, um Runner anzumelden und Läufe zu lesen und erneut zu starten. Beim Ergänzen bestätigst du es im Browser mit einem Einmalcode.', authWhyInfo_minutes: 'RunClub liest damit die Abrechnung deines Kontos: wie viele Minuten du diesen Monat auf GitHubs eigenen Runnern verbraucht hast. Das Recht reicht weiter: Es erlaubt auch, dein Profil zu ändern; RunClub tut das nicht. Beim Anmelden in RunClub ist es dabei; es fehlt nur, wenn gh im Terminal ohne es angemeldet wurde.',
@@ -441,7 +465,11 @@ const TEXT = {
     authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authEnterScope: 'Open GitHub in the browser, enter this code there and confirm the {1} permission as {0}. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authSilent: 'gh did not print a one-time code.', authNoReason: 'gh gave no reason.',
     authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
     authFirstTitle: 'First, sign in to GitHub', authFirstText: 'Needed once so RunClub can register runners in your repos and read their runs.',
-    starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.', quitting: 'Shutting down …',
+    starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.',
+    endTitle: 'RunClub is shutting down', endText: 'Runners, build services and their data are being removed so nothing is left behind on GitHub or in Docker. The window closes by itself afterwards.', endLeft: 'time left', endSoFar: 'so far', endOver: 'longer than estimated, so far',
+    endRemoved: '{0} of {1} runners removed', endRemovedAll: '{0} runners removed', endRemovedOne: '1 runner removed', endNone: 'no runners', endQuote: ['“', '”'], endAborting: 'Cancelling',
+    endCleanup: 'Clean up', endCleanupWhat: 'builders, networks, volumes', endSignoff: 'Sign off', endSignoffWhat: 'on GitHub, {0} projects', endSignoffOne: 'on GitHub, 1 project', endSignoffDone: 'on GitHub, {0} of {1} projects',
+    endHint: 'The estimate comes from the last shutdown ({0}). It only takes longer if a runner is being created: RunClub waits for it at most {1} seconds.', endHintFirst: 'RunClub will know how long shutting down takes from next time on. It waits at most {0} seconds for a runner that is being created.',
     minutesOtherPlanHere: 'So only the minutes used are shown here, without an upper limit.', infoSuggest: 'Suggestion', infoMemory: 'Memory',
     infoAbout: 'More about “{0}”', scopeName: '{0} permission', authWhatShort: 'RunClub uses it to manage runners and runs in your repos.', authUserHeld: 'With {0} RunClub also reads the billing for the GitHub minutes under “Usage”. This permission reaches further too: it allows changing your profile; RunClub does not do that.',
     authOutInfo: 'Signing in here also signs in gh in the terminal. GitHub asks for the permissions <code>repo</code> for runners and runs and <code>user</code> for the GitHub minutes.', authNoGhInfo: 'RunClub talks to GitHub through the GitHub CLI (gh). Without it, RunClub cannot register runners or read runs.', authScopeInfo: 'RunClub needs it to register runners, read runs and start them again. To add it, you confirm in the browser with a one-time code.', authWhyInfo_minutes: 'RunClub uses it to read your account’s billing: how many minutes you have used on GitHub’s own runners this month. The permission reaches further: it also allows changing your profile; RunClub does not do that. Signing in through RunClub includes it; it is only missing if gh in the terminal was signed in without it.',
@@ -1242,9 +1270,56 @@ function renderEmpty() {
     (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
 }
 
+// --- Beenden ---
+
+// Das Beenden als Lauf: je Projekt eine Station, die seine Runner abbaut, danach Aufräumen und Abmelden. Die Stationen
+// sind keine Jobs und kein Link; Strecken und Zeichnung sind die des Netzplans. Rot gibt es hier nicht: Scheitert ein
+// Schritt, steht das im Protokoll, und der Abbau geht weiter.
+function station(key, needs, state, name, time, detail, progress) {
+  return '<div class="pill lined s-' + state + '" data-job="' + esc(key) + '" data-needs="' + esc(JSON.stringify(needs)) + '">' + icon(state) + '<span class="n">' + esc(name) + '</span>' + time +
+    '<span class="line">' + detail + '</span>' + (progress == null ? '' : '<i class="pg" style="--p:' + progress + '%"></i>') + '</div>';
+}
+const tookTime = (from, to) => '<span class="tm">' + clock((new Date(to) - new Date(from)) / 1000) + '</span>';
+// Eine Stufe nach dem Abbau: wartend mit der Schätzung, laufend mit der Zeit seit Beginn, fertig mit ihrer Dauer.
+function stageTime(stage) {
+  if (stage.state === 'done') return tookTime(stage.startedAt, stage.endedAt);
+  if (stage.state === 'run') return '<span class="tm" data-since="' + esc(stage.startedAt) + '"></span>';
+  return stage.estimate ? '<span class="tm dim">' + t('approx', clock(stage.estimate)) + '</span>' : '';
+}
+
+function renderShutdown(end) {
+  const main = document.getElementById('main');
+  if (main.dataset.shape !== 'shutdown') { main.dataset.shape = 'shutdown'; main.dataset.html = ''; main.innerHTML = ''; }
+  const projects = end.projects.map((p) => {
+    if (p.endedAt) return station(p.repo, [], 'done', shortRepo(p.repo), tookTime(end.startedAt, p.endedAt), esc(!p.total ? t('endNone') : p.total === 1 ? t('endRemovedOne') : t('endRemovedAll', p.total)));
+    const [open, close] = TEXT[lang].endQuote;
+    const detail = p.job ? '<span class="c-run abort"><span>' + t('endAborting') + '</span><span>' + open + '</span><span class="jn">' + esc(p.job) + '</span><span>' + close + '</span></span>' : esc(t('endRemoved', p.removed, p.total));
+    return station(p.repo, [], 'run', shortRepo(p.repo), '<span class="tm" data-since="' + esc(end.startedAt) + '"></span>', detail, p.total ? Math.round(p.removed / p.total * 100) : 0);
+  });
+  const { cleanup, signoff } = end;
+  const signoffWhat = signoff.state === 'run' ? t('endSignoffDone', signoff.done, signoff.total) : signoff.total === 1 ? t('endSignoffOne') : t('endSignoffWhat', signoff.total);
+  // Ohne Schätzung oder wenn sie überschritten ist, zählt die verstrichene Zeit; eine stehende Restzeit sähe aus wie eine hängende App.
+  const big = end.finishAt ? '<span class="sub">' + t('endLeft') + '</span><b data-until="' + esc(end.finishAt) + '"></b>' : '<span class="sub">' + t(end.over ? 'endOver' : 'endSoFar') + '</span><b data-since="' + esc(end.startedAt) + '"></b>';
+  const html = '<div class="stack"><div class="head"><div><h1>' + t('endTitle') + '</h1><p class="lede">' + t('endText') + '</p></div><div class="eta">' + big + '</div></div>' +
+    '<div class="planwrap"><div class="plan"><svg aria-hidden="true"></svg><div class="col">' + projects.join('') + '</div>' +
+    '<div class="col">' + station('cleanup', end.projects.map((p) => p.repo), cleanup.state, t('endCleanup'), stageTime(cleanup), esc(t('endCleanupWhat'))) + '</div>' +
+    '<div class="col">' + station('signoff', ['cleanup'], signoff.state, t('endSignoff'), stageTime(signoff), esc(signoffWhat), signoff.state === 'run' && signoff.total ? Math.round(signoff.done / signoff.total * 100) : null) + '</div></div></div>' +
+    '<p class="note measure">' + esc(end.last ? t('endHint', clock(end.last), end.wait) : t('endHintFirst', end.wait)) + '</p></div>';
+  if (put(main, html)) watchPlans(main);
+}
+
 function render() {
   if (!data) return;
   document.documentElement.lang = lang;
+  // Beim Beenden gehört das Fenster dem Abbau; eine offene Rückfrage hat sich damit erledigt.
+  document.documentElement.classList.toggle('ending', Boolean(data.shutdown));
+  if (data.shutdown) {
+    if (document.getElementById('ask').open) document.getElementById('ask').close('');
+    hideInfo();
+    renderShutdown(data.shutdown);
+    tick();
+    return;
+  }
   seatOf = new Map(data.repos.flatMap((entry) => entry.runners.map((r, index) => [r.name, index + 1])));
   renderRail();
   const entry = data.repos.find((r) => r.repo === view);
@@ -1270,6 +1345,8 @@ function tick() {
   for (const el of document.querySelectorAll('[data-finish]')) el.textContent = el.dataset.short ? leftText(el.dataset.finish).replace(/^noch |\s*left$/g, '') : leftText(el.dataset.finish);
   for (const el of document.querySelectorAll('[data-ago]')) el.textContent = ago(el.dataset.ago);
   for (const el of document.querySelectorAll('[data-running]')) el.textContent = t('since', clock(secondsSince(el.dataset.running)));
+  // Die Restzeit beim Beenden; ist sie um, liefert die nächste Abfrage die verstrichene Zeit (siehe shutdown.js).
+  for (const el of document.querySelectorAll('[data-until]')) el.textContent = clock(Math.max(1, (new Date(el.dataset.until) - Date.now()) / 1000));
 }
 
 // Bis zur ersten Antwort stehen Wortmarke und ein Satz da statt einer leeren Fläche; bleibt die Antwort aus, sagt
@@ -1284,7 +1361,8 @@ function renderStart(failed) {
 async function refresh() {
   const before = data?.ui;
   const signedIn = data?.auth?.state;
-  try { data = await (await fetch('/api/status')).json(); } catch { if (data) toast(t('noAnswer')); else renderStart(true); return; }
+  // Beim Beenden ist ein Dienst, der nicht mehr antwortet, das erwartete Ende: Das Fenster schließt sich gleich.
+  try { data = await (await fetch('/api/status')).json(); } catch { if (data?.shutdown) return; if (data) toast(t('noAnswer')); else renderStart(true); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
   // Frisch angemeldet: Die Repos des Kontos ließen sich bisher nicht lesen.
   if (signedIn && signedIn !== 'in' && data.auth?.state === 'in') loadRepos();
@@ -1345,7 +1423,8 @@ document.addEventListener('click', async (event) => {
   // Der Knopf bleibt beim Beenden und nach einem erneuten Start gesperrt; sonst ist er nach der Antwort wieder da,
   // auch wenn sich nichts ändert.
   const done = await call(action, body);
-  if (done && action === 'shutdown') { toast(t('quitting')); return; }
+  // Der Dienst beendet kurz nach seiner Antwort (siehe actions.js); dann zeigt die Seite den Abbau.
+  if (done && action === 'shutdown') { setTimeout(refresh, 300); return; }
   if (done && action.endsWith('/rerun')) { restarted.set(body.repo + '/' + body.id, Date.now()); toast(t('rerunDone')); render(); return; } // bei GitHub erscheint der Lauf erst nach einem Augenblick wieder
   el.removeAttribute('aria-disabled');
 });
@@ -1473,6 +1552,8 @@ document.addEventListener('mousemove', (event) => {
 window.addEventListener('resize', () => document.querySelectorAll('.plan').forEach(drawLinks));
 document.fonts?.ready.then(() => document.querySelectorAll('.plan').forEach(drawLinks));
 
-renderStart(false); refresh(); loadRepos(); if (view === 'usage') loadDay();
-setInterval(refresh, 3000); setInterval(tick, 1000); setInterval(() => { if (view === 'usage') loadDay(); }, 60000);
+renderStart(false); loadRepos(); if (view === 'usage') loadDay();
+// Beim Beenden öfter fragen: Der Abbau dauert nur Sekunden.
+(function poll() { refresh().finally(() => setTimeout(poll, data?.shutdown ? 1000 : 3000)); })();
+setInterval(tick, 1000); setInterval(() => { if (view === 'usage') loadDay(); }, 60000);
 </script></body></html>

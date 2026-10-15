@@ -7,11 +7,14 @@ const fs = require('node:fs');
 //   log(text, repo, kind)
 //   beforeStop()            beim Beenden, nach dem Anhalten der Takte (Messung sichern, wartendes `gh` beenden)
 //   dismantle()             alle Runner abbauen (pools.js)
-//   removeLeftovers()       danach übrig Gebliebenes abräumen, auch Build-Dienste und ihre Netze (dockerwatch.js)
+//   removeLeftovers(step)   danach übrig Gebliebenes abräumen, auch Build-Dienste und ihre Netze (dockerwatch.js)
 //   releaseIdle()           die freien Runner bei GitHub abmelden (runners.js)
+//   progress                `{ begin, step, finish }`: der Stand des Beendens für die Oberfläche (shutdown.js)
 //   onExit()                nach dem Beenden
 //   schedule                `{ set, clear }` wie `setInterval` und `clearInterval`
-function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseIdle, onExit, schedule = { set: setInterval, clear: clearInterval } }) {
+const quiet = { begin: () => {}, step: () => {}, finish: () => {} };
+
+function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseIdle, progress = quiet, onExit, schedule = { set: setInterval, clear: clearInterval } }) {
   let stopping = false;
   let shuttingDown = false;
   const timers = [];
@@ -31,9 +34,11 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
     if (shuttingDown) return;
     shuttingDown = true;
     stopTimers();
+    progress.begin();
     log('Beende die Runner …');
     await dismantle();
-    await removeLeftovers();
+    await removeLeftovers(progress.step);
+    progress.finish();
     log('Beendet.');
     onExit();
   }

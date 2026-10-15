@@ -51,7 +51,7 @@ function world() {
     githubApi: { quota: () => null },
     dockerWatch: { ready: () => w.ready, error: () => w.error, cpus: () => 6, memory: () => 16 * GB },
     buildService: (repo) => `rc-buildkit-${repo}`,
-    logStamp: () => '1-2', uiFile: 'gibt-es-nicht.html', extra: () => ({ app: { autostart: true } }),
+    logStamp: () => '1-2', uiFile: 'gibt-es-nicht.html', shutdown: () => w.shutdown ?? null, extra: () => ({ app: { autostart: true } }),
   });
   return w;
 }
@@ -66,7 +66,9 @@ test('der Stand: je Repo mit Pool Plätze, Reserve, Einstellungen; Repos mit Poo
   assert.deepEqual(repo.runners.map((runner) => [runner.name, runner.state, runner.job.job]), [['PC-linux-1', SLOT.WORKING, 'Bauen']]);
   assert.deepEqual(status.unserved, [{ repo: 'wer/ohne', reason: 'minutes' }]);
   assert.deepEqual(status.machine.docker, { ready: true, error: null });
-  assert.deepEqual([status.logStamp, status.ui, status.app], ['1-2', 0, { autostart: true }]);
+  assert.deepEqual([status.logStamp, status.ui, status.app, status.shutdown], ['1-2', 0, { autostart: true }, null]);
+  w.shutdown = { startedAt: 'jetzt' }; // beim Beenden: der Stand aus shutdown.js
+  assert.deepEqual(w.status.status().shutdown, { startedAt: 'jetzt' });
 
   w.settings.paused = true;
   assert.deepEqual(w.status.status().repos[0].pipelines, [{ slots: 0 }]); // ein pausierter Pool nimmt keine Jobs

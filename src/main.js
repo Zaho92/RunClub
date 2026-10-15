@@ -26,7 +26,8 @@ process.env.RUNCLUB_DATA ||= path.join(app.getPath('userData'), 'data');
 let backend = null;
 let window = null;
 let tray = null;
-let quitting = false;
+let quitting = false; // RunClub baut ab; das Fenster zeigt dabei, was noch fehlt
+let exiting = false; // der Abbau ist fertig, das Programm endet
 
 // Ungepackt startet electron.exe mit dem Projektordner als Argument; das muss auch der Autostart tun.
 const loginItem = { path: process.execPath, args: app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden'] };
@@ -66,12 +67,13 @@ function showWindow() {
   };
   window.on('resize', matchBar);
   window.webContents.on('did-finish-load', matchBar);
-  window.on('close', (event) => { if (!quitting) { event.preventDefault(); window.hide(); } });
+  window.on('close', (event) => { if (!exiting) { event.preventDefault(); window.hide(); } });
   window.on('closed', () => { window = null; });
 }
 
 function refreshTray() {
   if (!tray) return;
+  if (quitting) { tray.setContextMenu(Menu.buildFromTemplate([{ label: 'RunClub öffnen', click: showWindow }, { label: 'Wird beendet …', enabled: false }])); return; }
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'RunClub öffnen', click: showWindow },
     { label: 'Mit Windows starten', type: 'checkbox', checked: autostart(), click: (item) => setAutostart(item.checked) },
@@ -80,18 +82,28 @@ function refreshTray() {
   ]));
 }
 
+// Beendet die Seite RunClub („RunClub beenden“ in den Einstellungen), erfährt das Symbol es hier.
 function refreshTooltip() {
   if (!tray || quitting) return;
-  const runners = backend.status().repos.flatMap((repo) => repo.runners);
+  const status = backend.status();
+  if (status.shutdown) { quitting = true; refreshTray(); tray.setToolTip('RunClub – beendet die Runner …'); return; }
+  const runners = status.repos.flatMap((repo) => repo.runners);
   const count = (state) => runners.filter((runner) => runner.state === state).length;
   tray.setToolTip(`RunClub – ${count(SLOT.WORKING)} arbeiten, ${count(SLOT.READY)} bereit`);
 }
 
+// Das Fenster zeigt beim Beenden groß, was noch abgebaut wird (`shutdown` in /api/status). Ein offenes Fenster fragt
+// sonst erst mit der nächsten Abfrage nach; es wird deshalb gleich angestoßen.
 async function quit() {
   if (quitting) return;
   quitting = true;
+  refreshTray();
   tray?.setToolTip('RunClub – beendet die Runner …');
-  await backend.shutdown(); // endet über hooks.onExit
+  const open = Boolean(window);
+  showWindow();
+  const done = backend.shutdown(); // endet über hooks.onExit
+  if (open) window.webContents.executeJavaScript('refresh()').catch(() => { /* dann mit der nächsten Abfrage */ });
+  await done;
 }
 
 // Das Ende der Sitzung (Abmelden, Herunterfahren) meldet Windows nur an Fenster, und danach bleiben wenige Sekunden.
@@ -109,7 +121,7 @@ app.on('window-all-closed', () => { /* läuft im Infobereich weiter */ });
 app.whenReady().then(() => {
   backend = require('./backend').start({
     hooks: {
-      onExit: () => { quitting = true; app.exit(0); },
+      onExit: () => { exiting = true; app.exit(0); },
       status: () => ({ app: { autostart: autostart() } }),
       actions: { 'app/autostart': async ({ on }) => setAutostart(on) },
     },

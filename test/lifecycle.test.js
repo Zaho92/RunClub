@@ -12,8 +12,9 @@ function world() {
     log: (...entry) => w.logs.push(entry),
     beforeStop: () => w.steps.push(`sichern (stopping: ${w.lifecycle.stopping()}, Takte: ${w.timers.size})`),
     dismantle: async () => { w.steps.push('abbauen'); },
-    removeLeftovers: async () => { w.steps.push('Reste'); },
+    removeLeftovers: async (step) => { w.steps.push('Reste'); step('cleanup'); },
     releaseIdle: async () => { w.steps.push('abmelden'); },
+    progress: { begin: () => w.steps.push('Stand'), step: (name) => w.steps.push(`Stufe ${name}`), finish: () => w.steps.push('Dauer ablegen') },
     onExit: () => w.steps.push('Ende'),
     schedule: { set: (work, ms) => { const id = w.next++; w.timers.set(id, { work, ms }); return id; }, clear: (id) => w.timers.delete(id) },
   });
@@ -29,12 +30,12 @@ test('every arbeitet sofort und dann im Takt, everyAfter erst nach dem ersten Ab
   assert.deepEqual([...w.timers.values()].map((timer) => timer.ms), [1000, 2000]);
 });
 
-test('Beenden hält die Takte an, sichert, baut ab, räumt Reste ab und endet; ein zweites Mal geschieht nichts', async () => {
+test('Beenden hält die Takte an, sichert, baut ab, räumt Reste ab und endet, mit Stand für die Oberfläche; ein zweites Mal geschieht nichts', async () => {
   const w = world();
   w.lifecycle.every(1000, () => {});
   assert.equal(w.lifecycle.stopping(), false);
   await Promise.all([w.lifecycle.shutdown(), w.lifecycle.shutdown()]);
-  assert.deepEqual(w.steps, ['sichern (stopping: true, Takte: 0)', 'abbauen', 'Reste', 'Ende']);
+  assert.deepEqual(w.steps, ['sichern (stopping: true, Takte: 0)', 'Stand', 'abbauen', 'Reste', 'Stufe cleanup', 'Dauer ablegen', 'Ende']);
   assert.deepEqual(w.logs.map(([text]) => text), ['Beende die Runner …', 'Beendet.']);
 });
 
@@ -44,7 +45,7 @@ test('beim Abmelden von Windows nur die freien Runner abmelden; Beenden bleibt d
   await w.lifecycle.release(); // schon angehalten: nichts mehr
   assert.deepEqual(w.steps, ['sichern (stopping: true, Takte: 0)', 'abmelden']);
   await w.lifecycle.shutdown();
-  assert.deepEqual(w.steps.slice(2), ['sichern (stopping: true, Takte: 0)', 'abbauen', 'Reste', 'Ende']);
+  assert.deepEqual(w.steps.slice(2), ['sichern (stopping: true, Takte: 0)', 'Stand', 'abbauen', 'Reste', 'Stufe cleanup', 'Dauer ablegen', 'Ende']);
 });
 
 test('startPools startet jeden Pool und protokolliert, wenn CI_RUNNER sich nicht lesen lässt', async () => {

@@ -133,6 +133,13 @@ function createPools({
     while (Date.now() < until && all.some(hasPairs)) await sleep(POLL_PAUSE);
   }
 
+  // Was beim Beenden von einem Pool noch steht: die Paare wie bei `hasPairs`, dazu die Reserve, die `dismantle` erst
+  // nach und nach in `leaving` verschiebt, und der Name eines Jobs, der dabei abgebrochen wird (siehe shutdown.js).
+  function remaining(pool) {
+    const job = pool.slots.find((slot) => slot.state === SLOT.WORKING && slot.base && slot.job)?.job ?? null;
+    return { pairs: pool.leaving + pool.reserve.length + pool.slots.filter((slot) => slot.base || slot.building).length, job };
+  }
+
   // Die freien Runner eines Pools neu aufbauen. Läuft ein Job, gehen nur die mit alten Limits (wie `staleCount`
   // sie zählt). Läuft kein Job, entsteht auch der Build-Dienst neu; er trägt die Limits des Docker-Daemons. Ob ein Job läuft, entscheidet sich erst, wenn der Pool nicht mehr anderweitig angehalten ist
   // (ein Cache wird geleert): Startet in der Wartezeit ein Job, würde der Pool sonst bis zu dessen Ende stillstehen.
@@ -171,7 +178,7 @@ function createPools({
     try { await quiesce(pool); return await work(); } finally { pool.hold = false; }
   }
 
-  return { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, dismantle, rebuildIdle, withPoolAtRest, startPool, preparePool };
+  return { reserveSize, replenish, renewReserve, discardReserve, staleCount, poolResting, reconcile, quiesce, dismantle, remaining, rebuildIdle, withPoolAtRest, startPool, preparePool };
 }
 
 module.exports = { createPools };

@@ -516,6 +516,31 @@ brechen ab. Feld und Schleier erscheinen in 200 ms.
 Schaltflächen auf `raised` nehmen die Rahmentöne als Stufen, weil es darüber keine hellere Fläche gibt: Ruhe `edge`
 mit Rahmen `cap`, überfahren `cap` mit Rahmen `track`, gedrückt `raised`.
 
+### Beenden
+Beim Beenden gehört das ganze Fenster dem Abbau, damit niemand mehrfach klickt: Die Leiste fehlt, im Streifen oben
+steht die Wortmarke (15 px, 600, `muted`). Der Inhalt ist höchstens 820 px breit und mittig; die Ansicht erscheint,
+sobald `/api/status` den Stand `shutdown` liefert, gleich ob über „RunClub beenden“ in den Einstellungen oder über das
+Symbol im Infobereich.
+- **Aufbau:** Kopf wie bei einem Lauf: Headline „RunClub wird beendet“, darunter ein Satz in `text` (höchstens 56
+  Zeichen breit), was abgebaut wird und dass das Fenster sich selbst schließt; rechts die Restzeit als Display mit dem
+  Wort darüber („noch etwa“). Darunter ein Netzplan aus drei Stufen: je Projekt mit Pool eine Station, dann
+  „Aufräumen“ (Build-Dienste, Netze, Volumes), dann „Abmelden“ (bei GitHub). Darunter ein Hinweis in `muted`, woher
+  die Schätzung stammt und wie lange höchstens auf einen entstehenden Runner gewartet wird.
+- **Stationen:** Die Form der Pill mit einer immer sichtbaren zweiten Zeile, aber kein Link und ohne Aufklappen; sie
+  reagieren nicht auf den Zeiger. Ein Projekt im Abbau läuft (`run`, Zeit seit Beginn, „2 von 3 Runnern abgebaut“,
+  Fortschrittsstrich nach dem Anteil); wird dort ein laufender Job abgebrochen, steht stattdessen „Abbruch „Name““ in
+  `run`. Fertig ist `done` mit der Dauer. Aufräumen und Abmelden warten durchsichtig und gestrichelt
+  mit der Schätzung aus dem letzten Beenden („ca. 0:02“), laufen mit der Zeit seit ihrem Beginn und zählen beim
+  Abmelden die Projekte, mit Fortschrittsstrich wie die Projekte. Die Spalte der Projekte ist breiter als die übrigen.
+- **Ohne Schätzung:** Gibt es noch keine gespeicherte Dauer, steht statt der Restzeit die verstrichene Zeit („bisher
+  0:06“), die wartenden Stufen tragen keine Zeit, und der Hinweis sagt, dass die Schätzung ab dem nächsten Mal kommt.
+- **Überzogen:** Ist die Schätzung um und der Abbau noch nicht fertig, zählt statt einer stehenden Restzeit die
+  verstrichene Zeit („länger als geschätzt, bisher 0:17“); eine stehende Zahl sähe aus wie eine hängende App.
+- **Abbruch:** Gekürzt wird nur der Name des Jobs, nie das Wort davor oder die Anführungszeichen.
+- **Kein Rot:** Beenden hat der Nutzer selbst gewollt, und nichts darin verlangt ein Eingreifen (siehe
+  Rot-ist-Störung-Regel). Scheitert ein Schritt, steht das im Protokoll, und der Abbau geht weiter. Ein Dienst, der
+  am Ende nicht mehr antwortet, ist das erwartete Ende und keine Meldung wert.
+
 ### Fenster
 Im Fenster der App gibt es keine Titelleiste von Windows. Die obersten 32 px sind über die ganze Breite der Griff zum
 Ziehen und bleiben leer; Leiste und Hauptbereich beginnen darunter auf einer Linie, die Wortmarke auf Höhe der
@@ -552,4 +577,4 @@ Eine Kurve für alles Räumliche: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 
 - **Don't** einen Lauf als Jobliste mit Statuspunkten in Karten darstellen.
 - **Don't** eine der leuchtenden Zustandsfarben (`run`, `done`, `fail`, `cancel`) als Schmuck oder für etwas anderes als ihren Zustand verwenden.
 - **Don't** Schrift schwerer als 400 setzen (Ausnahme: die Wortmarke) oder Beschriftungen in Versalien sperren.
-- **Don't** die Pill-Form für etwas anderes als einen Job verwenden.
+- **Don't** die Pill-Form für etwas anderes als einen Job verwenden. Einzige Ausnahme sind die Stationen beim Beenden, das sich als Lauf zeigt (siehe „Beenden“).

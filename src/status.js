@@ -30,8 +30,9 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 //   buildService(repo)      Name des Build-Dienstes (siehe names.js)
 //   logStamp()              Kennung des Protokolls; ändert sie sich, holt die Oberfläche es neu
 //   uiFile                  die Datei der Seite; ändert sie sich, lädt die Seite sich neu
+//   shutdown()              der Stand beim Beenden, sonst null (siehe shutdown.js)
 //   extra()                 Angaben, die die App beisteuert (siehe `hooks.status` in backend.js)
-function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, buildService, logStamp, uiFile, extra = () => ({}) }) {
+function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, buildService, logStamp, uiFile, shutdown = () => null, extra = () => ({}) }) {
   const { config, limitsOf } = settings;
 
   const limitRange = () => limitRules.bounds({ dockerMemory: dockerWatch.memory(), dockerCpus: dockerWatch.cpus() });
@@ -103,6 +104,7 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
       auth: account.authView(), // Anmeldung bei GitHub: { state, login, scopes, required, extra, missing, optional: [{ scope, purpose }], flow: { kind, scopes, state, code, url, why, error } | null }
       logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
       ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
+      shutdown: shutdown(), // solange RunClub endet, was noch abgebaut wird (siehe shutdown.js), sonst null
       ...extra(),
     };
   }

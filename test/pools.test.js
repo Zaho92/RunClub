@@ -783,3 +783,20 @@ test('beim Beenden hält ein Aufbau für die Reserve, der nicht endet, nichts au
   await settle();
   assert.equal(w.pool.leaving, 0);
 });
+
+test('remaining zählt, was beim Beenden noch steht, und nennt den Job, der dabei abgebrochen wird', async () => {
+  const w = world();
+  w.pools.replenish(w.pool); // zwei Aufbauten für die Reserve
+  w.pool.slots = [
+    { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-9', job: 'Integrationstests' },
+    { name: 'bauend', state: 'startet', building: true },
+    { name: 'leer', state: 'aus' },
+  ];
+  assert.deepEqual(w.pools.remaining(w.pool), { pairs: 4, job: 'Integrationstests' });
+  w.pools.discardReserve(w.pool); // die Reserve wandert nach `leaving` und zählt dort weiter
+  assert.deepEqual(w.pools.remaining(w.pool), { pairs: 4, job: 'Integrationstests' });
+  w.builds.forEach((build) => build.finish(null));
+  await settle();
+  w.pool.slots[0].base = null; // das Paar mit dem Job ist abgebaut
+  assert.deepEqual(w.pools.remaining(w.pool), { pairs: 1, job: null });
+});

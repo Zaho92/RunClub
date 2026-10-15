@@ -104,7 +104,10 @@ function createDockerWatch({
   // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, Build-Dienste (sie enden mit dem Programm; was noch
   // steht, gehört zu einem Absturz oder einem Pool, den es nicht mehr gibt), bei GitHub angemeldete Runner. Build-Dienst
   // und Netz eines Repos werden dazu beim Namen entfernt: Ältere Versionen haben sie ohne Kennzeichen angelegt.
-  async function removeLeftovers() {
+  // `step(name, count)` meldet beim Beenden, wie weit es ist (siehe shutdown.js): `cleanup` vor Docker, `signoff` mit
+  // der Zahl der Repos vor GitHub, `signedOff` nach jedem Repo.
+  async function removeLeftovers(step = () => {}) {
+    step('cleanup');
     for (const repo of repos()) {
       await docker(['rm', '-f', buildService(repo)]);
       await removeNetwork(buildNetwork(repo));
@@ -117,7 +120,8 @@ function createDockerWatch({
     const volumes = await dockerList(['volume', 'ls', '-q', '--filter', `label=${mark}`]);
     if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
     for (const label of [mark, serviceMark]) for (const network of await dockerList(['network', 'ls', '-q', '--filter', `label=${label}`])) await removeNetwork(network);
-    for (const repo of repos()) await removeRegistrations(repo);
+    step('signoff', repos().length);
+    for (const repo of repos()) { await removeRegistrations(repo); step('signedOff'); }
   }
 
   // Runner dieses Rechners bei GitHub abmelden, die keinen Job mehr haben. `keep()`: Namen, die zu stehenden Paaren
