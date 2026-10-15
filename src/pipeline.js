@@ -19,6 +19,7 @@ const WAITS_KEEP = 50; // gemerkte Wartezeiten je Repo
 const WORKFLOWS_MAX = 40; // gemerkte Workflow-Dateien
 const TURNAROUND_S = 8; // Wechsel eines Platzes zum nächsten Job
 const FALLBACK_S = 60; // übliche Dauer eines Jobs, solange das Repo noch keinen gelernt hat
+const FINISHED_ROUNDS = 6; // so viele Abfragen lang bleibt ein eben beendeter Lauf zum Bestätigen der Ergebnisse da
 
 // Sekunden bleiben ganze Zahlen.
 const roundedMedian = (values) => { const middle = median(values); return middle === null ? null : Math.round(middle); };
@@ -128,6 +129,7 @@ function createPipelines({ gh, dataDir }) {
   const memoryOf = (repo) => (history[repo] ??= { durations: {}, jobsOf: {}, seen: [] });
   const active = new Map(); // Repo -> laufende Läufe mit ihren Jobs
   const latest = new Map(); // Repo -> { id, updatedAt, pipeline } des jüngsten abgeschlossenen Laufs
+  const finished = new Map(); // Repo -> [{ rounds, pipeline }] der Läufe, die seit kurzem abgeschlossen sind
   const workflows = new Map(); // "Repo@Commit:Pfad" -> Jobs der Workflow-Datei oder null
 
   const key = (workflow, job) => `${workflow} / ${job}`;
@@ -243,13 +245,24 @@ function createPipelines({ gh, dataDir }) {
     for (const run of unseen) await learn(repo, run);
     if (unseen.length) save();
 
+    const before = new Set((active.get(repo) ?? []).map((pipeline) => pipeline.id));
     const list = [];
     for (const run of runs.filter((r) => r.status !== 'completed').reverse()) list.push(await build(repo, run));
     active.set(repo, list);
 
+    // Ein Lauf, der seit der letzten Abfrage fertig wurde, wird einmal abschließend gelesen. Er muss nicht der jüngste
+    // abgeschlossene sein (ein früher gestarteter endet nach einem späteren); sein letzter Job wäre sonst nie bestätigt.
+    // Er bleibt einige Abfragen lang da: Der Platz verbucht einen Job erst, wenn der Runner-Container geendet hat.
+    const recent = (finished.get(repo) ?? []).map((entry) => ({ ...entry, rounds: entry.rounds - 1 })).filter((entry) => entry.rounds > 0);
+    for (const run of runs.filter((r) => r.status === 'completed' && before.has(r.id))) recent.push({ rounds: FINISHED_ROUNDS, pipeline: await build(repo, run) });
+    finished.set(repo, recent);
+
     const last = runs.find((run) => run.status === 'completed' && run.event !== 'dynamic');
     const known = latest.get(repo);
-    if (last && (known?.id !== last.id || known.updatedAt !== last.updated_at)) latest.set(repo, { id: last.id, updatedAt: last.updated_at, pipeline: await build(repo, last) });
+    if (last && (known?.id !== last.id || known.updatedAt !== last.updated_at)) {
+      const pipeline = recent.find((entry) => entry.pipeline.id === last.id && entry.pipeline.updatedAt === last.updated_at)?.pipeline ?? await build(repo, last);
+      latest.set(repo, { id: last.id, updatedAt: last.updated_at, pipeline });
+    }
     return list;
   }
 
@@ -305,13 +318,16 @@ function createPipelines({ gh, dataDir }) {
     return pipeline ? { ...pipeline, finishAt: null, jobs: pipeline.jobs.map((job) => present(job, null)) } : null;
   }
 
+  // Die Läufe, die seit kurzem abgeschlossen sind, mit ihren Jobs wie GitHub sie zuletzt meldete.
+  const finishedOf = (repo) => (finished.get(repo) ?? []).map((entry) => entry.pipeline);
+
   // Wie lange Jobs zuletzt auf einen eigenen Runner gewartet haben (Sekunden).
   function waitOf(repo) {
     const waits = memoryOf(repo).waits ?? [];
     return waits.length ? { usual: roundedMedian(waits), longest: Math.max(...waits), jobs: waits.length } : null;
   }
 
-  return { refresh, view, lastOf, waitOf };
+  return { refresh, view, lastOf, finishedOf, waitOf };
 }
 
 module.exports = { createPipelines, parseWorkflow, stagesOf, matcherOf };

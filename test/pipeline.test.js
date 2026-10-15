@@ -32,6 +32,23 @@ test('lernt die übliche Dauer und die Wartezeit aus abgeschlossenen Läufen', a
   assert.deepEqual(pipelines.waitOf(REPO), { usual: 2, longest: 2, jobs: 3 });
 });
 
+test('ein früher gestarteter Lauf, der nach einem späteren endet, bleibt einige Abfragen lang zum Bestätigen da', async () => {
+  const jobsOf = { 3: [done('Spät', 10)], 4: [done('Früh', 10)] };
+  const gh = async (args) => ({ jobs: jobsOf[args[1].match(/runs\/(\d+)\/jobs/)[1]] });
+  const pipelines = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  const run = (id, status) => ({ id, name: 'CI', status, conclusion: status === 'completed' ? 'success' : null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', updated_at: status });
+  // Lauf 4 ist der jüngere und schon fertig, Lauf 3 läuft noch und endet erst danach.
+  await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'in_progress')]);
+  assert.deepEqual(pipelines.finishedOf(REPO), []);
+  await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'completed')]);
+  assert.equal(pipelines.lastOf(REPO).id, 4);
+  assert.deepEqual(pipelines.finishedOf(REPO).map((p) => [p.id, p.jobs.map((j) => j.name)]), [[3, ['Spät']]]);
+  for (let round = 1; round < 6; round += 1) await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'completed')]);
+  assert.equal(pipelines.finishedOf(REPO).length, 1); // sechs Abfragen lang, die erste eingerechnet
+  await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'completed')]);
+  assert.deepEqual(pipelines.finishedOf(REPO), []);
+});
+
 test('ein laufender Job ist fertig, wenn seine übliche Dauer um ist', async () => {
   const { pipelines, runs } = setup([job('Lang', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null })]);
   await pipelines.refresh(REPO, runs);

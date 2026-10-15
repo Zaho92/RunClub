@@ -50,8 +50,9 @@ function createRemote({
         runs: runs.map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
       });
       noteWorkflows(poolOf(repo), jobs);
-      // Abgeschlossene Jobs der eigenen Runner, auch aus dem letzten fertigen Lauf: Ihr Ergebnis bei GitHub gilt (siehe metrics.js).
-      const done = [...active, pipelines.lastOf(repo)].filter(Boolean).flatMap((pipeline) => pipeline.jobs)
+      // Abgeschlossene Jobs der eigenen Runner, auch aus eben beendeten und dem letzten fertigen Lauf: Ihr Ergebnis bei
+      // GitHub gilt (siehe metrics.js).
+      const done = [...active, ...pipelines.finishedOf(repo), pipelines.lastOf(repo)].filter(Boolean).flatMap((pipeline) => pipeline.jobs)
         .filter((job) => job.status === 'completed' && job.own && job.runner).map((job) => ({ runner: job.runner, conclusion: job.conclusion }));
       if (done.length) confirmResults(repo, done);
     } catch (error) {

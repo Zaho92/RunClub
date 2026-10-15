@@ -23,7 +23,7 @@ function world() {
   w.remote = createRemote({
     gh,
     githubApi: { mayPoll: (...args) => w.may(...args), refreshQuota: async () => w.quota },
-    pipelines: { refresh: async () => w.pipelines, lastOf: () => w.last ?? null },
+    pipelines: { refresh: async () => w.pipelines, lastOf: () => w.last ?? null, finishedOf: () => w.finished ?? [] },
     confirmResults: (repo, done) => w.confirmed.push([repo, done]),
     routing: { check: async (repo) => { w.checked.push(repo); } },
     waiting: { scan: async (found) => { w.scanned = found; } },
@@ -56,7 +56,7 @@ test('ein Repo abfragen: Läufe, laufende Jobs, und der arbeitende Platz erfähr
   assert.equal(w.remote.view('wer/Fremd'), null);
 });
 
-test('abgeschlossene Jobs der eigenen Runner gehen mit dem Ergebnis von GitHub an die Messung, auch aus dem letzten fertigen Lauf', async () => {
+test('abgeschlossene Jobs der eigenen Runner gehen mit dem Ergebnis von GitHub an die Messung, auch aus eben beendeten und dem letzten fertigen Lauf', async () => {
   const w = world();
   w.answers[`repos/${REPO}/actions/runs?per_page=20`] = { workflow_runs: [RUN] };
   w.pipelines = [{ ...PIPELINE, jobs: [
@@ -65,8 +65,9 @@ test('abgeschlossene Jobs der eigenen Runner gehen mit dem Ergebnis von GitHub a
     { name: 'Testen', status: 'in_progress', conclusion: null, own: true, runner: 'PC-linux-2' },
   ] }];
   w.last = { ...PIPELINE, jobs: [{ name: 'Alt', status: 'completed', conclusion: 'success', own: true, runner: 'PC-linux-0' }] };
+  w.finished = [{ ...PIPELINE, jobs: [{ name: 'Eben', status: 'completed', conclusion: 'success', own: true, runner: 'PC-linux-3' }] }];
   await w.remote.refreshRepo(REPO);
-  assert.deepEqual(w.confirmed, [[REPO, [{ runner: 'PC-linux-1', conclusion: 'failure' }, { runner: 'PC-linux-0', conclusion: 'success' }]]]);
+  assert.deepEqual(w.confirmed, [[REPO, [{ runner: 'PC-linux-1', conclusion: 'failure' }, { runner: 'PC-linux-3', conclusion: 'success' }, { runner: 'PC-linux-0', conclusion: 'success' }]]]);
 });
 
 test('scheitert die Abfrage, bleiben Jobs und Läufe stehen und der Fehler kommt dazu', async () => {

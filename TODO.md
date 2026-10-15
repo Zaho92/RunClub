@@ -245,30 +245,36 @@ Bewusst so gelassen:
 - **Pause eines öffentlich gewordenen Repos über einen Neustart** (`pausedPublic` in `src/actions.js`, seit `7d36a3b`):
   nur am Test geprüft. Echt prüfen: Der Pool eines Repos, das öffentlich wurde, bleibt nach einem Neustart der App
   pausiert und wird erst wieder frei, wenn das Repo privat ist.
-- **Korrekturen aus dem sechsten Durchgang** (15.10.2026), nur an Tests geprüft; wirksam erst nach einem Neustart der
-  App:
-  - Der Lade-Container der Vorlage hinterlässt kein anonymes Volume mehr (`docker rm -v`). Im Betrieb: Nach einem
-    Auffrischen bleibt `docker volume ls -q --filter dangling=true` gleich lang. Bis zum Neustart lagen 21 solche
-    Volumes; ältere bleiben, bis jemand sie entfernt.
+- **Korrekturen aus dem sechsten Durchgang** (15.10.2026). Im Betrieb gesehen am 15.10.2026 nach zwei Neustarts mit
+  je zwei sich überlappenden Demo-Läufen (einer gescheitert): Volumes, Ende eines Jobs und Bestätigung, Capabilities
+  und Protokollgrenze (unten je „Gesehen“). Offen sind nur die Fehlerwege, die im Betrieb nicht vorkamen:
+  - Gesehen: Der Lade-Container der Vorlage hinterlässt kein anonymes Volume mehr (`docker rm -v`); nach zwei
+    Auffrischen blieb `docker volume ls -q --filter dangling=true` bei 4.
   - Scheitert das Vorbereiten der Volumes eines Paars (Rechte, Kopie der Vorlage), steht „Volumes ließen sich nicht
     vorbereiten: …“ im Protokoll, und das Paar geht, statt mit einem Daemon zu starten, der nicht hochkommt.
   - Beim Beenden während des Auffrischens der Vorlage steht kein roter Eintrag „Lade-Daemon wurde nicht bereit“ mehr,
     und der Lade-Container geht trotzdem.
   - Scheitert das Lesen von `CI_RUNNER` beim Start, steht das im Protokoll; ebenso, wenn sich `access.key` nicht
     schreiben lässt. `npm run backend` legt seine Daten ohne `RUNCLUB_DATA` jetzt unter `%APPDATA%\RunClub\backend` ab.
-  - Ein Job kann seinen Verbrauch nicht mehr verkürzen: Die Dauer läuft bis zum Ende des Runner-Containers, der Name
+  - Gesehen: Ein Job kann seinen Verbrauch nicht mehr verkürzen: Die Dauer läuft bis zum Ende des Runner-Containers, der Name
     kommt aus der ersten „Running job“-Zeile, das Ergebnis aus der Ausgabe ist vorläufig und wird durch das von GitHub
     ersetzt, sobald die üblichen Abfragen den Job des Runners abgeschlossen sehen (`confirmResults` in
     `src/metrics.js`). Nach jedem Job fragt der Platz einmal mehr `docker inspect` (läuft der Runner noch?). Ein Runner
     endet spätestens nach 24 Stunden (`RUNNER_MAX` in `src/slots.js`; ein Workflow mit längerem `timeout-minutes`
     bräche dort ab), und sein Container-Protokoll in der Docker-VM ist auf zweimal 20 MB begrenzt. Im Betrieb:
     Ergebnisse und Verbrauch erscheinen wie bisher, ein bis zwei Sekunden später; in `metrics.json` tragen die neuen
-    Durchläufe `runner` und nach der Bestätigung `confirmed: true`. Bekannt: Beendet man die App, während ein Runner
+    Durchläufe `runner` und nach der Bestätigung `confirmed: true`. Gesehen: alle Jobs beider Läufe mit `runner`,
+    bestätigt, der gescheiterte als „Failed“. Dabei gefunden und behoben: Endete ein früher gestarteter Lauf nach einem
+    später gestarteten, blieb sein letzter Job unbestätigt, weil nur der jüngste abgeschlossene Lauf gelesen wurde;
+    jetzt wird jeder eben beendete Lauf einmal abschließend gelesen und sechs Abfragen lang mitgegeben (`finishedOf`
+    in `src/pipeline.js`). Bekannt: Beendet man die App, während ein Runner
     nach seinem Job noch aufräumt, wird dieser Job nicht mehr verbucht.
-  - Der Runner-Container gibt `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` und `NET_BIND_SERVICE` ab.
+  - Gesehen (`docker inspect`: CapDrop mit den sechs, LogConfig `max-size=20m`, `max-file=2`; in den Demo-Läufen kein
+    „Operation not permitted“): Der Runner-Container gibt `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` und `NET_BIND_SERVICE` ab.
     Geprüft an einem eigenen Container aus dem Runner-Abbild: `sudo`, `sudo -u`, `apt-get install` (auch eines Pakets,
     das Capabilities setzen will), `ping`, `dotnet`, `node` gehen. Ein Dienst, den ein Schritt per `sudo` direkt im
-    Runner auf einem Port unter 1024 startet, geht nicht mehr. Im Betrieb nachsehen, ob ein Workflow etwas davon braucht (Meldungen wie „Operation not permitted“).
+    Runner auf einem Port unter 1024 startet, geht nicht mehr. Offen: in den Läufen der anderen Repos auf
+    „Operation not permitted“ achten.
 
 ## Offene Entscheidungen des Nutzers
 
