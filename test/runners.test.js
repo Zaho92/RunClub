@@ -9,14 +9,14 @@ const LIMITS = { runnerCpus: 2, runnerMemory: '2g', dockerCpus: 2, dockerMemory:
 
 // Docker und GitHub nachgestellt: `calls` hält die Aufrufe in Kurzform, `ghFails(path)` lässt einen GitHub-Aufruf scheitern.
 function world() {
-  const w = { calls: [], ready: true, ghFails: () => null };
+  const w = { calls: [], ready: true, ghFails: () => null, settings: { repo: REPO, parallel: 1, cache: false, paused: false } };
   w.runners = createRunners({
     docker: async (args) => { w.calls.push(args.slice(0, 2).join(' ')); return { code: 0, stdout: '', stderr: '' }; },
     dockerList: async (args) => { w.calls.push(`list ${args.slice(0, 2).join(' ')}`); return []; },
     gh: async (args) => { const at = args.at(-1); w.calls.push(`gh ${args[2]} ${at}`); const fail = w.ghFails(at); if (fail) throw new Error(fail); return null; },
     log: () => {}, sleep: turn, timer: () => {}, newId: () => 'a1',
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1,
-    settings: { settingsOf: () => ({ repo: REPO, parallel: 1, cache: false, paused: false }), limitsOf: () => LIMITS, state: { learned: {}, rejected: {} }, saveState: () => {} },
+    settings: { settingsOf: () => w.settings, limitsOf: () => LIMITS, state: { learned: {}, rejected: {} }, saveState: () => {} },
     metrics: {}, stopping: () => false, dockerReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
   });
   w.pool = { repo: REPO, slots: [], reserve: [], leaving: 0, hold: false, prepared: true, removed: false, seeded: new Set(), sizes: null };
@@ -30,6 +30,16 @@ test('der Minutentakt füllt die Reserve nach', async () => {
   assert.equal(w.pool.reserve.length, 1);
   await turn();
   assert.ok(w.calls.includes('network create'));
+});
+
+test('der Minutentakt erneuert einen Build-Dienst mit alten Limits', async () => {
+  const w = world();
+  w.settings.cache = true;
+  w.pool.serviceBuilt = 'alte Limits';
+  w.runners.tick();
+  assert.equal(w.pool.renewingService, true);
+  await turn();
+  assert.ok(w.calls.includes('volume create')); // der Paket-Cache, dann der Build-Dienst
 });
 
 test('gemessen wird nur, wenn Docker bereit ist, und kein ruhender Pool', async () => {

@@ -1,7 +1,8 @@
 // Die Docker-Überwachung: Docker kann später starten als RunClub, zwischendurch ausfallen oder neu starten.
-// `watchLoop` bereitet Docker vor, sobald es antwortet (`prepareDocker`: Grenzen der VM lesen, Runner-Abbild bauen,
-// Abbilder von Daemon und Build-Dienst laden, Reste abräumen), prüft es danach regelmäßig und gibt es erst nach
-// mehreren ausbleibenden Antworten verloren. Dazu das tägliche Neubauen des Runner-Abbilds (`refreshImage`) und das
+// `watchLoop` bereitet Docker vor, sobald es antwortet (`prepareDocker`: Grenzen der VM lesen, die eigenen Abbilder
+// von Runner und Docker-Daemon bauen, das Abbild des Build-Dienstes laden, Reste abräumen), prüft es danach regelmäßig
+// und gibt es erst nach mehreren ausbleibenden Antworten verloren. Dazu das tägliche Neubauen der eigenen Abbilder
+// (`refreshImage`, wegen des Runners) und das
 // Abräumen von Resten (`removeLeftovers` beim Start und Beenden, `removeOrphans` nach einer Unterbrechung,
 // `removeRegistrations` bei GitHub).
 //
@@ -10,15 +11,14 @@
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
 const { orphaned } = require('./pairs');
-const { unregisterRunner } = require('./github');
+const { unregisterRunner, PAGE_MAX } = require('./github');
+const { PROBE_TIMEOUT } = require('./dind');
 const { runnerPrefix } = require('./names');
 
 const MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
-const PROBE_TIMEOUT = 20 * SECOND;
 const READY_PAUSE = 30 * SECOND; // Abstand der Prüfungen, solange Docker antwortet
 const WAIT_PAUSE = 15 * SECOND; // … und solange es noch nicht vorbereitet ist
 const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
-const RUNNERS_PAGE = 100; // Runner je Abfrage bei GitHub; mehr hat ein Repo mit Pool nicht
 
 //   docker(args, options), dockerList(args)   aus engine.js
 //   gh(args)                Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
@@ -27,7 +27,7 @@ const RUNNERS_PAGE = 100; // Runner je Abfrage bei GitHub; mehr hat ein Repo mit
 //   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze (siehe caches.js)
 //   builds                  die selbst gebauten Abbilder: [{ image, dir, args, what }] (Name, Ordner mit Dockerfile,
 //                           weitere Argumente für `docker build`, Bezeichnung für Meldungen); das erste ist das Runner-Abbild
-//   requiredImages          Abbilder, die geladen sein müssen (Docker-Daemon, Build-Dienst)
+//   requiredImages          Abbilder, die geladen sein müssen (heute nur der Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
 //   unreachableText         die Meldung, wenn Docker nicht antwortet (aus engine.js)
 //   exposure()              Warnung, wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise, aus engine.js)
@@ -67,7 +67,7 @@ function createDockerWatch({
   // Paare starten von selbst mit dem neuen Abbild; laufende Jobs berührt das nicht.
   async function refreshImage() {
     if (stopping() || !dockerReady) return;
-    log('Baue das Runner-Abbild neu (tägliche Auffrischung) …');
+    log('Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …');
     await buildImages();
   }
 
@@ -76,7 +76,7 @@ function createDockerWatch({
     if (info.code !== 0) throw new Error(unreachableText);
     dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
     dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
-    log('Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …');
+    log('Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …');
     await buildImages();
     for (const name of requiredImages) await docker(['pull', '-q', name], { timeout: longTimeout });
     // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
@@ -127,7 +127,7 @@ function createDockerWatch({
   // Paar mitten im Job endete (beim Beenden, nach einem Absturz) und die GitHub erst später freigibt.
   async function removeRegistrations(repo, { keep = () => new Set(), offline = false } = {}) {
     try {
-      const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=${RUNNERS_PAGE}`])).runners;
+      const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=${PAGE_MAX}`])).runners; // mehr hat ein Repo mit Pool nicht
       const kept = keep();
       const stale = runners.filter((runner) => runner.name.startsWith(runnerPrefix(host)) && !runner.busy && !kept.has(runner.name) && (!offline || runner.status === 'offline'));
       for (const runner of stale) await unregisterRunner(gh, repo, runner.id);
@@ -181,4 +181,4 @@ function createDockerWatch({
   };
 }
 
-module.exports = { createDockerWatch, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };
+module.exports = { createDockerWatch, MISSES, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE };

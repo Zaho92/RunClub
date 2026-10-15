@@ -12,6 +12,7 @@
 // Anmerkungen. Das Urteil über einen Lauf wird gemerkt; ein bekannter Lauf kostet keine Abfrage mehr.
 
 const { DAY } = require('./units');
+const { PAGE_MAX } = require('./github');
 const RECENT_DAYS = 14; // ältere Repos haben keine wartenden Läufe, die jemand vermisst
 const REPOS_MAX = 20;
 const RUNS_MAX = 5; // Läufe je Repo und Zustand, deren Jobs angesehen werden
@@ -52,7 +53,7 @@ function createWaiting({ gh, now = Date.now }) {
   // "Repo/Lauf@Stand" -> am Kontingent gescheitert? Ein abgeschlossener Lauf ändert sich nur durch erneutes Starten.
   const verdicts = new Map();
 
-  const jobsOf = async (repo, run) => (await gh(['api', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`])).jobs ?? [];
+  const jobsOf = async (repo, run) => (await gh(['api', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=${PAGE_MAX}`])).jobs ?? [];
   // Wann der Lauf zuletzt begann: Ein erneut gestarteter Lauf behält sein `created_at`.
   const startOf = (run) => run.run_started_at ?? run.created_at;
 

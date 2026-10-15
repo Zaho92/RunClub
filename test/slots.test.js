@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createSlots, noteWorkflows, pairNames, idleRegistrations } = require('../src/slots');
+const { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX } = require('../src/slots');
+const { READY_TRIES } = require('../src/dind');
 const { turn, until } = require('./support');
 
 const REPO = 'wer/App';
@@ -89,7 +90,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
       onLine(line);
       states.push(w.slot.state);
     }
-    assert.equal(w.slot.finished, true);
+    assert.deepEqual(w.slot.outcome?.result, 'Succeeded'); // gemeldet wird es erst, wenn der Runner endet
     return { code: 0 };
   };
   w.onLearn = (pool, slot) => { slot.retired = true; }; // nach diesem Job endet der Platz
@@ -102,6 +103,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     `exec ${BASE}-dind info`,
     REGISTER,
     `run ${BASE}-runner`,
+    ALIVE(BASE), // gelesen wird, bis der Runner wirklich endet
     ...REMOVE, // ohne Abmeldung: Die Anmeldung galt für diesen einen Job
   ]);
   assert.deepEqual(states, ['startet', 'startet', 'bereit', 'arbeitet', 'arbeitet']);
@@ -119,7 +121,8 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     'dind:test', 'dockerd', '--host=unix:///sock/docker.sock']);
   const runner = call(`run ${BASE}-runner`);
   assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '-i', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
-    '--cpus', '6', '--memory', '4g', '--pids-limit', '8192', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
+    '--cpus', '6', '--memory', '4g', '--pids-limit', '8192',
+    '--cap-drop', 'NET_RAW', '--cap-drop', 'MKNOD', '--cap-drop', 'SETFCAP', '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
     '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
     '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc',
     'runner:test', 'bash', '-c']);
@@ -140,7 +143,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   assert.equal(typeof record.duration, 'number');
   assert.deepEqual({ ...record, duration: 0 }, { job: 'Bauen', workflow: '', result: 'Succeeded', duration: 0, peakMemory: 5 });
   assert.deepEqual(w.refreshed, [REPO, REPO]); // beim Beginn und beim Ende …
-  assert.deepEqual(w.timers.map((timer) => timer.ms), [4000]); // … und vier Sekunden nach dem Beginn noch einmal
+  assert.deepEqual(w.timers.map((timer) => timer.ms), [REFRESH_AGAIN]); // … und kurz nach dem Beginn noch einmal
   w.timers[0].work();
   assert.deepEqual(w.refreshed, [REPO, REPO, REPO]);
 
@@ -273,7 +276,7 @@ test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause
   w.onLearn = (pool, slot) => { slot.retired = true; };
   await w.slots.slotLoop(w.pool, w.slot);
 
-  assert.deepEqual(w.calls, [...BUILD, REGISTER, REGISTER, `run ${BASE}-runner`, ...REMOVE]); // ein Aufbau, zwei Anmeldungen
+  assert.deepEqual(w.calls, [...BUILD, REGISTER, REGISTER, `run ${BASE}-runner`, ALIVE(BASE), ...REMOVE]); // ein Aufbau, zwei Anmeldungen
   assert.deepEqual(paused, { state: 'gestört', error: 'gh: Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
   assert.deepEqual(w.logs[0], ['gh: Forbidden (HTTP 403)', REPO, 'error']);
   assert.equal(w.slept.length, 60);
@@ -430,14 +433,14 @@ test('ein arbeitender oder aufräumender Platz wird nicht abgebrochen', async ()
   emit('Job Bauen completed with result: Canceled');
   end({ code: 0 });
   await loop;
-  assert.deepEqual(w.calls.slice(before), REMOVE); // nach einem Job wird nichts mehr abgemeldet
+  assert.deepEqual(w.calls.slice(before), [ALIVE(BASE), ...REMOVE]); // nach einem Job wird nichts mehr abgemeldet
   assert.deepEqual(w.logs.at(-1), ['Job „Bauen“ – abgebrochen', REPO, 'cancel', { job: 'Bauen' }]);
   assert.deepEqual(w.learned, ['Bauen']);
 
   const cleaning = { repo: REPO, state: 'räumt auf', base: BASE, aborted: false };
   await w.slots.abortIdle(cleaning);
   assert.equal(cleaning.aborted, false);
-  assert.equal(w.calls.length, before + REMOVE.length);
+  assert.equal(w.calls.length, before + 1 + REMOVE.length);
 });
 
 test('nimmt der Runner während des Abbruchs doch einen Job an, läuft der zu Ende und wird gelernt', async () => {
@@ -492,10 +495,18 @@ test('lässt sich das Paar nicht aufbauen, bleibt nichts davon stehen', async ()
   await assert.rejects(start.slots.provision(start.pool, () => false), { message: 'Docker-Daemon startet nicht: no space left on device' });
   assert.deepEqual(start.calls.slice(-REMOVE.length), REMOVE);
 
+  const prepare = world();
+  prepare.pool.seeded = new Set(['node:22']);
+  prepare.answer = (name) => (name === `run ${BASE}-seed` ? { code: 1, stderr: 'cp: write error: No space left on device\n' } : undefined);
+  await assert.rejects(prepare.slots.provision(prepare.pool, () => false), { message: 'Volumes ließen sich nicht vorbereiten: cp: write error: No space left on device' });
+  assert.equal(prepare.calls.includes(`run ${BASE}-dind`), false);
+  assert.deepEqual(prepare.calls.slice(-REMOVE.length), REMOVE);
+  assert.equal(prepare.slots.livePairs.size, 0);
+
   const slow = world();
   slow.answer = (name) => (name === `exec ${BASE}-dind info` ? { code: 1 } : undefined);
   await assert.rejects(slow.slots.provision(slow.pool, () => false), { message: 'Docker-Daemon wurde nicht bereit' });
-  assert.equal(slow.slept.length, 40);
+  assert.equal(slow.slept.length, READY_TRIES);
   assert.ok(slow.slept.every((ms) => ms === 1000));
   assert.deepEqual(slow.calls.slice(-REMOVE.length), REMOVE);
 });
@@ -562,7 +573,7 @@ test('reißt die Verbindung zu `docker run` ab, während der Runner weiterläuft
   w.onLearn = (pool, slot) => { slot.retired = true; };
   await w.slots.slotLoop(w.pool, w.slot);
 
-  assert.deepEqual(w.calls.slice(-6), [`run ${BASE}-runner`, ALIVE(BASE), `logs -f ${BASE}-runner`, ...REMOVE]);
+  assert.deepEqual(w.calls.slice(-7), [`run ${BASE}-runner`, ALIVE(BASE), `logs -f ${BASE}-runner`, ALIVE(BASE), ...REMOVE]);
   assert.deepEqual(w.details.find((call) => call.name === `logs -f ${BASE}-runner`).options.timeout, 0);
   assert.deepEqual(w.logs.map(([text]) => text), [
     `Job „Bauen“ läuft auf ${RUNNER}`,
@@ -622,4 +633,46 @@ test('idleRegistrations: nur Plätze mit Anmeldung und ohne Job', () => {
 
 test('pairNames: die Runner der Plätze, deren Paar steht', () => {
   assert.deepEqual([...pairNames({ slots: [{ name: 'PC-linux-1', base: 'rc-app-1' }, { name: 'PC-linux-2', base: null }, { name: 'PC-linux-3', base: 'rc-app-3' }] })], ['PC-linux-1', 'PC-linux-3']);
+});
+
+test('ein vorgetäuschtes Ende zählt nicht: Es gilt das letzte Ergebnis vor dem Ende des Runners, unter dem Namen vom Beginn', async () => {
+  const w = world();
+  let during = null;
+  w.answer = (name, args, { onLine }) => {
+    if (!isRunner(name)) return undefined;
+    onLine('Running job: Bauen');
+    onLine('Job Anderes completed with result: Succeeded'); // aus einem Schritt des Jobs geschrieben
+    during = { logs: w.logs.length, recorded: w.recorded.length, state: w.slot.state };
+    onLine('Job Bauen completed with result: Failed'); // das echte Ende
+    return { code: 0 };
+  };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.deepEqual(during, { logs: 1, recorded: 0, state: 'arbeitet' }); // nichts gemeldet, der Platz arbeitet weiter
+  assert.deepEqual(w.recorded.map(([repo, record]) => [repo, record.job, record.result]), [[REPO, 'Bauen', 'Failed']]);
+  assert.equal(w.metered, 1);
+  assert.deepEqual(w.logs.at(-1), ['Job „Bauen“ – Fehler', REPO, 'fail', { job: 'Bauen' }]);
+  assert.equal(w.slot.lastResult, 'Bauen: Failed');
+  assert.equal(w.slot.jobs, 1);
+});
+
+test('Jobname und Ergebnis aus der Ausgabe des Runners werden gekürzt; ein Ende vor dem Beginn zählt nicht', async () => {
+  const w = world();
+  const long = 'x'.repeat(JOB_NAME_MAX * 5);
+  w.answer = (name, args, { onLine }) => {
+    if (!isRunner(name)) return undefined;
+    onLine('Job Bauen completed with result: Succeeded'); // vor dem Beginn eines Jobs: nicht glaubhaft
+    assert.equal(w.slot.outcome, null);
+    onLine(`Running job: ${long}`);
+    onLine(`Job ${long} completed with result: ${'S'.repeat(RESULT_MAX * 5)}`);
+    return { code: 0 };
+  };
+  w.onLearn = (pool, slot) => { slot.retired = true; };
+  await w.slots.slotLoop(w.pool, w.slot);
+
+  assert.equal(w.recorded[0][1].job.length, JOB_NAME_MAX);
+  assert.equal(w.recorded[0][1].result.length, RESULT_MAX);
+  assert.equal(w.slot.lastResult.length, JOB_NAME_MAX + 2 + RESULT_MAX);
+  assert.equal(w.logs[0][3].job.length, JOB_NAME_MAX);
 });

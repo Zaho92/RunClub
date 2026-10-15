@@ -1,6 +1,6 @@
 # Abbild für die eigenen Linux-Runner: GitHubs Runner-Abbild plus das, was die Jobs voraussetzen und
 # GitHubs eigene Rechner mitbringen. Was hier liegt, ist je Job frisch und muss nicht geladen werden.
-# Gebaut wird beim Start der Runner-Verwaltung (src/backend.js), jeweils mit dem neuesten Runner.
+# Gebaut wird beim Start der Runner-Verwaltung (siehe src/dockerwatch.js), jeweils mit dem neuesten Runner.
 
 # Node und .NET-SDK sind per Digest festgenagelt: Das Abbild hält den Socket des Docker-Daemons im Job, ein
 # untergeschobenes Abbild wäre so mächtig wie dieser. Neue Stände schlägt Dependabot vor (.github/dependabot.yml).

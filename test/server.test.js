@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { createServer, mergeActions, BODY_MAX } = require('../src/server');
+const { EventEmitter } = require('node:events');
+const { createServer, mergeActions, readBody, BODY_MAX } = require('../src/server');
 const { createAccess } = require('../src/access');
 
 const TOKEN = 'token-der-seite';
@@ -108,4 +109,26 @@ test('Aufrufe der App und aus actions.js werden zusammengeführt; einen Namen do
   const app = async () => {};
   assert.deepEqual(Object.keys(mergeActions({ 'pool/set': own }, { 'app/autostart': app })), ['pool/set', 'app/autostart']);
   assert.throws(() => mergeActions({ shutdown: own }, { shutdown: app }), { message: 'Den Aufruf shutdown gibt es doppelt.' });
+});
+
+test('bricht die Verbindung mitten im Aufruf ab, endet das Warten mit einem Fehler', async () => {
+  // Eine Anfrage, nachgestellt: Daten kommen an, dann schließt sie, ohne vollständig zu sein.
+  const closed = Object.assign(new EventEmitter(), { complete: false, destroy() {} });
+  const reading = readBody(closed);
+  closed.emit('data', '{"repo":');
+  closed.emit('close');
+  await assert.rejects(reading, { message: 'Der Aufruf kam nicht vollständig an.' });
+
+  const failed = Object.assign(new EventEmitter(), { complete: false, destroy() {} });
+  const broken = readBody(failed);
+  failed.emit('error', new Error('read ECONNRESET'));
+  await assert.rejects(broken, { message: 'read ECONNRESET' });
+
+  // Eine vollständige Anfrage schließt ebenfalls; das ändert ihr Ergebnis nicht.
+  const whole = Object.assign(new EventEmitter(), { complete: true, destroy() {} });
+  const read = readBody(whole);
+  whole.emit('data', '{"repo":"wer/App"}');
+  whole.emit('end');
+  whole.emit('close');
+  assert.deepEqual(await read, { repo: 'wer/App' });
 });

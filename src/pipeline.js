@@ -9,6 +9,8 @@
 const path = require('node:path');
 const { median } = require('./numbers');
 const { readJson, writeJson } = require('./store');
+const { SECOND } = require('./units');
+const { PAGE_MAX } = require('./github');
 
 const KEEP = 10; // gemerkte Dauern je Job
 const LEARN_PER_ROUND = 5; // abgeschlossene Läufe, die je Abfrage nachgelernt werden
@@ -16,10 +18,11 @@ const SEEN_MAX = 300;
 const WAITS_KEEP = 50; // gemerkte Wartezeiten je Repo
 const WORKFLOWS_MAX = 40; // gemerkte Workflow-Dateien
 const TURNAROUND_S = 8; // Wechsel eines Platzes zum nächsten Job
+const FALLBACK_S = 60; // übliche Dauer eines Jobs, solange das Repo noch keinen gelernt hat
 
 // Sekunden bleiben ganze Zahlen.
 const roundedMedian = (values) => { const middle = median(values); return middle === null ? null : Math.round(middle); };
-const seconds = (from, to) => Math.max(0, Math.round((new Date(to) - new Date(from)) / 1000));
+const seconds = (from, to) => Math.max(0, Math.round((new Date(to) - new Date(from)) / SECOND));
 const unquote = (text) => text.trim().replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2');
 
 // Liest aus einer Workflow-Datei je Job seinen angezeigten Namen und seine Abhängigkeiten.
@@ -140,7 +143,7 @@ function createPipelines({ gh, dataDir }) {
       .flatMap(([, values]) => values);
     return estimate(repo, workflow, defined.name) ?? roundedMedian(durations);
   }
-  const jobsOfRun = async (repo, id) => (await gh(['api', `repos/${repo}/actions/runs/${id}/jobs?per_page=100`])).jobs;
+  const jobsOfRun = async (repo, id) => (await gh(['api', `repos/${repo}/actions/runs/${id}/jobs?per_page=${PAGE_MAX}`])).jobs;
 
   async function workflowOf(repo, run) {
     if (!run.path || !run.head_sha) return null;
@@ -252,7 +255,7 @@ function createPipelines({ gh, dataDir }) {
 
   // Die laufenden Läufe mit Restzeit; `slots`: Plätze des Pools, die Jobs annehmen.
   function view(repo, slots, now = Date.now()) {
-    const fallback = roundedMedian(Object.values(memoryOf(repo).durations).map(roundedMedian).filter((value) => value != null)) ?? 60;
+    const fallback = roundedMedian(Object.values(memoryOf(repo).durations).map(roundedMedian).filter((value) => value != null)) ?? FALLBACK_S;
     const list = (active.get(repo) ?? []).map((pipeline) => ({ ...pipeline, rough: false, jobs: pipeline.jobs.map((job) => ({ ...job })) }));
     const usual = (pipeline, job) => { if (job.estimate == null) pipeline.rough = true; return job.estimate ?? fallback; };
     const free = []; // je Platz: Sekunden ab jetzt, bis er frei wird
@@ -285,7 +288,7 @@ function createPipelines({ gh, dataDir }) {
       }
     }
 
-    const at = (finishIn) => (finishIn == null ? null : new Date(now + finishIn * 1000).toISOString());
+    const at = (finishIn) => (finishIn == null ? null : new Date(now + finishIn * SECOND).toISOString());
     return list.map((pipeline) => {
       const open = pipeline.jobs.filter((job) => job.status !== 'completed');
       const finishIn = open.some((job) => job.finishIn == null) ? null : Math.max(0, ...open.map((job) => job.finishIn));

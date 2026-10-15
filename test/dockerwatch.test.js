@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createDockerWatch, MISSES, PROBE_TIMEOUT, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/dockerwatch');
+const { createDockerWatch, MISSES, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/dockerwatch');
+const { PROBE_TIMEOUT } = require('../src/dind');
 const { createEngine } = require('../src/engine');
 
 const MARK = 'runclub.runner=test';
@@ -82,7 +83,7 @@ test('antwortet Docker, wird es vorbereitet: Grenzen lesen, Abbild bauen, Abbild
   assert.deepEqual([w.watch.ready(), w.watch.error(), w.watch.cpus(), w.watch.memory()], [true, null, 12, 16000000000]);
   assert.deepEqual([w.ready, w.prepared], [1, ['wer/App']]);
   assert.deepEqual(w.slept, [READY_PAUSE]);
-  assert.deepEqual(w.logs, [['Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …']]);
+  assert.deepEqual(w.logs, [['Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …']]);
 });
 
 test('antwortet Docker nicht, steht der Grund einmal im Protokoll, und es wird in Abständen weiter versucht', async () => {
@@ -121,7 +122,7 @@ test('erst nach mehreren ausbleibenden Antworten in Folge gilt Docker als weg; d
   let readyDuring = [];
   await loopFor(w, MISSES + 1, () => readyDuring.push(w.watch.ready()));
   assert.deepEqual(readyDuring, [true, true, false, true]);
-  assert.deepEqual(w.logs.at(-1), ['Baue das Runner-Abbild (mit dem neuesten Runner von GitHub) …']);
+  assert.deepEqual(w.logs.at(-1), ['Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …']);
   assert.ok(w.logs.some((entry) => entry[0] === 'Docker antwortet nicht mehr – die Linux-Runner warten.'));
   // Diesmal nur, was zu keinem stehenden Paar gehört, und keine Abmeldung bei GitHub.
   assert.deepEqual(w.calls.slice(-(PREPARE.length + ORPHANS.length)), [...PREPARE, ...ORPHANS]);
@@ -168,7 +169,7 @@ test('das tägliche Neubauen geschieht nur, wenn Docker bereit ist und RunClub n
   w.stopping = false;
   await w.watch.refreshImage();
   assert.deepEqual(w.calls, BUILT);
-  assert.deepEqual(w.logs.at(-1), ['Baue das Runner-Abbild neu (tägliche Auffrischung) …']);
+  assert.deepEqual(w.logs.at(-1), ['Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …']);
   w.stopping = true;
   w.calls.length = 0;
   await w.watch.refreshImage();

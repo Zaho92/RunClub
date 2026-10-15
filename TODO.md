@@ -1,6 +1,6 @@
 # Offene Punkte
 
-Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
+Stand: 15.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
 `CLAUDE.md`; wofür die App da ist, in `PRODUCT.md`; wie sie aussieht und warum, in `DESIGN.md`.
 
 ## Als Nächstes
@@ -16,7 +16,7 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 3. **Docker Engine statt Docker Desktop** (Idee des Nutzers, 14.10.2026; erst Analyse, dann entscheiden). Ziel: eine
    Abhängigkeit weniger. Eine eigene Docker Engine in einer eigenen WSL-Distro statt Docker Desktop. Für
    die Veröffentlichung spricht die Lizenz von Docker Desktop (in größeren Firmen kostenpflichtig) und mehr Kontrolle
-   über den Daemon (rootless dind oder sysbox gegen den Ausbruch aus privilegierten Containern, siehe unten). Dagegen:
+   über den Daemon (etwa ein eigenes Seccomp-Profil oder sysbox, siehe unten). Dagegen:
    RunClub müsste die Distro selbst einrichten, starten und aktuell halten, und die Windows-CLI erreicht den Daemon nur
    über einen Umweg (Aufruf über `wsl`, gesicherter TCP-Port oder Weiterleitung einer Named Pipe). Erster Schritt erledigt
    (14.10.2026): Der Zugang zu Docker ist austauschbar (`src/engine.js`, Umgebungsvariablen `RUNCLUB_DOCKER_HOST`,
@@ -40,7 +40,7 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
   seit dem letzten Review.
 - **Sicherheitsdurchgang** dazu: Skill `security-review`. Besonders ansehen: der lokale Dienst (Port 8770, Token und
   Host-Prüfung in `src/server.js` und `src/access.js`), alles, was aus GitHub-Antworten in Befehle oder ins HTML gelangt (Repo-, Job- und
-  Schrittnamen), und die Abschottung der Runner (privilegierte Container, Volumes, was Jobs schreiben dürfen).
+  Schrittnamen), und die Abschottung der Runner (Daemons ohne Rechte, `sudo` im Runner-Container, Volumes, was Jobs schreiben dürfen).
 - Drei Durchgänge liefen am 13.10.2026 (jeweils beide): über den ganzen Stand, über die Änderungen danach bis
   `4af3618` und über die bis `eba81c1` (Protokoll, GitHub-Anfragen). Behoben ist, was unten nicht mehr steht; der
   nächste Durchgang prüft die Änderungen danach. Über die Korrekturen aus dem dritten lief ein Abschluss-Review; was es
@@ -52,18 +52,31 @@ Stand: 14.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene
 - Ein fünfter Durchgang lief am 14.10.2026 über den ganzen Stand (Richtigkeit, Sicherheit, Standards), danach ein
   Abschluss-Review über die Korrekturen und den Umbau des Backends (`e427360..95f6a0c`). Was beide fanden, ist behoben
   (Commit nach `95f6a0c`), aber nicht noch einmal gelesen. Der nächste Durchgang prüft die Änderungen danach.
+- Ein sechster Durchgang lief am 15.10.2026 über den ganzen Stand mit Schwerpunkt `95f6a0c..9686428` (Daemons ohne
+  Rechte, festgenagelte Abbilder): Richtigkeit, Sicherheit, Standards. Alle Befunde sind behoben oder nach Entscheidung
+  des Nutzers vermerkt (Fork-PRs, `--network host`).
 
 ## Aus den Reviews noch offen
 
 Der fünfte Durchgang (14.10.2026, über den Stand nach `08949b0`) und das Abschluss-Review über seine Korrekturen
-(`e427360..95f6a0c`) sind abgearbeitet; behoben ist, was hier nicht mehr steht. Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umgesetzt), `node` und das .NET-SDK sind
+(`e427360..95f6a0c`) sind abgearbeitet, ebenso der sechste (15.10.2026); behoben ist, was hier nicht mehr steht. Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umgesetzt), `node` und das .NET-SDK sind
 festgenagelt und Dependabot meldet neue Stände (umgesetzt); der Weg aus den Jobs zum localhost von Windows bleibt offen. Noch offen:
 
 1. **Seccomp-Profil für Daemon und Build-Dienst.** Beide laufen ohne Rechte, brauchen dafür aber `seccomp=unconfined`
    (eigene Namensräume). Ein eigenes Profil, das nur das Nötige erlaubt, verkleinerte die Angriffsfläche am Kernel weiter.
    Erst angehen, wenn RunClub veröffentlicht wird.
+2. **Fork-PRs in Org-Repos** (sechster Durchgang, 15.10.2026; Entscheidung des Nutzers: nur vormerken). Vor der
+   Veröffentlichung: Pools von Org-Repos pausieren, solange dort Workflows aus Fork-PRs erlaubt sind (Einstellung bei
+   GitHub lesen, wie `pauseForPublic`). Sonst forkt ein Leser, sein PR-Workflow läuft auf dem Pool und vergiftet
+   Paket-Cache und Build-Layer. Heute ohne Risiko: Alle Pools gehören zu Repos auf dem eigenen Konto Zaho92, und dort
+   kann nur forken, wer ohnehin Schreibrecht hat.
 
 Bewusst so gelassen:
+
+- **`--network host` und Dienste auf dem localhost des Runners** (Entscheidung des Nutzers, 15.10.2026): Seit die
+  Daemons ohne Rechte laufen, hat jeder Daemon ein eigenes Netz im Daemon-Container. Veröffentlichte Ports (`-p`,
+  `services:`) erreicht der Runner weiter auf `localhost`; ein Job-Container mit `--network host` sieht aber keine
+  Dienste, die ein Schritt im Runner auf `localhost` startet, und umgekehrt. Steht so in der README.
 
 - **Jobs erreichen den localhost von Windows** über `host.docker.internal` (Entscheidung des Nutzers, 15.10.2026):
   Sperren bräche Jobs, die einen Dienst auf diesem Rechner brauchen. RunClub warnt, wenn Docker seinen Daemon dort ohne
@@ -216,6 +229,31 @@ Bewusst so gelassen:
   ohne Rechte (ein `docker build` aus einem Runner geht über den Socket), Demo-Lauf und CI auf den eigenen Runnern,
   Beenden ohne Reste.
 
+- **Daemons ohne Rechte** (seit `9686428`, App neu gestartet am 15.10.2026 um 12:43). Im Betrieb gesehen: Die Paare
+  laufen mit `runclub-dind`; Jobs von RunClub und what-to-wear liefen darauf durch, auch der Job „docker“ von
+  what-to-wear (Docker im Job über den Socket); die Anmeldung der Runner über die Standardeingabe trägt damit; der
+  Lade-Daemon der Vorlage hat um 12:43 die Vorlage von what-to-wear aufgefrischt, ohne Fehler im Protokoll. Offen:
+  ob ein Abbild aus der Vorlage einem frisch geladenen gleicht (Verdacht aus dem sechsten Durchgang, unbelegt: `cp -a`
+  aus busybox übernimmt womöglich keine erweiterten Attribute wie `user.overlay.opaque`, sodass in kopierten Abbildern
+  gelöschte Ordner unterer Schichten wieder auftauchen. Prüfweg: ein Abbild, das einen Ordner einer unteren Schicht
+  ersetzt, einmal aus der Vorlage und einmal frisch geladen vergleichen), und ob ein Pool, der wegen eines öffentlich
+  gewordenen Repos pausiert ist, nach einem Neustart pausiert bleibt (`pausedPublic`; nur am Test geprüft).
+- **Korrekturen aus dem sechsten Durchgang** (15.10.2026), nur an Tests geprüft; wirksam erst nach einem Neustart der
+  App:
+  - Der Lade-Container der Vorlage hinterlässt kein anonymes Volume mehr (`docker rm -v`). Im Betrieb: Nach einem
+    Auffrischen bleibt `docker volume ls -q --filter dangling=true` gleich lang. Bis zum Neustart lagen 21 solche
+    Volumes; ältere bleiben, bis jemand sie entfernt.
+  - Scheitert das Vorbereiten der Volumes eines Paars (Rechte, Kopie der Vorlage), steht „Volumes ließen sich nicht
+    vorbereiten: …“ im Protokoll, und das Paar geht, statt mit einem Daemon zu starten, der nicht hochkommt.
+  - Beim Beenden während des Auffrischens der Vorlage steht kein roter Eintrag „Lade-Daemon wurde nicht bereit“ mehr.
+  - Ein Job kann sein Ende nicht mehr vortäuschen: Es gilt das letzte „completed with result“ vor dem Ende des Runners,
+    unter dem Namen aus „Running job“; Name und Ergebnis sind gekürzt. Nach jedem Job fragt der Platz einmal mehr
+    `docker inspect` (läuft der Runner noch?). Im Betrieb: Ergebnisse und Verbrauch erscheinen wie bisher, ein bis
+    zwei Sekunden später.
+  - Der Runner-Container gibt `NET_RAW`, `MKNOD` und `SETFCAP` ab. Geprüft an einem eigenen Container aus dem
+    Runner-Abbild: `sudo`, `apt-get install` (auch eines Pakets, das Capabilities setzen will), `ping`, `dotnet`,
+    `node` gehen. Im Betrieb nachsehen, ob ein Workflow etwas davon braucht (Meldungen wie „Operation not permitted“).
+
 ## Offene Entscheidungen des Nutzers
 
 - **Lizenz.** RunClub soll später veröffentlicht werden (Entscheidung des Nutzers, 13.10.2026); bis dahin eine wählen.
@@ -238,6 +276,12 @@ Bewusst so gelassen:
 - **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
   nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern. Das
   Protokoll liefert schon Einträge mit Zeit, Projekt und Art getrennt (`src/journal.js`); nur `text` ist noch ein Satz.
+- **Übergangscode aus der Zeit vor den Daemons ohne Rechte.** Kann entfallen, sobald jede Installation einmal mit
+  dem Stand vom 15.10.2026 gestartet ist (heute nur dieser Rechner, also nach dem nächsten Neustart der App):
+  `removeLeftovers` in `src/dockerwatch.js` entfernt Build-Dienst und Netz eines Repos auch beim Namen (ältere
+  Versionen legten sie ohne Kennzeichen an); `startService` in `src/caches.js` leert Build-Layer, die root gehören;
+  `refreshSeed` in `src/seed.js` leert eine Vorlage, die root gehört. Vor der Veröffentlichung entfernen, wenn es
+  keine älteren Installationen gibt.
 - **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.
 
 ## Erledigt (zur Einordnung)

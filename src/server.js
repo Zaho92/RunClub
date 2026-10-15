@@ -103,4 +103,4 @@ function mergeActions(...sets) {
   return merged;
 }
 
-module.exports = { createServer, mergeActions, BODY_MAX };
+module.exports = { createServer, mergeActions, readBody, BODY_MAX };

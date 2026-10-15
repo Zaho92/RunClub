@@ -18,6 +18,7 @@ const RESERVE = 0.02;
 const TIGHT_GAP = MINUTE; // so lange liegt bei knappem Limit zwischen zwei Abfragen derselben Sache
 const PAUSE_MAX_S = 3600; // Sekunden; länger lässt sich RunClub von einer Antwort nicht anhalten
 const WINDOW_MAX = DAY; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
+const PAGE_MAX = 100; // so viele Einträge gibt GitHub höchstens je Seite heraus (`per_page`)
 const CACHE_MAX = 500; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
 // RunClub arbeitet mit der Anmeldung von `gh` bei github.com (siehe auth.js). Was `gh` aus der Umgebung läse, gilt
 // deshalb nicht: ein Token, das die Anmeldung umgeht, ein anderer Host, und das Mitschreiben des Verkehrs samt Token
@@ -163,4 +164,4 @@ async function unregisterRunner(gh, repo, runnerId) {
   }
 }
 
-module.exports = { createGitHub, parseResponse, deepFreeze, unregisterRunner, STATE, GH_ENV };
+module.exports = { createGitHub, parseResponse, deepFreeze, unregisterRunner, STATE, GH_ENV, PAGE_MAX };

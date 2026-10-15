@@ -63,7 +63,8 @@ function createSeed({
       const seed = seedVolume(repo);
       const loader = `${seed}-loader`;
       const wanted = wantedImages(repo);
-      await docker(['rm', '-f', loader]);
+      // `-v` bei jedem Entfernen: Das Abbild des Daemons legt seinen Speicher als Volume an, das sonst liegen bliebe.
+      await docker(['rm', '-f', '-v', loader]);
       if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
       log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
       await docker(['volume', 'create', seed]);
@@ -73,8 +74,10 @@ function createSeed({
         `[ "$(stat -c %u /d)" = ${RUNNER_USER} ] || { find /d -mindepth 1 -delete; chown ${RUNNER_USER}:${RUNNER_USER} /d; }`]);
       await docker(['run', '-d', '--label', mark, '--name', loader, ...DAEMON_FLAGS, '-v', `${seed}:${DATA_ROOT}`, dind, ...DAEMON_COMMAND]);
       const ready = await waitForDaemon({ docker, sleep, container: loader, host: PAIR_SOCKET, cancelled: stopping });
+      // Endet RunClub, ist das Warten nur abgebrochen, kein Fehler; den Lade-Container räumt das Beenden ab.
+      if (stopping()) return;
       // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
-      if (!ready) { await docker(['rm', '-f', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
+      if (!ready) { await docker(['rm', '-f', '-v', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
       const present = new Set();
       const retry = new Set();
       for (const image of wanted) {
@@ -95,7 +98,7 @@ function createSeed({
       if (obsolete.length) await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'rmi', '-f', ...obsolete]);
       await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'image', 'prune', '-f']);
       await docker(['stop', loader]);
-      await docker(['rm', loader]);
+      await docker(['rm', '-v', loader]);
       if (pool) pool.seeded = present;
       pruneOlder(state.rejected[repo], LEARNED_DAYS);
       pruneOlder(state.learned[repo], LEARNED_DAYS);

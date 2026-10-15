@@ -19,18 +19,18 @@ const DAEMON_COMMAND = ['dockerd', `--host=${PAIR_SOCKET}`];
 // nur in seinem eigenen Container. Dahinter folgt das Skript.
 const asRoot = (image) => ['--user', '0', '--entrypoint', 'sh', image, '-c'];
 const READY_TRIES = 40;
-const READY_PAUSE = SECOND;
-const PROBE_TIMEOUT = 20 * SECOND;
+const DAEMON_POLL = SECOND; // Abstand der Fragen, bis ein Daemon antwortet
+const PROBE_TIMEOUT = 20 * SECOND; // so lange darf eine Frage an einen Daemon dauern (auch an Docker selbst, siehe dockerwatch.js)
 
 // Fragt den Daemon im Container `container` (über `host`, sonst über seinen gewöhnlichen Socket), bis er antwortet:
-// höchstens READY_TRIES Mal im Abstand von READY_PAUSE; `cancelled()` bricht vorher ab. Liefert, ob er antwortet.
+// höchstens READY_TRIES Mal im Abstand von DAEMON_POLL; `cancelled()` bricht vorher ab. Liefert, ob er antwortet.
 async function waitForDaemon({ docker, sleep, container, host = null, cancelled = () => false }) {
   for (let attempt = 0; attempt < READY_TRIES && !cancelled(); attempt += 1) {
     const probe = await docker(['exec', container, 'docker', ...(host ? ['-H', host] : []), 'info', '--format', 'ok'], { timeout: PROBE_TIMEOUT });
     if (probe.code === 0) return true;
-    await sleep(READY_PAUSE);
+    await sleep(DAEMON_POLL);
   }
   return false;
 }
 
-module.exports = { waitForDaemon, DAEMON_IMAGE, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot, READY_TRIES, READY_PAUSE, PROBE_TIMEOUT };
+module.exports = { waitForDaemon, DAEMON_IMAGE, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot, READY_TRIES, DAEMON_POLL, PROBE_TIMEOUT };

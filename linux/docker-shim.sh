@@ -6,7 +6,7 @@
 # geteilten Cache. Ist der Build-Dienst nicht erreichbar, baut der Daemon des Jobs selbst, nur langsamer.
 
 real=/usr/bin/docker
-# Der Socket des Build-Dienstes (SOCKET_DIR in src/caches.js).
+# Der Socket des Build-Dienstes (SOCKET in src/caches.js).
 socket=/run/rc-buildkit/buildkitd.sock
 
 # Erreichbar ist der Dienst, wenn sich der Socket öffnen lässt. curl versteht buildkit nicht, aber Code 7 heißt

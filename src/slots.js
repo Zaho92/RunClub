@@ -34,6 +34,14 @@ const BROKEN_PAUSE = 60 * SECOND; // Pause nach einem Fehler, in Sekundenschritt
 const ABORT_TRIES = 60; // so oft, im Abstand von ABORT_PAUSE, wird ein entstehender Runner-Container entfernt
 const ABORT_PAUSE = SECOND;
 const REFRESH_AGAIN = 4 * SECOND; // GitHub zeigt einen eben begonnenen Job oft erst nach einem Augenblick
+// Längen aus der Ausgabe des Runners: Ein Job kann dort beliebig lange Zeilen schreiben, die sonst mit jedem Stand an
+// die Oberfläche gingen. GitHub erlaubt für Jobnamen weniger; Ergebnisse sind kurze Wörter (Succeeded, Failed, Canceled).
+const JOB_NAME_MAX = 200;
+const RESULT_MAX = 20;
+// Der Runner-Container läuft ohne Rechte, aber die Job-Schritte haben per `sudo` root darin. Was kein üblicher Schritt
+// braucht, gibt er ab: rohe Sockets (`ping` geht ohne), Geräte anlegen, Capabilities an Dateien setzen. Geprüft mit
+// `sudo`, `apt-get install`, `ping`, `dotnet` und `node`; AUDIT_WRITE bleibt, sonst warnt jedes `sudo` im Protokoll.
+const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP'];
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
 //   gh(args, body)          Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
@@ -98,13 +106,15 @@ function createSlots({
 
     // Die Volumes gehören dem Benutzer von Daemon und Runner; die Vorlage kommt als Kopie in den Speicher des Daemons.
     // Beides in einem eigenen Container, bevor der Daemon startet.
-    await withSeed(pool.repo, false, async () => {
+    const prepared = await withSeed(pool.repo, false, async () => {
       pair.copied = cancelled() ? new Set() : new Set(pool.seeded);
       const seed = pair.copied.size ? ['-v', `${seedVolume(pool.repo)}:/seed:ro`] : [];
-      await docker(['run', '--rm', ...label, '--name', `${base}-seed`, ...seed, '-v', `${base}-work:/w`, '-v', `${base}-sock:/s`, '-v', `${base}-docker:/d`,
+      return docker(['run', '--rm', ...label, '--name', `${base}-seed`, ...seed, '-v', `${base}-work:/w`, '-v', `${base}-sock:/s`, '-v', `${base}-docker:/d`,
         ...asRoot(dind), `chown ${RUNNER_USER}:${RUNNER_USER} /w /s /d${seed.length ? ' && cp -a /seed/. /d/' : ''}`], { timeout: longTimeout });
     });
     if (cancelled()) return giveUp();
+    // Gehören die Volumes nicht dem Benutzer des Daemons, startet er nicht; eine halbe Kopie der Vorlage taugt nicht.
+    if (prepared.code !== 0) return giveUp(new Error(`Volumes ließen sich nicht vorbereiten: ${lastLine(prepared.stderr) || `Code ${prepared.code}`}`));
 
     // Der Daemon des Jobs, ohne Rechte (siehe dind.js): eigenes Netz, eigener Speicher, erreichbar nur über den geteilten
     // Socket. Der Arbeitsordner liegt in beiden Containern am selben Pfad, damit `docker run -v "$PWD:..."` stimmt.
@@ -127,7 +137,7 @@ function createSlots({
   }
 
   async function serveOneJob(pool, slot) {
-    Object.assign(slot, { state: SLOT.STARTING, job: null, finished: false, error: null, aborted: false, building: true });
+    Object.assign(slot, { state: SLOT.STARTING, job: null, outcome: null, error: null, aborted: false, building: true });
     // Ein Paar, dessen Anmeldung zuletzt scheiterte, steht noch: Es wird wieder genommen statt eines aus der Reserve.
     let pair = slot.kept ?? null;
     slot.kept = null;
@@ -163,7 +173,9 @@ function createSlots({
     slot.runnerId = jit.runner?.id ?? null;
     if (slot.aborted) return;
 
-    // Der Runner teilt das Netz des Daemons: Ports, die ein Job veröffentlicht, liegen für ihn auf localhost.
+    // Der Runner teilt das Netz des Daemon-Containers: Ports, die ein Job veröffentlicht (`docker run -p`, `services:`),
+    // liegen für ihn auf localhost. Mehr nicht: Der Daemon ohne Rechte hat ein eigenes Netz darin, `--network host` eines
+    // Job-Containers meint dieses, nicht das des Runners.
     // Die Anmeldung kommt über die Standardeingabe herein (nicht in die Einstellungen des Containers, die `docker inspect`
     // zeigt) und geht als ACTIONS_RUNNER_INPUT_JITCONFIG an den Runner, der sie liest und aus seiner Umgebung nimmt. So
     // steht sie weder in der Umgebung der Job-Schritte (ein `env` schriebe sie ins Protokoll bei GitHub) noch in einer
@@ -174,26 +186,35 @@ function createSlots({
       'read -r ACTIONS_RUNNER_INPUT_JITCONFIG; export ACTIONS_RUNNER_INPUT_JITCONFIG',
       'exec ./run.sh',
     ].join('; ');
+    // Die Ausgabe des Runners enthält auch, was die Schritte des Jobs schreiben (`echo … > /proc/1/fd/1`). Glaubhaft
+    // sind deshalb nur zwei Zeilen: die erste „Running job“ (vorher läuft kein Schritt) und die letzte „completed with
+    // result“ vor dem Ende des Runners (danach läuft kein Schritt mehr; einer, der sich der Aufräumung des Runners
+    // entzieht, hat dafür nur den Augenblick bis zum Ende des Containers). Sonst könnte ein Job sein Ende vortäuschen:
+    // Dauer und Messwerte gingen verkürzt in den Verbrauch und damit in den Vorschlag der Limits ein. Das Ergebnis gilt
+    // deshalb erst, wenn der Runner endet (`settleJob`); den Namen nennt die Zeile vom Beginn.
+    // `read` zählt die Zeilen eines Lesedurchgangs: Nach einem Abriss beginnt `docker logs` von vorn, und schon Gelesenes
+    // wirkt kein zweites Mal.
+    let read = 0;
+    let done = 0;
     const follow = (line) => {
+      read += 1;
+      if (read <= done) return;
+      done = read;
       const started = line.match(/Running job: (.+)$/);
-      const finished = line.match(/Job (.+) completed with result: (\w+)/);
+      const finished = line.match(/Job .+ completed with result: (\w+)/);
       if (/Listening for Jobs/.test(line) && slot.state === SLOT.STARTING) slot.state = SLOT.READY;
       if (started && slot.state !== SLOT.WORKING) {
-        Object.assign(slot, { state: SLOT.WORKING, job: started[1], jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
-        log(`Job „${started[1]}“ läuft auf ${slot.name}`, pool.repo, 'run', { job: started[1], runner: slot.name });
+        const job = started[1].slice(0, JOB_NAME_MAX);
+        Object.assign(slot, { state: SLOT.WORKING, job, jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
+        log(`Job „${job}“ läuft auf ${slot.name}`, pool.repo, 'run', { job, runner: slot.name });
         refreshRepo(pool.repo);
         timer(() => refreshRepo(pool.repo), REFRESH_AGAIN);
       }
-      if (finished && !slot.finished) {
-        if (slot.meter) metrics.recordJob(pool.repo, { job: finished[1], workflow: slot.workflow, result: finished[2], duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / SECOND), ...slot.meter.finish() });
-        slot.meter = null;
-        refreshRepo(pool.repo);
-        Object.assign(slot, { finished: true, lastResult: `${finished[1]}: ${finished[2]}`, jobs: slot.jobs + 1 });
-        log(`Job „${finished[1]}“ – ${resultText(finished[2])}`, pool.repo, resultKind(finished[2]), { job: finished[1] });
-      }
+      if (finished && slot.job) slot.outcome = { result: finished[1].slice(0, RESULT_MAX), at: Date.now() };
     };
     let runner = await docker(['run', '--rm', '-i', '--label', mark, '--name', `${pair.base}-runner`, '--network', `container:${pair.base}-dind`,
       '--cpus', String(limits.runnerCpus), '--memory', limits.runnerMemory, '--pids-limit', String(PIDS_MAX),
+      ...RUNNER_CAP_DROP.flatMap((cap) => ['--cap-drop', cap]),
       '-v', `${pair.base}-work:/home/runner/_work`, '-v', `${pair.base}-sock:/sock`, ...pair.extras,
       image, 'bash', '-c', start], {
       timeout: 0, // läuft, solange der Job läuft
@@ -202,15 +223,18 @@ function createSlots({
     });
     // Endet der Aufruf, während der Runner weiterläuft (Docker Desktop verlor kurz die Verbindung), wird weiter
     // mitgelesen, statt das Paar mitten im Job abzuräumen. Schon gelesene Zeilen wirken dabei kein zweites Mal.
-    for (let attempt = 0; attempt < REATTACH_MAX && !slot.finished && !slot.aborted && await runnerAlive(pair.base); attempt += 1) {
+    // Gelesen wird, bis der Runner wirklich endet: Auch ein schon gemeldetes Ergebnis kann vorgetäuscht sein.
+    for (let attempt = 0; attempt < REATTACH_MAX && !slot.aborted && await runnerAlive(pair.base); attempt += 1) {
       log(`Die Verbindung zu ${slot.name} riss ab; es wird weiter mitgelesen`, pool.repo, 'error');
+      read = 0;
       runner = await docker(['logs', '-f', `${pair.base}-runner`], { timeout: 0, onLine: follow });
     }
     // Nach einem Abbruch ist nichts mehr zu melden, außer der Runner hatte doch schon einen Job angenommen (der
     // Abbruch kam einen Augenblick zu spät); beim Beenden der App gilt auch das nicht.
     if (slot.aborted && (!slot.job || stopping())) return;
     if (!slot.job) throw new Error(`Runner endete ohne Job (${lastLine(runner.stderr) || `Code ${runner.code}`})`);
-    if (!slot.finished) {
+    if (slot.outcome) settleJob(pool, slot);
+    else {
       // Der Runner endete mitten im Job, ohne ein Ergebnis zu melden. Dauer und Ergebnis stimmen dann nicht: Die
       // Messung wird verworfen statt als Verbrauch gemerkt.
       slot.meter = null;
@@ -218,6 +242,16 @@ function createSlots({
       log(`Job „${slot.job}“ endete ohne Ergebnis (${lastLine(runner.stderr) || `Code ${runner.code}`})`, pool.repo, 'error', { job: slot.job });
     }
     await learnImages(pool, slot);
+  }
+
+  // Der Job ist zu Ende, mit dem letzten Ergebnis, das der Runner gemeldet hat: Verbrauch merken, melden.
+  function settleJob(pool, slot) {
+    const { result, at } = slot.outcome;
+    if (slot.meter) metrics.recordJob(pool.repo, { job: slot.job, workflow: slot.workflow, result, duration: Math.round((at - new Date(slot.jobStartedAt)) / SECOND), ...slot.meter.finish() });
+    slot.meter = null;
+    refreshRepo(pool.repo);
+    Object.assign(slot, { lastResult: `${slot.job}: ${result}`, jobs: slot.jobs + 1 });
+    log(`Job „${slot.job}“ – ${resultText(result)}`, pool.repo, resultKind(result), { job: slot.job });
   }
 
   async function runnerAlive(base) {
@@ -299,11 +333,11 @@ function noteWorkflows(pool, jobs) {
   }
 }
 
-// Die Anmeldungen der freien Plätze aller Pools: `[{ repo, runnerId }]`. Sie lassen sich bei GitHub zurücknehmen,
-// ohne dass ein Job verloren geht.
 // Die Namen der Runner, deren Paar steht (auch eines, das sich gerade anmeldet): Diese bleiben bei GitHub eingetragen.
 const pairNames = (pool) => new Set(pool.slots.filter((slot) => slot.base).map((slot) => slot.name));
 
+// Die Anmeldungen der freien Plätze aller Pools: `[{ repo, runnerId }]`. Sie lassen sich bei GitHub zurücknehmen,
+// ohne dass ein Job verloren geht.
 const idleRegistrations = (pools) => [...pools].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job).map((slot) => ({ repo: slot.repo, runnerId: slot.runnerId })));
 
-module.exports = { createSlots, noteWorkflows, pairNames, idleRegistrations };
+module.exports = { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_CAP_DROP };

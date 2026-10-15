@@ -5,11 +5,13 @@
 // Runner-Container und eigenem Docker-Daemon; nach dem Job wird es samt Volumes entfernt. Der Docker-Socket
 // des Rechners und Windows-Ordner werden nie hineingereicht, die Anmeldung bei GitHub gilt für einen Job.
 //
-// Kein Container läuft mit Rechten: Der Docker-Daemon eines Jobs und der Build-Dienst laufen als gewöhnliche Benutzer
-// in eigenen Namensräumen (siehe dind.js und caches.js). Wer aus einem Job-Container ausbricht, landet im Daemon-Container
-// seines Paars, nicht in der Docker-VM. Eine Grenze gegen jeden Angriff ist das trotzdem nicht (ein Fehler im Kernel
-// reicht weiter): Auf diesen Runnern soll nur Code laufen, dem der Nutzer vertraut – Pools für öffentliche Repos werden
-// nicht angelegt, und wird ein Repo mit Pool öffentlich, pausiert sein Pool.
+// Kein Container läuft mit `--privileged`: Der Docker-Daemon eines Jobs und der Build-Dienst laufen als gewöhnliche
+// Benutzer in eigenen Namensräumen (siehe dind.js und caches.js). Wer aus einem Job-Container ausbricht, landet im
+// Daemon-Container seines Paars, nicht in der Docker-VM. Anders der Runner-Container selbst: Dort haben die Schritte
+// des Jobs per `sudo` root, mit Dockers üblichen Capabilities bis auf einige, die kein Job braucht (siehe slots.js);
+// wer aus ihm ausbricht, ist root in der Docker-VM. Eine Grenze gegen jeden Angriff ist das alles nicht (ein Fehler im
+// Kernel reicht weiter): Auf diesen Runnern soll nur Code laufen, dem der Nutzer vertraut – Pools für öffentliche Repos
+// werden nicht angelegt, und wird ein Repo mit Pool öffentlich, pausiert sein Pool.
 //
 // Was zwischen den Jobs eines Repos bleibt (alles abschaltbar und in der Oberfläche zu leeren):
 //   Pakete      Volume, im Runner als NuGet- und npm-Ordner gesetzt. Jobs schreiben hinein.
@@ -22,7 +24,8 @@
 // Endet dieses Programm, enden auch die Runner, die es gestartet hat.
 //
 // Diese Datei verdrahtet nur: Sie legt die Module an (in der Reihenfolge, in der sie einander brauchen), startet die
-// Takte und den lokalen Dienst und beendet alles wieder. Was die Module tun, steht in ihnen.
+// Takte und den lokalen Dienst und beendet alles wieder (Ablauf von Start und Ende in lifecycle.js). Was die Module
+// tun, steht in ihnen.
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -50,6 +53,7 @@ const { createStatus } = require('./status');
 const { createActions } = require('./actions');
 const { createServer, mergeActions } = require('./server');
 const { createHousekeeping } = require('./housekeeping');
+const { createLifecycle } = require('./lifecycle');
 
 const GH_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
@@ -72,8 +76,6 @@ function start({
 } = {}) {
   const { actions: appActions = {}, status: appStatus = () => ({}), onExit = () => process.exit(0) } = hooks;
   fs.mkdirSync(dataDir, { recursive: true });
-  let stopping = false;
-  const isStopping = () => stopping;
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // --- Protokoll ---
@@ -81,6 +83,18 @@ function start({
   // `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` und `about` (bei Jobs `{ job, runner }`) siehe journal.js.
   const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...about });
   const logError = errorLog(log);
+  // Start und Ende; was das Beenden braucht, entsteht erst weiter unten.
+  const lifecycle = createLifecycle({
+    log,
+    // Die Messung sichern, ein `gh`, das noch auf die Bestätigung im Browser wartet, nicht zurücklassen.
+    beforeStop: () => { metrics.save(); account.close(); },
+    dismantle: () => runners.dismantle(SHUTDOWN_WAIT),
+    removeLeftovers: () => dockerWatch.removeLeftovers(),
+    releaseIdle: () => runners.releaseIdle(),
+    onExit,
+  });
+  const isStopping = lifecycle.stopping;
+  const { shutdown, release, every, everyAfter } = lifecycle;
   // Kennung des Stands für die Oberfläche: Sie ändert sich mit jedem Eintrag und mit jedem Start, damit ein offenes
   // Fenster nach einem Neustart nicht zufällig dieselbe Zahl sieht und das Nachladen auslässt.
   const started = Date.now();
@@ -141,26 +155,6 @@ function start({
     buildService: names.buildService, logStamp, uiFile, extra: appStatus,
   });
 
-  let shuttingDown = false;
-  async function shutdown() {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    stopTimers();
-    log('Beende die Runner …');
-    await runners.dismantle(SHUTDOWN_WAIT);
-    await dockerWatch.removeLeftovers(); // auch die Build-Dienste und ihre Netze
-    log('Beendet.');
-    onExit();
-  }
-  // Beim Abmelden von Windows bleibt für den Abbau keine Zeit (siehe main.js). Dann nur die freien Runner bei GitHub
-  // abmelden, alle zugleich, damit dort keine toten Einträge stehen bleiben; Container und Volumes räumt der nächste
-  // Start ab. Beenden bleibt danach möglich: `shutdown` achtet nur auf sich selbst.
-  async function release() {
-    if (stopping) return;
-    stopTimers();
-    await runners.releaseIdle();
-  }
-
   actionsApi = createActions({
     gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, limitRange, limitPlan, log, logError, shutdown,
   });
@@ -176,24 +170,11 @@ function start({
   });
   server.listen(port, '127.0.0.1', () => {
     log(`Runner-Anzeige: http://127.0.0.1:${port}`);
-    // Der Schlüssel steht nur in der Konsole und in einer Datei im Datenordner des Nutzers, nie im Protokoll, das die
-    // Oberfläche zeigt.
-    try { fs.writeFileSync(path.join(dataDir, 'access.key'), `${access.key}\n`); } catch { /* dann bleibt nur die Konsole */ }
+    lifecycle.saveKey(path.join(dataDir, 'access.key'), access.key);
     console.log(`Öffnen mit: ${access.entry}`);
   });
 
   // --- Takte ---
-  const timers = [];
-  const every = (ms, work) => { work(); timers.push(setInterval(work, ms)); };
-  const everyAfter = (ms, work) => timers.push(setInterval(work, ms)); // wie `every`, aber erst nach dem ersten Abstand
-  // Beim Beenden: keine Takte mehr, die Messung sichern, ein `gh`, das noch auf die Bestätigung im Browser wartet,
-  // nicht zurücklassen.
-  function stopTimers() {
-    stopping = true;
-    for (const timer of timers) clearInterval(timer);
-    metrics.save();
-    account.close();
-  }
   every(EVERY.account, account.watch);
   every(EVERY.quota, remote.watchQuota);
   every(EVERY.waiting, remote.scanWaiting);
@@ -208,7 +189,7 @@ function start({
     watchVisibility: remote.watchVisibility, removeRegistrations: dockerWatch.removeRegistrations,
   }));
 
-  for (const repo of settings.repos()) { runners.startPool(repo); routing.check(repo).catch(() => {}); remote.watchVisibility(repo); }
+  lifecycle.startPools(settings.repos(), { startPool: runners.startPool, checkRouting: routing.check, watchVisibility: remote.watchVisibility });
   dockerWatch.watch();
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, shutdown);
 

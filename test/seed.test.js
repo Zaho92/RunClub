@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { DAEMON_FLAGS, DAEMON_COMMAND, DATA_ROOT } = require('../src/dind');
+const { DAEMON_FLAGS, DAEMON_COMMAND, DATA_ROOT, READY_TRIES } = require('../src/dind');
 const { createSeed, LEARNED_DAYS, LEARNED_MAX } = require('../src/seed');
 const { DAY } = require('../src/units');
 const { createEngine } = require('../src/engine');
@@ -27,7 +27,7 @@ function brief(args) {
 // Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
 function world() {
   const w = {
-    calls: [], details: [], logs: [], slept: [], saved: 0, answer: () => undefined,
+    calls: [], details: [], logs: [], slept: [], saved: 0, stopping: false, answer: () => undefined,
     settings: { repo: REPO, preload: [] },
     state: { learned: {}, rejected: {} },
     pool: { repo: REPO, seeded: new Set() },
@@ -48,7 +48,7 @@ function world() {
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     seedVolume: () => SEED,
     poolOf: (repo) => (repo === REPO ? w.pool : undefined),
-    state: w.state, saveState: () => { w.saved += 1; },
+    state: w.state, saveState: () => { w.saved += 1; }, stopping: () => w.stopping,
   });
   return w;
 }
@@ -114,7 +114,7 @@ test('ohne gewünschte Abbilder verschwindet die Vorlage', async () => {
   const w = world();
   w.pool.seeded = new Set(['alt:1']);
   await w.seed.refreshSeed(REPO);
-  assert.deepEqual(w.calls, [`rm -f ${LOADER}`, `volume rm -f ${SEED}`]);
+  assert.deepEqual(w.calls, [`rm -f -v ${LOADER}`, `volume rm -f ${SEED}`]);
   assert.deepEqual([...w.pool.seeded], []);
   assert.deepEqual(w.logs, []);
   assert.equal(w.saved, 0);
@@ -128,9 +128,9 @@ test('auffrischen lädt das Gewünschte, entfernt das Überholte und merkt sich,
   w.answer = (name) => (name === 'exec image ls' ? { stdout: 'fest:1\nneu:1\nvergessen:1\n<none>:<none>\n' } : undefined);
   await w.seed.refreshSeed(REPO);
   assert.deepEqual(w.calls, [
-    `rm -f ${LOADER}`, `volume create ${SEED}`, 'run prepare', `run ${LOADER}`, 'exec info',
+    `rm -f -v ${LOADER}`, `volume create ${SEED}`, 'run prepare', `run ${LOADER}`, 'exec info',
     'exec pull fest:1', 'exec pull neu:1', 'exec image ls', 'exec rmi vergessen:1', 'exec image prune',
-    `stop ${LOADER}`, `rm ${LOADER}`,
+    `stop ${LOADER}`, `rm -v ${LOADER}`,
   ]);
   const loader = w.details.find((call) => call.name === `run ${LOADER}`).args;
   // Ohne Rechte wie der Daemon eines Paars; eine Vorlage aus der Zeit mit Rechten wird vorher einmal geleert.
@@ -178,14 +178,27 @@ test('was es bei der Registry nicht gibt, wird abgelehnt, vergessen und aus der 
   assert.equal(w.saved, 1);
 });
 
+test('endet RunClub, während der Lade-Daemon startet, bricht das Auffrischen still ab', async () => {
+  const w = world();
+  w.pool.seeded = new Set(['alt:1']);
+  w.state.learned[REPO] = { 'neu:1': daysAgo(1) };
+  w.answer = (name) => { if (name === 'exec info') { w.stopping = true; return { code: 1 }; } return undefined; };
+  await w.seed.refreshSeed(REPO);
+  assert.equal(w.calls.filter((name) => name === 'exec info').length, 1);
+  assert.equal(w.calls.at(-1), 'exec info'); // den Lade-Container räumt das Beenden ab
+  assert.deepEqual(w.logs.filter((entry) => entry[2] === 'error'), []);
+  assert.deepEqual([...w.pool.seeded], ['alt:1']);
+  assert.equal(w.saved, 0);
+});
+
 test('wird der Lade-Daemon nicht bereit, bleibt alles, wie es ist', async () => {
   const w = world();
   w.pool.seeded = new Set(['alt:1']);
   w.state.learned[REPO] = { 'neu:1': daysAgo(1) };
   w.answer = (name) => (name === 'exec info' ? { code: 1 } : undefined);
   await assert.rejects(w.seed.refreshSeed(REPO), /Der Lade-Daemon wurde nicht bereit/);
-  assert.equal(w.calls.filter((name) => name === 'exec info').length, 40);
-  assert.equal(w.calls.at(-1), `rm -f ${LOADER}`);
+  assert.equal(w.calls.filter((name) => name === 'exec info').length, READY_TRIES);
+  assert.equal(w.calls.at(-1), `rm -f -v ${LOADER}`);
   assert.equal(w.calls.some((name) => name.startsWith('exec pull')), false);
   assert.deepEqual([...w.pool.seeded], ['alt:1']);
   assert.deepEqual(Object.keys(w.state.learned[REPO]), ['neu:1']);

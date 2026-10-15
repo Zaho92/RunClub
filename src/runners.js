@@ -2,15 +2,15 @@
 // die Pools mit ihrer Reserve (pools.js). Plätze und Reserve brauchen einander; keine der beiden Dateien lädt die
 // andere, die Verbindung entsteht hier. Die Plätze erfahren erst beim Gebrauch, was die Pools beisteuern.
 //
-// Liefert die Map der Pools (`pools`, Repo -> Pool), die Module als `seed`, `slots` und `caches` und die Funktionen
-// aus pools.js unter ihrem eigenen Namen.
+// Liefert die Map der Pools (`pools`, Repo -> Pool), die Module als `seed`, `slots` und `caches`, die Funktionen
+// aus pools.js unter ihrem eigenen Namen und drei für die Takte und das Abmelden von Windows: `tick` (Reserve
+// nachfüllen, Build-Dienst erneuern), `measureAll` (Volumes messen) und `releaseIdle` (freie Runner bei GitHub abmelden).
 
 const crypto = require('node:crypto');
 const { createSeed } = require('./seed');
-const { createSlots } = require('./slots');
+const { createSlots, idleRegistrations } = require('./slots');
 const { createCaches } = require('./caches');
 const { createPools } = require('./pools');
-const { idleRegistrations } = require('./slots');
 const { unregisterRunner } = require('./github');
 const { errorLog } = require('./journal');
 
