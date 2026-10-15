@@ -95,6 +95,15 @@ Bewusst so gelassen:
 
 ## Noch nicht echt ausprobiert
 
+- **Ansicht „RunClub wird beendet“** (`src/shutdown.js`, `renderShutdown` in `src/ui.html`, `quit` in `src/main.js`):
+  Am 16.10.2026 zweimal über `POST /api/shutdown` im Betrieb beendet (4 Projekte, je 2 Paare, kein Job lief).
+  `/api/status` lieferte bis zum Schluss den Stand: Projekte zählten 0/2 → 2/2, dann Aufräumen, dann Abmelden mit
+  Zählung; der Dienst schwieg nach etwa 16 s. Beim ersten Mal ohne Schätzung, beim zweiten mit `last: 13`; das
+  geschätzte Ende traf auf etwa eine Sekunde. Die Ansicht selbst ist nur als Standbild mit festem Zustand angesehen.
+  Echt prüfen: einmal über das Symbol im Infobereich beenden (Fenster kommt nach vorn, Menü zeigt „Wird beendet …“,
+  ein Klick aufs Symbol holt nur das Fenster), einmal über „RunClub beenden“ in den Einstellungen, und einmal, während
+  ein Job läuft (Zeile „Abbruch „Name““).
+
 - **Anmeldung bei GitHub in der App** (`src/auth.js`, Aktionen `auth/…` in `src/actions.js`, Haltestelle „GitHub“ in
   `src/ui.html`): „Recht ergänzen“ für `user` hat der Nutzer am 14.10.2026 echt benutzt (Einmalcode, Bestätigung im
   Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Ebenfalls echt benutzt am
