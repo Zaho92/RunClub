@@ -32,7 +32,7 @@ const { SECOND, MINUTE, DAY } = require('./units');
 const { createAccess } = require('./access');
 const { createJournal, errorLog } = require('./journal');
 const { createSettings } = require('./settings');
-const { createNames, DEFAULT_PORT, IMAGE, DIND, BUILDKIT } = require('./names');
+const { createNames, pinnedImages, DEFAULT_PORT, IMAGE } = require('./names');
 const { createGitHub } = require('./github');
 const { engineFrom, createEngine } = require('./engine');
 const { createMetrics } = require('./metrics');
@@ -87,6 +87,7 @@ function start({
   // --- Einstellungen, Namen, Zugang zu GitHub und Docker ---
   const settings = createSettings({ dataDir, log });
   const names = createNames({ dataDir, port });
+  const { dind: DIND, buildkit: BUILDKIT } = pinnedImages();
   const githubApi = createGitHub({ run, timeout: GH_TIMEOUT }); // bedingt, wo es geht, und mit dem Stand des Anfragelimits
   const gh = githubApi.call;
   const engine = createEngine({ run, timeout: DOCKER_TIMEOUT, ...engineFrom() }); // wo Docker läuft

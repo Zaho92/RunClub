@@ -1,0 +1,7 @@
+# Neue Stände der festgenagelten Abbilder (linux/Dockerfile, linux/pins.Dockerfile) kommen als Pull Request.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /linux
+    schedule:
+      interval: weekly
