@@ -14,6 +14,7 @@
 
 const limitRules = require('./limits');
 const { errorLog } = require('./journal');
+const { msg } = require('./messages');
 const { SLOT, busy } = require('./states');
 const { SECOND } = require('./units');
 
@@ -47,7 +48,7 @@ function createPools({
       const drop = () => { pool.reserve = pool.reserve.filter((other) => other !== entry); };
       entry.promise = provision(pool, () => entry.cancel || stopping())
         .then((pair) => { entry.ready = Boolean(pair); if (!pair) drop(); return pair; })
-        .catch((error) => { log(`Vorbereitung eines Paars – ${error.message}`, pool.repo, 'error'); drop(); return null; });
+        .catch((error) => { logError(pool.repo, msg('m_whatPairPrep'))(error); drop(); return null; });
       pool.reserve.push(entry);
     }
   }
@@ -81,7 +82,7 @@ function createPools({
         if (pair) await removePair(pool.repo, pair.base, null);
       } finally { pool.leaving -= 1; }
     }));
-    for (const result of results) if (result.status === 'rejected') log(`Abbau der Reserve – ${result.reason.message}`, pool.repo, 'error');
+    for (const result of results) if (result.status === 'rejected') logError(pool.repo, msg('m_whatReserve'))(result.reason);
   }
 
   // Freie Paare und Reserve, die noch mit anderen Limits gebaut sind als den jetzt geltenden.
@@ -167,7 +168,7 @@ function createPools({
       // Ruht der Pool gerade für eine Arbeit an seinen Caches (`withPoolAtRest`), stellt diese sie danach selbst bereit.
       if (!pool.hold) await prepareCaches(pool.repo);
       await refreshSeed(pool.repo);
-    } catch (error) { log(`Vorbereitung – ${error.message}`, pool.repo, 'error'); } finally { pool.prepared = true; pool.preparing = false; }
+    } catch (error) { logError(pool.repo, msg('m_whatPrep'))(error); } finally { pool.prepared = true; pool.preparing = false; }
     // Ruht der Pool, misst die Arbeit an seinen Caches selbst; der Messcontainer hielte sonst Volumes fest, die sie löscht.
     if (!pool.hold) measureSizes(pool);
   }

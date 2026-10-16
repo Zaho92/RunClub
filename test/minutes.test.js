@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createMinutes, summarize, STATE, TIGHT_AT, INCLUDED, FRESH, RETRY } = require('../src/minutes');
 const { deepFreeze: frozen } = require('../src/github');
+const { render } = require('../src/messages');
 
 const NOW = new Date('2026-10-14T12:00:00Z').getTime();
 const SUMMARY = 'users/wer/settings/billing/usage/summary?year=2026&month=10';
@@ -161,7 +162,7 @@ test('ohne Stand sagt die Ansicht, ob noch gelesen wird oder die Abfrage geschei
 test('eine Antwort für einen anderen Monat gilt nicht und steht im Protokoll', async () => {
   const logged = [];
   const github = fakeGitHub(summaryOf([item('actions_linux', 10)], { year: 2026, month: 9 }));
-  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(text), now: () => NOW });
+  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(render(text)), now: () => NOW });
   await minutes.refresh('wer');
   assert.deepEqual(minutes.view('wer'), { state: STATE.FAILED });
   assert.match(logged[0], /Abrechnung für 9\/2026 statt für 10\/2026/);
@@ -170,7 +171,7 @@ test('eine Antwort für einen anderen Monat gilt nicht und steht im Protokoll', 
 test('ein Fehler lässt den letzten Stand stehen und steht einmal im Protokoll, bis es wieder gelingt', async () => {
   const github = fakeGitHub(REAL);
   const logged = [];
-  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(text), now: () => NOW });
+  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(render(text)), now: () => NOW });
   await minutes.refresh('wer');
   github.fail = 'gh: Not Found (HTTP 404)';
   await minutes.refresh('wer');
@@ -192,7 +193,7 @@ test('ein anderes Konto beginnt von vorn: Sein erster Fehler steht im Protokoll,
   const github = fakeGitHub(REAL);
   const logged = [];
   github.fail = 'gh: Not Found (HTTP 404)';
-  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(text), now: () => now });
+  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(render(text)), now: () => now });
   for (let round = 0; round < 4; round += 1) { await minutes.refresh('wer'); }
   assert.equal(logged.length, 1);
   await minutes.poll('anders');

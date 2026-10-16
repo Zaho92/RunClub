@@ -19,6 +19,7 @@ const { lastLine } = require('./run');
 const { slug } = require('./images');
 const { createNetwork } = require('./subnets');
 const { resultKind, resultText } = require('./journal');
+const { msg, Fault, reason } = require('./messages');
 const limitRules = require('./limits');
 const { SOCKET_DIR, SOCKET, SERVICE_USER, PIDS_MAX } = require('./caches');
 const { SECOND, HOUR } = require('./units');
@@ -79,7 +80,7 @@ function createSlots({
     if (runnerId) {
       // Was sich nicht abmelden lässt, bleibt bei GitHub als toter Eintrag stehen, bis die Docker-Überwachung es
       // abmeldet (siehe `removeRegistrations` in dockerwatch.js), und gehört deshalb ins Protokoll.
-      await unregisterRunner(gh, repo, runnerId).catch((error) => log(`Runner ließ sich bei GitHub nicht abmelden – ${error.message}`, repo, 'error'));
+      await unregisterRunner(gh, repo, runnerId).catch((error) => log(msg('m_withReason', msg('m_unregisterFailed'), reason(error)), repo, 'error'));
     }
   }
 
@@ -106,7 +107,7 @@ function createSlots({
 
     // Eigenes kleines Subnetz statt eines aus Dockers knappem Vorrat (siehe subnets.js).
     const network = await createNetwork(docker, [...label, base]);
-    if (network.code !== 0) return giveUp(new Error(`Netz lässt sich nicht anlegen: ${lastLine(network.stderr)}`));
+    if (network.code !== 0) return giveUp(new Fault('m_netFailed', lastLine(network.stderr)));
     for (const volume of ['work', 'sock', 'docker']) await docker(['volume', 'create', ...label, `${base}-${volume}`]);
 
     // Die Volumes gehören dem Benutzer von Daemon und Runner; die Vorlage kommt als Kopie in den Speicher des Daemons.
@@ -119,7 +120,7 @@ function createSlots({
     });
     if (cancelled()) return giveUp();
     // Gehören die Volumes nicht dem Benutzer des Daemons, startet er nicht; eine halbe Kopie der Vorlage taugt nicht.
-    if (prepared.code !== 0) return giveUp(new Error(`Volumes ließen sich nicht vorbereiten: ${lastLine(prepared.stderr) || `Code ${prepared.code}`}`));
+    if (prepared.code !== 0) return giveUp(new Fault('m_volumesFailed', lastLine(prepared.stderr) || msg('m_exitCode', prepared.code)));
 
     // Der Daemon des Jobs, ohne Rechte (siehe dind.js): eigenes Netz, eigener Speicher, erreichbar nur über den geteilten
     // Socket. Der Arbeitsordner liegt in beiden Containern am selben Pfad, damit `docker run -v "$PWD:..."` stimmt.
@@ -127,10 +128,10 @@ function createSlots({
       '--cpus', String(limits.dockerCpus), '--memory', limits.dockerMemory, '--pids-limit', String(PIDS_MAX), // gilt auch für die Container des Jobs darin
       '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:${DATA_ROOT}`,
       dind, ...DAEMON_COMMAND]);
-    if (daemon.code !== 0) return giveUp(new Error(`Docker-Daemon startet nicht: ${lastLine(daemon.stderr)}`));
+    if (daemon.code !== 0) return giveUp(new Fault('m_daemonFailed', lastLine(daemon.stderr)));
     const ready = await waitForDaemon({ docker, sleep, container: `${base}-dind`, host: PAIR_SOCKET, cancelled });
     if (cancelled()) return giveUp();
-    if (!ready) return giveUp(new Error(`Docker-Daemon wurde nicht bereit${await whyNotReady(docker, `${base}-dind`)}`));
+    if (!ready) return giveUp(new Fault('m_daemonNotReady', await whyNotReady(docker, `${base}-dind`)));
 
     if (settingsOf(pool.repo)?.cache) {
       pair.extras.push('-v', `${cacheVolume(pool.repo)}:/opt/rc-cache`, '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm');
@@ -206,7 +207,7 @@ function createSlots({
       if (started && slot.state !== SLOT.WORKING) {
         const job = started[1].slice(0, JOB_NAME_MAX);
         Object.assign(slot, { state: SLOT.WORKING, job, jobStartedAt: new Date().toISOString(), workflow: '', meter: metrics.meter() });
-        log(`Job „${job}“ läuft auf ${slot.name}`, pool.repo, 'run', { job, runner: slot.name });
+        log(msg('m_jobRun', job, slot.name), pool.repo, 'run');
         refreshRepo(pool.repo);
         timer(() => refreshRepo(pool.repo), REFRESH_AGAIN);
       }
@@ -228,26 +229,26 @@ function createSlots({
     // Endet der Aufruf, während der Runner weiterläuft (Docker Desktop verlor kurz die Verbindung), wird weiter
     // mitgelesen, statt das Paar mitten im Job abzuräumen.
     for (let attempt = 0; attempt < REATTACH_MAX && !runner.timedOut && !slot.aborted && await runnerAlive(pair.base); attempt += 1) {
-      log(`Die Verbindung zu ${slot.name} riss ab; es wird weiter mitgelesen`, pool.repo, 'error');
+      log(msg('m_reattach', slot.name), pool.repo, 'error');
       runner = await docker(['logs', '-f', `${pair.base}-runner`], { timeout: Math.max(SECOND, deadline - Date.now()), onLine: follow });
     }
     if (runner.timedOut) {
       await docker(['rm', '-f', `${pair.base}-runner`]);
       slot.outcome = null; // ein Ergebnis aus der Zeit davor ist nicht das Ende
-      runner = { ...runner, stderr: `nach ${RUNNER_MAX / HOUR} h beendet` };
+      runner = { ...runner, stderr: '', ended: msg('m_runnerTimeout', RUNNER_MAX / HOUR) };
     }
     // Nach einem Abbruch ist nichts mehr zu melden, außer der Runner hatte doch schon einen Job angenommen (der
     // Abbruch kam einen Augenblick zu spät); beim Beenden der App gilt auch das nicht: Dann wird auch ein Job, der
     // gerade noch fertig wurde, nicht mehr verbucht.
     if (slot.aborted && (!slot.job || stopping())) return;
-    if (!slot.job) throw new Error(`Runner endete ohne Job (${lastLine(runner.stderr) || `Code ${runner.code}`})`);
+    if (!slot.job) throw new Fault('m_runnerNoJob', runner.ended ?? (lastLine(runner.stderr) || msg('m_exitCode', runner.code)));
     if (slot.outcome) settleJob(pool, slot);
     else {
       // Der Runner endete mitten im Job, ohne ein Ergebnis zu melden. Dauer und Ergebnis stimmen dann nicht: Die
       // Messung wird verworfen statt als Verbrauch gemerkt.
       slot.meter = null;
-      Object.assign(slot, { lastResult: `${slot.job}: ohne Ergebnis`, jobs: slot.jobs + 1 });
-      log(`Job „${slot.job}“ endete ohne Ergebnis (${lastLine(runner.stderr) || `Code ${runner.code}`})`, pool.repo, 'error', { job: slot.job });
+      Object.assign(slot, { lastResult: { job: slot.job, result: null }, jobs: slot.jobs + 1 });
+      log(msg('m_jobNoResult', slot.job, runner.ended ?? (lastLine(runner.stderr) || msg('m_exitCode', runner.code))), pool.repo, 'error');
     }
     await learnImages(pool, slot);
   }
@@ -258,8 +259,8 @@ function createSlots({
     if (slot.meter) metrics.recordJob(pool.repo, { job: slot.job, workflow: slot.workflow, runner: slot.name, result, duration: Math.round((Date.now() - new Date(slot.jobStartedAt)) / SECOND), ...slot.meter.finish() });
     slot.meter = null;
     refreshRepo(pool.repo);
-    Object.assign(slot, { lastResult: `${slot.job}: ${result}`, jobs: slot.jobs + 1 });
-    log(`Job „${slot.job}“ – ${resultText(result)}`, pool.repo, resultKind(result), { job: slot.job });
+    Object.assign(slot, { lastResult: { job: slot.job, result }, jobs: slot.jobs + 1 });
+    log(msg('m_jobEnd', slot.job, resultText(result)), pool.repo, resultKind(result));
   }
 
   async function runnerAlive(base) {
@@ -273,7 +274,7 @@ function createSlots({
     while (slotWanted(pool, slot)) {
       // Was beim Abräumen oder an der Reserve wirft, beendet den Platz nicht: Dem Pool fehlte sonst dauerhaft einer.
       await slotRound(pool, slot).catch(async (error) => {
-        log(`Platz – ${error.message}`, pool.repo, 'error');
+        log(msg('m_withReason', msg('m_whatSlot'), reason(error)), pool.repo, 'error');
         await sleep(ROUND_PAUSE);
       });
     }
@@ -293,8 +294,8 @@ function createSlots({
       await serveOneJob(pool, slot);
     } catch (error) {
       if (!slot.aborted) {
-        Object.assign(slot, { error: error.message, state: SLOT.BROKEN });
-        log(error.message, pool.repo, 'error');
+        Object.assign(slot, { error: reason(error), state: SLOT.BROKEN });
+        log(reason(error), pool.repo, 'error');
         if (!slot.kept) await teardown(slot);
         // Ein Abbruch im Leerlauf (`abortIdle`) beendet die Pause sofort; der nächste Versuch setzt `aborted` erst
         // zurück, nachdem er hier gewirkt hat.

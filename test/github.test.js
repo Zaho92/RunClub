@@ -104,7 +104,7 @@ test('rate_limit liefert den Stand, auch ohne andere Abfragen', async () => {
 
 test('refreshQuota meldet nur, wenn der Zustand kippt', async () => {
   const { github } = fake([limit(4000), limit(3900), limit(500), limit(400), limit(4900)]);
-  assert.deepEqual(await github.refreshQuota(), { limit: 5000, remaining: 4000, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok', tightAt: 0.85, before: 'unknown', until: new Date(RESET * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), paused: false });
+  assert.deepEqual(await github.refreshQuota(), { limit: 5000, remaining: 4000, resetAt: new Date(RESET * 1000).toISOString(), state: 'ok', tightAt: 0.85, before: 'unknown', paused: false });
   assert.equal(await github.refreshQuota(), null);
   assert.partialDeepStrictEqual(await github.refreshQuota(), { state: 'tight', before: 'ok', remaining: 500 });
   assert.equal(await github.refreshQuota(), null);

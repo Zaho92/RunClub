@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createAccount } = require('../src/account');
 const { SCOPE: MINUTES_SCOPE } = require('../src/minutes');
+const { rendered } = require('./support');
+const { render, reason } = require('../src/messages');
 
 // Anmeldung und Kontingent nachgestellt: `login` ist das Konto mit dem Recht für die Minuten (oder null).
 function world() {
@@ -9,8 +11,8 @@ function world() {
   w.account = createAccount({
     run: null, timeout: 1, gh: null,
     githubApi: { mayPoll: (key) => { w.calls.push(`mayPoll ${key}`); return w.may; } },
-    log: (...entry) => w.logs.push(entry),
-    logError: (repo, what) => (error) => w.logs.push([`${what} – ${error.message}`, repo, 'error']),
+    log: (...entry) => w.logs.push(rendered(entry)),
+    logError: (repo, what) => (error) => w.logs.push([`${render(what)} – ${render(reason(error))}`, repo, 'error']),
     stopping: () => w.stopping,
     onAccount: () => { w.accounts += 1; },
     makeAuth: (options) => {

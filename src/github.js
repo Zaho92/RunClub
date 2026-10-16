@@ -11,6 +11,7 @@
 
 const { lastLine } = require('./run');
 const { SECOND, MINUTE, DAY } = require('./units');
+const { Fault } = require('./messages');
 
 const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', UNKNOWN: 'unknown' };
 const TIGHT = 0.15; // Anteil, der noch frei ist
@@ -87,9 +88,6 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   // zählt das spätere.
   const endsAt = () => Math.max(paused() ? pausedUntil : 0, spent() ? quota.resetAt : 0) || quota.resetAt;
 
-  // Das Ende des Fensters als Uhrzeit für Meldungen (die sind deutsch).
-  const until = () => new Date(endsAt()).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
   // Darf das, was `key` benennt (ein Repo), jetzt routinemäßig abgefragt werden? Bei knappem Limit nur im Abstand `gap`,
   // bei aufgebrauchtem gar nicht.
   function mayPoll(key, gap = TIGHT_GAP) {
@@ -103,7 +101,7 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   }
 
   async function read(path) {
-    if (state() === STATE.OUT) throw new Error(paused() ? `GitHub bittet um eine Pause; weiter um ${until()}.` : `Das Anfragelimit von GitHub ist aufgebraucht; weiter um ${until()}.`);
+    if (state() === STATE.OUT) throw new Fault(paused() ? 'm_githubPause' : 'm_quotaSpent', { time: new Date(endsAt()).toISOString() });
     const known = cache.get(path);
     const result = await run(['api', '-i', path, ...(known ? ['-H', `If-None-Match: ${known.etag}`] : [])]);
     const { status, headers, body } = parseResponse(result.stdout);
@@ -115,7 +113,7 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
       cache.set(path, known);
       return known.data;
     }
-    if (result.code !== 0) throw new Error(lastLine(result.stderr) || `gh endete mit ${result.code}`);
+    if (result.code !== 0) throw lastLine(result.stderr) ? new Error(lastLine(result.stderr)) : new Fault('m_ghExit', result.code);
     const data = body.trim() ? JSON.parse(body) : null;
     cache.delete(path);
     if (headers.etag) {
@@ -131,7 +129,7 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   async function call(args, input) {
     if (input === undefined && args.length === 2 && args[0] === 'api') return read(args[1]);
     const result = await run(input === undefined ? args : [...args, '--input', '-'], input);
-    if (result.code !== 0) throw new Error(lastLine(result.stderr) || `gh endete mit ${result.code}`);
+    if (result.code !== 0) throw lastLine(result.stderr) ? new Error(lastLine(result.stderr)) : new Fault('m_ghExit', result.code);
     return result.stdout.trim() ? JSON.parse(result.stdout) : null;
   }
 
@@ -139,7 +137,7 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   const view = () => (!windowOpen() ? null : { limit: quota.limit, remaining: quota.remaining, resetAt: new Date(endsAt()).toISOString(), state: state(), tightAt: 1 - TIGHT });
 
   // Den Stand ausdrücklich holen; nötig, solange sonst nichts abgefragt wird. Liefert den Stand, wenn der Zustand
-  // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before` und dem Ende des Fensters als Uhrzeit `until`),
+  // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before`; `resetAt` ist dann das Ende der Pause, wenn sie länger gilt),
   // sonst null.
   async function refreshQuota() {
     const result = await run(['api', 'rate_limit']);
@@ -150,7 +148,7 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
     if (!windowOpen() || current === reported) return null;
     const before = reported;
     reported = current;
-    return { ...view(), before, until: until(), paused: paused() };
+    return { ...view(), before, paused: paused() };
   }
 
   return { call, refreshQuota, mayPoll, quota: view };

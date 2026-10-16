@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { forkExposure, settingPath } = require('../src/forks');
+const { render } = require('../src/messages');
 
 const REPO = 'firma/App';
 const SETTING = { run_workflows_from_fork_pull_requests: false, send_write_tokens_to_workflows: false, send_secrets_and_variables: false, require_approval_for_fork_pr_workflows: false };
@@ -30,7 +31,7 @@ test('ein Org-Repo, in dem Workflows aus Forks laufen dürfen, ist gefährdet �
       const { gh } = ghWith({ ...SETTING, run_workflows_from_fork_pull_requests: true, ...extra });
       const found = await forkExposure(gh, REPO, { owner: { type: 'Organization' }, allow_forking: allowForking });
       assert.equal(found.exposed, true);
-      assert.match(found.reason, /Forks/);
+      assert.match(render(found.reason), /Forks/);
     }
   }
 });
@@ -39,7 +40,7 @@ test('lässt sich die Einstellung nicht lesen oder fehlt das Feld, gilt ein Org-
   const failing = ghWith(() => { throw new Error('HTTP 403'); });
   const found = await forkExposure(failing.gh, REPO, { owner: { type: 'Organization' } });
   assert.equal(found.exposed, true);
-  assert.match(found.reason, /HTTP 403/);
+  assert.match(render(found.reason), /HTTP 403/);
   assert.equal((await forkExposure(ghWith({}).gh, REPO, { owner: { type: 'Organization' } })).exposed, true);
   assert.equal((await forkExposure(ghWith(null).gh, REPO, { owner: { type: 'Organization' } })).exposed, true);
 });

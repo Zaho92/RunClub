@@ -12,4 +12,8 @@ async function until(condition) {
 // Lässt alles laufen, was ohne weiteres Zutun laufen kann.
 async function settle() { for (let turns = 0; turns < 20; turns += 1) await turn(); }
 
-module.exports = { turn, until, settle };
+// Ein Eintrag `[message, repo, kind]`, wie ihn `log` bekommt, mit der Meldung als deutschem Satz (siehe messages.js).
+const { render } = require('../src/messages');
+const rendered = ([message, ...rest]) => [render(message), ...rest];
+
+module.exports = { turn, until, settle, rendered };

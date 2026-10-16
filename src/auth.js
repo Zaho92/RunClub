@@ -18,6 +18,7 @@ const { lastLine, ESCAPES } = require('./run');
 const { SECOND, MINUTE } = require('./units');
 const { GH_ENV } = require('./github');
 const { SCOPE: MINUTES_SCOPE } = require('./minutes');
+const { msg, Fault } = require('./messages');
 
 const HOST = 'github.com';
 const STATE = { UNKNOWN: 'unknown', MISSING: 'missing', OUT: 'out', IN: 'in' };
@@ -148,9 +149,9 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
   // Startet `gh` mit den Argumenten und führt den Ablauf. Antwortet, sobald der Code da ist oder der Ablauf endete,
   // spätestens nach `startWait`.
   function begin(kind, scopes, args) {
-    if (closed) throw new Error('RunClub wird gerade beendet.');
-    if (leaving) throw new Error('Es wird gerade abgemeldet. Bitte warten, bis das abgeschlossen ist.');
-    if (running()) throw new Error('Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.');
+    if (closed) throw new Fault('m_closing');
+    if (leaving) throw new Fault('m_leaving');
+    if (running()) throw new Fault('m_loginRunning');
     const controller = new AbortController();
     const mine = { kind, scopes, state: FLOW.STARTING, code: null, url: null, why: null, error: null, controller, ended: null, settled: false, silent: false, heard: '' };
     flow = mine;
@@ -184,7 +185,7 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
         if (result.code !== 0) Object.assign(mine, result.timedOut ? { why: WHY.LATE } : { why: WHY.GH, error: said(result.stderr, code) || null });
       }
       if (mine.state === FLOW.DONE) {
-        if (kind === 'login' && current.state === STATE.IN) log(`Bei GitHub angemeldet als ${current.login}.`);
+        if (kind === 'login' && current.state === STATE.IN) log(msg('m_loggedIn', current.login));
         accountChanged();
       }
       show();
@@ -204,21 +205,21 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
   // Minute alt sein, und im Terminal kann sich inzwischen jemand angemeldet haben). Das Protokoll für Git
   // (`--git-protocol`) bleibt, wie der Nutzer es in `gh` eingestellt hat.
   async function login() {
-    if (closed) throw new Error('RunClub wird gerade beendet.');
+    if (closed) throw new Fault('m_closing');
     if (!running() && !leaving) await fresh();
-    if (current.state === STATE.MISSING) throw new Error('Das Programm gh ist nicht installiert.');
-    if (current.state === STATE.IN) throw new Error(`Du bist schon als ${current.login} angemeldet.`);
-    if (current.state !== STATE.OUT) throw new Error('Der Stand der Anmeldung ließ sich noch nicht lesen. Bitte gleich noch einmal versuchen.');
+    if (current.state === STATE.MISSING) throw new Fault('m_ghMissing');
+    if (current.state === STATE.IN) throw new Fault('m_alreadyIn', current.login);
+    if (current.state !== STATE.OUT) throw new Fault('m_authUnknown');
     const scopes = [...REQUIRED, ...OPTIONAL.map((entry) => entry.scope)];
     return begin('login', scopes, ['auth', 'login', '--hostname', HOST, '--web', '-s', scopes.join(',')]);
   }
 
   // Ein Recht ergänzen: ohne Angabe alle fehlenden Pflichtrechte, sonst das genannte freiwillige.
   async function grant(scope) {
-    if (current.state !== STATE.IN) throw new Error('Erst bei GitHub anmelden.');
+    if (current.state !== STATE.IN) throw new Fault('m_loginFirst');
     const open = view();
     const scopes = scope ? open.optional.filter((entry) => entry.scope === scope).map((entry) => entry.scope) : open.missing;
-    if (!scopes.length) throw new Error(scope ? 'Dieses Recht fehlt nicht oder lässt sich hier nicht ergänzen.' : 'Der Anmeldung fehlt kein Recht.');
+    if (!scopes.length) throw new Fault(scope ? 'm_scopeNotMissing' : 'm_noScopeMissing');
     return begin('scope', scopes, ['auth', 'refresh', '-h', HOST, '-s', scopes.join(',')]);
   }
 
@@ -236,22 +237,22 @@ function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now,
   }
 
   async function logout() {
-    if (closed) throw new Error('RunClub wird gerade beendet.');
-    if (leaving) throw new Error('Es wird schon abgemeldet.');
-    if (running()) throw new Error('Erst die laufende Anmeldung abschließen oder abbrechen.');
-    if (current.state !== STATE.IN) throw new Error('Du bist nicht bei GitHub angemeldet.');
+    if (closed) throw new Fault('m_closing');
+    if (leaving) throw new Fault('m_leavingAlready');
+    if (running()) throw new Fault('m_finishLogin');
+    if (current.state !== STATE.IN) throw new Fault('m_notIn');
     const login = current.login;
-    if (!LOGIN.test(String(login))) throw new Error('Das Konto lässt sich nicht bestimmen. Bitte im Terminal abmelden: gh auth logout');
+    if (!LOGIN.test(String(login))) throw new Fault('m_loginUnknown');
     leaving = true;
     try {
       const result = await gh(['auth', 'logout', '--hostname', HOST, '--user', login], { input: '\n', timeout });
       await fresh();
-      if (result.code !== 0) throw new Error(result.timedOut ? 'gh antwortet nicht.' : said(result.stderr) || `gh endete mit ${result.code}`);
+      if (result.code !== 0) throw result.timedOut ? new Fault('m_ghSilent') : said(result.stderr) ? new Error(said(result.stderr)) : new Fault('m_ghExit', result.code);
       flow = null;
     } finally { leaving = false; }
     // Kennt `gh` ein weiteres Konto, nutzt es nach dem Abmelden von selbst dieses.
-    if (current.state !== STATE.IN) { log(`Bei GitHub abgemeldet (${login}).`); return; }
-    log(`Bei GitHub abgemeldet (${login}). gh nutzt jetzt das Konto ${current.login}.`);
+    if (current.state !== STATE.IN) { log(msg('m_loggedOut', login)); return; }
+    log(msg('m_loggedOutSwitch', login, current.login));
     accountChanged();
   }
 

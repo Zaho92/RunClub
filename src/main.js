@@ -10,6 +10,7 @@ const { SLOT } = require('./states');
 const { run, lastLine } = require('./run');
 const { GH_ENV } = require('./github');
 const { createUpdater } = require('./updater');
+const { msg, Fault } = require('./messages');
 const pkg = require('../package.json');
 
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
@@ -67,11 +68,11 @@ async function ghToken() {
 // erst, wenn der Abbau fertig ist (hooks.onExit), und öffnet RunClub danach wieder.
 function installUpdate() {
   const ready = updater.installer();
-  if (!ready) throw new Error('Es ist kein Update geladen.');
+  if (!ready) throw new Fault('m_noUpdate');
   const working = backend.status().repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === SLOT.WORKING).length;
-  if (working) throw new Error(`Gerade arbeitet ein Runner (${working}). Das Update lässt sich einspielen, sobald keiner mehr arbeitet.`);
+  if (working) throw new Fault('m_updateBusy', working);
   installer = ready;
-  backend.log(`RunClub wird beendet und auf ${ready.version} aktualisiert.`);
+  backend.log(msg('m_updating', ready.version));
   quit();
 }
 
@@ -115,14 +116,23 @@ function showWindow() {
   window.on('closed', () => { window = null; });
 }
 
+// Menü und Hinweis am Symbol im Infobereich in der Sprache von Windows; die Oberfläche beginnt ebenso (siehe `lang` in
+// ui.html), lässt sich dort aber umstellen.
+const TRAY_TEXT = {
+  de: { open: 'RunClub öffnen', closing: 'Wird beendet …', autostart: 'Mit Windows starten', quit: 'Beenden (Runner stoppen)', stopping: 'RunClub – beendet die Runner …', count: (working, ready) => `RunClub – ${working} arbeiten, ${ready} bereit` },
+  en: { open: 'Open RunClub', closing: 'Shutting down …', autostart: 'Start with Windows', quit: 'Quit (stop runners)', stopping: 'RunClub – stopping the runners …', count: (working, ready) => `RunClub – ${working} working, ${ready} ready` },
+};
+const trayText = () => TRAY_TEXT[app.getLocale().toLowerCase().startsWith('de') ? 'de' : 'en'];
+
 function refreshTray() {
   if (!tray) return;
-  if (quitting) { tray.setContextMenu(Menu.buildFromTemplate([{ label: 'RunClub öffnen', click: showWindow }, { label: 'Wird beendet …', enabled: false }])); return; }
+  const text = trayText();
+  if (quitting) { tray.setContextMenu(Menu.buildFromTemplate([{ label: text.open, click: showWindow }, { label: text.closing, enabled: false }])); return; }
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'RunClub öffnen', click: showWindow },
-    { label: 'Mit Windows starten', type: 'checkbox', checked: autostart(), click: (item) => setAutostart(item.checked) },
+    { label: text.open, click: showWindow },
+    { label: text.autostart, type: 'checkbox', checked: autostart(), click: (item) => setAutostart(item.checked) },
     { type: 'separator' },
-    { label: 'Beenden (Runner stoppen)', click: quit },
+    { label: text.quit, click: quit },
   ]));
 }
 
@@ -130,10 +140,10 @@ function refreshTray() {
 function refreshTooltip() {
   if (!tray || quitting) return;
   const status = backend.status();
-  if (status.shutdown) { quitting = true; refreshTray(); tray.setToolTip('RunClub – beendet die Runner …'); return; }
+  if (status.shutdown) { quitting = true; refreshTray(); tray.setToolTip(trayText().stopping); return; }
   const runners = status.repos.flatMap((repo) => repo.runners);
   const count = (state) => runners.filter((runner) => runner.state === state).length;
-  tray.setToolTip(`RunClub – ${count(SLOT.WORKING)} arbeiten, ${count(SLOT.READY)} bereit`);
+  tray.setToolTip(trayText().count(count(SLOT.WORKING), count(SLOT.READY)));
 }
 
 // Das Fenster zeigt beim Beenden groß, was noch abgebaut wird (`shutdown` in /api/status). Ein offenes Fenster fragt
@@ -142,7 +152,7 @@ async function quit() {
   if (quitting) return;
   quitting = true;
   refreshTray();
-  tray?.setToolTip('RunClub – beendet die Runner …');
+  tray?.setToolTip(trayText().stopping);
   const open = Boolean(window);
   showWindow();
   const done = backend.shutdown(); // endet über hooks.onExit

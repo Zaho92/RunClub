@@ -20,6 +20,7 @@
 //           Abfrage ist gescheitert).
 
 const { MINUTE } = require('./units');
+const { msg, Fault, reason } = require('./messages');
 
 const SCOPE = 'user'; // das Recht, ohne das GitHub die Abrechnung nicht herausgibt
 const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', PAID: 'paid', UNKNOWN: 'unknown', READING: 'reading', FAILED: 'failed' };
@@ -99,14 +100,14 @@ function createMinutes({ gh, log = () => {}, now = Date.now }) {
       const wanted = monthOf(now());
       const summary = await gh(['api', `users/${encodeURIComponent(login)}/settings/billing/usage/summary?year=${wanted.year}&month=${wanted.month}`]);
       const got = periodOf(summary);
-      if (got && (got.year !== wanted.year || got.month !== wanted.month)) throw new Error(`GitHub lieferte die Abrechnung für ${got.month}/${got.year} statt für ${wanted.month}/${wanted.year}.`);
+      if (got && (got.year !== wanted.year || got.month !== wanted.month)) throw new Fault('m_billingMonth', String(got.month), String(got.year), String(wanted.month), String(wanted.year));
       const plan = (await gh(['api', 'user']))?.plan?.name;
       current = { login, ...summarize(summary, plan, now()) };
       failures = 0;
     } catch (error) {
       // Es bleibt der letzte Stand; der eines anderen Kontos gilt ohnehin nicht (siehe `view`).
       failures += 1;
-      if (failures === 1) { try { log(`Das Minuten-Kontingent von GitHub ließ sich nicht lesen – ${error.message}`); } catch { /* das Protokoll ist Beiwerk */ } }
+      if (failures === 1) { try { log(msg('m_withReason', msg('m_minutesUnreadable'), reason(error))); } catch { /* das Protokoll ist Beiwerk */ } }
     }
     asked = { login, nextAt: now() + (failures ? Math.min(RETRY * 2 ** (failures - 1), FRESH) : FRESH) };
   }

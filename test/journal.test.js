@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createJournal, resultKind, resultText, line, errorLog } = require('../src/journal');
+const { rendered } = require('./support');
+const { msg, render, Fault } = require('../src/messages');
 
 const file = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-journal-')), 'runclub.log');
 const at = new Date(2026, 9, 13, 15, 34, 28);
@@ -19,11 +21,15 @@ test('ein Eintrag trägt Zeit, Projekt, Meldung und Art getrennt', () => {
   assert.equal(journal.count(), 2);
 });
 
-test('eine Meldung zu einem Job trägt Namen und Runner getrennt', () => {
+test('eine Meldung trägt Schlüssel und Werte für die Oberfläche, den deutschen Satz für die Datei', () => {
   const journal = createJournal({ file: file(), now: () => at });
-  assert.deepEqual(journal.add('Job „Tests“ läuft auf pc-linux-1', { repo: 'wer/was', kind: 'run', job: 'Tests', runner: 'pc-linux-1' }),
-    { at: at.toISOString(), repo: 'wer/was', text: 'Job „Tests“ läuft auf pc-linux-1', kind: 'run', job: 'Tests', runner: 'pc-linux-1' });
-  assert.deepEqual(Object.keys(journal.add('Job „Tests“ – fertig', { repo: 'wer/was', kind: 'done', job: 'Tests' })), ['at', 'repo', 'text', 'kind', 'job']);
+  assert.deepEqual(journal.add(msg('m_jobRun', 'Tests', 'pc-linux-1'), { repo: 'wer/was', kind: 'run' }),
+    { at: at.toISOString(), repo: 'wer/was', text: 'Job „Tests“ läuft auf pc-linux-1', kind: 'run', msg: { key: 'm_jobRun', args: ['Tests', 'pc-linux-1'] } });
+  const done = journal.add(msg('m_jobEnd', 'Tests', resultText('Succeeded')), { repo: 'wer/was', kind: 'done' });
+  assert.equal(done.text, 'Job „Tests“ – fertig');
+  assert.deepEqual(done.msg.args[1], { key: 'm_resDone', args: [] });
+  // Ein Text von außen bleibt Text, ohne Schlüssel.
+  assert.deepEqual(Object.keys(journal.add('error during connect')), ['at', 'repo', 'text', 'kind']);
 });
 
 test('die Datei bekommt je Eintrag eine lesbare Zeile', () => {
@@ -60,10 +66,10 @@ test('das Ergebnis des Runners wird zur Art des Eintrags', () => {
   assert.equal(resultKind('Skipped'), 'info');
 });
 
-test('das Ergebnis steht als deutsches Wort im Satz für die Datei', () => {
-  assert.equal(resultText('Succeeded'), 'fertig');
-  assert.equal(resultText('Failed'), 'Fehler');
-  assert.equal(resultText('Canceled'), 'abgebrochen');
+test('das Ergebnis ist ein Wort der Oberfläche; ein unbekanntes bleibt, wie der Runner es nennt', () => {
+  assert.equal(render(resultText('Succeeded')), 'fertig');
+  assert.equal(render(resultText('Failed')), 'Fehler');
+  assert.deepEqual(resultText('Canceled'), { key: 'm_resCancel', args: [] });
   assert.equal(resultText('Skipped'), 'Skipped');
 });
 
@@ -115,15 +121,15 @@ test('ohne schreibbare Datei geht nichts kaputt', () => {
   assert.equal(journal.read(), '');
 });
 
-test('die Einträge überstehen einen Neustart, samt Art, Job und Runner', () => {
+test('die Einträge überstehen einen Neustart, samt Art und Meldung', () => {
   const target = file();
   const first = createJournal({ file: target, now: () => at });
-  first.add('Pool angelegt', { repo: 'wer/was' });
-  first.add('Job „Tests“ läuft auf pc-linux-1', { repo: 'wer/was', kind: 'run', job: 'Tests', runner: 'pc-linux-1' });
-  first.add('Job „Tests“ – Fehler', { repo: 'wer/was', kind: 'fail', job: 'Tests' });
+  first.add(msg('m_poolAdded'), { repo: 'wer/was' });
+  first.add(msg('m_jobRun', 'Tests', 'pc-linux-1'), { repo: 'wer/was', kind: 'run' });
+  first.add(msg('m_jobEnd', 'Tests', resultText('Failed')), { repo: 'wer/was', kind: 'fail' });
   const second = createJournal({ file: target, now: () => at });
   assert.deepEqual(second.recent(), first.recent());
-  assert.deepEqual(second.recent()[1], { at: at.toISOString(), repo: 'wer/was', text: 'Job „Tests“ läuft auf pc-linux-1', kind: 'run', job: 'Tests', runner: 'pc-linux-1' });
+  assert.deepEqual(second.recent()[1], { at: at.toISOString(), repo: 'wer/was', text: 'Job „Tests“ läuft auf pc-linux-1', kind: 'run', msg: { key: 'm_jobRun', args: ['Tests', 'pc-linux-1'] } });
   assert.equal(second.count(), 3);
   second.add('Gestartet.');
   assert.equal(second.count(), 4); // die Oberfläche erkennt den neuen Eintrag an der anderen Zahl
@@ -168,11 +174,11 @@ test('eine von außen veränderte Zeile kommt bereinigt an', () => {
   const target = file();
   const esc = String.fromCharCode(0x1b);
   const turn = String.fromCharCode(0x202e);
-  const forged = { at: '2026-10-13T13:34:28Z', repo: `wer/${turn}was`, text: `Job${esc}[2J\nzwei`, kind: 'laut', job: `Te${esc}sts`, runner: 'pc\r\n1', mehr: true };
-  const odd = { at: 0, repo: 7, text: 'x'.repeat(5000), kind: 'done', runner: 'ohne Job' };
+  const forged = { at: '2026-10-13T13:34:28Z', repo: `wer/${turn}was`, text: `Job${esc}[2J\nzwei`, kind: 'laut', msg: { key: 'm_jobRun', args: [`Te${esc}sts`, 'pc\r\n1', { key: 'm_resDone', args: [[[1]]] }] }, mehr: true };
+  const odd = { at: 0, repo: 7, text: 'x'.repeat(5000), kind: 'done', msg: { key: 'alert(1)', args: [] } };
   fs.writeFileSync(`${target}.entries`, `${JSON.stringify(forged)}\n${JSON.stringify(odd)}\n`);
   const [first, second] = createJournal({ file: target }).recent();
-  assert.deepEqual(first, { at: '2026-10-13T13:34:28.000Z', repo: 'wer/ was', text: 'Job [2J zwei', kind: 'info', job: 'Te sts', runner: 'pc 1' });
+  assert.deepEqual(first, { at: '2026-10-13T13:34:28.000Z', repo: 'wer/ was', text: 'Job [2J zwei', kind: 'info', msg: { key: 'm_jobRun', args: ['Te sts', 'pc 1', { key: 'm_resDone', args: [['']] }] } });
   assert.deepEqual({ ...second, text: second.text.length }, { at: '1970-01-01T00:00:00.000Z', repo: '7', text: 2002, kind: 'done' });
 });
 
@@ -198,8 +204,9 @@ test('von einer aufgeblähten Datei mit Einträgen wird nur das Ende gelesen', (
 
 test('errorLog: ein Fehler kommt zum Projekt ins Protokoll, auf Wunsch mit dem, was versucht wurde', () => {
   const entries = [];
-  const logError = errorLog((...entry) => entries.push(entry));
+  const logError = errorLog((...entry) => entries.push(rendered(entry)));
   logError('wer/App')(new Error('kaputt'));
-  logError(null, 'Anfragelimit')(new Error('keine Antwort'));
-  assert.deepEqual(entries, [['kaputt', 'wer/App', 'error'], ['Anfragelimit – keine Antwort', null, 'error']]);
+  logError(null, msg('m_whatQuota'))(new Error('keine Antwort'));
+  logError(null)(new Fault('m_noPool'));
+  assert.deepEqual(entries, [['kaputt', 'wer/App', 'error'], ['Anfragelimit – keine Antwort', null, 'error'], ['Diesen Pool gibt es nicht.', null, 'error']]);
 });

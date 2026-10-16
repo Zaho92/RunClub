@@ -7,9 +7,11 @@
 // ist nicht belegt; maßgeblich ist, ob GitHub ihre Workflows starten würde. Lässt sich das bei einem Org-Repo nicht
 // lesen, gilt das Repo als gefährdet.
 
+const { msg, reason } = require('./messages');
+
 const settingPath = (repo) => `repos/${repo}/actions/permissions/fork-pr-workflows-private-repos`;
 
-// `info` ist die Antwort auf `repos/{repo}`. Liefert { exposed, unknown, reason }; `reason` steht nur bei `exposed`,
+// `info` ist die Antwort auf `repos/{repo}`. Liefert { exposed, unknown, reason }; `reason` (eine Meldung) steht nur bei `exposed`,
 // `unknown`, wenn sich die Einstellung nicht lesen ließ.
 async function forkExposure(gh, repo, info) {
   if (info?.owner?.type !== 'Organization') return { exposed: false };
@@ -17,10 +19,10 @@ async function forkExposure(gh, repo, info) {
   try {
     setting = await gh(['api', settingPath(repo)]);
   } catch (error) {
-    return { exposed: true, unknown: true, reason: `Ob Workflows aus Forks laufen dürfen, ließ sich nicht lesen (${error.message})` };
+    return { exposed: true, unknown: true, reason: msg('m_forksUnreadable', reason(error)) };
   }
   if (setting?.run_workflows_from_fork_pull_requests === false) return { exposed: false };
-  return { exposed: true, reason: 'In den Einstellungen des Repos dürfen Workflows aus Pull Requests von Forks laufen' };
+  return { exposed: true, reason: msg('m_forksAllowed') };
 }
 
 module.exports = { forkExposure, settingPath };

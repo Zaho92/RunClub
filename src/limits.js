@@ -3,6 +3,7 @@
 
 const { MB, GB } = require('./units');
 const { median } = require('./numbers');
+const { Fault } = require('./messages');
 
 const bytesOf = (text) => {
   const match = String(text ?? '').trim().match(/^([\d.]+)\s*([gmk]?)b?$/i);
@@ -44,7 +45,7 @@ function normalize(input, current, range) {
   const pick = (key, { min, max, step }) => {
     if (input?.[key] === undefined || input[key] === null || input[key] === '') return now[key];
     const value = Number(input[key]);
-    if (!Number.isFinite(value)) throw new Error('Limits werden als Zahlen angegeben.');
+    if (!Number.isFinite(value)) throw new Fault('m_limitsNumbers');
     return Math.min(max, Math.max(min, Math.round(value / step) * step));
   };
   const [runner, docker] = capped(pick('runnerMemory', range.memory), pick('dockerMemory', range.memory), range.memory);

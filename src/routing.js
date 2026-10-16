@@ -2,6 +2,8 @@
 // (`runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}`). RunClub setzt sie, wenn ein Pool entsteht,
 // und entfernt sie, wenn er geht.
 
+const { Fault, reason } = require('./messages');
+
 const VARIABLE = 'CI_RUNNER';
 const VALUE = '["self-hosted","Linux"]';
 
@@ -29,7 +31,7 @@ function createRouting({ gh }) {
 
   async function check(repo) {
     const info = { value: null, here: false, uses: null, error: null };
-    try { info.value = (await gh(['api', `repos/${repo}/actions/variables/${VARIABLE}`])).value; } catch (error) { if (!/404/.test(error.message)) info.error = error.message; }
+    try { info.value = (await gh(['api', `repos/${repo}/actions/variables/${VARIABLE}`])).value; } catch (error) { if (!/404/.test(error.message)) info.error = reason(error); }
     info.here = info.value != null && pointsHere(info.value);
     try {
       const files = (await gh(['api', `repos/${repo}/contents/.github/workflows`])).filter((file) => /\.ya?ml$/.test(file.name));
@@ -46,7 +48,7 @@ function createRouting({ gh }) {
     // Immer frisch lesen: Die Variable kann inzwischen von Hand gesetzt oder entfernt worden sein.
     const current = await check(repo);
     // Ohne den Stand der Variable (GitHub nicht erreichbar, Anfragelimit) wäre alles Weitere geraten.
-    if (current.error) throw new Error(current.error);
+    if (current.error) throw Fault.of(current.error);
     if (on) {
       const body = JSON.stringify({ name: VARIABLE, value: VALUE });
       if (current.value == null) await gh(['api', '-X', 'POST', `repos/${repo}/actions/variables`], body);

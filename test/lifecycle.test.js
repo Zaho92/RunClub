@@ -4,12 +4,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createLifecycle } = require('../src/lifecycle');
+const { rendered } = require('./support');
 
 // Alles, was Start und Ende berühren, nachgestellt: `steps` hält die Reihenfolge, `timers` die gesetzten Takte.
 function world() {
   const w = { steps: [], logs: [], timers: new Map(), next: 1 };
   w.lifecycle = createLifecycle({
-    log: (...entry) => w.logs.push(entry),
+    log: (...entry) => w.logs.push(rendered(entry)),
     beforeStop: () => w.steps.push(`sichern (stopping: ${w.lifecycle.stopping()}, Takte: ${w.timers.size})`),
     dismantle: async () => { w.steps.push('abbauen'); },
     removeLeftovers: async (step) => { w.steps.push('Reste'); step('cleanup'); },

@@ -85,7 +85,7 @@ test('Aufrufe brauchen Cookie und Token; unbekannte und geerbte Namen gibt es ni
   const post = (name, headers, body = '{}') => s.request('POST', `/api/${name}`, { headers, body });
   assert.equal((await post('pool/set', { 'x-rc-token': TOKEN })).code, 403); // ohne Cookie
   const stale = await post('pool/set', s.cookie);
-  assert.deepEqual([stale.code, stale.json()], [403, { error: 'Die Seite ist veraltet – bitte neu laden.' }]);
+  assert.deepEqual([stale.code, stale.json()], [403, { error: 'Die Seite ist veraltet – bitte neu laden.', msg: { key: 'm_pageStale', args: [] } }]);
   for (const name of ['nichts', 'constructor', '__proto__', 'hasOwnProperty']) assert.equal((await post(name, { ...s.cookie, 'x-rc-token': TOKEN })).code, 404, name);
   const done = await post('pool/set', { ...s.cookie, 'x-rc-token': TOKEN }, '{"repo":"wer/App"}');
   assert.deepEqual([done.code, done.json()], [200, { ok: true }]);
@@ -97,7 +97,7 @@ test('Aufrufe brauchen Cookie und Token; unbekannte und geerbte Namen gibt es ni
 test('ein Aufruf muss ein JSON-Objekt sein und darf nicht zu groß sein', async (t) => {
   const s = await serve(t);
   const post = (body) => s.request('POST', '/api/pool/set', { headers: { ...s.cookie, 'x-rc-token': TOKEN }, body });
-  for (const body of ['[1]', 'null', '"text"', '{kaputt']) assert.deepEqual((await post(body)).json(), { error: 'Der Aufruf ist kein gültiges JSON-Objekt.' }, body);
+  for (const body of ['[1]', 'null', '"text"', '{kaputt']) assert.deepEqual((await post(body)).json(), { error: 'Der Aufruf ist kein gültiges JSON-Objekt.', msg: { key: 'm_bodyNotJson', args: [] } }, body);
   assert.deepEqual((await post('')).json(), { ok: true }); // ohne Inhalt: ein leeres Objekt
   const big = await post(JSON.stringify({ text: 'x'.repeat(BODY_MAX) })).catch((error) => ({ error }));
   assert.ok(big.error || big.code === 400); // abgewiesen; die Verbindung darf dabei abbrechen

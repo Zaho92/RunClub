@@ -5,7 +5,7 @@ const { createRunners } = require('../src/runners');
 const { createNames, DEFAULT_PORT } = require('../src/names');
 const { runnerView } = require('../src/status');
 const limitRules = require('../src/limits');
-const { turn, until, settle } = require('./support');
+const { turn, until, settle, rendered } = require('./support');
 
 const REPO = 'wer/App';
 const MARK = 'runclub.runner=test';
@@ -27,7 +27,7 @@ function basics() {
 function world() {
   const w = { ...basics(), builds: [], loops: [], aborted: [], removing: () => {}, caches: () => {}, vetted: true };
   w.pools = createPools({
-    log: (...entry) => w.logs.push(entry),
+    log: (...entry) => w.logs.push(rendered(entry)),
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
@@ -288,13 +288,13 @@ test('staleCount zählt freie Paare und Reserve mit alten Limits, nicht aber arb
   w.limits = NEW;
   assert.equal(w.pools.staleCount(w.pool), 0);
   w.pool.slots = [
-    { state: 'bereit', base: 'rc-app-1', built: old }, // zählt
-    { state: 'startet', base: 'rc-app-2', built: old }, // zählt
-    { state: 'bereit', base: 'rc-app-3', built: current },
-    { state: 'arbeitet', base: 'rc-app-4', built: old },
-    { state: 'räumt auf', base: 'rc-app-5', built: old },
-    { state: 'wartet', base: null, built: old }, // kein Paar mehr
-    { state: 'startet', base: 'rc-app-6' }, // noch ohne Angabe
+    { state: 'ready', base: 'rc-app-1', built: old }, // zählt
+    { state: 'starting', base: 'rc-app-2', built: old }, // zählt
+    { state: 'ready', base: 'rc-app-3', built: current },
+    { state: 'working', base: 'rc-app-4', built: old },
+    { state: 'cleaning', base: 'rc-app-5', built: old },
+    { state: 'waiting', base: null, built: old }, // kein Paar mehr
+    { state: 'starting', base: 'rc-app-6' }, // noch ohne Angabe
   ];
   assert.equal(w.pools.staleCount(w.pool), 2);
   w.pool.reserve = [{ built: old }, { built: current }, { built: old }];
@@ -306,7 +306,7 @@ test('staleCount zählt freie Paare und Reserve mit alten Limits, nicht aber arb
 test('reconcile legt fehlende Plätze an und lässt überzählige auslaufen', () => {
   const w = world();
   w.pools.reconcile(w.pool);
-  assert.deepEqual(w.pool.slots, [{ repo: REPO, state: 'startet', jobs: 0 }, { repo: REPO, state: 'startet', jobs: 0 }]);
+  assert.deepEqual(w.pool.slots, [{ repo: REPO, state: 'starting', jobs: 0 }, { repo: REPO, state: 'starting', jobs: 0 }]);
   assert.deepEqual(w.loops, w.pool.slots);
   const [first, second] = w.pool.slots;
 
@@ -345,8 +345,8 @@ test('reconcile übernimmt nur auslaufende Plätze, deren Schleife noch läuft, 
   const [first, second, third, fourth] = w.pool.slots;
   w.settings.parallel = 1;
   w.pools.reconcile(w.pool);
-  second.state = 'aus'; // seine Schleife ist schon zu Ende
-  third.state = 'arbeitet';
+  second.state = 'off'; // seine Schleife ist schon zu Ende
+  third.state = 'working';
 
   w.settings.parallel = 2;
   w.pools.reconcile(w.pool);
@@ -364,8 +364,8 @@ test('quiesce baut Reserve und freie Paare ab und wartet, bis nichts mehr steht'
   w.pools.replenish(w.pool);
   w.builds[0].finish();
   w.builds[1].finish();
-  const working = { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-8' };
-  const building = { name: 'bauend', state: 'startet', building: true };
+  const working = { name: 'arbeitend', state: 'working', base: 'rc-app-8' };
+  const building = { name: 'bauend', state: 'starting', building: true };
   w.pool.slots = [working, building];
   w.onSleep = () => {
     if (w.slept.length === 2) building.building = false;
@@ -393,7 +393,7 @@ test('quiesce baut Reserve und freie Paare ab und wartet, bis nichts mehr steht'
 
 test('withPoolAtRest hält den Pool an, bis die Arbeit getan ist, und gibt ihr Ergebnis zurück', async () => {
   const w = world();
-  const slot = { name: 'frei', state: 'bereit', base: 'rc-app-9' };
+  const slot = { name: 'frei', state: 'ready', base: 'rc-app-9' };
   w.pool.slots = [slot];
   w.onSleep = () => { assert.equal(w.pool.hold, true); if (w.slept.length === 2) slot.base = null; };
   const seen = {};
@@ -445,7 +445,7 @@ test('`hold` wird auch nach einem Fehler gelöst; ein Fehler beim Abbau steht im
 
 test('rebuildIdle ohne laufenden Job: Der Pool kommt zur Ruhe und der Build-Dienst entsteht neu', async () => {
   const w = world();
-  const slot = { name: 'frei', state: 'bereit', base: 'rc-app-9' };
+  const slot = { name: 'frei', state: 'ready', base: 'rc-app-9' };
   w.pool.slots = [slot];
   w.onSleep = () => { slot.base = null; };
   w.caches = () => { assert.equal(w.pool.hold, true); assert.equal(slot.base, null); };
@@ -463,11 +463,11 @@ test('rebuildIdle mit laufendem Job: Die Reserve wird erneuert, freie Paare mit 
   w.limits = NEW;
   const old = limitRules.key(OLD);
   w.pool.slots = [
-    { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-8', built: old },
-    { name: 'frei', state: 'bereit', base: 'rc-app-9', built: old },
-    { name: 'frisch', state: 'bereit', base: 'rc-app-7', built: limitRules.key(NEW) }, // trägt schon die neuen Limits: bleibt
-    { name: 'bauend', state: 'startet', building: true }, // baut selbst, mit den neuen Limits: bleibt
-    { name: 'übernimmt', state: 'startet', building: true, built: old }, // übernimmt gerade ein Paar mit alten Limits: geht
+    { name: 'arbeitend', state: 'working', base: 'rc-app-8', built: old },
+    { name: 'frei', state: 'ready', base: 'rc-app-9', built: old },
+    { name: 'frisch', state: 'ready', base: 'rc-app-7', built: limitRules.key(NEW) }, // trägt schon die neuen Limits: bleibt
+    { name: 'bauend', state: 'starting', building: true }, // baut selbst, mit den neuen Limits: bleibt
+    { name: 'übernimmt', state: 'starting', building: true, built: old }, // übernimmt gerade ein Paar mit alten Limits: geht
   ];
   await w.pools.rebuildIdle(w.pool);
   assert.deepEqual(w.calls.slice(2), ['abort frei', 'abort übernimmt', 'remove rc-app-1', 'remove rc-app-2', 'removed rc-app-1', 'removed rc-app-2', 'provision 3', 'provision 4']);
@@ -478,10 +478,10 @@ test('rebuildIdle mit laufendem Job: Die Reserve wird erneuert, freie Paare mit 
 test('rebuildIdle wartet auf `hold` und entscheidet erst danach, ob ein Job läuft', async () => {
   // Beim Aufruf läuft kein Job; während der Pool angehalten ist (ein Cache wird geleert), beginnt einer.
   const started = world();
-  const slot = { name: 'eins', state: 'bereit', base: 'rc-app-9' };
+  const slot = { name: 'eins', state: 'ready', base: 'rc-app-9' };
   started.pool.slots = [slot];
   started.pool.hold = true;
-  started.onSleep = () => { if (started.slept.length === 3) { slot.state = 'arbeitet'; started.pool.hold = false; } };
+  started.onSleep = () => { if (started.slept.length === 3) { slot.state = 'working'; started.pool.hold = false; } };
   await started.pools.rebuildIdle(started.pool);
   assert.deepEqual(started.slept, [500, 500, 500]);
   assert.deepEqual(started.calls, ['provision 1', 'provision 2']); // nicht angehalten, kein neuer Build-Dienst; die Reserve füllt sich
@@ -490,10 +490,10 @@ test('rebuildIdle wartet auf `hold` und entscheidet erst danach, ob ein Job läu
 
   // Umgekehrt: Beim Aufruf läuft ein Job, am Ende des Wartens nicht mehr.
   const ended = world();
-  const busy = { name: 'eins', state: 'arbeitet', base: 'rc-app-9' };
+  const busy = { name: 'eins', state: 'working', base: 'rc-app-9' };
   ended.pool.slots = [busy];
   ended.pool.hold = true;
-  ended.onSleep = () => { if (ended.slept.length === 2) { Object.assign(busy, { state: 'bereit', base: null }); ended.pool.hold = false; } };
+  ended.onSleep = () => { if (ended.slept.length === 2) { Object.assign(busy, { state: 'ready', base: null }); ended.pool.hold = false; } };
   await ended.pools.rebuildIdle(ended.pool);
   assert.deepEqual(ended.slept, [500, 500]);
   assert.deepEqual(ended.calls, ['abort eins', `caches ${REPO}`]);
@@ -522,7 +522,7 @@ function wired() {
     return args.at(-1).endsWith('/generate-jitconfig') ? { runner: { id: 70 + w.ids }, encoded_jit_config: 'geheim' } : null;
   };
   const sleep = async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); };
-  const log = (...entry) => w.logs.push(entry);
+  const log = (...entry) => w.logs.push(rendered(entry));
   w.runners = createRunners({
     docker, dockerList: async () => [], gh, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1234,
@@ -555,8 +555,8 @@ test('echte Plätze: Ein Platz nimmt sein Paar aus der Reserve, und sie füllt s
   assert.equal(w.ids, 1);
 
   w.runners.reconcile(w.pool);
-  await until(() => w.pool.slots[0].state === 'bereit' && w.pool.reserve[0]?.ready);
-  assert.deepEqual(names(w), ['PC-linux-1 bereit']); // das vorbereitete Paar, nicht ein neues
+  await until(() => w.pool.slots[0].state === 'ready' && w.pool.reserve[0]?.ready);
+  assert.deepEqual(names(w), ['PC-linux-1 ready']); // das vorbereitete Paar, nicht ein neues
   assert.equal(w.ids, 2);
   assert.equal(w.pool.reserve.length, 1);
   assert.deepEqual(w.slept, []);
@@ -566,7 +566,7 @@ test('echte Plätze: Ein Platz nimmt sein Paar aus der Reserve, und sie füllt s
   w.pool.slots.forEach((slot) => w.abortIdle(slot));
   w.runners.discardReserve(w.pool);
   w.runners.reconcile(w.pool);
-  await until(() => w.pool.slots[0].state === 'pausiert');
+  await until(() => w.pool.slots[0].state === 'paused');
   assert.deepEqual(w.pool.reserve, []);
   assert.equal(count(w, 'network rm'), 2);
   assert.deepEqual(w.logs, []);
@@ -578,30 +578,30 @@ test('echte Plätze: Überzählige laufen aus; der freie wird abgebrochen, der a
   w.settings.reserve = 0;
   w.settings.parallel = 3;
   w.runners.reconcile(w.pool);
-  await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
+  await until(() => w.pool.slots.every((slot) => slot.state === 'ready'));
   const [first, second, third] = w.pool.slots;
   w.emit.get(second.base)('Running job: Bauen');
-  assert.deepEqual(names(w), ['PC-linux-1 bereit', 'PC-linux-2 arbeitet', 'PC-linux-3 bereit']);
+  assert.deepEqual(names(w), ['PC-linux-1 ready', 'PC-linux-2 working', 'PC-linux-3 ready']);
 
   w.settings.parallel = 1;
   w.runners.reconcile(w.pool);
   assert.deepEqual([first.retired, second.retired, third.retired], [undefined, true, true]);
   await until(() => w.pool.slots.length === 2);
-  assert.deepEqual(names(w), ['PC-linux-1 bereit', 'PC-linux-2 arbeitet, läuft aus']);
-  assert.equal(third.state, 'aus');
+  assert.deepEqual(names(w), ['PC-linux-1 ready', 'PC-linux-2 working, läuft aus']);
+  assert.equal(third.state, 'off');
   assert.equal(count(w, 'rm rc-app-3-runner'), 1);
   assert.equal(count(w, 'rm rc-app-2-runner'), 0);
   assert.equal(count(w, 'gh DELETE'), 1); // nur der freie Runner wird bei GitHub abgemeldet
 
   await settle();
-  assert.equal(second.state, 'arbeitet'); // der Job läuft weiter
+  assert.equal(second.state, 'working'); // der Job läuft weiter
   w.emit.get(second.base)('Job Bauen completed with result: Succeeded');
   w.ends.get('rc-app-2')();
   await until(() => w.pool.slots.length === 1);
-  assert.equal(second.state, 'aus');
+  assert.equal(second.state, 'off');
   assert.equal(second.jobs, 1);
   assert.equal(w.ids, 3); // für den ausgelaufenen Platz entsteht kein neues Paar
-  assert.equal(first.state, 'bereit');
+  assert.equal(first.state, 'ready');
   await w.finish();
 });
 
@@ -610,7 +610,7 @@ test('echte Plätze: Wird erhöht, während Plätze auslaufen, stehen nie mehr a
   w.settings.reserve = 0;
   w.settings.parallel = 3;
   w.runners.reconcile(w.pool);
-  await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
+  await until(() => w.pool.slots.every((slot) => slot.state === 'ready'));
   const [first, second, third] = w.pool.slots;
   w.emit.get(second.base)('Running job: Bauen');
 
@@ -621,14 +621,14 @@ test('echte Plätze: Wird erhöht, während Plätze auslaufen, stehen nie mehr a
   assert.deepEqual(w.pool.slots, [first, second, third]);
   assert.deepEqual(w.pool.slots.map((slot) => Boolean(slot.retired)), [false, false, false]);
 
-  await until(() => third.state === 'bereit' && third.name === 'PC-linux-4'); // der abgebrochene Platz baut neu auf
-  assert.deepEqual(names(w), ['PC-linux-1 bereit', 'PC-linux-2 arbeitet', 'PC-linux-4 bereit']);
+  await until(() => third.state === 'ready' && third.name === 'PC-linux-4'); // der abgebrochene Platz baut neu auf
+  assert.deepEqual(names(w), ['PC-linux-1 ready', 'PC-linux-2 working', 'PC-linux-4 ready']);
   assert.equal(w.ids, 4);
 
   // Der Platz, der auslaufen sollte, bedient nach seinem Job den nächsten.
   w.emit.get(second.base)('Job Bauen completed with result: Succeeded');
   w.ends.get('rc-app-2')();
-  await until(() => second.state === 'bereit' && second.name === 'PC-linux-5');
+  await until(() => second.state === 'ready' && second.name === 'PC-linux-5');
   assert.equal(w.pool.slots.length, 3);
   await w.finish();
 });
@@ -637,25 +637,25 @@ test('echte Plätze: withPoolAtRest wartet das Ende eines laufenden Jobs ab und 
   const w = wired();
   w.settings.reserve = 0;
   w.runners.reconcile(w.pool);
-  await until(() => w.pool.slots.every((slot) => slot.state === 'bereit'));
+  await until(() => w.pool.slots.every((slot) => slot.state === 'ready'));
   const [busy, idle] = w.pool.slots;
   w.emit.get(busy.base)('Running job: Bauen');
 
   let state = null;
   const rest = w.runners.withPoolAtRest(w.pool, async () => { state = names(w); return w.ids; });
-  await until(() => idle.state === 'wartet');
+  await until(() => idle.state === 'waiting');
   await settle();
   assert.equal(state, null); // solange der Job läuft, beginnt die Arbeit nicht
-  assert.equal(busy.state, 'arbeitet');
+  assert.equal(busy.state, 'working');
   assert.equal(w.pool.hold, true);
 
   w.emit.get(busy.base)('Job Bauen completed with result: Succeeded');
   w.ends.get(busy.base)();
   assert.equal(await rest, 2);
-  assert.deepEqual(state, ['PC-linux-1 wartet', 'PC-linux-2 wartet']);
+  assert.deepEqual(state, ['PC-linux-1 waiting', 'PC-linux-2 waiting']);
   assert.equal(w.pool.hold, false);
 
-  await until(() => w.pool.slots.every((slot) => slot.state === 'bereit')); // danach bauen die Plätze wieder auf
+  await until(() => w.pool.slots.every((slot) => slot.state === 'ready')); // danach bauen die Plätze wieder auf
   assert.equal(w.ids, 4);
   await w.finish();
 });
@@ -666,7 +666,7 @@ test('echte Plätze: withPoolAtRest wartet das Ende eines laufenden Jobs ab und 
 function starter({ ready = true, failCaches = null } = {}) {
   const s = { calls: [], logs: [], pools: new Map(), ready };
   s.api = createPools({
-    log: (...entry) => s.logs.push(entry), sleep: turn, pools: s.pools,
+    log: (...entry) => s.logs.push(rendered(entry)), sleep: turn, pools: s.pools,
     settingsOf: (repo) => ({ repo, parallel: 2, cache: true, paused: false }), limitsOf: () => OLD,
     stopping: () => false, dockerReady: () => s.ready, vetted: () => true,
     provision: async () => null, removePair: async () => {}, slotLoop: (pool, slot) => s.calls.push(`loop ${pool.repo} ${pool.slots.indexOf(slot) + 1}`), abortIdle: async () => {},
@@ -755,8 +755,8 @@ test('beim Beenden: Reserve und Paare werden abgebaut, auch eines im Aufbau wird
   const w = world();
   w.pools.replenish(w.pool);
   w.builds[0].finish();
-  const working = { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-9' };
-  const building = { name: 'bauend', state: 'startet', building: true };
+  const working = { name: 'arbeitend', state: 'working', base: 'rc-app-9' };
+  const building = { name: 'bauend', state: 'starting', building: true };
   w.pool.slots = [working, building];
   w.onSleep = () => { building.building = false; working.base = null; };
   const done = w.pools.dismantle(30000);
@@ -771,7 +771,7 @@ test('beim Beenden: Reserve und Paare werden abgebaut, auch eines im Aufbau wird
 
   // Ohne Ende wartet es nicht länger als erlaubt.
   const stuck = world();
-  stuck.pool.slots = [{ name: 'hängt', state: 'startet', building: true }];
+  stuck.pool.slots = [{ name: 'hängt', state: 'starting', building: true }];
   await stuck.pools.dismantle(0);
   assert.deepEqual(stuck.slept, []);
 });
@@ -791,9 +791,9 @@ test('remaining zählt, was beim Beenden noch steht, und nennt den Job, der dabe
   const w = world();
   w.pools.replenish(w.pool); // zwei Aufbauten für die Reserve
   w.pool.slots = [
-    { name: 'arbeitend', state: 'arbeitet', base: 'rc-app-9', job: 'Integrationstests' },
-    { name: 'bauend', state: 'startet', building: true },
-    { name: 'leer', state: 'aus' },
+    { name: 'arbeitend', state: 'working', base: 'rc-app-9', job: 'Integrationstests' },
+    { name: 'bauend', state: 'starting', building: true },
+    { name: 'leer', state: 'off' },
   ];
   assert.deepEqual(w.pools.remaining(w.pool), { pairs: 4, job: 'Integrationstests' });
   w.pools.discardReserve(w.pool); // die Reserve wandert nach `leaving` und zählt dort weiter

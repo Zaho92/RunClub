@@ -1,16 +1,17 @@
-// Protokoll: Jede Meldung ist ein Eintrag `{ at, repo, text, kind }`, zu einem Job dazu `job` und `runner`. Die letzten bleiben für die Oberfläche im
+// Protokoll: Jede Meldung ist ein Eintrag `{ at, repo, text, kind, msg }`. Die letzten bleiben für die Oberfläche im
 // Speicher, alle stehen als lesbare Zeile in der Datei im Datenordner. Daneben liegen die letzten Einträge als JSON
 // (`<Datei>.entries`, eine Zeile je Eintrag): Daraus füllt sich der Speicher beim nächsten Start wieder.
 //
 //   at     Zeitpunkt (ISO)
 //   repo   das Projekt, zu dem die Meldung gehört, oder null
-//   text   die Meldung ohne Zeit und Projekt
+//   text   die Meldung ohne Zeit und Projekt, deutsch, für die Datei
 //   kind   info | error | run | done | fail | cancel   (die letzten vier: Beginn und Ergebnis eines Jobs)
-//   job    bei Meldungen zu einem Job sein Name, bei `run` dazu `runner`: Daraus bildet die Oberfläche den Satz in
-//          ihrer Sprache; `text` ist derselbe Satz deutsch, für die Datei.
+//   msg    dieselbe Meldung als Schlüssel mit Werten (siehe messages.js): Daraus bildet die Oberfläche den Satz in
+//          ihrer Sprache. Fehlt bei Meldungen, die nur Text von außen sind, und bei Einträgen älterer Versionen.
 
 const fs = require('node:fs');
 const { MB } = require('./units');
+const { msg, isMsg, render, reason, sanitize } = require('./messages');
 
 const KEEP = 300; // Einträge im Speicher
 const FILE_MAX = 2 * MB; // darüber beginnt eine neue Datei; die alte bleibt als `.1` liegen
@@ -19,9 +20,9 @@ const KINDS = ['info', 'error', 'run', 'done', 'fail', 'cancel'];
 
 // Das Ergebnis, wie der Runner es meldet (Succeeded, Failed, Canceled), als Art des Eintrags.
 const resultKind = (result) => ({ succeeded: 'done', failed: 'fail', canceled: 'cancel', cancelled: 'cancel' })[String(result).toLowerCase()] ?? 'info';
-// Dasselbe als deutsches Wort für den Satz in der Datei; ein unbekanntes Ergebnis bleibt, wie der Runner es nennt.
-// Die Oberfläche bildet ihr Wort selbst aus der Art (`s_done`, `s_fail`, `s_cancel` in ui.html).
-const resultText = (result) => ({ done: 'fertig', fail: 'Fehler', cancel: 'abgebrochen' })[resultKind(result)] ?? String(result);
+// Dasselbe als Wort für die Meldung; ein unbekanntes Ergebnis bleibt, wie der Runner es nennt.
+const RESULT_WORDS = { done: 'm_resDone', fail: 'm_resFail', cancel: 'm_resCancel' };
+const resultText = (result) => (RESULT_WORDS[resultKind(result)] ? msg(RESULT_WORDS[resultKind(result)]) : String(result));
 
 // Namen und Fehlertexte von außen können Umbrüche, Steuerzeichen und Richtungswechsel tragen. Im Protokoll würden sie
 // Zeilen teilen, ein Terminal steuern oder die Anzeige umdrehen: Sie werden zu Leerzeichen.
@@ -36,10 +37,10 @@ function clean(text) {
 
 // Ein Eintrag aus rohen Angaben: Die Art stammt aus der festen Liste, alle Texte sind bereinigt. Das gilt für neue
 // Meldungen wie für die aus der Datei, denn die kann von außen verändert sein.
-function shape({ at, repo, text, kind, job, runner }) {
+function shape({ at, repo, text, kind, msg: message }) {
   const entry = { at, repo: repo ? clean(repo) || null : null, text: clean(text), kind: KINDS.includes(kind) ? kind : 'info' };
-  if (job) entry.job = clean(job);
-  if (job && runner) entry.runner = clean(runner);
+  const safe = sanitize(message, clean);
+  if (safe) entry.msg = safe;
   return entry;
 }
 
@@ -117,8 +118,9 @@ function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = Date.now, 
     if (rowCount >= keep * 2) compact();
   }
 
-  function add(text, { repo = null, kind = 'info', job, runner } = {}) {
-    const entry = shape({ at: new Date(now()).toISOString(), repo, text, kind, job, runner });
+  // `message`: eine Meldung (siehe messages.js) oder ein Text von außen.
+  function add(message, { repo = null, kind = 'info' } = {}) {
+    const entry = shape({ at: new Date(now()).toISOString(), repo, text: render(message), kind, msg: isMsg(message) ? message : null });
     entries.push(entry);
     if (entries.length > keep) entries.shift();
     count += 1;
@@ -138,7 +140,7 @@ function createJournal({ file, keep = KEEP, fileMax = FILE_MAX, now = Date.now, 
 }
 
 // Für `.catch(…)`: `errorLog(log)(repo, what)` schreibt einen Fehler zum Projekt ins Protokoll, auf Wunsch mit dem,
-// was gerade versucht wurde. `log(text, repo, kind)` wie in `start` (backend.js).
-const errorLog = (log) => (repo, what) => (error) => log(what ? `${what} – ${error.message}` : error.message, repo, 'error');
+// was gerade versucht wurde (eine Meldung oder ein Name). `log(message, repo, kind)` wie in `start` (backend.js).
+const errorLog = (log) => (repo, what) => (error) => log(what ? msg('m_withReason', what, reason(error)) : reason(error), repo, 'error');
 
 module.exports = { createJournal, resultKind, resultText, line, errorLog };

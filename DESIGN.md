@@ -518,7 +518,8 @@ Text einer Fehlerzeile bleibt in `text`; das rote Symbol trägt den Zustand, den
 nichts mehr. Darüber links der Filter als Segmentschalter (Alle, je Projekt, Allgemein; nur bei mehr als einem
 Projekt), rechts „Kopieren“ und „Speichern“, die beide die ganze Datei nehmen. Auf ein Projekt gefiltert entfällt die
 Projektspalte, und die allgemeinen Fehler bleiben dabei, weil dort oft die Ursache steht; sie tragen dann „Allgemein“ in
-`muted` vor dem Text. Meldungen zu einem Job bildet die Oberfläche in ihrer Sprache. Eingeklappt acht Zeilen;
+`muted` vor dem Text. Die Meldungen bildet die Oberfläche aus Schlüssel und Werten in ihrer Sprache (`src/messages.js`); nur Texte von
+außen (Docker, GitHub) und Einträge älterer Versionen stehen, wie sie kamen. Eingeklappt acht Zeilen;
 aufgeklappt rollt die Liste in sich (höchstens 496 px), damit „Weniger zeigen“ erreichbar bleibt.
 
 ### Tooltip und Meldung

@@ -13,6 +13,7 @@ const { orphaned } = require('./pairs');
 const { unregisterRunner, PAGE_MAX } = require('./github');
 const { PROBE_TIMEOUT } = require('./dind');
 const { runnerPrefix } = require('./names');
+const { msg, Fault, render, reason } = require('./messages');
 
 const MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
 const READY_PAUSE = 30 * SECOND; // Abstand der Prüfungen, solange Docker antwortet
@@ -25,10 +26,10 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   host, mark              Name des Rechners (Anfang der Runner-Namen) und Kennzeichen der eigenen Container
 //   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze (siehe caches.js)
 //   builds                  die selbst gebauten Abbilder: [{ image, dir, args, what }] (Name, Ordner mit Dockerfile,
-//                           weitere Argumente für `docker build`, Bezeichnung für Meldungen); das erste ist das Runner-Abbild
+//                           weitere Argumente für `docker build`, Bezeichnung für Meldungen als Schlüssel); das erste ist das Runner-Abbild
 //   requiredImages          Abbilder, die geladen sein müssen (heute nur der Build-Dienst)
 //   longTimeout             Zeitgrenze für Bauen und Laden
-//   unreachableText         die Meldung, wenn Docker nicht antwortet (aus engine.js)
+//   unreachable             die Meldung, wenn Docker nicht antwortet (aus engine.js)
 //   exposure()              Warnung, wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise, aus engine.js)
 //   buildService(repo), buildNetwork(repo)   Namen des Build-Dienstes und seines Netzes (siehe names.js)
 //   livePairs               Name des Paars -> Repo (aus slots.js)
@@ -39,7 +40,7 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createDockerWatch({
   docker, dockerList, gh, log, sleep,
-  host, mark, serviceMark, builds, requiredImages, longTimeout, unreachableText, exposure = async () => null,
+  host, mark, serviceMark, builds, requiredImages, longTimeout, unreachable, exposure = async () => null,
   buildService, buildNetwork,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
@@ -56,9 +57,9 @@ function createDockerWatch({
     for (const { image, dir, args = [], what } of builds) {
       const build = await docker(['build', '--pull', '-q', ...args, '-t', image, dir], { timeout: longTimeout });
       if (build.code === 0) continue;
-      const reason = lastLine(build.stderr);
-      if ((await docker(['image', 'inspect', '--format', 'ok', image])).code !== 0) throw new Error(`${what} ließ sich nicht bauen: ${reason}`);
-      log(`${what} ließ sich nicht neu bauen (${reason}); die Runner nutzen das vorhandene.`, null, 'error');
+      const said = lastLine(build.stderr);
+      if ((await docker(['image', 'inspect', '--format', 'ok', image])).code !== 0) throw new Fault('m_buildFailed', msg(what), said);
+      log(msg('m_rebuildFailed', msg(what), said), null, 'error');
     }
   }
 
@@ -66,16 +67,16 @@ function createDockerWatch({
   // Paare starten von selbst mit dem neuen Abbild; laufende Jobs berührt das nicht.
   async function refreshImage() {
     if (stopping() || !dockerReady) return;
-    log('Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …');
+    log(msg('m_imagesDaily'));
     await buildImages();
   }
 
   async function prepareDocker() {
     const info = await docker(['info', '--format', '{{.NCPU}} {{.MemTotal}}'], { timeout: PROBE_TIMEOUT });
-    if (info.code !== 0) throw new Error(unreachableText);
+    if (info.code !== 0) throw Fault.of(unreachable);
     dockerCpus = Number(info.stdout.trim().split(' ')[0]) || 1;
     dockerMemory = Number(info.stdout.trim().split(' ')[1]) || 0;
-    log('Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …');
+    log(msg('m_imagesBuild'));
     await buildImages();
     for (const name of requiredImages) await docker(['pull', '-q', name], { timeout: longTimeout });
     // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
@@ -98,7 +99,7 @@ function createDockerWatch({
     const volumes = orphaned(await dockerList(['volume', 'ls', '-q', '--filter', `label=${mark}`]), live);
     if (volumes.length) await docker(['volume', 'rm', '-f', ...volumes]);
     for (const network of orphaned(await dockerList(['network', 'ls', '--filter', `label=${mark}`, '--format', '{{.Name}}']), live)) await removeNetwork(network);
-    if (containers.length || volumes.length) log(`Reste nach der Unterbrechung entfernt: ${containers.length} Container, ${volumes.length} Volumes`);
+    if (containers.length || volumes.length) log(msg('m_orphansRemoved', containers.length, volumes.length));
   }
 
   // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, Build-Dienste (sie enden mit dem Programm; was noch
@@ -134,8 +135,8 @@ function createDockerWatch({
       const kept = keep();
       const stale = runners.filter((runner) => runner.name.startsWith(runnerPrefix(host)) && !runner.busy && !kept.has(runner.name) && (!offline || runner.status === 'offline'));
       for (const runner of stale) await unregisterRunner(gh, repo, runner.id);
-      if (offline && stale.length) log(`${stale.length} verwaiste Runner bei GitHub abgemeldet`, repo);
-    } catch (error) { log(`Abmelden alter Runner – ${error.message}`, repo, 'error'); }
+      if (offline && stale.length) log(msg('m_staleRunners', stale.length), repo);
+    } catch (error) { log(msg('m_withReason', msg('m_whatOldRunners'), reason(error)), repo, 'error'); }
   }
 
   // Geprüft wird, sobald Docker (wieder) vorbereitet ist: Der Schalter in Docker Desktop kann inzwischen umgelegt sein.
@@ -159,8 +160,8 @@ function createDockerWatch({
           warnIfExposed();
           for (const pool of pools()) await preparePool(pool);
         } catch (error) {
-          if (dockerError !== error.message) log(error.message, null, 'error');
-          dockerError = error.message;
+          if (render(dockerError ?? '') !== error.message) log(reason(error), null, 'error');
+          dockerError = reason(error);
         }
       } else if ((await docker(['info', '--format', 'ok'], { timeout: PROBE_TIMEOUT })).code !== 0) {
         // Eine einzelne ausbleibende Antwort (volle VM, kurzer Hänger) heißt nicht, dass Docker weg ist:
@@ -168,7 +169,7 @@ function createDockerWatch({
         misses += 1;
         if (misses >= MISSES) {
           dockerReady = false;
-          log('Docker antwortet nicht mehr – die Linux-Runner warten.', null, 'error');
+          log(msg('m_dockerGone'), null, 'error');
         }
         await sleep(MISS_PAUSE);
         continue;

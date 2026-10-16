@@ -7,6 +7,7 @@ const { GH_ENV } = require('../src/github');
 const CODE = 'AB12-CD34';
 const DEVICE = 'https://github.com/login/device';
 const { MINUTE } = require('../src/units');
+const { render } = require('../src/messages');
 // Was `gh auth status --active --hostname github.com --json hosts` schreibt (so von gh 2.96.0 abgelesen).
 const hosts = (scopes, extra) => JSON.stringify({ hosts: { 'github.com': [{ state: 'success', active: true, host: 'github.com', login: 'Zaho92', tokenSource: 'keyring', scopes, gitProtocol: 'https', ...extra }] } });
 const SIGNED_IN = hosts('gist, project, read:org, repo, workflow');
@@ -31,7 +32,7 @@ function fake(status = SIGNED_IN) {
       world.flows.push({ say: (line) => options.onErrLine(line), end: (result) => resolve({ code: 0, stdout: '', stderr: '', timedOut: false, ...result }) });
     });
   };
-  const auth = createAuth({ run, log: (text) => logs.push(text), onAccount: () => { world.successes += 1; }, now: () => world.now, startWait: 40 });
+  const auth = createAuth({ run, log: (text) => logs.push(render(text)), onAccount: () => { world.successes += 1; }, now: () => world.now, startWait: 40 });
   // Die beiden Zeilen, die `gh` schreibt, bevor es auf die Bestätigung im Browser wartet.
   const prompt = (flow = world.flows.at(-1)) => { flow.say(`! First copy your one-time code: ${CODE}`); flow.say(`Open this URL to continue in your web browser: ${DEVICE}`); };
   const flowCalls = () => calls.filter((call) => call.args[1] !== 'status');
@@ -418,7 +419,7 @@ function program(script, options = {}) {
     return realRun(process.execPath, ['-e', script], given);
   };
   const logs = [];
-  return { state, logs, auth: createAuth({ run, log: (text) => logs.push(text), ...options }) };
+  return { state, logs, auth: createAuth({ run, log: (text) => logs.push(render(text)), ...options }) };
 }
 
 test('mit einem echten Programm: der Code kommt an, während es wartet, und sein Ende meldet an', async () => {

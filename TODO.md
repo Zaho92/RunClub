@@ -44,7 +44,10 @@ Schritte, in dieser Reihenfolge:
    Standardprofil neu erzeugen und erproben. `SECURITY.md` (englisch) gegen den Code geprüft. Review dazu siehe
    „Zwischendurch, regelmäßig“.
 3. **Verständlich für Fremde.** Reihenfolge (entschieden vom Nutzer am 16.10.2026), jeder Punkt ein eigenes Stück:
-   1. Backend-Meldungen als Schlüssel (siehe „Kleinere Punkte“).
+   1. Backend-Meldungen als Schlüssel – erledigt 16.10.2026: `src/messages.js` (Schlüssel `m_…` mit Werten, deutscher
+      Satz für Datei und `error.message`), Protokoll, Fehlerantworten und Zustände der Plätze (`st_…`) übersetzt die
+      Oberfläche; ein Test hält Backend und Tabellen gleich. Dazu folgen Oberfläche und Menü im Infobereich ohne
+      eigene Wahl der Sprache des Systems. Die Protokolldatei `runclub.log` bleibt deutsch.
    2. Prüfung beim ersten Start: Docker Desktop installiert und gestartet, WSL.
    3. Eigene **GitHub-App** „RunClub“ statt der Anmeldung von `gh`, und **`gh` fällt als Voraussetzung ganz weg**
       (entschieden vom Nutzer am 16.10.2026). Warum GitHub-App statt OAuth-App: Eine OAuth-App braucht `repo`, also
@@ -373,9 +376,6 @@ Bewusst so gelassen:
 
 ## Kleinere Punkte
 
-- **Meldungen des Backends sind nur deutsch** (Protokoll, Fehlermeldungen, Zustände der Runner). Die Oberfläche übersetzt
-  nur die Runner-Zustände nach. Für eine Veröffentlichung müsste das Backend Schlüssel statt Sätze liefern. Das
-  Protokoll liefert schon Einträge mit Zeit, Projekt und Art getrennt (`src/journal.js`); nur `text` ist noch ein Satz.
 - **Übergangscode aus der Zeit vor den Daemons ohne Rechte.** Kann entfallen, sobald jede Installation einmal mit
   dem Stand vom 15.10.2026 gestartet ist (heute nur dieser Rechner, also nach dem nächsten Neustart der App):
   `removeLeftovers` in `src/dockerwatch.js` entfernt Build-Dienst und Netz eines Repos auch beim Namen (ältere

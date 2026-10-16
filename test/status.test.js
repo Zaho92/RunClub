@@ -8,18 +8,19 @@ const REPO = 'wer/App';
 const stats = { 'rc-app-1-runner': { cpu: 1, memory: 100 }, 'rc-app-1-dind': { cpu: 0.5, memory: 50 } };
 const view = (slot, jobs = []) => runnerView({ slot, index: 1, repo: REPO, jobs, statsOf: (name) => stats[name], cpus: 6 });
 
-test('ein Platz mit Paar: Name, Verbrauch von Runner und Daemon zusammen, Notiz', () => {
-  const runner = view({ base: 'rc-app-1', name: 'PC-linux-1', state: SLOT.READY, jobs: 2, lastResult: 'Bauen: Succeeded' });
+test('ein Platz mit Paar: Name, Nummer, Verbrauch von Runner und Daemon zusammen, Jobs und letztes Ergebnis', () => {
+  const lastResult = { job: 'Bauen', result: 'Succeeded' };
+  const runner = view({ base: 'rc-app-1', name: 'PC-linux-1', state: SLOT.READY, jobs: 2, lastResult });
   assert.deepEqual(runner, {
-    kind: 'Linux', name: 'PC-linux-1', state: SLOT.READY, retiring: false, job: null,
-    cpu: 25, cores: 1.5, memory: 150, cpuBase: '6 Kerne der Docker-VM',
-    note: 'Platz 2 · 2 Jobs seit dem Start · zuletzt Bauen: Succeeded',
+    kind: 'Linux', name: 'PC-linux-1', seat: 2, state: SLOT.READY, retiring: false, job: null,
+    cpu: 25, cores: 1.5, memory: 150, jobs: 2, lastResult, error: null,
   });
 });
 
-test('ohne Paar heißt der Platz nach seiner Nummer und verbraucht nichts; ein Fehler steht in der Notiz', () => {
-  const runner = view({ base: null, state: SLOT.BROKEN, jobs: 1, error: 'kaputt' });
-  assert.deepEqual([runner.name, runner.cores, runner.memory, runner.note], ['Platz 2', 0, 0, 'Platz 2 · 1 Job seit dem Start · Fehler: kaputt']);
+test('ohne Paar hat der Platz keinen Namen, nur seine Nummer, und verbraucht nichts; der Fehler bleibt eine Meldung', () => {
+  const error = { key: 'm_daemonFailed', args: ['kaputt'] };
+  const runner = view({ base: null, state: SLOT.BROKEN, jobs: 1, error });
+  assert.deepEqual([runner.name, runner.seat, runner.cores, runner.memory, runner.error], [null, 2, 0, 0, error]);
 });
 
 test('ein auslaufender Platz behält seinen Zustand und ist als auslaufend markiert, außer er ist schon aus', () => {

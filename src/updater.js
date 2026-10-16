@@ -16,6 +16,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { readJson, writeJson } = require('./store');
+const { msg, render, Fault, reason } = require('./messages');
 
 const FILE = 'update.json';
 const CHANNELS = ['stable', 'beta'];
@@ -32,8 +33,9 @@ const PHASE = { DEV: 'dev', IDLE: 'idle', CHECKING: 'checking', CURRENT: 'curren
 //   broken    der Installer ist beschädigt (Prüfsumme)
 //   missing   zum Release fehlt der Installer oder seine Angabe
 //   other     alles andere (Platte voll, Abbruch mitten im Laden); Einzelheiten im Protokoll
+// `message` ist eine Meldung (siehe messages.js).
 class UpdateError extends Error {
-  constructor(code, message, status = null) { super(message); this.code = code; this.status = status; }
+  constructor(code, message, status = null) { super(render(message)); this.msg = message; this.code = code; this.status = status; }
 }
 
 // Zerlegt „1.2.3-beta.4“ (auch mit „v“ davor); null, wenn es keine Version ist.
@@ -116,7 +118,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     for (let hop = 0; hop <= REDIRECTS; hop += 1) {
       const headers = { accept, 'user-agent': 'RunClub', 'x-github-api-version': '2022-11-28' };
       if (secret) headers.authorization = `Bearer ${secret}`;
-      const response = await fetch(target, { headers, redirect: 'manual' }).catch((failure) => { throw new UpdateError('network', `GitHub ist nicht erreichbar: ${failure?.cause?.code ?? failure?.message ?? failure}`); });
+      const response = await fetch(target, { headers, redirect: 'manual' }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', String(failure?.cause?.code ?? failure?.message ?? failure))); });
       if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
         const next = new URL(response.headers.get('location'), target);
         if (next.origin !== new URL(target).origin) secret = null;
@@ -124,11 +126,11 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
         continue;
       }
       const where = new URL(url).pathname;
-      if (response.status === 401 || response.status === 404) throw new UpdateError('private', `GitHub gibt ${where} nicht heraus (${response.status}).`, response.status);
-      if (!response.ok) throw new UpdateError('http', `GitHub antwortet mit ${response.status} auf ${where}.`, response.status);
+      if (response.status === 401 || response.status === 404) throw new UpdateError('private', msg('m_updatePrivate', where, String(response.status)), response.status);
+      if (!response.ok) throw new UpdateError('http', msg('m_updateHttp', String(response.status), where), response.status);
       return response;
     }
-    throw new UpdateError('http', 'Zu viele Weiterleitungen beim Laden des Updates.');
+    throw new UpdateError('http', msg('m_updateRedirects'));
   }
 
   const asset = (release, name) => (release.assets ?? []).find((item) => item.name === name);
@@ -146,7 +148,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     } catch (failure) { out.destroy(); fs.rmSync(draft, { force: true }); throw failure; }
     if (hash.digest('base64') !== info.sha512) {
       fs.rmSync(draft, { force: true });
-      throw new UpdateError('broken', `Der Installer für ${info.version} ist beschädigt (Prüfsumme stimmt nicht).`);
+      throw new UpdateError('broken', msg('m_updateBroken', info.version));
     }
     fs.renameSync(draft, target);
   }
@@ -169,11 +171,11 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
       available = found.version;
       if (ready?.version === found.version && fs.existsSync(ready.file)) { phase = PHASE.READY; return; }
       const yml = (found.release.assets ?? []).find((item) => CHANNEL_FILE.test(item.name));
-      if (!yml) throw new UpdateError('missing', `Zu ${found.version} fehlt die Angabe des Installers (latest.yml).`);
+      if (!yml) throw new UpdateError('missing', msg('m_updateNoYml', found.version));
       const info = parseUpdateInfo(await (await loadAsset(yml)).text());
-      if (!info) throw new UpdateError('missing', `Die Angabe des Installers zu ${found.version} ist unvollständig.`);
+      if (!info) throw new UpdateError('missing', msg('m_updateYmlIncomplete', found.version));
       const installer = asset(found.release, info.path);
-      if (!installer || !/\.exe$/i.test(info.path)) throw new UpdateError('missing', `Zu ${found.version} fehlt der Installer ${info.path}.`);
+      if (!installer || !/\.exe$/i.test(info.path)) throw new UpdateError('missing', msg('m_updateNoInstaller', found.version, info.path));
       phase = PHASE.DOWNLOADING;
       fs.mkdirSync(folder, { recursive: true });
       const target = path.join(folder, path.basename(info.path));
@@ -182,13 +184,13 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
       await download(installer, info, target);
       ready = { version: found.version, file: target };
       phase = PHASE.READY;
-      log(`RunClub ${found.version} ist geladen und kann eingespielt werden.`);
+      log(msg('m_updateReady', found.version));
     } catch (failure) {
       checkedAt = now();
-      const message = `Update: ${failure?.message ?? failure}`;
+      const message = msg('m_withReason', 'Update', reason(failure));
       // Derselbe Fehler bei jeder Prüfung steht nur einmal im Protokoll.
-      if (message !== lastLogged) log(message);
-      lastLogged = message;
+      if (render(message) !== lastLogged) log(message);
+      lastLogged = render(message);
       error = failure instanceof UpdateError ? { code: failure.code, status: failure.status } : { code: 'other', status: null };
       phase = ready ? PHASE.READY : PHASE.ERROR;
     }
@@ -203,7 +205,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
 
   // Wechselt den Kanal. Ein geladenes Update, das im neuen Kanal nicht gilt (eine Beta im Kanal „stable“), verfällt.
   function setChannel(next) {
-    if (!CHANNELS.includes(next)) throw new Error(`Unbekannter Kanal: ${next}`);
+    if (!CHANNELS.includes(next)) throw new Fault('m_unknownChannel', String(next));
     channel = next;
     writeJson(file, { channel });
     if (channel === 'stable' && ready && isPrerelease(ready.version)) { ready = null; available = null; prune(null); phase = packaged ? PHASE.IDLE : PHASE.DEV; }

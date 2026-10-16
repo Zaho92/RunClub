@@ -8,7 +8,7 @@ const { createSettings, PARALLEL_MAX } = require('../src/settings');
 const limitRules = require('../src/limits');
 const { GB } = require('../src/units');
 const { errorLog } = require('../src/journal');
-const { turn, until } = require('./support');
+const { turn, until, rendered } = require('./support');
 
 const REPO = 'wer/App';
 
@@ -47,8 +47,8 @@ function world({ pools: repos = [REPO] } = {}) {
     dockerWatch: { ready: () => w.ready, removeRegistrations: call('removeRegistrations') },
     limitRange: () => limitRules.bounds({ dockerMemory: 16 * GB, dockerCpus: 8 }),
     limitPlan: () => w.plan,
-    log: (...entry) => w.logs.push(entry),
-    logError: errorLog((...entry) => w.logs.push(entry)),
+    log: (...entry) => w.logs.push(rendered(entry)),
+    logError: errorLog((...entry) => w.logs.push(rendered(entry))),
     shutdown: () => w.calls.push('shutdown'),
     timer: (work, ms) => w.timers.push({ work, ms }),
   });

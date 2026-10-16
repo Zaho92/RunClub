@@ -12,9 +12,13 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pageHeaders, newNonce, same } = require('./access');
+const { msg, isMsg, render, Fault, reason } = require('./messages');
 
 const BODY_MAX = 10000; // Zeichen; kein Aufruf der Oberfläche braucht mehr
 const FONT = /^\/fonts\/([a-z0-9-]+\.woff2)$/;
+// Eine Antwort mit Fehler: der deutsche Satz in `error`, dazu die Meldung als Schlüssel (`msg`, siehe messages.js),
+// damit die Oberfläche sie in ihrer Sprache zeigt. Ein Text von außen kommt ohne `msg`.
+const failure = (message) => (isMsg(message) ? { error: render(message), msg: message } : { error: String(message) });
 
 // Liest das JSON-Objekt einer Anfrage. Wirft mit einer Meldung für die Oberfläche, wenn es keines ist oder zu groß.
 function readBody(request) {
@@ -22,17 +26,17 @@ function readBody(request) {
     let body = '';
     // Bricht die Verbindung mitten im Aufruf ab, endet das Warten trotzdem.
     request.on('error', reject);
-    request.on('close', () => { if (!request.complete) reject(new Error('Der Aufruf kam nicht vollständig an.')); });
+    request.on('close', () => { if (!request.complete) reject(new Fault('m_bodyIncomplete')); });
     request.on('data', (chunk) => {
       body += chunk;
-      if (body.length > BODY_MAX) { reject(new Error('Der Aufruf ist zu groß.')); request.destroy(); }
+      if (body.length > BODY_MAX) { reject(new Fault('m_bodyTooLarge')); request.destroy(); }
     });
     request.on('end', () => {
       try {
         const data = body ? JSON.parse(body) : {};
         if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('kein Objekt');
         resolve(data);
-      } catch { reject(new Error('Der Aufruf ist kein gültiges JSON-Objekt.')); }
+      } catch { reject(new Fault('m_bodyNotJson')); }
     });
   });
 }
@@ -49,7 +53,7 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
     const json = (code, data) => { response.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data)); };
     const get = (url) => request.method === 'GET' && request.url === url;
     // Nur der eigene Rechner unter seinem eigenen Namen: hält umgeleitete Namen fremder Seiten draußen.
-    if (!access.hostAllowed(request.headers)) return json(403, { error: 'falscher Host' });
+    if (!access.hostAllowed(request.headers)) return json(403, failure(msg('m_wrongHost')));
     if (get('/api/ping')) return json(200, { ok: true });
     const font = request.method === 'GET' && request.url.match(FONT);
     if (font && fs.existsSync(path.join(fontsDir, font[1]))) {
@@ -61,7 +65,7 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
       response.writeHead(302, { location: '/', 'set-cookie': access.cookie, 'cache-control': 'no-store' });
       return response.end();
     }
-    if (!access.allowed(request.headers)) return json(403, { error: 'Kein Zugriff. RunClub über das Symbol im Infobereich öffnen.' });
+    if (!access.allowed(request.headers)) return json(403, failure(msg('m_noAccess')));
     if (get('/')) {
       const nonce = newNonce();
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...pageHeaders(nonce) });
@@ -76,17 +80,17 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
       return response.end(routes.logFile());
     }
     if (get('/api/repos')) {
-      try { return json(200, await routes.repos()); } catch (error) { return json(502, { error: error.message }); }
+      try { return json(200, await routes.repos()); } catch (error) { return json(502, failure(reason(error))); }
     }
     if (request.method === 'POST' && request.url.startsWith('/api/')) {
       const name = request.url.slice('/api/'.length);
       const known = actions();
       const action = Object.hasOwn(known, name) ? known[name] : null;
-      if (!action) return json(404, { error: 'unbekannt' });
-      if (!same(request.headers['x-rc-token'], token)) return json(403, { error: 'Die Seite ist veraltet – bitte neu laden.' });
-      try { await action(await readBody(request)); return json(200, { ok: true }); } catch (error) { return json(400, { error: error.message }); }
+      if (!action) return json(404, failure(msg('m_unknownCall')));
+      if (!same(request.headers['x-rc-token'], token)) return json(403, failure(msg('m_pageStale')));
+      try { await action(await readBody(request)); return json(200, { ok: true }); } catch (error) { return json(400, failure(reason(error))); }
     }
-    return json(404, { error: 'unbekannt' });
+    return json(404, failure(msg('m_unknownCall')));
   });
 }
 

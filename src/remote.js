@@ -12,6 +12,7 @@ const { noteWorkflows } = require('./slots');
 const { SLOT } = require('./states');
 const { forkExposure } = require('./forks');
 const { BLOCKS } = require('./blocks');
+const { msg, Fault, reason } = require('./messages');
 
 const RUNS_PER_REPO = 20;
 const REPO_LIST_MAX_AGE = 5 * MINUTE; // so lange gilt die Liste der Repos des Kontos
@@ -64,7 +65,7 @@ function createRemote({
         .filter((job) => job.status === 'completed' && job.own && job.runner).map((job) => ({ runner: job.runner, conclusion: job.conclusion }));
       if (done.length) confirmResults(repo, done);
     } catch (error) {
-      states.set(repo, { ...(states.get(repo) ?? { jobs: [], runs: [] }), error: error.message });
+      states.set(repo, { ...(states.get(repo) ?? { jobs: [], runs: [] }), error: reason(error) });
     } finally {
       busy.delete(repo);
       if (again.delete(repo) && !stopping()) refreshRepo(repo);
@@ -89,14 +90,15 @@ function createRemote({
   async function checkQuota() {
     const changed = await githubApi.refreshQuota();
     if (!changed) return;
-    if (changed.paused) log(`GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis ${changed.until} wird nicht mehr abgefragt.`);
-    else if (changed.state === QUOTA.OUT) log(`GitHub-Anfragen sind aufgebraucht (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.`);
-    else if (changed.state === QUOTA.TIGHT) log(`GitHub-Anfragen werden knapp (${changed.remaining} von ${changed.limit} frei). Bis ${changed.until} wird seltener abgefragt.`);
-    else if (changed.before !== QUOTA.UNKNOWN) log('GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.');
+    const until = { time: changed.resetAt };
+    if (changed.paused) log(msg('m_quotaPaused', until));
+    else if (changed.state === QUOTA.OUT) log(msg('m_quotaOut', changed.remaining, changed.limit, until));
+    else if (changed.state === QUOTA.TIGHT) log(msg('m_quotaTight', changed.remaining, changed.limit, until));
+    else if (changed.before !== QUOTA.UNKNOWN) log(msg('m_quotaFree'));
     // Solange nichts gelesen werden durfte, blieb auch der Stand von CI_RUNNER unbekannt: jetzt nachholen.
     if (changed.before === QUOTA.OUT) for (const repo of repos()) routing.check(repo).catch(() => {});
   }
-  const watchQuota = () => checkQuota().catch(logError(null, 'Anfragelimit'));
+  const watchQuota = () => checkQuota().catch(logError(null, msg('m_whatQuota')));
 
   // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst. `free`: Für das Repo
   // ist ein Pool möglich (es hat keinen, und öffentliche bekommen keinen; siehe `pool/add` in actions.js).
@@ -150,7 +152,7 @@ function createRemote({
     checkedAt.set(repo, at);
     timer(() => expire(repo, at), CHECK_STALE);
     failing.delete(repo);
-    if (unchecked.delete(repo)) log('Die Prüfung ist wieder gelungen; der Pool nimmt wieder Jobs an.', repo);
+    if (unchecked.delete(repo)) log(msg('m_checkBack'), repo);
   }
   const vetted = (repo) => now() - (checkedAt.get(repo) ?? -Infinity) < CHECK_STALE;
   // Der Pool ruht, weil keine frische Prüfung vorliegt; gemeldet wird das einmal.
@@ -158,7 +160,7 @@ function createRemote({
     if (unchecked.has(repo) || stopping() || !settingsOf(repo)) return;
     unchecked.add(repo);
     guard.restUnchecked(repo);
-    log('Ob das Repo privat ist und keine Workflows aus Forks zulässt, ließ sich nicht prüfen. Bis das gelingt, nimmt der Pool keine Jobs an.', repo, 'error');
+    log(msg('m_unchecked'), repo, 'error');
   }
   // Die Prüfung von `at` läuft ab; gab es seither keine gelungene, ruht der Pool.
   function expire(repo, at) {
@@ -166,7 +168,7 @@ function createRemote({
   }
   function watchVisibility(repo) {
     return checkVisibility(repo).catch((error) => {
-      if (!failing.has(repo)) logError(repo, 'Sichtbarkeit des Repos')(error);
+      if (!failing.has(repo)) logError(repo, msg('m_whatVisibility'))(error);
       failing.add(repo);
       if (!vetted(repo)) rest(repo);
       if (retrying.has(repo) || stopping() || !settingsOf(repo)) return;
@@ -177,9 +179,9 @@ function createRemote({
 
   // Einen Lauf oder Job eines Repos mit Pool bei GitHub erneut starten (`endpoint` unter `actions/`) und danach, wenn
   // GitHub den neuen Versuch angelegt hat, die Läufe des Repos neu abfragen. `missing`: die Meldung, wenn es den Lauf
-  // oder Job nicht gibt.
+  // oder Job nicht gibt (ein Schlüssel, siehe messages.js).
   async function rerun(repo, id, endpoint, missing) {
-    if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Error(missing);
+    if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Fault(missing);
     await gh(['api', '-X', 'POST', `repos/${repo}/actions/${endpoint}`]);
     timer(() => { if (!stopping()) refreshRepo(repo); }, RERUN_SETTLE);
   }

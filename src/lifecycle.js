@@ -3,6 +3,8 @@
 // `stopping()` sagt allen Modulen, dass RunClub endet; es wird früh gebraucht, die Arbeit beim Beenden erst spät.
 
 const fs = require('node:fs');
+const { VARIABLE } = require('./routing');
+const { msg, reason } = require('./messages');
 
 //   log(text, repo, kind)
 //   beforeStop()            beim Beenden, nach dem Anhalten der Takte (Messung sichern, wartendes `gh` beenden)
@@ -35,11 +37,11 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
     shuttingDown = true;
     stopTimers();
     progress.begin();
-    log('Beende die Runner …');
+    log(msg('m_stopping'));
     await dismantle();
     await removeLeftovers(progress.step);
     progress.finish();
-    log('Beendet.');
+    log(msg('m_stopped'));
     onExit();
   }
 
@@ -57,8 +59,8 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
   function startPools(repos, { startPool, checkRouting, watchVisibility }) {
     for (const repo of repos) {
       startPool(repo);
-      const failed = (message) => log(`CI_RUNNER ließ sich nicht lesen – ${message}`, repo, 'error');
-      checkRouting(repo).then((info) => { if (info?.error) failed(info.error); }, (error) => failed(error.message));
+      const failed = (why) => log(msg('m_withReason', msg('m_variableUnreadable', VARIABLE), why), repo, 'error');
+      checkRouting(repo).then((info) => { if (info?.error) failed(info.error); }, (error) => failed(reason(error)));
       watchVisibility(repo);
     }
   }
@@ -71,7 +73,7 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
       fs.writeFileSync(file, `${key}\n`);
       return true;
     } catch (error) {
-      log(`Der Schlüssel ließ sich nicht ablegen – ${error.message}`, null, 'error');
+      log(msg('m_keyNotSaved', error.message), null, 'error');
       return false;
     }
   }

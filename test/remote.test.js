@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const { createRemote, RERUN_SETTLE, WAITING_INTERVAL, REPO_LIST_MAX_AGE, CHECK_STALE, CHECK_RETRY } = require('../src/remote');
 const { STATE: QUOTA } = require('../src/github');
 const { BLOCKS } = require('../src/blocks');
-const { turn } = require('./support');
+const { turn, rendered } = require('./support');
+const { render, reason } = require('../src/messages');
 
 const REPO = 'wer/App';
 
@@ -28,8 +29,8 @@ function world() {
     confirmResults: (repo, done) => w.confirmed.push([repo, done]),
     routing: { check: async (repo) => { w.checked.push(repo); } },
     waiting: { scan: async (found) => { w.scanned = found; } },
-    log: (...entry) => w.logs.push(entry),
-    logError: (repo, what) => (error) => w.logs.push([`${what} – ${error.message}`, repo, 'error']),
+    log: (...entry) => w.logs.push(rendered(entry)),
+    logError: (repo, what) => (error) => w.logs.push([`${render(what)} – ${render(reason(error))}`, repo, 'error']),
     repos: () => Object.keys(w.settings), settingsOf: (repo) => w.settings[repo], poolOf: (repo) => w.pools[repo],
     stopping: () => w.stopping, timer: (work, ms) => w.timers.push({ work, ms }),
     now: () => w.time,
@@ -53,7 +54,7 @@ test('ein Repo abfragen: Läufe, laufende Jobs, und der arbeitende Platz erfähr
   const w = world();
   w.answers[`repos/${REPO}/actions/runs?per_page=20`] = { workflow_runs: [RUN] };
   w.pipelines = [PIPELINE];
-  w.pools[REPO].slots = [{ name: 'PC-linux-1', state: 'arbeitet', workflow: '' }];
+  w.pools[REPO].slots = [{ name: 'PC-linux-1', state: 'working', workflow: '' }];
   await w.remote.refreshRepo(REPO);
   const view = w.remote.view(REPO);
   assert.deepEqual(view.jobs, [{ workflow: 'CI', job: 'Bauen', branch: 'main', status: 'in_progress', runner: 'PC-linux-1', own: true, startedAt: 'x', url: 'u', estimate: 60, step: null }]);
@@ -116,7 +117,7 @@ test('läuft schon eine Abfrage, folgt genau eine weitere; bei knappem Limit kei
 test('öfter abgefragt wird, wo ein eigener Platz arbeitet oder ein Job auf einen eigenen Runner wartet', async () => {
   const w = world();
   w.settings = { 'wer/a': {}, 'wer/b': {}, 'wer/c': {} };
-  w.pools = { 'wer/a': { slots: [{ state: 'arbeitet' }] }, 'wer/b': { slots: [{ state: 'bereit' }] }, 'wer/c': { slots: [] } };
+  w.pools = { 'wer/a': { slots: [{ state: 'working' }] }, 'wer/b': { slots: [{ state: 'ready' }] }, 'wer/c': { slots: [] } };
   w.answers['repos/wer/c/actions/runs?per_page=20'] = { workflow_runs: [RUN] };
   w.pipelines = [{ ...PIPELINE, jobs: [{ name: 'Bauen', status: 'queued', own: true }] }];
   await w.remote.refreshRepo('wer/c');
@@ -127,11 +128,13 @@ test('öfter abgefragt wird, wo ein eigener Platz arbeitet oder ein Job auf eine
   assert.deepEqual(w.calls.sort(), ['repos/wer/a/actions/runs?per_page=20', 'repos/wer/c/actions/runs?per_page=20']);
 });
 
+const AT_1705 = new Date(2026, 9, 13, 17, 5).toISOString(); // als Uhrzeit dieses Rechners 17:05
+
 test('das Anfragelimit: Meldung nur, wenn es kippt; nach dem Aufbrauchen wird CI_RUNNER nachgelesen', async () => {
   const cases = [
-    [{ paused: true, until: '17:05' }, 'GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis 17:05 wird nicht mehr abgefragt.'],
-    [{ state: QUOTA.OUT, remaining: 10, limit: 5000, until: '17:05' }, 'GitHub-Anfragen sind aufgebraucht (10 von 5000 frei). Bis 17:05 wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.'],
-    [{ state: QUOTA.TIGHT, remaining: 400, limit: 5000, until: '17:05' }, 'GitHub-Anfragen werden knapp (400 von 5000 frei). Bis 17:05 wird seltener abgefragt.'],
+    [{ paused: true, resetAt: AT_1705 }, 'GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis 17:05 wird nicht mehr abgefragt.'],
+    [{ state: QUOTA.OUT, remaining: 10, limit: 5000, resetAt: AT_1705 }, 'GitHub-Anfragen sind aufgebraucht (10 von 5.000 frei). Bis 17:05 wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.'],
+    [{ state: QUOTA.TIGHT, remaining: 400, limit: 5000, resetAt: AT_1705 }, 'GitHub-Anfragen werden knapp (400 von 5.000 frei). Bis 17:05 wird seltener abgefragt.'],
     [{ state: QUOTA.OK, before: QUOTA.TIGHT }, 'GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.'],
   ];
   for (const [changed, text] of cases) {
@@ -207,7 +210,7 @@ test('ein Org-Repo, in dem Fork-PRs laufen dürfen, sperrt den Pool; nicht lesba
   w.answers[forks] = { run_workflows_from_fork_pull_requests: true };
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.guarded.map(([what, kind]) => [what, kind]), [['block', 'forks']]);
-  assert.match(w.guarded[0][2], /Forks/);
+  assert.match(render(w.guarded[0][2]), /Forks/);
   w.answers[forks] = () => { throw new Error('HTTP 403'); }; // nicht lesbar: „erlaubt“ bleibt der Grund
   await w.remote.watchVisibility(REPO);
   assert.equal(w.guarded.length, 1);

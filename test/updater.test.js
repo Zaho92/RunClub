@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { createUpdater, compareVersions, parseUpdateInfo, pickRelease, channelOf, FILE } = require('../src/updater');
+const { render } = require('../src/messages');
 
 test('Versionen werden wie bei Semver verglichen', () => {
   assert.ok(compareVersions('0.2.0', '0.1.9') > 0);
@@ -156,7 +157,7 @@ test('eine Antwort mit Fehler steht in der Anzeige', async (t) => {
   const w = world(t);
   w.fetch = async () => new Response('nein', { status: 404 });
   const logged = [];
-  const updater = createUpdater({ repo: 'wer/RunClub', current: '0.1.0', packaged: true, dataDir: w.dir, fetch: w.fetch, log: (text) => logged.push(text) });
+  const updater = createUpdater({ repo: 'wer/RunClub', current: '0.1.0', packaged: true, dataDir: w.dir, fetch: w.fetch, log: (text) => logged.push(render(text)) });
   await updater.check();
   await updater.check();
   assert.equal(updater.view().phase, 'error');

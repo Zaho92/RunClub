@@ -9,6 +9,7 @@
 const path = require('node:path');
 const { readJson, writeJson } = require('./store');
 const limitRules = require('./limits');
+const { msg } = require('./messages');
 
 const LIMIT_DEFAULTS = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' };
 // Je Pool neu, damit sich keine zwei Pools eine Liste teilen.
@@ -28,7 +29,7 @@ function createSettings({ dataDir, log }) {
 
   function load(file) {
     const { data, broken } = readJson(file, {});
-    if (broken) log(`${path.basename(file)} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter ${broken}.`, null, 'error');
+    if (broken) log(msg('m_settingsBroken', path.basename(file), broken), null, 'error');
     return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
   }
 

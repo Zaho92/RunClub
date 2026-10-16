@@ -4,7 +4,7 @@ const { DAEMON_FLAGS, DAEMON_COMMAND, DATA_ROOT, READY_TRIES } = require('../src
 const { createSeed, LEARNED_DAYS, LEARNED_MAX } = require('../src/seed');
 const { DAY } = require('../src/units');
 const { createEngine } = require('../src/engine');
-const { turn, settle } = require('./support');
+const { turn, settle, rendered } = require('./support');
 
 const REPO = 'wer/App';
 const SEED = 'rc-seed-app';
@@ -42,7 +42,7 @@ function world() {
   const { docker, dockerList } = createEngine({ run, timeout: 99 });
   w.seed = createSeed({
     docker, dockerList,
-    log: (...entry) => w.logs.push(entry),
+    log: (...entry) => w.logs.push(rendered(entry)),
     sleep: async (ms) => { w.slept.push(ms); await turn(); },
     mark: MARK, dind: 'dind:test', longTimeout: 1234,
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),

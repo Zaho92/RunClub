@@ -7,6 +7,7 @@
 const path = require('node:path');
 const { SECOND } = require('./units');
 const { lastLine } = require('./run');
+const { msg } = require('./messages');
 
 const DAEMON_IMAGE = 'runclub-dind:latest';
 const RUNNER_USER = 1001; // der Benutzer `runner` im Runner-Abbild; der Daemon läuft unter demselben
@@ -45,13 +46,13 @@ async function waitForDaemon({ docker, sleep, container, host = null, cancelled 
 
 // Warum ein Daemon nicht bereit wurde: die letzte Fehlerzeile aus seinem Protokoll, sonst dessen letzte Zeile.
 // Verbietet das Seccomp-Profil einen Aufruf, steht dort „operation not permitted“; dann sagt die Meldung das dazu.
+// Liefert eine Meldung zum Anhängen (` – Grund`) oder '' (siehe messages.js).
 async function whyNotReady(docker, container) {
   const found = await docker(['logs', '--tail', '30', container]);
   const lines = `${found.stdout ?? ''}\n${found.stderr ?? ''}`.split('\n');
   const line = lastLine(lines.filter((entry) => /\b(error|fatal)\b|denied|not permitted/i.test(entry)).join('\n')) || lastLine(lines.join('\n'));
   if (!line) return '';
-  const blocked = /operation not permitted/i.test(line) ? ' (womöglich verbietet das Seccomp-Profil linux/seccomp.json einen Aufruf, den diese Docker-Version braucht)' : '';
-  return ` – ${line}${blocked}`;
+  return msg(/operation not permitted/i.test(line) ? 'm_whyNotReadySeccomp' : 'm_whyNotReady', line);
 }
 
 module.exports = { waitForDaemon, whyNotReady, SECCOMP_PROFILE, SECURITY_FLAGS, DAEMON_IMAGE, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot, READY_TRIES, DAEMON_POLL, PROBE_TIMEOUT };

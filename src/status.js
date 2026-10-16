@@ -7,7 +7,7 @@ const limitRules = require('./limits');
 const { SLOT } = require('./states');
 const { blockOf } = require('./blocks');
 
-// Ein Platz, wie die Oberfläche ihn zeigt. `jobs`: die laufenden Jobs des Repos bei GitHub (siehe remote.js);
+// Ein Platz, wie die Oberfläche ihn zeigt; `name` erst, wenn er ein Paar hat. `jobs`: die laufenden Jobs des Repos bei GitHub (siehe remote.js);
 // `statsOf(name)`: der Verbrauch eines Containers (siehe usage.js); `cpus`: Kerne der Docker-VM.
 function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
   const parts = slot.base ? [`${slot.base}-runner`, `${slot.base}-dind`].map(statsOf).filter(Boolean) : [];
@@ -17,9 +17,11 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
     : null;
   const cores = parts.reduce((sum, part) => sum + part.cpu, 0);
   return {
-    kind: 'Linux', name: slot.base ? slot.name : `Platz ${index + 1}`, state: slot.state, retiring: Boolean(slot.retired) && slot.state !== SLOT.OFF, job,
-    cpu: cores / cpus * 100, cores, memory: parts.reduce((sum, part) => sum + part.memory, 0), cpuBase: `${cpus} Kerne der Docker-VM`,
-    note: [`Platz ${index + 1}`, `${slot.jobs} Job${slot.jobs === 1 ? '' : 's'} seit dem Start`, slot.lastResult && `zuletzt ${slot.lastResult}`, slot.error && `Fehler: ${slot.error}`].filter(Boolean).join(' · '),
+    kind: 'Linux', name: slot.base ? slot.name : null, seat: index + 1, state: slot.state, retiring: Boolean(slot.retired) && slot.state !== SLOT.OFF, job,
+    cpu: cores / cpus * 100, cores, memory: parts.reduce((sum, part) => sum + part.memory, 0),
+    // Jobs seit dem Start, der letzte mit Ergebnis ({ job, result }; result, wie der Runner es meldet, oder null) und
+    // der letzte Fehler (eine Meldung oder ein Text, siehe messages.js).
+    jobs: slot.jobs ?? 0, lastResult: slot.lastResult ?? null, error: slot.error ?? null,
   };
 }
 

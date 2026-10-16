@@ -414,7 +414,7 @@ const TEXT = {
     confirmUpdate: 'Alle Runner werden abgebaut, RunClub {0} wird eingespielt und startet von selbst neu; wartende Jobs warten so lange.',
     autostart: 'Mit Windows starten', view: 'Darstellung', compact: 'Kompakt', detail: 'Detail', viewHint: 'Detail zeigt unter jedem Job eine zweite Zeile. Alles Weitere erscheint beim Überfahren, ohne dass sich etwas verschiebt.', language: 'Sprache', quit: 'RunClub beenden', log: 'Protokoll',
     logAll: 'Alle', logFilter: 'Protokoll nach Projekt filtern', logCopy: 'Kopieren', logSave: 'Speichern', logCopyTip: 'Die ganze Datei runclub.log in die Zwischenablage legen', logSaveTip: 'Die ganze Datei runclub.log speichern',
-    logCopied: 'Das ganze Protokoll liegt in der Zwischenablage ({0} Zeilen).', logCopyFailed: 'Das Protokoll ließ sich nicht kopieren.', logNone: 'Unter den letzten Meldungen ist keine dazu. Die ganze Datei gibt es über „Speichern“.', logSide: 'die letzten {0} Meldungen', logSideOne: 'eine Meldung', logSideOf: '{0} von {1} Meldungen', logGeneral: 'Allgemein', logJobRun: 'Job „{0}“ läuft auf {1}', logJobEnd: 'Job „{0}“ – {1}',
+    logCopied: 'Das ganze Protokoll liegt in der Zwischenablage ({0} Zeilen).', logCopyFailed: 'Das Protokoll ließ sich nicht kopieren.', logNone: 'Unter den letzten Meldungen ist keine dazu. Die ganze Datei gibt es über „Speichern“.', logSide: 'die letzten {0} Meldungen', logSideOne: 'eine Meldung', logSideOf: '{0} von {1} Meldungen', logGeneral: 'Allgemein',
     cachesSum: 'Caches {0}', projectsSum: '{0} Projekte · {1} Plätze', clearOf: '{0} leeren', forgetImages: 'Gelernte Abbilder vergessen', cancel: 'Abbrechen', showAll: 'Alles zeigen', showLess: 'Weniger zeigen', days: 'Tagen', peakTitle: 'Höchste gemessene Spitze eines Jobs', jobsMeasured: '{0} Jobs gemessen', jobMeasured: '1 Job gemessen', toLimits: 'Limits einstellen',
     limitsTitle: 'Limits je Job', limitsNew: 'für alle Projekte ohne eigene Werte', limitsShared: 'Wie alle', limitsOwn: 'Eigene', ownTag: 'eigene Limits', rebuild: 'Runner neu aufbauen', tagFull: 'Limit erreicht', tagTight: 'Limit knapp', tagGenerous: 'Limit großzügig',
     planText: 'Vorschlag: Standard Runner {0} GB, Docker {1} GB, je {2} Kerne.', planOwn: 'Eigene Limits für {0}.', planApplied: 'Die Limits entsprechen dem Vorschlag.',
@@ -449,6 +449,103 @@ const TEXT = {
     minutesPlan: 'Tarif {0} mit {1} Minuten im Monat.', minutesPlanUnknown: 'Für den Tarif {0} kennt RunClub die enthaltenen Minuten nicht.', minutesPlans: 'Enthaltene Minuten im Monat: {0}.', minutesEqual: 'Jede Minute zählt gleich, gleich auf welchem Betriebssystem.',
     minutesOtherPlan: 'Für andere Tarife steht nur das Verbrauchte da, ohne Obergrenze.', minutesTightInfo: 'Sind sie weg, startet GitHub in privaten Repos auf seinen Runnern keine Läufe mehr, solange dort kein Budget gesetzt ist.', minutesOutInfo: 'Die enthaltenen Minuten sind aufgebraucht; das betrifft private Repos auf GitHubs Runnern. Mit einem Pool („Pool anlegen“ in den Einstellungen) laufen die Jobs auf diesem Rechner und brauchen keine Minuten. Ob bei GitHub ein Budget gesetzt ist, sieht RunClub nicht.', minutesBudgetInfo: 'Das gilt für private Repos auf GitHubs Runnern. Wie hoch das Budget ist und wann es erreicht ist, sieht RunClub nicht.',
     minutesBilledInfo: 'Schon unter den enthaltenen Minuten kann GitHub etwas berechnen, etwa für größere Runner.', peakInfo: 'Gemessen am Limit dieses Projekts, getrennt für Runner und Docker. Ab der gepunkteten Marke ({0} %) gilt eine Spitze als knapp. In der Tabelle tritt der Wert hervor, der die Schiene bestimmt.',
+    // Zustände eines Platzes (src/states.js) und Meldungen des Backends (src/messages.js, dort gleichlautend; ein Test prüft beides).
+    st_starting: 'startet', st_ready: 'bereit', st_working: 'arbeitet', st_cleaning: 'räumt auf', st_broken: 'gestört', st_waiting: 'wartet', st_paused: 'pausiert', st_noDocker: 'wartet auf Docker', st_off: 'aus',
+    m_withReason: '{0} – {1}', m_exitCode: 'Code {0}', m_on: 'an', m_off: 'aus', m_active: 'aktiv', m_paused: 'pausiert',
+    m_jobRun: 'Job „{0}“ läuft auf {1}', m_jobEnd: 'Job „{0}“ – {1}', m_resDone: 'fertig', m_resFail: 'Fehler', m_resCancel: 'abgebrochen',
+    m_jobNoResult: 'Job „{0}“ endete ohne Ergebnis ({1})', m_runnerNoJob: 'Runner endete ohne Job ({0})', m_runnerTimeout: 'nach {0} h beendet',
+    m_reattach: 'Die Verbindung zu {0} riss ab; es wird weiter mitgelesen', m_unregisterFailed: 'Runner ließ sich bei GitHub nicht abmelden',
+    m_netFailed: 'Netz lässt sich nicht anlegen: {0}', m_volumesFailed: 'Volumes ließen sich nicht vorbereiten: {0}',
+    m_daemonFailed: 'Docker-Daemon startet nicht: {0}', m_daemonNotReady: 'Docker-Daemon wurde nicht bereit{0}', m_whyNotReady: ' – {0}',
+    m_whyNotReadySeccomp: ' – {0} (womöglich verbietet das Seccomp-Profil linux/seccomp.json einen Aufruf, den diese Docker-Version braucht)',
+    m_whatSlot: 'Platz', m_whatPairPrep: 'Vorbereitung eines Paars', m_whatReserve: 'Abbau der Reserve', m_whatPrep: 'Vorbereitung',
+    m_noPool: 'Diesen Pool gibt es nicht.', m_dockerNotReady: 'Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.',
+    m_repoName: 'Das Repo wird als besitzer/name angegeben.',
+    m_noAdmin: 'Für dieses Repo fehlen dir die Verwaltungsrechte; ohne sie lässt sich kein Runner anmelden.',
+    m_publicRefused: 'Das Repo ist öffentlich. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.',
+    m_forksRefused: '{0}. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust. {1}',
+    m_poolRemoving: 'Dieser Pool wird gerade entfernt. Bitte warten, bis das abgeschlossen ist.',
+    m_poolExists: 'Für dieses Repo gibt es schon einen Pool.',
+    m_nameClash: 'Ein Pool für {0} belegt denselben Namen für Caches und Build-Dienst. Zwei Repos mit gleichem Namen lassen sich nicht zugleich bedienen.',
+    m_poolAdded: 'Pool angelegt', m_poolSet: '{0}, {1}, Cache {2}', m_slotsOne: '{0} Platz', m_slotsMany: '{0} Plätze',
+    m_poolRetiring: 'Pool wird entfernt', m_poolRemoved: 'Pool und seine Caches sind entfernt',
+    m_poolRemovedPartly: 'Pool entfernt, aber nicht alles: {0}', m_unknownCache: 'Unbekannter Cache.', m_clearing: 'Leere {0} …',
+    m_cachePackages: 'den Paket-Cache', m_cacheBuild: 'die Build-Layer', m_cacheImages: 'die gelernten Abbilder', m_cacheAll: 'alle Caches',
+    m_cleared: 'Geleert; der nächste Lauf füllt wieder auf', m_routedOn: '{0} gesetzt – die Jobs laufen auf den eigenen Runnern',
+    m_routedOff: '{0} entfernt – die Jobs gehen wieder an GitHubs Runner', m_routingKept: '{0} bleibt, wie es ist',
+    m_variableUnused: 'Die Workflows lesen {0} nicht – die Jobs gehen weiter an GitHubs Runner', m_variableUnreadable: '{0} ließ sich nicht lesen',
+    m_runRerun: 'Lauf {0} erneut gestartet', m_runRerunFailed: 'Lauf {0} erneut gestartet (nur die gescheiterten Jobs)',
+    m_jobRerun: 'Job {0} erneut gestartet', m_noRun: 'Diesen Lauf gibt es nicht.', m_noJob: 'Diesen Job gibt es nicht.',
+    m_forksHow: 'Abschalten unter Settings → Actions → General → „Fork pull request workflows in private repositories“ („Run workflows from fork pull requests“ aus); die Organisation kann das vorgeben.',
+    m_forksUnreadable: 'Ob Workflows aus Forks laufen dürfen, ließ sich nicht lesen ({0})',
+    m_forksAllowed: 'In den Einstellungen des Repos dürfen Workflows aus Pull Requests von Forks laufen',
+    m_publicPaused: 'Das Repo ist öffentlich geworden. Damit keine fremden Pull Requests auf diesem Rechner laufen, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner.',
+    m_publicLocked: 'Das Repo ist öffentlich. Der Pool lässt sich erst wieder nutzen, wenn es privat ist.', m_publicCleared: 'Das Repo ist wieder privat',
+    m_forksPaused: '{0}. Damit kein Code aus Forks auf diesem Rechner läuft, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner. {1}',
+    m_forksLocked: 'Pull Requests aus Forks könnten auf diesem Rechner Code ausführen. {0}',
+    m_forksCleared: 'Workflows aus Forks laufen in diesem Repo nicht mehr',
+    m_forksUnknownPaused: '{0}. Damit kein Code aus Forks auf diesem Rechner läuft, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner. Die nächste Prüfung versucht es wieder.',
+    m_forksUnknownLocked: 'Ob in diesem Repo Workflows aus Forks laufen dürfen, ließ sich nicht prüfen. Die nächste Prüfung versucht es wieder.',
+    m_forksUnknownCleared: 'Ob Workflows aus Forks laufen dürfen, ließ sich wieder lesen', m_unblockStill: '{0}; der Pool bleibt gesperrt: {1}',
+    m_unblockFree: '{0}; der Pool lässt sich fortsetzen.', m_checkBack: 'Die Prüfung ist wieder gelungen; der Pool nimmt wieder Jobs an.',
+    m_unchecked: 'Ob das Repo privat ist und keine Workflows aus Forks zulässt, ließ sich nicht prüfen. Bis das gelingt, nimmt der Pool keine Jobs an.',
+    m_whatVisibility: 'Sichtbarkeit des Repos', m_limits: 'Runner {0} und {1} Kerne, Docker {2} und {3} Kerne',
+    m_limitsInherit: 'Wieder die Limits für alle ({0})', m_limitsOwn: 'Eigene Limits – {0}', m_limitsShared: 'Limits je Job: {0}',
+    m_limitsNumbers: 'Limits werden als Zahlen angegeben.', m_noSuggestion: 'Für einen Vorschlag fehlen noch Messwerte.',
+    m_planApplied: 'Limits aus den Messwerten übernommen: Standard Runner {0}, Docker {1}',
+    m_planAppliedOwn: 'Limits aus den Messwerten übernommen: Standard Runner {0}, Docker {1}; eigene Limits für {2}',
+    m_rebuilding: 'Baue die freien Runner mit den neuen Limits auf', m_githubPause: 'GitHub bittet um eine Pause; weiter um {0}.',
+    m_quotaSpent: 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um {0}.', m_ghExit: 'gh endete mit {0}',
+    m_quotaPaused: 'GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis {0} wird nicht mehr abgefragt.',
+    m_quotaOut: 'GitHub-Anfragen sind aufgebraucht ({0} von {1} frei). Bis {2} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.',
+    m_quotaTight: 'GitHub-Anfragen werden knapp ({0} von {1} frei). Bis {2} wird seltener abgefragt.',
+    m_quotaFree: 'GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.', m_whatQuota: 'Anfragelimit',
+    m_billingMonth: 'GitHub lieferte die Abrechnung für {0}/{1} statt für {2}/{3}.',
+    m_minutesUnreadable: 'Das Minuten-Kontingent von GitHub ließ sich nicht lesen',
+    m_dockerUnreachableDesktop: 'Docker ist nicht erreichbar – läuft Docker Desktop?',
+    m_dockerUnreachable: 'Docker ist nicht erreichbar – läuft der Daemon?',
+    m_dockerUnreachableHost: 'Docker ist nicht erreichbar – läuft der Daemon unter {0}?',
+    m_dockerUnreachableDistro: 'Docker ist nicht erreichbar – läuft der Daemon in der WSL-Distro {0}?',
+    m_dockerUnreachableBoth: 'Docker ist nicht erreichbar – läuft der Daemon unter {0} in der WSL-Distro {1}?',
+    m_exposedTcp: 'RUNCLUB_DOCKER_HOST zeigt auf {0} ohne TLS (RUNCLUB_DOCKER_CERTS fehlt). Jeder Job, der diesen Port erreicht, steuert damit ganz Docker.',
+    m_exposedDesktop: 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.',
+    m_dockerGone: 'Docker antwortet nicht mehr – die Linux-Runner warten.', m_imageRunner: 'Das Runner-Abbild',
+    m_imageDaemon: 'Das Abbild des Docker-Daemons', m_buildFailed: '{0} ließ sich nicht bauen: {1}',
+    m_rebuildFailed: '{0} ließ sich nicht neu bauen ({1}); die Runner nutzen das vorhandene.',
+    m_imagesDaily: 'Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …',
+    m_imagesBuild: 'Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …',
+    m_whatImages: 'Abbilder von Runner und Docker-Daemon', m_orphansRemoved: 'Reste nach der Unterbrechung entfernt: {0} Container, {1} Volumes',
+    m_staleRunners: '{0} verwaiste Runner bei GitHub abgemeldet', m_whatOldRunners: 'Abmelden alter Runner',
+    m_serviceRetry: 'Versuche erneut, den Build-Dienst anzulegen', m_serviceRenew: 'Lege den Build-Dienst mit den neuen Limits an',
+    m_serviceNetFailed: 'Netz für den Build-Dienst lässt sich nicht anlegen – {0}', m_serviceFailed: 'Build-Dienst startet nicht – {0}',
+    m_serviceUnreadable: 'Build-Dienst: Zustand nach dem Start nicht lesbar – {0}', m_serviceEnded: 'Build-Dienst endet gleich nach dem Start{0}',
+    m_cachesNotRemoved: 'Caches ließen sich nicht löschen – {0}', m_seedRefresh: 'Frische die Vorlage auf ({0} Abbilder) …',
+    m_loaderNotReady: 'Der Lade-Daemon wurde nicht bereit{0}; die Vorlage bleibt unverändert.', m_seedPullFailed: '{0} kommt nicht in die Vorlage – {1}',
+    m_seedNotRemoved: 'Die Vorlage ließ sich nicht löschen – {0}', m_vmTight: 'Die Docker-VM hat nur noch {0} GB von {1} GB Arbeitsspeicher frei.',
+    m_vmFree: 'Die Docker-VM hat wieder {0} GB Arbeitsspeicher frei.',
+    m_vmUnmeasured: 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.', m_closing: 'RunClub wird gerade beendet.',
+    m_leaving: 'Es wird gerade abgemeldet. Bitte warten, bis das abgeschlossen ist.',
+    m_loginRunning: 'Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.', m_ghMissing: 'Das Programm gh ist nicht installiert.',
+    m_alreadyIn: 'Du bist schon als {0} angemeldet.',
+    m_authUnknown: 'Der Stand der Anmeldung ließ sich noch nicht lesen. Bitte gleich noch einmal versuchen.', m_loginFirst: 'Erst bei GitHub anmelden.',
+    m_scopeNotMissing: 'Dieses Recht fehlt nicht oder lässt sich hier nicht ergänzen.', m_noScopeMissing: 'Der Anmeldung fehlt kein Recht.',
+    m_leavingAlready: 'Es wird schon abgemeldet.', m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
+    m_notIn: 'Du bist nicht bei GitHub angemeldet.', m_loginUnknown: 'Das Konto lässt sich nicht bestimmen. Bitte im Terminal abmelden: gh auth logout',
+    m_ghSilent: 'gh antwortet nicht.', m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).',
+    m_loggedOutSwitch: 'Bei GitHub abgemeldet ({0}). gh nutzt jetzt das Konto {1}.', m_listening: 'Runner-Anzeige: {0}', m_stopping: 'Beende die Runner …',
+    m_stopped: 'Beendet.', m_keyNotSaved: 'Der Schlüssel ließ sich nicht ablegen – {0}',
+    m_settingsBroken: '{0} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter {1}.',
+    m_bodyIncomplete: 'Der Aufruf kam nicht vollständig an.', m_bodyTooLarge: 'Der Aufruf ist zu groß.',
+    m_bodyNotJson: 'Der Aufruf ist kein gültiges JSON-Objekt.', m_noAccess: 'Kein Zugriff. RunClub über das Symbol im Infobereich öffnen.',
+    m_wrongHost: 'falscher Host', m_unknownCall: 'unbekannt', m_pageStale: 'Die Seite ist veraltet – bitte neu laden.',
+    m_noUpdate: 'Es ist kein Update geladen.',
+    m_updateBusy: 'Gerade arbeitet ein Runner ({0}). Das Update lässt sich einspielen, sobald keiner mehr arbeitet.',
+    m_updating: 'RunClub wird beendet und auf {0} aktualisiert.', m_updateReady: 'RunClub {0} ist geladen und kann eingespielt werden.',
+    m_updateUnreachable: 'GitHub ist nicht erreichbar: {0}', m_updatePrivate: 'GitHub gibt {0} nicht heraus ({1}).',
+    m_updateHttp: 'GitHub antwortet mit {0} auf {1}.', m_updateRedirects: 'Zu viele Weiterleitungen beim Laden des Updates.',
+    m_updateBroken: 'Der Installer für {0} ist beschädigt (Prüfsumme stimmt nicht).',
+    m_updateNoYml: 'Zu {0} fehlt die Angabe des Installers (latest.yml).', m_updateYmlIncomplete: 'Die Angabe des Installers zu {0} ist unvollständig.',
+    m_updateNoInstaller: 'Zu {0} fehlt der Installer {1}.', m_unknownChannel: 'Unbekannter Kanal: {0}',
   },
   en: {
     late: 'longer than usual ({0})', approx: 'about {0}', started: 'run started', idleAll: 'Nothing is running right now.', fewer: 'One slot fewer', more: 'One more slot', seatN: 'Slot {0}', railLabel: 'Projects',
@@ -504,7 +601,7 @@ const TEXT = {
     confirmUpdate: 'All runners are taken down, RunClub {0} is installed and restarts by itself; queued jobs wait until then.',
     autostart: 'Start with Windows', view: 'Display', compact: 'Compact', detail: 'Detail', viewHint: 'Detail adds a second line under each job. Everything else appears on hover without moving anything.', language: 'Language', quit: 'Quit RunClub', log: 'Log',
     logAll: 'All', logFilter: 'Filter the log by project', logCopy: 'Copy', logSave: 'Save', logCopyTip: 'Put the whole file runclub.log on the clipboard', logSaveTip: 'Save the whole file runclub.log',
-    logCopied: 'The whole log is on the clipboard ({0} lines).', logCopyFailed: 'The log could not be copied.', logNone: 'None of the recent messages match. “Save” gives you the whole file.', logSide: 'the last {0} messages', logSideOne: 'one message', logSideOf: '{0} of {1} messages', logGeneral: 'General', logJobRun: 'Job “{0}” is running on {1}', logJobEnd: 'Job “{0}” – {1}',
+    logCopied: 'The whole log is on the clipboard ({0} lines).', logCopyFailed: 'The log could not be copied.', logNone: 'None of the recent messages match. “Save” gives you the whole file.', logSide: 'the last {0} messages', logSideOne: 'one message', logSideOf: '{0} of {1} messages', logGeneral: 'General',
     cachesSum: 'Caches {0}', projectsSum: '{0} projects · {1} slots', clearOf: 'Clear {0}', forgetImages: 'Forget learned images', cancel: 'Cancel', showAll: 'Show all', showLess: 'Show less', days: 'days', peakTitle: 'Highest measured peak of a job', jobsMeasured: '{0} jobs measured', jobMeasured: '1 job measured', toLimits: 'Adjust limits',
     limitsTitle: 'Limits per job', limitsNew: 'for all projects without their own', limitsShared: 'Shared', limitsOwn: 'Own', ownTag: 'own limits', rebuild: 'Rebuild runners', tagFull: 'limit reached', tagTight: 'limit tight', tagGenerous: 'limit generous',
     planText: 'Suggestion: default runner {0} GB, Docker {1} GB, {2} cores each.', planOwn: 'Own limits for {0}.', planApplied: 'The limits match the suggestion.',
@@ -539,17 +636,105 @@ const TEXT = {
     minutesPlan: '{0} plan with {1} minutes a month.', minutesPlanUnknown: 'RunClub does not know the included minutes for the {0} plan.', minutesPlans: 'Included minutes a month: {0}.', minutesEqual: 'Every minute counts the same, whatever the operating system.',
     minutesOtherPlan: 'For other plans only the minutes used are shown, without an upper limit.', minutesTightInfo: 'Once they are gone, GitHub won’t start runs in private repos on its runners unless a budget is set there.', minutesOutInfo: 'The included minutes are used up; this affects private repos on GitHub’s runners. With a pool (“Create pool” in the settings) the jobs run on this machine and need no minutes. RunClub cannot see whether a budget is set on GitHub.', minutesBudgetInfo: 'This applies to private repos on GitHub’s runners. RunClub cannot see how high the budget is or when it is reached.',
     minutesBilledInfo: 'GitHub can bill some minutes even below the included ones, for example for larger runners.', peakInfo: 'Measured against this project’s limit, separately for runner and Docker. Past the dotted mark ({0}%) a peak counts as tight. In the table, the value that sets the bar stands out.',
+    // Zustände eines Platzes und Meldungen des Backends, wie oben.
+    st_starting: 'starting', st_ready: 'ready', st_working: 'working', st_cleaning: 'cleaning up', st_broken: 'faulty', st_waiting: 'waiting', st_paused: 'paused', st_noDocker: 'waiting for Docker', st_off: 'off',
+    m_withReason: '{0} – {1}', m_exitCode: 'code {0}', m_on: 'on', m_off: 'off', m_active: 'active', m_paused: 'paused',
+    m_jobRun: 'Job “{0}” is running on {1}', m_jobEnd: 'Job “{0}” – {1}', m_resDone: 'done', m_resFail: 'failed', m_resCancel: 'cancelled',
+    m_jobNoResult: 'Job “{0}” ended without a result ({1})', m_runnerNoJob: 'Runner ended without a job ({0})', m_runnerTimeout: 'stopped after {0} h',
+    m_reattach: 'Lost the connection to {0}; still following its output', m_unregisterFailed: 'Could not remove the runner from GitHub',
+    m_netFailed: 'Could not create the network: {0}', m_volumesFailed: 'Could not prepare the volumes: {0}',
+    m_daemonFailed: 'Docker daemon does not start: {0}', m_daemonNotReady: 'Docker daemon did not become ready{0}', m_whyNotReady: ' – {0}',
+    m_whyNotReadySeccomp: ' – {0} (the seccomp profile linux/seccomp.json may block a call this Docker version needs)', m_whatSlot: 'Slot',
+    m_whatPairPrep: 'Preparing a pair', m_whatReserve: 'Clearing the reserve', m_whatPrep: 'Preparation', m_noPool: 'There is no such pool.',
+    m_dockerNotReady: 'Docker is not ready yet; the limits of the Docker VM are still unknown.', m_repoName: 'Give the repo as owner/name.',
+    m_noAdmin: 'You lack admin rights for this repo; without them no runner can be registered.',
+    m_publicRefused: 'The repo is public. Only code you trust may run on your own runners, so pools are only for private repos.',
+    m_forksRefused: '{0}. Only code you trust may run on your own runners. {1}',
+    m_poolRemoving: 'This pool is being removed. Please wait until that is done.', m_poolExists: 'This repo already has a pool.',
+    m_nameClash: 'A pool for {0} uses the same name for caches and build service. Two repos with the same name cannot be served at once.',
+    m_poolAdded: 'Pool created', m_poolSet: '{0}, {1}, cache {2}', m_slotsOne: '{0} slot', m_slotsMany: '{0} slots', m_poolRetiring: 'Removing pool',
+    m_poolRemoved: 'Pool and its caches are removed', m_poolRemovedPartly: 'Pool removed, but not everything: {0}', m_unknownCache: 'Unknown cache.',
+    m_clearing: 'Clearing {0} …', m_cachePackages: 'the package cache', m_cacheBuild: 'the build layers', m_cacheImages: 'the learned images',
+    m_cacheAll: 'all caches', m_cleared: 'Cleared; the next run fills it again', m_routedOn: '{0} set – jobs run on your own runners',
+    m_routedOff: '{0} removed – jobs go back to GitHub’s runners', m_routingKept: '{0} stays as it is',
+    m_variableUnused: 'The workflows do not read {0} – jobs keep going to GitHub’s runners', m_variableUnreadable: 'Could not read {0}',
+    m_runRerun: 'Run {0} restarted', m_runRerunFailed: 'Run {0} restarted (failed jobs only)', m_jobRerun: 'Job {0} restarted',
+    m_noRun: 'There is no such run.', m_noJob: 'There is no such job.',
+    m_forksHow: 'Turn it off under Settings → Actions → General → “Fork pull request workflows in private repositories” (“Run workflows from fork pull requests” off); the organization may enforce it.',
+    m_forksUnreadable: 'Could not read whether workflows from forks may run ({0})',
+    m_forksAllowed: 'The repo settings let workflows from fork pull requests run',
+    m_publicPaused: 'The repo has become public. So that no pull requests from strangers run on this machine, the pool is paused and jobs go back to GitHub’s runners.',
+    m_publicLocked: 'The repo is public. The pool can only be used again once it is private.', m_publicCleared: 'The repo is private again',
+    m_forksPaused: '{0}. So that no code from forks runs on this machine, the pool is paused and jobs go back to GitHub’s runners. {1}',
+    m_forksLocked: 'Pull requests from forks could run code on this machine. {0}', m_forksCleared: 'Workflows from forks no longer run in this repo',
+    m_forksUnknownPaused: '{0}. So that no code from forks runs on this machine, the pool is paused and jobs go back to GitHub’s runners. The next check tries again.',
+    m_forksUnknownLocked: 'Could not check whether workflows from forks may run in this repo. The next check tries again.',
+    m_forksUnknownCleared: 'Whether workflows from forks may run could be read again', m_unblockStill: '{0}; the pool stays blocked: {1}',
+    m_unblockFree: '{0}; the pool can be resumed.', m_checkBack: 'The check worked again; the pool accepts jobs again.',
+    m_unchecked: 'Could not check whether the repo is private and refuses workflows from forks. Until that works, the pool accepts no jobs.',
+    m_whatVisibility: 'Repo visibility', m_limits: 'runner {0} and {1} cores, Docker {2} and {3} cores',
+    m_limitsInherit: 'Back to the limits for all ({0})', m_limitsOwn: 'Own limits – {0}', m_limitsShared: 'Limits per job: {0}',
+    m_limitsNumbers: 'Limits are given as numbers.', m_noSuggestion: 'There are not enough measurements for a suggestion yet.',
+    m_planApplied: 'Limits taken from the measurements: default runner {0}, Docker {1}',
+    m_planAppliedOwn: 'Limits taken from the measurements: default runner {0}, Docker {1}; own limits for {2}',
+    m_rebuilding: 'Rebuilding the idle runners with the new limits', m_githubPause: 'GitHub asks for a pause; continuing at {0}.',
+    m_quotaSpent: 'The GitHub rate limit is used up; continuing at {0}.', m_ghExit: 'gh exited with {0}',
+    m_quotaPaused: 'GitHub asks for a pause (too many requests in a short time). No polling until {0}.',
+    m_quotaOut: 'GitHub requests are used up ({0} of {1} left). No polling until {2}; the rest is kept for registering new runners.',
+    m_quotaTight: 'GitHub requests are getting tight ({0} of {1} left). Polling less often until {2}.',
+    m_quotaFree: 'GitHub requests are available again; polling at the usual pace.', m_whatQuota: 'Rate limit',
+    m_billingMonth: 'GitHub returned the billing for {0}/{1} instead of {2}/{3}.', m_minutesUnreadable: 'Could not read the GitHub minutes quota',
+    m_dockerUnreachableDesktop: 'Docker is not reachable – is Docker Desktop running?',
+    m_dockerUnreachable: 'Docker is not reachable – is the daemon running?',
+    m_dockerUnreachableHost: 'Docker is not reachable – is the daemon running at {0}?',
+    m_dockerUnreachableDistro: 'Docker is not reachable – is the daemon running in the WSL distro {0}?',
+    m_dockerUnreachableBoth: 'Docker is not reachable – is the daemon running at {0} in the WSL distro {1}?',
+    m_exposedTcp: 'RUNCLUB_DOCKER_HOST points to {0} without TLS (RUNCLUB_DOCKER_CERTS is missing). Any job that reaches this port controls all of Docker.',
+    m_exposedDesktop: 'Docker exposes its daemon unprotected on tcp://localhost:2375. Any job reaches it through host.docker.internal and controls all of Docker. Turn off “Expose daemon on tcp://localhost:2375 without TLS” in Docker Desktop under Settings → General.',
+    m_dockerGone: 'Docker no longer responds – the Linux runners are waiting.', m_imageRunner: 'The runner image',
+    m_imageDaemon: 'The Docker daemon image', m_buildFailed: '{0} could not be built: {1}',
+    m_rebuildFailed: '{0} could not be rebuilt ({1}); the runners use the existing one.',
+    m_imagesDaily: 'Rebuilding the runner and Docker daemon images (daily refresh) …',
+    m_imagesBuild: 'Building the runner image (with GitHub’s latest runner) and the Docker daemon image …',
+    m_whatImages: 'Runner and Docker daemon images', m_orphansRemoved: 'Removed leftovers after the interruption: {0} containers, {1} volumes',
+    m_staleRunners: 'Removed {0} orphaned runners from GitHub', m_whatOldRunners: 'Removing old runners',
+    m_serviceRetry: 'Trying again to create the build service', m_serviceRenew: 'Creating the build service with the new limits',
+    m_serviceNetFailed: 'Could not create the network for the build service – {0}', m_serviceFailed: 'Build service does not start – {0}',
+    m_serviceUnreadable: 'Build service: state after start not readable – {0}', m_serviceEnded: 'Build service stops right after starting{0}',
+    m_cachesNotRemoved: 'Could not delete the caches – {0}', m_seedRefresh: 'Refreshing the template ({0} images) …',
+    m_loaderNotReady: 'The loader daemon did not become ready{0}; the template stays as it is.',
+    m_seedPullFailed: '{0} does not go into the template – {1}', m_seedNotRemoved: 'Could not delete the template – {0}',
+    m_vmTight: 'The Docker VM has only {0} GB of {1} GB memory free.', m_vmFree: 'The Docker VM has {0} GB memory free again.',
+    m_vmUnmeasured: 'The Docker VM’s memory can no longer be measured; the warning is dropped.', m_closing: 'RunClub is shutting down.',
+    m_leaving: 'Signing out is in progress. Please wait until it is done.', m_loginRunning: 'A sign-in is already running. Finish or cancel it first.',
+    m_ghMissing: 'The program gh is not installed.', m_alreadyIn: 'You are already signed in as {0}.',
+    m_authUnknown: 'The sign-in state could not be read yet. Please try again in a moment.', m_loginFirst: 'Sign in to GitHub first.',
+    m_scopeNotMissing: 'This permission is not missing or cannot be added here.', m_noScopeMissing: 'The sign-in is not missing any permission.',
+    m_leavingAlready: 'Already signing out.', m_finishLogin: 'Finish or cancel the running sign-in first.', m_notIn: 'You are not signed in to GitHub.',
+    m_loginUnknown: 'The account cannot be determined. Please sign out in a terminal: gh auth logout', m_ghSilent: 'gh does not respond.',
+    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).',
+    m_loggedOutSwitch: 'Signed out of GitHub ({0}). gh now uses the account {1}.', m_listening: 'Runner display: {0}',
+    m_stopping: 'Stopping the runners …', m_stopped: 'Stopped.', m_keyNotSaved: 'Could not save the key – {0}',
+    m_settingsBroken: 'Could not read {0}; it is created anew. The old file is at {1}.', m_bodyIncomplete: 'The request did not arrive completely.',
+    m_bodyTooLarge: 'The request is too large.', m_bodyNotJson: 'The request is not a valid JSON object.',
+    m_noAccess: 'No access. Open RunClub from its icon in the notification area.', m_wrongHost: 'wrong host', m_unknownCall: 'unknown',
+    m_pageStale: 'The page is out of date – please reload.', m_noUpdate: 'No update has been downloaded.',
+    m_updateBusy: 'A runner is working ({0}). The update can be installed once none is.', m_updating: 'RunClub is shutting down and updating to {0}.',
+    m_updateReady: 'RunClub {0} is downloaded and ready to install.', m_updateUnreachable: 'GitHub is not reachable: {0}',
+    m_updatePrivate: 'GitHub does not hand out {0} ({1}).', m_updateHttp: 'GitHub answers {0} for {1}.',
+    m_updateRedirects: 'Too many redirects while downloading the update.', m_updateBroken: 'The installer for {0} is damaged (checksum does not match).',
+    m_updateNoYml: 'The installer details (latest.yml) are missing for {0}.', m_updateYmlIncomplete: 'The installer details for {0} are incomplete.',
+    m_updateNoInstaller: 'The installer {1} is missing for {0}.', m_unknownChannel: 'Unknown channel: {0}',
   },
 };
-// Die Zustände eines Platzes, wie das Backend sie nennt (SLOT in src/states.js), und ihre englischen Wörter.
-const SLOT = { WORKING: 'arbeitet', READY: 'bereit' };
-const STATES_EN = { 'bereit': 'ready', 'arbeitet': 'working', 'startet': 'starting', 'räumt auf': 'cleaning up', 'pausiert': 'paused', 'wartet': 'waiting', 'wartet auf Docker': 'waiting for Docker', 'gestört': 'faulty', 'aus': 'off' };
+// Die Zustände eines Platzes, wie das Backend sie nennt (SLOT in src/states.js); ihre Wörter stehen als `st_<Zustand>` in TEXT.
+const SLOT = { WORKING: 'working', READY: 'ready', STARTING: 'starting', BROKEN: 'broken', OFF: 'off', PAUSED: 'paused' };
 // Bis zu dieser Breite gilt das Fenster als schmal; dieselbe Grenze steht im CSS (`max-width: 760px`) und in main.js.
 const NARROW = 760;
 const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* ohne Speicher */ } } };
 // Im Fenster der App zeichnet die Seite den Streifen zum Ziehen selbst.
 if (/Electron/.test(navigator.userAgent)) document.documentElement.classList.add('shell');
-let lang = store.get('lang', 'de');
+let lang = store.get('lang', /^de\b/i.test(navigator.language) ? 'de' : 'en'); // ohne Wahl die Sprache des Systems
 let mode = store.get('mode', 'compact');
 let view = store.get('view', 'all');
 let data = null;
@@ -559,6 +744,10 @@ let seatOf = new Map(); // Name eines Runners -> sein Platz im Pool
 const charts = {}; // Kennung -> { at, values, span, format } für die Anzeige unter dem Mauszeiger
 
 const t = (key, ...args) => (TEXT[lang][key] ?? key).replace(/\{(\d)\}/g, (_, i) => args[i]);
+// Eine Meldung des Backends ({ key, args }, siehe src/messages.js) in der gewählten Sprache; ein Text von außen bleibt,
+// wie er ist. Ein Wert kann selbst eine Meldung sein, eine Liste oder eine Uhrzeit ({ time }).
+const said = (m) => (Array.isArray(m) ? m.map(said).join(', ') : typeof m === 'number' ? m.toLocaleString(locale(), { maximumFractionDigits: 1 })
+  : !m || typeof m !== 'object' ? String(m ?? '') : 'time' in m ? hourMinute(m.time) : typeof m.key === 'string' ? t(m.key, ...(Array.isArray(m.args) ? m.args : []).map(said)) : '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Zahlen, Zeiten und Daten in der Schreibweise der gewählten Sprache.
 const locale = () => (lang === 'de' ? 'de-DE' : 'en-GB');
@@ -575,7 +764,7 @@ const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; retur
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
 const shortRepo = (repo) => repo.split('/')[1]; // der Name ohne den Besitzer
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
-const stateText = (state) => (lang === 'de' ? state : STATES_EN[state] ?? state);
+const stateText = (state) => (TEXT[lang]['st_' + state] ? t('st_' + state) : state);
 // Der Zustand eines Runners samt „läuft aus“, wenn der Platz wegfällt, sobald er frei ist.
 const runnerState = (r) => stateText(r.state) + (r.retiring ? ', ' + t('retiring') : '');
 const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
@@ -627,7 +816,7 @@ async function call(action, body) {
   try {
     const response = await fetch('/api/' + action, { method: 'POST', headers: { 'content-type': 'application/json', 'x-rc-token': TOKEN }, body: JSON.stringify(body ?? {}) });
     const answer = await response.json();
-    if (!response.ok) { toast(answer.error || t('stale')); return false; }
+    if (!response.ok) { toast(answer.msg ? said(answer.msg) : answer.error || t('stale')); return false; }
     refresh(); return true;
   } catch { toast(t('noAnswer')); return false; }
 }
@@ -904,7 +1093,7 @@ function bandCharts(marks) {
 
 // Ein Platz als Zustandssymbol wie im Netzplan: arbeitet läuft, bereit ist der leere Ring, alles Vorbereitende
 // (startet, wartet, räumt auf) wartet. Rot nur, wenn der Platz gestört ist; ein pausierter oder abgeschalteter ist ausgesetzt.
-const SEAT_STATE = { 'arbeitet': 'run', 'bereit': 'idle', 'gestört': 'fail', 'pausiert': 'skip', 'aus': 'skip' };
+const SEAT_STATE = { [SLOT.WORKING]: 'run', [SLOT.READY]: 'idle', [SLOT.BROKEN]: 'fail', [SLOT.PAUSED]: 'skip', [SLOT.OFF]: 'skip' };
 const seatState = (r) => SEAT_STATE[r.state] ?? 'wait';
 
 // Plätze: je Projekt eine Zeile mit einem Symbol je Platz und einem Punkt je Runner der Reserve. Die Reserve ist in
@@ -931,7 +1120,7 @@ function seats(entries) {
     : entries.map((entry) => row('<b data-tip="' + esc(entry.repo) + '">' + esc(shortRepo(entry.repo)) + '</b><span class="dots">' + (entry.pool?.paused ? paused(entry) : entry.runners.map(seatIcon).join('') + (widest ? reserveDots(entry) : '')) + '</span>')).join('');
   const shown = new Set(active.flatMap((entry) => entry.runners.map(seatState)));
   const keys = ['run', 'idle', 'wait', ...['fail', 'skip'].filter((state) => shown.has(state))];
-  const words = { run: SLOT.WORKING, idle: SLOT.READY, wait: 'startet', fail: 'gestört', skip: 'aus' };
+  const words = { run: SLOT.WORKING, idle: SLOT.READY, wait: SLOT.STARTING, fail: SLOT.BROKEN, skip: SLOT.OFF };
   const open = active.some((entry) => (entry.pool?.reserve ?? 0) < (entry.pool?.reserveWanted ?? 0));
   return '<div class="label">' + t('seats') + '</div><div class="seatlist ' + (single ? 'one' : 'two') + '" style="--rsv:' + widest + '">' + rows + '</div>' + (single ? '' :
     '<div class="seatkey">' + keys.map((state) => '<span class="s-' + state + '">' + icon(state) + stateText(words[state]) + '</span>').join('') +
@@ -954,7 +1143,7 @@ const minutesTrouble = () => { const { tight, out } = minutesState(); return tig
 const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
 // Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
-const warnings = (entries) => [data.machine.docker.ready ? '' : t('docker', data.machine.docker.error ?? t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error)), ...entries.filter((e) => e.pool?.blocked).map((e) => t('blockedWarn', shortRepo(e.repo)))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+const warnings = (entries) => [data.machine.docker.ready ? '' : t('docker', data.machine.docker.error ? said(data.machine.docker.error) : t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', said(e.error))), ...entries.filter((e) => e.pool?.blocked).map((e) => t('blockedWarn', shortRepo(e.repo)))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz, `more` ist ein Info-Element am Titel.
 const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
@@ -1154,7 +1343,7 @@ const LOG_SHORT = 8;
 const LOG_STATE = { error: 'fail', done: 'done', fail: 'fail', cancel: 'cancel' };
 // Meldungen zu einem Job bildet die Oberfläche in ihrer Sprache aus Jobname, Runner und Art; alles andere ist der
 // Satz des Backends.
-const logText = (entry) => (!entry.job ? entry.text : entry.kind === 'run' ? t('logJobRun', entry.job, entry.runner) : LOG_STATE[entry.kind] ? t('logJobEnd', entry.job, t('s_' + LOG_STATE[entry.kind])) : entry.text);
+const logText = (entry) => (entry.msg ? said(entry.msg) : entry.text); // ohne Schlüssel: ein Text von außen oder ein Eintrag einer älteren Version
 // Von heute genügt die Uhrzeit; Älteres nennt den Tag und spart dafür die Sekunden.
 function logTime(iso) {
   const at = new Date(iso);
@@ -1234,7 +1423,7 @@ function renderSettings() {
     const r = p.routing;
     const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
     const route = !r ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' && !p.blocked ? ' c-fail' : '') + '">' +
-      (r.error ? esc(r.error) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet + info('runs-on', t('routeNoneInfo')) : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
+      (r.error ? esc(said(r.error)) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet + info('runs-on', t('routeNoneInfo')) : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
       (r.uses === 'fixed' ? '' : r.here ? button('route', t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button('route', t('routeTo'), { do: 'pool/routing', repo, on: '1' }, { why: blocked, describedBy: noteId })) + '</div>';
     const caches = (p.cache ? crow(t('packages'), '', size('packages'), clear('packages', t('clearOf', t('packages')))) + crow(t('layers'), '', size('build'), clear('build', t('clearOf', t('layers'))))
       : '<div class="crow"><span class="dim">' + t('cacheIsOff') + '</span><span></span><span></span></div>') +

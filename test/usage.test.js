@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createUsage, parseStatsLine, SAMPLE_EVERY, STATS_MAX_AGE, STATS_RESTART } = require('../src/usage');
 const { MB, GB } = require('../src/units');
-const { turn } = require('./support');
+const { turn, rendered } = require('./support');
 
 const statsLine = (name, cpu, memory) => JSON.stringify({ Name: name, CPUPerc: `${cpu}%`, MemUsage: `${memory} / 7.6GiB` });
 
@@ -33,7 +33,7 @@ function world() {
   };
   w.usage = createUsage({
     docker, inVm, metrics: { sample: (point) => w.samples.push(point) }, pools: () => w.pools,
-    log: (...entry) => w.logs.push(entry), stopping: () => w.stopping,
+    log: (...entry) => w.logs.push(rendered(entry)), stopping: () => w.stopping,
     timer: (work, ms) => w.timers.push({ work, ms }), now: () => w.time, cpus: () => w.cores, memoryUsed: () => 3 * GB,
   });
   return w;
@@ -76,10 +76,10 @@ test('wird es in der VM eng, steht das im Protokoll, und vmTight nennt den freie
   w.usage.onDockerReady();
   for (let index = 0; index < 3; index += 1) vmBlock(w, 10 * 1024 * 1024, 1024 * 1024);
   assert.deepEqual(w.usage.vmTight(), { free: GB });
-  assert.deepEqual(w.logs, [['Die Docker-VM hat nur noch 1,0 GB von 10,0 GB Arbeitsspeicher frei.', null, 'error']]);
+  assert.deepEqual(w.logs, [['Die Docker-VM hat nur noch 1 GB von 10 GB Arbeitsspeicher frei.', null, 'error']]);
   vmBlock(w, 10 * 1024 * 1024, 5 * 1024 * 1024);
   assert.equal(w.usage.vmTight(), null);
-  assert.equal(w.logs[1][0], 'Die Docker-VM hat wieder 5,0 GB Arbeitsspeicher frei.');
+  assert.equal(w.logs[1][0], 'Die Docker-VM hat wieder 5 GB Arbeitsspeicher frei.');
 });
 
 test('jeder Messtakt gibt den Verbrauch an die Messung eines arbeitenden Platzes, jeder dritte wird ein Punkt im Verlauf', () => {

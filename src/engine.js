@@ -19,6 +19,7 @@
 
 const http = require('node:http');
 const { SECOND } = require('./units');
+const { msg } = require('./messages');
 
 const DESKTOP_DISTRO = 'docker-desktop';
 // Docker Desktop kann seinen Daemon ohne TLS auf diesem Port freigeben (Settings → General).
@@ -44,8 +45,8 @@ function engineFrom(env = process.env) {
 //   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
 //   inVm(script, options)   ein festes Shell-Skript in der VM (`wsl --exec`, ohne die Shell der Distro dazwischen);
 //                           ohne Distro ein Ergebnis ohne Ausgabe (`code` -1). Nie Daten von außen hineinschreiben.
-//   unreachableText         die Meldung, wenn Docker nicht antwortet
-//   exposure()              eine Warnung, wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise)
+//   unreachable             die Meldung, wenn Docker nicht antwortet (siehe messages.js)
+//   exposure()              eine Warnung (Meldung), wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise)
 // `get` wie `http.get`; in Tests steuerbar.
 function createEngine({ run, timeout, host = null, certs = null, distro = host ? null : DESKTOP_DISTRO, get = http.get }) {
   const desktop = !host && distro === DESKTOP_DISTRO;
@@ -55,8 +56,8 @@ function createEngine({ run, timeout, host = null, certs = null, distro = host ?
   const dockerList = async (args) => (await docker(args)).stdout.split('\n').map((line) => line.trim()).filter(Boolean);
   const inVm = (script, options) => (distro ? run('wsl', ['-d', distro, '--exec', 'sh', '-c', script], options)
     : Promise.resolve({ code: -1, stdout: '', stderr: 'keine Distro für die Messung', timedOut: false }));
-  const unreachableText = desktop ? 'Docker ist nicht erreichbar – läuft Docker Desktop?'
-    : `Docker ist nicht erreichbar – läuft der Daemon${host ? ` unter ${host}` : ''}${distro ? ` in der WSL-Distro ${distro}` : ''}?`;
+  const unreachable = desktop ? msg('m_dockerUnreachableDesktop')
+    : host && distro ? msg('m_dockerUnreachableBoth', host, distro) : host ? msg('m_dockerUnreachableHost', host) : distro ? msg('m_dockerUnreachableDistro', distro) : msg('m_dockerUnreachable');
   // Ein Daemon ohne Schutz auf dem Windows-localhost ist aus jedem Container erreichbar (host.docker.internal): Ein Job
   // steuerte damit ganz Docker, ohne erst ausbrechen zu müssen. Bei Docker Desktop gibt es dafür einen Schalter; ein
   // eigener Endpunkt über `tcp://` ohne Zertifikate ist es von vornherein.
@@ -71,11 +72,11 @@ function createEngine({ run, timeout, host = null, certs = null, distro = host ?
     request.on('error', () => resolve(false)); // nichts lauscht dort: so soll es sein
   });
   async function exposure() {
-    if (host && /^tcp:\/\//i.test(host) && !certs) return `RUNCLUB_DOCKER_HOST zeigt auf ${host} ohne TLS (RUNCLUB_DOCKER_CERTS fehlt). Jeder Job, der diesen Port erreicht, steuert damit ganz Docker.`;
-    if (desktop && await desktopExposed()) return 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.';
+    if (host && /^tcp:\/\//i.test(host) && !certs) return msg('m_exposedTcp', host);
+    if (desktop && await desktopExposed()) return msg('m_exposedDesktop');
     return null;
   }
-  return { docker, dockerList, inVm, unreachableText, exposure };
+  return { docker, dockerList, inVm, unreachable, exposure };
 }
 
 module.exports = { engineFrom, createEngine, DESKTOP_DISTRO, EXPOSED_PING };

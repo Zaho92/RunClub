@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { createDockerWatch, MISSES, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/dockerwatch');
 const { PROBE_TIMEOUT } = require('../src/dind');
 const { createEngine } = require('../src/engine');
+const { rendered } = require('./support');
 
 const MARK = 'runclub.runner=test';
 const SERVICE_MARK = 'runclub.service=test';
@@ -31,14 +32,14 @@ function world() {
     w.calls.push(brief(args));
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(brief(args), options)) };
   };
-  const { docker, dockerList, unreachableText } = createEngine({ run, timeout: 99 });
+  const { docker, dockerList, unreachable } = createEngine({ run, timeout: 99 });
   w.watch = createDockerWatch({
     docker, dockerList,
     gh: async (args) => { w.calls.push(`gh ${args.join(' ')}`); if (w.ghFails) throw new Error(w.ghFails); return w.runners; },
-    log: (...entry) => w.logs.push(entry),
+    log: (...entry) => w.logs.push(rendered(entry)),
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
     host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, builds: BUILDS, requiredImages: ['buildkit:test'], longTimeout: 1234,
-    unreachableText, exposure: async () => w.exposure ?? null,
+    unreachable, exposure: async () => w.exposure ?? null,
     buildService: (repo) => `rc-buildkit-${repo.split('/')[1].toLowerCase()}`, buildNetwork: (repo) => `rc-buildnet-${repo.split('/')[1].toLowerCase()}`,
     livePairs: w.livePairs, repos: () => w.repos, pools: () => w.pools,
     preparePool: async (pool) => { w.prepared.push(pool.repo); assert.equal(pool.prepared, false); },
@@ -91,7 +92,7 @@ test('antwortet Docker nicht, steht der Grund einmal im Protokoll, und es wird i
   w.answer = (name) => (name.startsWith('info') ? { code: 1, stderr: 'error during connect' } : undefined);
   await loopFor(w, 3);
   assert.deepEqual(w.logs, [['Docker ist nicht erreichbar – läuft Docker Desktop?', null, 'error']]);
-  assert.equal(w.watch.error(), 'Docker ist nicht erreichbar – läuft Docker Desktop?');
+  assert.deepEqual(w.watch.error(), { key: 'm_dockerUnreachableDesktop', args: [] }); // die Oberfläche übersetzt
   assert.deepEqual(w.slept, [WAIT_PAUSE, WAIT_PAUSE, WAIT_PAUSE]);
   assert.deepEqual([w.watch.ready(), w.ready, w.prepared], [false, 0, []]);
 });

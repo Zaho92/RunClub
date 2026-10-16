@@ -35,6 +35,7 @@ const { run } = require('./run');
 const { SECOND, MINUTE, DAY } = require('./units');
 const { createAccess } = require('./access');
 const { createJournal, errorLog } = require('./journal');
+const { msg } = require('./messages');
 const { createSettings } = require('./settings');
 const { createNames, pinnedImages, DEFAULT_PORT, IMAGE } = require('./names');
 const { DAEMON_IMAGE } = require('./dind');
@@ -83,8 +84,9 @@ function start({
 
   // --- Protokoll ---
   const journal = createJournal({ file: path.join(dataDir, 'runclub.log'), echo: (line) => console.log(line) });
-  // `repo` nennt das Projekt, zu dem die Meldung gehört; `kind` und `about` (bei Jobs `{ job, runner }`) siehe journal.js.
-  const log = (text, repo, kind, about) => journal.add(text, { repo, kind, ...about });
+  // `message`: eine Meldung (siehe messages.js) oder ein Text von außen. `repo` nennt das Projekt, zu dem sie gehört;
+  // `kind` siehe journal.js.
+  const log = (message, repo, kind) => journal.add(message, { repo, kind });
   const logError = errorLog(log);
   // Start und Ende; was das Beenden braucht, entsteht erst weiter unten.
   const progress = createShutdown({
@@ -146,11 +148,11 @@ function start({
     docker, dockerList, gh, log, sleep,
     host: os.hostname(), mark: names.mark, serviceMark: names.serviceMark,
     builds: [
-      { image: IMAGE, dir: path.join(__dirname, '..', 'linux'), what: 'Das Runner-Abbild' },
-      { image: DAEMON_IMAGE, dir: path.join(__dirname, '..', 'linux', 'dind'), args: ['--build-arg', `BASE=${DIND}`], what: 'Das Abbild des Docker-Daemons' },
+      { image: IMAGE, dir: path.join(__dirname, '..', 'linux'), what: 'm_imageRunner' },
+      { image: DAEMON_IMAGE, dir: path.join(__dirname, '..', 'linux', 'dind'), args: ['--build-arg', `BASE=${DIND}`], what: 'm_imageDaemon' },
     ],
     requiredImages: [BUILDKIT], longTimeout: DOCKER_LONG,
-    unreachableText: engine.unreachableText, exposure: engine.exposure, buildService: names.buildService, buildNetwork: names.buildNetwork,
+    unreachable: engine.unreachable, exposure: engine.exposure, buildService: names.buildService, buildNetwork: names.buildNetwork,
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
     stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,
   });
@@ -180,7 +182,7 @@ function start({
     actions: () => actions,
   });
   server.listen(port, '127.0.0.1', () => {
-    log(`Runner-Anzeige: http://127.0.0.1:${port}`);
+    log(msg('m_listening', `http://127.0.0.1:${port}`));
     lifecycle.saveKey(path.join(dataDir, 'access.key'), access.key);
     console.log(`Öffnen mit: ${access.entry}`);
   });
@@ -189,7 +191,7 @@ function start({
   every(EVERY.account, account.watch);
   every(EVERY.quota, remote.watchQuota);
   every(EVERY.waiting, remote.scanWaiting);
-  everyAfter(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, 'Abbilder von Runner und Docker-Daemon')));
+  everyAfter(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, msg('m_whatImages'))));
   every(EVERY.github, remote.refreshAll);
   everyAfter(EVERY.githubActive, remote.refreshActive);
   everyAfter(EVERY.measure, usage.measure);

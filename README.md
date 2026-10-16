@@ -77,6 +77,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/github.js` | Aufrufe von `gh`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird, die Umgebung, mit der `gh` läuft |
 | `src/auth.js` | Anmeldung bei GitHub über `gh auth`: Stand lesen (Konto, Rechte, was fehlt), Anmelden und Ergänzen eines Rechts mit Einmalcode führen, abbrechen, abmelden |
 | `src/minutes.js` | Minuten-Kontingent von GitHub Actions: Verbrauch des Monats aus der Abrechnung des Kontos (je Betriebssystem, bezahlt), enthaltene Minuten als Annahme je Tarif, Zustand knapp, aufgebraucht oder bezahlt, wann wieder gelesen wird |
+| `src/messages.js` | Meldungen an die Oberfläche als Schlüssel mit Werten (`{ key, args }`), mit dem deutschen Satz für Datei und Fehlertext; die Oberfläche übersetzt sie mit ihren Tabellen |
 | `src/journal.js` | Protokoll: Einträge mit Zeit, Projekt, Meldung und Art; die letzten im Speicher und für den nächsten Start in `runclub.log.entries`, alle lesbar in `runclub.log` |
 | `src/subnets.js` | Netze der Paare und Build-Dienste: je ein zufälliges /28 aus einem eigenen Bereich statt aus Dockers knappem Vorrat |
 | `src/waiting.js` | Läufe ohne Pool, die nicht vorankommen: Repos des Kontos, in denen Jobs auf einen eigenen Runner warten oder Läufe am aufgebrauchten Kontingent von GitHub gescheitert sind |

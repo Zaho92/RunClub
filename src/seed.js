@@ -15,6 +15,7 @@ const { SECOND } = require('./units');
 const { waitForDaemon, whyNotReady, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { permanentPullError, daysSince, pruneOlder } = require('./images');
 const { errorLog } = require('./journal');
+const { msg, Fault } = require('./messages');
 
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
@@ -66,7 +67,7 @@ function createSeed({
       // `-v` bei jedem Entfernen: Das Abbild des Daemons legt seinen Speicher als Volume an, das sonst liegen bliebe.
       await docker(['rm', '-f', '-v', loader]);
       if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
-      log(`Frische die Vorlage auf (${wanted.length} Abbilder) …`, repo);
+      log(msg('m_seedRefresh', wanted.length), repo);
       await docker(['volume', 'create', seed]);
       // Der Lade-Daemon läuft ohne Rechte wie der Daemon eines Paars (siehe dind.js), sonst taugte die Vorlage diesem
       // nicht. Eine Vorlage aus der Zeit, als die Daemons Rechte hatten, gehört root: Sie wird einmal geleert.
@@ -81,7 +82,7 @@ function createSeed({
       if (!ready) {
         const why = await whyNotReady(docker, loader);
         await docker(['rm', '-f', '-v', loader]);
-        throw new Error(`Der Lade-Daemon wurde nicht bereit${why}; die Vorlage bleibt unverändert.`);
+        throw new Fault('m_loaderNotReady', why);
       }
       const present = new Set();
       const retry = new Set();
@@ -90,7 +91,7 @@ function createSeed({
         if (stopping()) return;
         const pull = await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'pull', '-q', image], { timeout: longTimeout });
         if (pull.code === 0) { present.add(image); continue; }
-        log(`${image} kommt nicht in die Vorlage – ${lastLine(pull.stderr)}`, repo, 'error');
+        log(msg('m_seedPullFailed', image, lastLine(pull.stderr)), repo, 'error');
         // Eine Störung (Netz, Anfragelimit) geht vorüber: Was schon in der Vorlage liegt, bleibt dort.
         if (!permanentPullError(pull.stderr)) { retry.add(image); continue; }
         // Was es bei der Registry nicht gibt, hat der Job selbst gebaut oder es ist nicht öffentlich: nicht wieder versuchen.
@@ -145,7 +146,7 @@ function createSeed({
       const pool = poolOf(repo);
       if (pool) pool.seeded = new Set();
       const removed = await docker(['volume', 'rm', '-f', seedVolume(repo)]);
-      if (removed.code !== 0) throw new Error(`Die Vorlage ließ sich nicht löschen – ${lastLine(removed.stderr)}`);
+      if (removed.code !== 0) throw new Fault('m_seedNotRemoved', lastLine(removed.stderr));
     });
   }
 

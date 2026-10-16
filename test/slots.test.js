@@ -5,7 +5,8 @@ const { READY_TRIES, DAEMON_POLL, SECURITY_FLAGS } = require('../src/dind');
 const { SECOND, HOUR } = require('../src/units');
 
 const PAUSE_STEPS = BROKEN_PAUSE / SECOND; // die Pause nach einem Fehler, in Sekundenschritten
-const { turn, until } = require('./support');
+const { turn, until, rendered } = require('./support');
+const { render } = require('../src/messages');
 
 const REPO = 'wer/App';
 const BASE = 'rc-app-a1b2c3'; // `rc-<repo>-<kennung>`
@@ -44,7 +45,7 @@ function world() {
   };
   w.slots = createSlots({
     docker, gh,
-    log: (...entry) => w.logs.push(entry),
+    log: (...entry) => w.logs.push(rendered(entry)),
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     timer: (work, ms) => w.timers.push({ work, ms }),
     newId: () => w.newId(),
@@ -62,7 +63,7 @@ function world() {
     forgetStats: (name) => w.forgotten.push(name),
   });
   w.pool = { repo: REPO, slots: [], reserve: [], seeded: new Set(), removed: false };
-  w.slot = { repo: REPO, state: 'startet', jobs: 0 }; // wie `reconcile` in pools.js einen Platz anlegt
+  w.slot = { repo: REPO, state: 'starting', jobs: 0 }; // wie `reconcile` in pools.js einen Platz anlegt
   w.pool.slots.push(w.slot);
   return w;
 }
@@ -109,7 +110,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
     ALIVE(BASE), // gelesen wird, bis der Runner wirklich endet
     ...REMOVE, // ohne Abmeldung: Die Anmeldung galt für diesen einen Job
   ]);
-  assert.deepEqual(states, ['startet', 'startet', 'bereit', 'arbeitet', 'arbeitet']);
+  assert.deepEqual(states, ['starting', 'starting', 'ready', 'working', 'working']);
   assert.deepEqual(w.body, { name: RUNNER, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' });
 
   const call = (name) => w.details.find((detail) => detail.name === name);
@@ -139,8 +140,8 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   assert.equal(runner.options.env, undefined);
 
   assert.deepEqual(w.logs, [
-    [`Job „Bauen“ läuft auf ${RUNNER}`, REPO, 'run', { job: 'Bauen', runner: RUNNER }],
-    ['Job „Bauen“ – fertig', REPO, 'done', { job: 'Bauen' }],
+    [`Job „Bauen“ läuft auf ${RUNNER}`, REPO, 'run'],
+    ['Job „Bauen“ – fertig', REPO, 'done'],
   ]);
   assert.equal(w.recorded.length, 1);
   const [repo, record] = w.recorded[0];
@@ -158,7 +159,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   assert.equal(w.slots.livePairs.size, 0);
   assert.deepEqual(w.slept, []);
   assert.deepEqual({ state: w.slot.state, base: w.slot.base, runnerId: w.slot.runnerId, jobs: w.slot.jobs, lastResult: w.slot.lastResult, meter: w.slot.meter, error: w.slot.error },
-    { state: 'aus', base: null, runnerId: null, jobs: 1, lastResult: 'Bauen: Succeeded', meter: null, error: null });
+    { state: 'off', base: null, runnerId: null, jobs: 1, lastResult: { job: 'Bauen', result: 'Succeeded' }, meter: null, error: null });
   assert.deepEqual(w.pool.slots, []); // der beendete Platz verlässt den Pool
 });
 
@@ -178,10 +179,10 @@ test('während des Jobs steht der Platz mit Paar, Namen und Anmeldung da; abgeba
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual({ state: during.state, base: during.base, name: during.name, runnerId: during.runnerId, job: during.job, built: during.built, building: during.building },
-    { state: 'arbeitet', base: BASE, name: RUNNER, runnerId: 77, job: 'Tests', built: `6/${4 * 1024 ** 3}/4/${8 * 1024 ** 3}`, building: false });
+    { state: 'working', base: BASE, name: RUNNER, runnerId: 77, job: 'Tests', built: `6/${4 * 1024 ** 3}/4/${8 * 1024 ** 3}`, building: false });
   assert.deepEqual(during.live, [[BASE, REPO]]);
-  assert.equal(removing, 'räumt auf');
-  assert.deepEqual(w.logs.at(-1), ['Job „Tests“ – Fehler', REPO, 'fail', { job: 'Tests' }]);
+  assert.equal(removing, 'cleaning');
+  assert.deepEqual(w.logs.at(-1), ['Job „Tests“ – Fehler', REPO, 'fail']);
   const prepare = w.details.find((detail) => detail.name === `run ${BASE}-seed`).args;
   assert.equal(prepare.at(-1), 'chown 1001:1001 /w /s /d'); // ohne Vorlage wird nichts kopiert, nur die Rechte gesetzt
   assert.equal(prepare.includes('rc-seed-app:/seed:ro'), false);
@@ -229,12 +230,12 @@ test('endet der Runner ohne Job, ist der Platz gestört: Fehler ins Protokoll, A
 
   const message = 'Runner endete ohne Job (docker: Error response from daemon: Conflict.)';
   assert.deepEqual(w.logs, [[message, REPO, 'error']]);
-  assert.deepEqual(paused, { state: 'gestört', error: message, base: null });
+  assert.deepEqual({ ...paused, error: render(paused.error) }, { state: 'broken', error: message, base: null }); // der Fehler bleibt eine Meldung
   assert.deepEqual(w.calls.slice(-6), [`run ${BASE}-runner`, ALIVE(BASE), ...REMOVE, UNREGISTER]); // kein Job: Die Anmeldung wird zurückgenommen
   assert.deepEqual(w.slept, [IDLE_PAUSE]);
   assert.deepEqual(w.learned, []);
   assert.deepEqual(w.recorded, []);
-  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slot.state, 'off');
   assert.equal(w.slot.jobs, 0);
 });
 
@@ -282,7 +283,7 @@ test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual(w.calls, [...BUILD, REGISTER, REGISTER, `run ${BASE}-runner`, ALIVE(BASE), ...REMOVE]); // ein Aufbau, zwei Anmeldungen
-  assert.deepEqual(paused, { state: 'gestört', error: 'gh: Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
+  assert.deepEqual(paused, { state: 'broken', error: 'gh: Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
   assert.deepEqual(w.logs[0], ['gh: Forbidden (HTTP 403)', REPO, 'error']);
   assert.equal(w.slept.length, PAUSE_STEPS);
   assert.deepEqual(w.replenished, [REPO]); // die Reserve gibt kein zweites Paar her
@@ -300,7 +301,7 @@ test('ein Paar ohne Anmeldung wird abgebaut, wenn der Platz endet, und nichts wi
   assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]);
   assert.equal(w.slot.error, 'gh: Forbidden (HTTP 403)');
   assert.deepEqual(w.slept, [IDLE_PAUSE]);
-  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slot.state, 'off');
   assert.equal(w.slots.livePairs.size, 0);
 });
 
@@ -314,7 +315,7 @@ test('ein Paar ohne Anmeldung wird abgebaut, wenn der Pool ruht oder die Limits 
   };
   await rest.slots.slotLoop(rest.pool, rest.slot);
   assert.deepEqual(rest.calls, [...BUILD, REGISTER, ...REMOVE]);
-  assert.deepEqual(resting, { state: 'pausiert', base: null });
+  assert.deepEqual(resting, { state: 'paused', base: null });
 
   const changed = world();
   changed.ghFails = 'gh: Forbidden (HTTP 403)';
@@ -339,12 +340,12 @@ test('endet der Runner mitten im Job ohne Ergebnis, steht das im Protokoll, und 
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual(w.logs, [
-    [`Job „Bauen“ läuft auf ${RUNNER}`, REPO, 'run', { job: 'Bauen', runner: RUNNER }],
-    ['Job „Bauen“ endete ohne Ergebnis (Code 137)', REPO, 'error', { job: 'Bauen' }],
+    [`Job „Bauen“ läuft auf ${RUNNER}`, REPO, 'run'],
+    ['Job „Bauen“ endete ohne Ergebnis (Code 137)', REPO, 'error'],
   ]);
   assert.deepEqual(w.recorded, []); // Dauer und Ergebnis stimmen nicht: kein Verbrauch
   assert.equal(w.slot.meter, null);
-  assert.equal(w.slot.lastResult, 'Bauen: ohne Ergebnis');
+  assert.deepEqual(w.slot.lastResult, { job: 'Bauen', result: null });
   assert.equal(w.slot.jobs, 1);
   assert.deepEqual(w.learned, ['Bauen']);
   assert.deepEqual(w.calls.slice(-5), [`run ${BASE}-runner`, ALIVE(BASE), ...REMOVE]); // die Anmeldung ist verbraucht
@@ -386,7 +387,7 @@ test('ein Abbruch in der Pause nach gescheiterter Anmeldung baut das behaltene P
   assert.deepEqual(w.calls, [...BUILD, REGISTER, `rm -f ${BASE}-runner`, ...REMOVE]);
   assert.ok(w.slept.length <= 4); // drei Sekunden Pause, höchstens eine des Abbruchs
   assert.equal(w.slot.aborted, true);
-  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slot.state, 'off');
   assert.equal(w.slots.livePairs.size, 0);
 });
 
@@ -400,7 +401,7 @@ test('Abbruch im Leerlauf entfernt den Runner und meldet ihn bei GitHub ab', asy
     return new Promise((resolve) => { end = resolve; }); // der Runner wartet auf einen Job
   };
   const loop = w.slots.slotLoop(w.pool, w.slot);
-  await until(() => w.slot.state === 'bereit');
+  await until(() => w.slot.state === 'ready');
   assert.equal(w.slot.runnerId, 77);
 
   w.slot.retired = true; // wie `reconcile`, wenn ein Platz wegfällt
@@ -412,7 +413,7 @@ test('Abbruch im Leerlauf entfernt den Runner und meldet ihn bei GitHub ab', asy
   assert.deepEqual(w.logs, []); // ein Abbruch ist kein Fehler
   assert.deepEqual(w.learned, []);
   assert.equal(w.slot.aborted, true);
-  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slot.state, 'off');
   assert.equal(w.slots.livePairs.size, 0);
 });
 
@@ -428,7 +429,7 @@ test('ein arbeitender oder aufräumender Platz wird nicht abgebrochen', async ()
   };
   w.onLearn = (pool, slot) => { slot.retired = true; };
   const loop = w.slots.slotLoop(w.pool, w.slot);
-  await until(() => w.slot.state === 'arbeitet');
+  await until(() => w.slot.state === 'working');
   const before = w.calls.length;
 
   await w.slots.abortIdle(w.slot);
@@ -439,10 +440,10 @@ test('ein arbeitender oder aufräumender Platz wird nicht abgebrochen', async ()
   end({ code: 0 });
   await loop;
   assert.deepEqual(w.calls.slice(before), [ALIVE(BASE), ...REMOVE]); // nach einem Job wird nichts mehr abgemeldet
-  assert.deepEqual(w.logs.at(-1), ['Job „Bauen“ – abgebrochen', REPO, 'cancel', { job: 'Bauen' }]);
+  assert.deepEqual(w.logs.at(-1), ['Job „Bauen“ – abgebrochen', REPO, 'cancel']);
   assert.deepEqual(w.learned, ['Bauen']);
 
-  const cleaning = { repo: REPO, state: 'räumt auf', base: BASE, aborted: false };
+  const cleaning = { repo: REPO, state: 'cleaning', base: BASE, aborted: false };
   await w.slots.abortIdle(cleaning);
   assert.equal(cleaning.aborted, false);
   assert.equal(w.calls.length, before + 1 + REMOVE.length);
@@ -461,10 +462,10 @@ test('nimmt der Runner während des Abbruchs doch einen Job an, läuft der zu En
   };
   w.onLearn = (pool, slot) => { slot.retired = true; };
   const loop = w.slots.slotLoop(w.pool, w.slot);
-  await until(() => w.slot.state === 'bereit');
+  await until(() => w.slot.state === 'ready');
 
   await w.slots.abortIdle(w.slot);
-  assert.equal(w.slot.state, 'arbeitet');
+  assert.equal(w.slot.state, 'working');
   assert.equal(w.slot.aborted, false);
 
   emit('Job Bauen completed with result: Succeeded');
@@ -528,11 +529,11 @@ test('ruht der Pool oder fehlt Docker, wartet der Platz und die Reserve wird abg
   };
   await w.slots.slotLoop(w.pool, w.slot);
 
-  assert.deepEqual(states, ['wartet auf Docker', 'pausiert', 'wartet']);
+  assert.deepEqual(states, ['noDocker', 'paused', 'waiting']);
   assert.equal(w.discarded, 3);
   assert.deepEqual(w.slept, [IDLE_PAUSE, IDLE_PAUSE, IDLE_PAUSE]);
   assert.deepEqual(w.calls, []);
-  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slot.state, 'off');
 });
 
 test('teardown: ohne Paar geschieht nichts; ohne Job wird abgemeldet, nach einem Job nicht', async () => {
@@ -599,7 +600,7 @@ test('wirft etwas beim Abräumen, steht das im Protokoll, und der Platz macht we
   const { createSlots } = require('../src/slots');
   const slots = createSlots({
     docker: async () => ({ code: 0, stdout: '', stderr: '' }), gh: async () => null,
-    log: (...entry) => w.logs.push(entry), sleep: async (ms) => { w.slept.push(ms); await turn(); },
+    log: (...entry) => w.logs.push(rendered(entry)), sleep: async (ms) => { w.slept.push(ms); await turn(); },
     host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234, metrics: {},
     settingsOf: () => w.settings, limitsOf: () => LIMITS, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
     stopping: () => w.stopping, dockerReady: () => true, poolResting: () => true,
@@ -609,7 +610,7 @@ test('wirft etwas beim Abräumen, steht das im Protokoll, und der Platz macht we
   await slots.slotLoop(w.pool, w.slot);
   assert.deepEqual(w.logs, [['Platz – Docker antwortet nicht', REPO, 'error']]);
   assert.deepEqual(w.slept, [ROUND_PAUSE, IDLE_PAUSE]); // erst die Pause nach dem Fehler, dann die übliche Runde
-  assert.equal(w.slot.state, 'aus');
+  assert.equal(w.slot.state, 'off');
   assert.deepEqual(w.pool.slots, []);
 });
 
@@ -623,7 +624,7 @@ test('ein Platz ist nur gewollt, solange das Programm läuft, der Pool besteht u
 });
 
 test('noteWorkflows: ein arbeitender Platz merkt sich den Workflow seines Jobs; ohne Angabe bleibt der alte', () => {
-  const pool = { slots: [{ name: 'PC-linux-1', state: 'arbeitet', workflow: '' }, { name: 'PC-linux-2', state: 'arbeitet', workflow: 'CI' }, { name: 'PC-linux-3', state: 'bereit' }] };
+  const pool = { slots: [{ name: 'PC-linux-1', state: 'working', workflow: '' }, { name: 'PC-linux-2', state: 'working', workflow: 'CI' }, { name: 'PC-linux-3', state: 'ready' }] };
   noteWorkflows(pool, [{ runner: 'PC-linux-1', workflow: 'Release' }, { runner: 'PC-linux-3', workflow: 'CI' }, { runner: 'PC-linux-2', workflow: '' }]);
   assert.deepEqual(pool.slots.map((slot) => slot.workflow), ['Release', 'CI', undefined]);
   noteWorkflows(undefined, []); // ein Repo ohne Pool
@@ -655,11 +656,11 @@ test('ein vorgetäuschtes Ende zählt nicht: Es gilt das letzte Ergebnis vor dem
   w.onLearn = (pool, slot) => { slot.retired = true; };
   await w.slots.slotLoop(w.pool, w.slot);
 
-  assert.deepEqual(during, { logs: 1, recorded: 0, state: 'arbeitet' }); // nichts gemeldet, der Platz arbeitet weiter
+  assert.deepEqual(during, { logs: 1, recorded: 0, state: 'working' }); // nichts gemeldet, der Platz arbeitet weiter
   assert.deepEqual(w.recorded.map(([repo, record]) => [repo, record.job, record.result]), [[REPO, 'Bauen', 'Failed']]);
   assert.equal(w.metered, 1);
-  assert.deepEqual(w.logs.at(-1), ['Job „Bauen“ – Fehler', REPO, 'fail', { job: 'Bauen' }]);
-  assert.equal(w.slot.lastResult, 'Bauen: Failed');
+  assert.deepEqual(w.logs.at(-1), ['Job „Bauen“ – Fehler', REPO, 'fail']);
+  assert.deepEqual(w.slot.lastResult, { job: 'Bauen', result: 'Failed' });
   assert.equal(w.slot.jobs, 1);
 });
 
@@ -679,8 +680,8 @@ test('Jobname und Ergebnis aus der Ausgabe des Runners werden gekürzt; ein Ende
 
   assert.equal(w.recorded[0][1].job.length, JOB_NAME_MAX);
   assert.equal(w.recorded[0][1].result.length, RESULT_MAX);
-  assert.equal(w.slot.lastResult.length, JOB_NAME_MAX + 2 + RESULT_MAX);
-  assert.equal(w.logs[0][3].job.length, JOB_NAME_MAX);
+  assert.deepEqual([w.slot.lastResult.job.length, w.slot.lastResult.result.length], [JOB_NAME_MAX, RESULT_MAX]);
+  assert.equal(w.logs[0][0], `Job „${'x'.repeat(JOB_NAME_MAX)}“ läuft auf ${w.slot.name}`);
 });
 
 test('läuft ein Runner über die Frist, wird er entfernt, und der Job zählt ohne Ergebnis', async () => {
@@ -696,5 +697,5 @@ test('läuft ein Runner über die Frist, wird er entfernt, und der Job zählt oh
 
   assert.deepEqual(w.calls.slice(-4), [`rm -f ${BASE}-runner`, ...REMOVE]); // ohne erneutes Mitlesen
   assert.deepEqual(w.recorded, []);
-  assert.deepEqual(w.logs.at(-1), [`Job „Bauen“ endete ohne Ergebnis (nach ${RUNNER_MAX / HOUR} h beendet)`, REPO, 'error', { job: 'Bauen' }]);
+  assert.deepEqual(w.logs.at(-1), [`Job „Bauen“ endete ohne Ergebnis (nach ${RUNNER_MAX / HOUR} h beendet)`, REPO, 'error']);
 });

@@ -4,6 +4,7 @@ const { createCaches } = require('../src/caches');
 const { SECURITY_FLAGS } = require('../src/dind');
 const { MINUTE } = require('../src/units');
 const { createEngine } = require('../src/engine');
+const { rendered } = require('./support');
 
 const REPO = 'wer/App';
 const OLD = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 4, dockerMemory: '8g' };
@@ -39,7 +40,7 @@ function world() {
   const { docker, dockerList } = createEngine({ run, timeout: 99 });
   w.caches = createCaches({
     docker, dockerList, sleep: async () => {},
-    log: (...entry) => w.logs.push(entry),
+    log: (...entry) => w.logs.push(rendered(entry)),
     dind: 'dind:test', buildkit: 'buildkit:test', serviceMark: 'runclub.service=test',
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
@@ -186,7 +187,7 @@ test('der Build-Dienst mit den geltenden Limits bleibt stehen', async () => {
 test('mit neuen Limits entsteht der Build-Dienst neu; die Paare erreichen ihn über denselben Socket', async () => {
   const w = world();
   w.pool.serviceBuilt = KEY_OLD;
-  w.pool.slots = [{ state: 'bereit' }, { state: 'startet' }];
+  w.pool.slots = [{ state: 'ready' }, { state: 'starting' }];
   w.answer = running(KEY_OLD);
   w.limits = NEW;
   await w.caches.renewService(w.pool);
@@ -198,8 +199,8 @@ test('mit neuen Limits entsteht der Build-Dienst neu; die Paare erreichen ihn ü
 
 test('solange im Pool gebaut wird oder er anderweitig beschäftigt ist, wartet das Erneuern', async () => {
   const blocked = [
-    (w) => { w.pool.slots = [{ state: 'arbeitet' }]; },
-    (w) => { w.pool.slots = [{ state: 'räumt auf' }]; },
+    (w) => { w.pool.slots = [{ state: 'working' }]; },
+    (w) => { w.pool.slots = [{ state: 'cleaning' }]; },
     (w) => { w.pool.hold = true; },
     (w) => { w.pool.removed = true; },
     (w) => { w.pool.prepared = false; },

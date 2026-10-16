@@ -17,6 +17,7 @@ const os = require('node:os');
 const { ESCAPES } = require('./run');
 const { SECOND, MINUTE, MB, GB } = require('./units');
 const { createVmMemory, COMMAND: VM_COMMAND } = require('./vmmemory');
+const { msg } = require('./messages');
 
 const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
 const STATS_MAX_AGE = 15 * SECOND; // ein beendeter Container meldet sich nicht ab: So lange gilt sein letzter Wert
@@ -24,7 +25,7 @@ const STATS_RESTART = 5 * SECOND; // Pause, bevor ein beendetes `docker stats` n
 const VM_FEED_MAX = 60 * MINUTE; // der Messprozess in der VM endet stündlich: Bliebe er stumm hängen, käme sonst nie wieder ein Wert
 const UNITS = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: MB, GB: 1e9, GiB: GB };
 
-const gbText = (bytes) => `${(bytes / GB).toFixed(1).replace('.', ',')} GB`; // für Meldungen
+const gb = (bytes) => Math.round(bytes / GB * 10) / 10; // für Meldungen
 
 // Eine Zeile von `docker stats --format '{{json .}}'`: `{ name, cpu, memory }` oder `null` (Kopfzeile, unvollständig).
 // Steuerzeichen, mit denen `docker stats` neu zeichnet, werden übergangen.
@@ -77,8 +78,8 @@ function createUsage({
   const vmProbe = createVmMemory({
     now,
     onChange: (tight, sample) => {
-      if (tight) log(`Die Docker-VM hat nur noch ${gbText(sample.available)} von ${gbText(sample.total)} Arbeitsspeicher frei.`, null, 'error');
-      else log(sample ? `Die Docker-VM hat wieder ${gbText(sample.available)} Arbeitsspeicher frei.` : 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.');
+      if (tight) log(msg('m_vmTight', gb(sample.available), gb(sample.total)), null, 'error');
+      else log(sample ? msg('m_vmFree', gb(sample.available)) : msg('m_vmUnmeasured'));
     },
   });
   let vmFeed = false; // es läuft höchstens einer

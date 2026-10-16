@@ -4,13 +4,14 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createSettings, clampParallel, PARALLEL_MAX } = require('../src/settings');
+const { rendered } = require('./support');
 
 const folder = () => fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-settings-'));
 const read = (dir, name) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
 
 test('ohne Dateien gelten die Vorgaben; nichts steht im Protokoll', () => {
   const logs = [];
-  const s = createSettings({ dataDir: folder(), log: (...entry) => logs.push(entry) });
+  const s = createSettings({ dataDir: folder(), log: (...entry) => logs.push(rendered(entry)) });
   assert.deepEqual(s.config, { limits: { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' }, pools: [] });
   assert.deepEqual(s.state, { learned: {}, rejected: {} });
   assert.deepEqual(logs, []);
@@ -34,7 +35,7 @@ test('eine kaputte Datei steht im Protokoll und wird durch die Vorgaben ersetzt'
   const dir = folder();
   fs.writeFileSync(path.join(dir, 'state.json'), '{ kaputt');
   const logs = [];
-  const s = createSettings({ dataDir: dir, log: (...entry) => logs.push(entry) });
+  const s = createSettings({ dataDir: dir, log: (...entry) => logs.push(rendered(entry)) });
   assert.deepEqual(s.state, { learned: {}, rejected: {} });
   assert.equal(logs.length, 1);
   assert.match(logs[0][0], /^state\.json ließ sich nicht lesen/);

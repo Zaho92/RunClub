@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { engineFrom, createEngine, DESKTOP_DISTRO, EXPOSED_PING } = require('../src/engine');
+const { render } = require('../src/messages');
 
 // `run` nachgestellt: merkt sich jeden Aufruf und antwortet mit `answer`.
 function fakeRun(answer = { code: 0, stdout: '', stderr: '' }) {
@@ -36,7 +37,7 @@ test('Docker Desktop: die CLI wie bisher, mit der gewöhnlichen Zeitgrenze, die 
     ['docker', ['run'], { timeout: 1234, env: { JITCONFIG: 'geheim' } }],
     ['docker', ['ps', '-q'], { timeout: 1234 }],
   ]);
-  assert.match(engine.unreachableText, /läuft Docker Desktop\?/);
+  assert.match(render(engine.unreachable), /läuft Docker Desktop\?/);
 });
 
 test('ein eigener Endpunkt geht der CLI bei jedem Aufruf mit, neben der Umgebung des Aufrufers und vor ihr', async () => {
@@ -51,13 +52,13 @@ test('ein eigener Endpunkt geht der CLI bei jedem Aufruf mit, neben der Umgebung
   await createEngine({ run: plain.run, timeout: 1, host: 'npipe:////./pipe/runclub' }).docker(['ps']);
   assert.deepEqual(plain.calls[0].options.env, { DOCKER_HOST: 'npipe:////./pipe/runclub', DOCKER_TLS_VERIFY: '', DOCKER_CERT_PATH: '' });
   assert.deepEqual(fake.calls.map((call) => call.options.env), [own, { JITCONFIG: 'geheim', ...own }, own]);
-  assert.equal(engine.unreachableText, 'Docker ist nicht erreichbar – läuft der Daemon unter tcp://127.0.0.1:2376 in der WSL-Distro runclub?');
+  assert.equal(render(engine.unreachable), 'Docker ist nicht erreichbar – läuft der Daemon unter tcp://127.0.0.1:2376 in der WSL-Distro runclub?');
 });
 
 test('auch ohne engineFrom: ein eigener Endpunkt ist nicht Docker Desktop und wird nicht in docker-desktop gemessen', async () => {
   const fake = fakeRun();
   const engine = createEngine({ run: fake.run, timeout: 1, host: 'npipe:////./pipe/runclub' });
-  assert.equal(engine.unreachableText, 'Docker ist nicht erreichbar – läuft der Daemon unter npipe:////./pipe/runclub?');
+  assert.equal(render(engine.unreachable), 'Docker ist nicht erreichbar – läuft der Daemon unter npipe:////./pipe/runclub?');
   assert.equal((await engine.inVm('echo hallo', {})).code, -1);
   assert.equal(fake.calls.length, 0);
 });
@@ -95,13 +96,13 @@ function fakeGet(answer, calls = []) {
 test('ein ungeschützter Daemon: bei Docker Desktop über Port 2375, bei eigenem Endpunkt über tcp:// ohne TLS', async () => {
   const calls = [];
   const run = async () => ({ code: 0, stdout: '', stderr: '' });
-  assert.match(await createEngine({ run, timeout: 1, get: fakeGet('OK', calls) }).exposure(), /tcp:\/\/localhost:2375/);
+  assert.match(render(await createEngine({ run, timeout: 1, get: fakeGet('OK', calls) }).exposure()), /tcp:\/\/localhost:2375/);
   assert.deepEqual(calls, [[EXPOSED_PING, 2000]]);
   assert.equal(await createEngine({ run, timeout: 1, get: fakeGet(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })) }).exposure(), null);
   assert.equal(await createEngine({ run, timeout: 1, get: fakeGet('etwas anderes') }).exposure(), null);
   const other = [];
   assert.equal(await createEngine({ run, timeout: 1, host: 'npipe:////./pipe/runclub', get: fakeGet('OK', other) }).exposure(), null);
   assert.deepEqual(other, []); // ohne Docker Desktop kein Blick auf Port 2375
-  assert.match(await createEngine({ run, timeout: 1, host: 'tcp://127.0.0.1:2375', get: fakeGet('OK') }).exposure(), /^RUNCLUB_DOCKER_HOST zeigt auf tcp:\/\/127\.0\.0\.1:2375 ohne TLS/);
+  assert.match(render(await createEngine({ run, timeout: 1, host: 'tcp://127.0.0.1:2375', get: fakeGet('OK') }).exposure()), /^RUNCLUB_DOCKER_HOST zeigt auf tcp:\/\/127\.0\.0\.1:2375 ohne TLS/);
   assert.equal(await createEngine({ run, timeout: 1, host: 'tcp://127.0.0.1:2376', certs: 'C:\\certs', get: fakeGet('OK') }).exposure(), null);
 });

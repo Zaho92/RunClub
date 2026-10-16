@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { waitForDaemon, whyNotReady, asRoot, SECCOMP_PROFILE, SECURITY_FLAGS, READY_TRIES, DAEMON_POLL, PROBE_TIMEOUT, PAIR_SOCKET } = require('../src/dind');
+const { render } = require('../src/messages');
 
 // Ein Daemon, der nach `answersAfter` Fragen antwortet (nie, wenn null). `calls` hält die Aufrufe, `slept` die Pausen.
 function daemon(answersAfter) {
@@ -58,14 +59,14 @@ test('die Daemons laufen mit dem eigenen Seccomp-Profil, nie ohne', () => {
 
 test('whyNotReady nimmt nur ganze Wörter als Fehler: „errors=0“ ist keiner', async () => {
   const logs = (stdout) => async () => ({ code: 0, stdout, stderr: '' });
-  assert.equal(await whyNotReady(logs('level=error msg="kaputt"\nlevel=info msg="errors=0"\nlevel=info msg="bye"\n'), 'x'), ' – level=error msg="kaputt"');
+  assert.equal(render(await whyNotReady(logs('level=error msg="kaputt"\nlevel=info msg="errors=0"\nlevel=info msg="bye"\n'), 'x')), ' – level=error msg="kaputt"');
 });
 
 test('whyNotReady nennt die letzte Fehlerzeile des Daemons und bei „operation not permitted“ das Seccomp-Profil', async () => {
   const logs = (stdout, stderr) => async (args) => { assert.deepEqual(args, ['logs', '--tail', '30', 'paar-dind']); return { code: 0, stdout, stderr }; };
-  const blocked = await whyNotReady(logs('', 'level=info msg="start"\n[rootlesskit:parent] error: fork/exec /proc/self/exe: operation not permitted\nlevel=info msg="bye"\n'), 'paar-dind');
+  const blocked = render(await whyNotReady(logs('', 'level=info msg="start"\n[rootlesskit:parent] error: fork/exec /proc/self/exe: operation not permitted\nlevel=info msg="bye"\n'), 'paar-dind'));
   assert.match(blocked, /^ – \[rootlesskit:parent\] error: fork\/exec \/proc\/self\/exe: operation not permitted \(womöglich verbietet das Seccomp-Profil/);
-  assert.equal(await whyNotReady(logs('nur das\n', ''), 'paar-dind'), ' – nur das');
-  assert.equal(await whyNotReady(logs('', ''), 'paar-dind'), '');
-  assert.equal(await whyNotReady(async () => ({ code: 1, stdout: '', stderr: 'Error: No such container: paar-dind' }), 'paar-dind'), ' – Error: No such container: paar-dind');
+  assert.equal(render(await whyNotReady(logs('nur das\n', ''), 'paar-dind')), ' – nur das');
+  assert.equal(render(await whyNotReady(logs('', ''), 'paar-dind')), '');
+  assert.equal(render(await whyNotReady(async () => ({ code: 1, stdout: '', stderr: 'Error: No such container: paar-dind' }), 'paar-dind')), ' – Error: No such container: paar-dind');
 });

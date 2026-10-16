@@ -15,6 +15,7 @@
 //   pool.renewingService  er wird gerade erneuert;  pool.measuring  die Volumes werden gerade gemessen
 
 const { lastLine } = require('./run');
+const { msg, Fault } = require('./messages');
 const { MINUTE, SECOND, MB } = require('./units');
 const { createNetwork, alreadyExists } = require('./subnets');
 const limitRules = require('./limits');
@@ -59,7 +60,7 @@ function createCaches({
     if (pool.slots.some(busy)) return;
     pool.renewingService = true;
     try {
-      log(retry ? 'Versuche erneut, den Build-Dienst anzulegen' : 'Lege den Build-Dienst mit den neuen Limits an', pool.repo);
+      log(msg(retry ? 'm_serviceRetry' : 'm_serviceRenew'), pool.repo);
       await prepareCaches(pool.repo);
     } finally { pool.renewingService = false; }
   }
@@ -70,7 +71,7 @@ function createCaches({
     return found.code === 0 && found.stdout.trim() === `true ${serviceKey(repo)}`;
   }
 
-  // Den Build-Dienst neu anlegen. Liefert, woran es scheiterte, sonst null.
+  // Den Build-Dienst neu anlegen. Liefert, woran es scheiterte (eine Meldung), sonst null.
   async function startService(repo) {
     await docker(['rm', '-f', buildService(repo)]);
     // Seine Volumes müssen dem Benutzer des Dienstes gehören. Build-Layer eines früheren Dienstes mit Rechten gehören
@@ -86,13 +87,13 @@ function createCaches({
       ...SECURITY_FLAGS,
       '-v', `${buildVolume(repo)}:/home/user/.local/share/buildkit`, '-v', `${buildSocket(repo)}:${SOCKET_DIR}`,
       buildkit, '--addr', `unix://${SOCKET}`]);
-    if (service.code !== 0) return `Build-Dienst startet nicht – ${lastLine(service.stderr)}`;
+    if (service.code !== 0) return msg('m_serviceFailed', lastLine(service.stderr));
     // Verbietet etwa das Seccomp-Profil buildkit einen Aufruf, endet er gleich nach dem Start. Das soll hier mit dem Grund
     // ins Protokoll, nicht erst beim nächsten Build als fehlender Socket auffallen.
     await sleep(SERVICE_SETTLE);
     const state = await docker(['inspect', '--format', '{{.State.Running}}', buildService(repo)]);
-    if (state.code !== 0) return `Build-Dienst: Zustand nach dem Start nicht lesbar – ${lastLine(state.stderr)}`;
-    return state.stdout?.trim() === 'true' ? null : `Build-Dienst endet gleich nach dem Start${await whyNotReady(docker, buildService(repo))}`;
+    if (state.code !== 0) return msg('m_serviceUnreadable', lastLine(state.stderr));
+    return state.stdout?.trim() === 'true' ? null : msg('m_serviceEnded', await whyNotReady(docker, buildService(repo)));
   }
 
   // Paket-Cache und Build-Dienst eines Repos bereitstellen.
@@ -106,7 +107,7 @@ function createCaches({
     // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
     // Es bleibt stehen, solange das Repo einen Cache hat; dass es schon da ist, ist deshalb kein Fehler.
     const network = await createNetwork(docker, ['--label', serviceMark, buildNetwork(repo)]);
-    let failure = network.code !== 0 && !alreadyExists(network.stderr) ? `Netz für den Build-Dienst lässt sich nicht anlegen – ${lastLine(network.stderr)}` : null;
+    let failure = network.code !== 0 && !alreadyExists(network.stderr) ? msg('m_serviceNetFailed', lastLine(network.stderr)) : null;
     if (!failure && !(await serviceCurrent(repo))) failure = await startService(repo);
     const pool = poolOf(repo);
     if (failure) log(failure, repo, 'error');
@@ -131,7 +132,7 @@ function createCaches({
     if (build) await removeService(repo);
     if (!volumes.length) return;
     const removed = await docker(['volume', 'rm', '-f', ...volumes]);
-    if (removed.code !== 0) throw new Error(`Caches ließen sich nicht löschen – ${lastLine(removed.stderr)}`);
+    if (removed.code !== 0) throw new Fault('m_cachesNotRemoved', lastLine(removed.stderr));
   }
 
   // Die Größe der Volumes eines Pools in Bytes (`pool.sizes`: { packages, images, build }); was fehlt, zählt 0.
