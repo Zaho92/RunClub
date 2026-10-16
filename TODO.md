@@ -43,9 +43,23 @@ Schritte, in dieser Reihenfolge:
    über den Build-Dienst, `services:`. Nach einem größeren Update von Docker Desktop das Profil mit dessen
    Standardprofil neu erzeugen und erproben. `SECURITY.md` (englisch) gegen den Code geprüft. Review dazu siehe
    „Zwischendurch, regelmäßig“.
-3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
-   (siehe „Kleinere Punkte“), Repo ins Englische, README mit Bildschirmfotos, Prüfung beim ersten Start (Docker Desktop
-   installiert und gestartet, WSL).
+3. **Verständlich für Fremde.** Reihenfolge (entschieden vom Nutzer am 16.10.2026), jeder Punkt ein eigenes Stück:
+   1. Backend-Meldungen als Schlüssel (siehe „Kleinere Punkte“).
+   2. Prüfung beim ersten Start: Docker Desktop installiert und gestartet, WSL.
+   3. Eigene **GitHub-App** „RunClub“ statt der Anmeldung von `gh`, und **`gh` fällt als Voraussetzung ganz weg**
+      (entschieden vom Nutzer am 16.10.2026). Warum GitHub-App statt OAuth-App: Eine OAuth-App braucht `repo`, also
+      Vollzugriff auf alle privaten Repos; eine GitHub-App bekommt nur die nötigen Rechte (Administration für
+      Runner und den Fork-Schalter, Actions, Variablen, Inhalte lesen, Metadaten). Bedienung so einfach wie bisher:
+      Anmelden per Einmalcode (Device Flow, Oberfläche bleibt), installiert mit „All repositories“, damit neue Repos
+      ohne neues Verbinden dabei sind; ist ein Repo nicht erreichbar, bietet RunClub den Link zum Installieren für
+      dieses Konto oder diese Org. Das Token (8 h) erneuert RunClub selbst mit dem Erneuerungsschlüssel (6 Monate,
+      wird bei jeder Erneuerung neu); der Nutzer merkt davon nichts. Token verschlüsselt ablegen (`safeStorage` von
+      Electron). Alle Abfragen direkt per HTTPS statt `gh api` (`src/github.js` mit seinem ETag-Speicher umbauen).
+      **Zuerst prüfen:** ob GitHub die Abrechnung (Minuten-Kontingent, `src/minutes.js`) an das Token einer GitHub-App
+      herausgibt; wenn nicht, entfällt die Minuten-Anzeige. Die App bei GitHub legt der Nutzer an (Anleitung von
+      Claude); dabei Zugriff auf „Plan“ nur, wenn die Abrechnung damit geht.
+   4. Repo ins Englische (siehe oben).
+   5. README mit Bildschirmfotos.
 4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
    Einstellungen des Repos einschalten (`SECURITY.md` verweist darauf), Git-Historie auf Geheimnisse und Persönliches
    prüfen (sie wird mit öffentlich), Repo öffentlich stellen, Release 0.1.0.
@@ -347,11 +361,7 @@ Bewusst so gelassen:
 
 ## Offene Entscheidungen des Nutzers
 
-- **Eigene OAuth-App „RunClub“ zur Veröffentlichung.** Entschieden vom Nutzer: Bis dahin nutzt RunClub die
-  Anmeldung von `gh` (dieselbe wie im Terminal; Abmelden in der App meldet deshalb auch `gh` ab). Zur Veröffentlichung
-  ist eine eigene OAuth-App vorgesehen, mit eigener Anmeldung getrennt von `gh`, eigenem Namen auf der
-  Bestätigungsseite von GitHub und nur den Rechten, die RunClub braucht. `src/auth.js` ist die Stelle dafür; die
-  Oberfläche (Einmalcode, Bestätigung im Browser) bleibt dieselbe. Noch nicht begonnen.
+- Keine. (Die eigene Anmeldung ist entschieden: GitHub-App statt OAuth-App, siehe Schritt 3.3 oben.)
 
 ## Später
 
