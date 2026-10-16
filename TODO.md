@@ -40,7 +40,10 @@ Schritte, in dieser Reihenfolge:
    16.10.2026 (`linux/seccomp.json`, erzeugt von `scripts/seccomp.js`; dort steht, wie die Zusätze ermittelt wurden),
    erprobt mit einer Test-Instanz: Docker im Job, veröffentlichter Port, Build über den Build-Dienst, `services:`.
    Nach einem größeren Update von Docker Desktop das Profil mit dessen Standardprofil neu erzeugen und erproben.
-   **Offen:** `SECURITY.md`.
+   `SECURITY.md` (englisch, Bedrohungsmodell und Meldeweg) geschrieben am 16.10.2026. **Offen** (Wunsch des Nutzers,
+   16.10.2026, vor Schritt 3): großes Review über `503330f..HEAD`, zweistufig (Standards, Auftragstreue), dazu
+   `security-review` und ein eigener Sicherheitsprüfer, der auch `SECURITY.md` gegen den Code hält; Befunde beheben,
+   Abschluss-Review, Beta-Release.
 3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
    (siehe „Kleinere Punkte“), Repo ins Englische, README mit Bildschirmfotos, Prüfung beim ersten Start (Docker Desktop
    installiert und gestartet, WSL).
