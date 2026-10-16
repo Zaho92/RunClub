@@ -21,7 +21,8 @@ if (!git('ls-remote', '--tags', 'origin', tag)) fail(`Das Tag ${tag} ist noch ni
 
 fs.rmSync(dist, { recursive: true, force: true });
 // Die Version kommt aus dem Tag; package.json bleibt unverändert.
-const build = spawnSync('npx', ['electron-builder', '--win', 'nsis', '--publish', 'never', `-c.extraMetadata.version=${version}`], { cwd: root, stdio: 'inherit', shell: true });
+const cli = require.resolve('electron-builder/cli.js', { paths: [root] });
+const build = spawnSync(process.execPath, [cli, '--win', 'nsis', '--publish', 'never', `-c.extraMetadata.version=${version}`], { cwd: root, stdio: 'inherit' });
 if (build.status !== 0) fail('Der Bau ist gescheitert.');
 
 // Neben dem Installer die Datei für den Updater (latest.yml, bei Betas beta.yml), nicht builder-debug.yml.
