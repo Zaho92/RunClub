@@ -148,7 +148,9 @@ Es gibt keinen eigenen QS-Zweig. QS ist der Kanal Beta.
 4. Ist eine Beta abgenommen, bekommt **derselbe Commit** den stabilen Tag: `git tag v0.2.0 v0.2.0-beta.2 && git push
    origin v0.2.0`. Der Workflow legt ihn als gewöhnlichen Release ab, den auch der Kanal Stabil bekommt.
 
-Die Version kommt aus dem Tag; `version` in `package.json` wird dafür nicht angefasst.
+Die Version kommt aus dem Tag; `version` in `package.json` wird dafür nicht angefasst. Solange das Repo privat ist,
+kosten die Windows-Runner von GitHub Minuten; dann baut `npm run release` denselben Release auf diesem Rechner (HEAD auf
+dem gepushten Tag, Arbeitsordner sauber).
 
 Dieselben beiden Schritte laufen als CI bei jedem Push und Pull Request (`.github/workflows/ci.yml`).
 Hinweise für die Arbeit mit Claude Code stehen in `CLAUDE.md`, die Produktbeschreibung für die Gestaltung in `PRODUCT.md`.

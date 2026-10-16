@@ -62,6 +62,14 @@ Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 3 unten) 
    `tcp://` mit TLS und Client-Zertifikat erreichbar, nie über ein offenes `tcp://` (ein Job käme sonst ohne Ausbruch
    an den Daemon). Als Nächstes ein Prototyp mit einer Engine in einer Distro `runclub` messen (Kosten je
    `docker`-Aufruf, Start nach dem Booten, Speicher im Leerlauf gegenüber Docker Desktop).
+   **Windows-Runner hängen daran** (besprochen 16.10.2026; der Nutzer will langfristig Windows und Mac anbieten, weil
+   nur Linux die Zielgruppe einschränkt). Docker Desktop kann nur Linux- oder Windows-Container zugleich; ohne Docker
+   Desktop laufen die Linux-Engine in WSL und die native Windows-Engine (`dockerd.exe`) nebeneinander. Windows-Jobs dann
+   in Windows-Containern mit Hyper-V-Isolation (unter Windows 11 Pflicht), je Job frisch wie bei Linux. Grenzen: große
+   Abbilder (Server Core ca. 5 GB), kein Docker im Job, die Werkzeuge von `windows-latest` müssen ins Abbild. Nicht als
+   Weg für Fremde: der Runner-Prozess direkt auf Windows (bricht „frisch je Job, nichts bleibt“).
+   **Mac-Runner** gibt es nur auf Apple-Hardware (Lizenz); RunClub müsste dafür selbst auf macOS laufen (Linux-Container
+   wie bisher, macOS-Jobs in VMs, z. B. `tart`). Eigenes, späteres Vorhaben.
 4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
