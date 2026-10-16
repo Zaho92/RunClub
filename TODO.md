@@ -49,6 +49,11 @@ Schritte, in dieser Reihenfolge:
 4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
    Einstellungen des Repos einschalten (`SECURITY.md` verweist darauf), Git-Historie auf Geheimnisse und Persönliches
    prüfen (sie wird mit öffentlich), Repo öffentlich stellen, Release 0.1.0.
+   **Vor dem Öffentlichstellen: Updates signieren** (entschieden vom Nutzer am 16.10.2026). Der Updater prüft bisher nur
+   die Prüfsumme aus demselben Release; wer dort einen Release anlegen kann, kann allen ein Update unterschieben, im
+   öffentlichen Repo auch jeder Workflow mit `contents: write` (`release.yml` legt Releases als `github-actions[bot]`
+   an, eine Prüfung des Autors hilft daher nicht). Signiert wird mit einem Schlüssel, der nur beim Nutzer liegt, nicht
+   in CI; die App prüft die Signatur, bevor sie einen Installer annimmt. Danach `SECURITY.md` („Updates“) anpassen.
 
 Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 2 unten) und der MCP-Server (Punkt 3 unten).
 
@@ -341,12 +346,6 @@ Bewusst so gelassen:
     „Operation not permitted“ achten.
 
 ## Offene Entscheidungen des Nutzers
-
-- **Updates signieren** (gefunden im Review vom 16.10.2026): Der Updater prüft nur die Prüfsumme aus demselben Release.
-  Wer im Repo einen Release anlegen kann, kann allen ein Update unterschieben; ist das Repo öffentlich, auch jeder
-  Workflow mit `contents: write` (`release.yml` legt Releases als `github-actions[bot]` an, eine Prüfung des Autors
-  hilft daher nicht). Vorschlag: vor Schritt 4 die Updates mit einem Schlüssel signieren, der nur beim Nutzer liegt,
-  und die App prüft die Signatur. Bis dahin steht die Grenze in `SECURITY.md`.
 
 - **Eigene OAuth-App „RunClub“ zur Veröffentlichung.** Entschieden vom Nutzer: Bis dahin nutzt RunClub die
   Anmeldung von `gh` (dieselbe wie im Terminal; Abmelden in der App meldet deshalb auch `gh` ab). Zur Veröffentlichung
