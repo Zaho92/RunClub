@@ -48,12 +48,13 @@ function setAutostart(on) {
   refreshTray();
 }
 
-// Der Autostart-Eintrag trägt unter Windows den Namen der App. Zeigt er noch auf eine andere RunClub (den
-// Entwicklungsordner vor der Installation), übernimmt ihn die installierte App: sonst startete mit Windows die falsche.
-function adoptAutostart() {
-  if (!app.isPackaged) return;
-  const items = app.getLoginItemSettings(loginItem).launchItems ?? [];
-  if (!autostart() && items.some((item) => item.name === 'RunClub' && item.enabled)) setAutostart(true);
+// Der Autostart-Eintrag trägt unter Windows den Namen der App (Wert „RunClub“ unter …\Run). Zeigt er noch auf eine
+// andere RunClub (den Entwicklungsordner vor der Installation), übernimmt ihn die installierte App: sonst startete mit
+// Windows die falsche. Electron nennt einen Eintrag mit fremdem Pfad nicht, deshalb wird die Registry gelesen.
+async function adoptAutostart() {
+  if (!app.isPackaged || autostart()) return;
+  const result = await run('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'RunClub'], { timeout: 10 * SECOND });
+  if (result.code === 0 && /RunClub\s+REG_SZ/i.test(result.stdout)) setAutostart(true);
 }
 
 // Das Token von `gh` für die Releases, solange das Repo privat ist; ohne Anmeldung wird ohne gefragt.
