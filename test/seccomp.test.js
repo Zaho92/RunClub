@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { SECCOMP_PROFILE } = require('../src/dind');
-const { derive, ADDED } = require('../scripts/seccomp');
+const { derive, ADDED, KEYCTL_OPS } = require('../scripts/seccomp');
 
 const profile = JSON.parse(fs.readFileSync(SECCOMP_PROFILE, 'utf8'));
 // Aufrufe, die ohne Bedingung an Rechte oder Argumente erlaubt sind.
@@ -16,17 +16,24 @@ test('das Profil verbietet, was nicht ausdrücklich erlaubt ist, und erlaubt die
 });
 
 test('was die Daemons nicht brauchen, bleibt so gesperrt wie im Standardprofil', () => {
-  for (const name of ['bpf', 'perf_event_open', 'kexec_load', 'init_module', 'open_by_handle_at', 'fsopen', 'move_mount', 'chroot', 'setdomainname', 'add_key', 'request_key']) {
+  for (const name of ['bpf', 'perf_event_open', 'kexec_load', 'init_module', 'open_by_handle_at', 'fsopen', 'move_mount', 'chroot', 'setdomainname', 'add_key', 'request_key', 'keyctl']) {
     assert.equal(free.has(name), false, name);
   }
 });
 
-test('derive hängt die Zusätze als eine freie Regel an, sonst bleibt das Profil gleich', () => {
+test('keyctl nur für den Sitzungsschlüsselbund, den runc anlegt', () => {
+  const rules = profile.syscalls.filter((rule) => rule.names.includes('keyctl'));
+  assert.ok(rules.every((rule) => rule.action === 'SCMP_ACT_ALLOW' && rule.args.length === 1 && rule.args[0].index === 0 && rule.args[0].op === 'SCMP_CMP_EQ'));
+  assert.deepEqual(rules.map((rule) => rule.args[0].value), [1, 5, 6]);
+});
+
+test('derive hängt die Zusätze als eine freie Regel an, dazu je Operation von keyctl eine, sonst bleibt das Profil gleich', () => {
   const source = { defaultAction: 'SCMP_ACT_ERRNO', syscalls: [
     { names: ['read'], action: 'SCMP_ACT_ALLOW' },
     { names: ['clone'], action: 'SCMP_ACT_ALLOW', args: [{ index: 0, value: 2114060288, op: 'SCMP_CMP_MASKED_EQ' }] },
     { names: ['clone3'], action: 'SCMP_ACT_ERRNO', errnoRet: 38 },
     { names: ['bpf', 'clone'], action: 'SCMP_ACT_ALLOW', includes: { caps: ['CAP_SYS_ADMIN'] } },
   ] };
-  assert.deepEqual(derive(source), { ...source, syscalls: [...source.syscalls, { names: ADDED, action: 'SCMP_ACT_ALLOW' }] });
+  const keyctl = KEYCTL_OPS.map((value) => ({ names: ['keyctl'], action: 'SCMP_ACT_ALLOW', args: [{ index: 0, value, op: 'SCMP_CMP_EQ' }] }));
+  assert.deepEqual(derive(source), { ...source, syscalls: [...source.syscalls, { names: ADDED, action: 'SCMP_ACT_ALLOW' }, ...keyctl] });
 });

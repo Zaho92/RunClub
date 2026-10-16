@@ -1,7 +1,6 @@
 // Was RunClub bei GitHub abfragt: Läufe und Jobs der Repos mit Pool (für den Netzplan und die Plätze), das
 // Anfragelimit, die Repos des Kontos, wartende Läufe in Repos ohne Pool, die Sichtbarkeit der Repos mit Pool und ob
-// dort Pull Requests aus Forks laufen dürften. Dazu das
-// erneute Starten eines Laufs oder Jobs.
+// dort Pull Requests aus Forks laufen dürften. Dazu das erneute Starten eines Laufs oder Jobs.
 //
 // Je Repo steht der letzte Stand bereit (`view`): { jobs, runs, error }. Eine Abfrage, die scheitert, behält Jobs und
 // Läufe des vorigen Stands und trägt nur den Fehler.
@@ -12,12 +11,15 @@ const { candidates } = require('./waiting');
 const { noteWorkflows } = require('./slots');
 const { SLOT } = require('./states');
 const { forkExposure } = require('./forks');
+const { BLOCKS } = require('./blocks');
 
 const RUNS_PER_REPO = 20;
 const REPO_LIST_MAX_AGE = 5 * MINUTE; // so lange gilt die Liste der Repos des Kontos
 const REPO_PAGES_MAX = 10;
 const RERUN_SETTLE = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht (Takt in backend.js)
+const CHECK_STALE = 25 * MINUTE; // so lange gilt eine gelungene Prüfung; die Pflege prüft alle 10 Minuten (backend.js)
+const CHECK_RETRY = MINUTE; // so bald wird erneut geprüft, solange ein Pool ruht, weil die Prüfung scheitert
 
 //   gh(args, body)          Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
 //   githubApi               `mayPoll(key, every)`, `refreshQuota()` (siehe github.js)
@@ -26,16 +28,19 @@ const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne 
 //   repos(), settingsOf(repo)     die Repos mit Pool und ihre Einstellungen (siehe settings.js)
 //   poolOf(repo)            der stehende Pool oder undefined
 //   stopping(), timer (wie `setTimeout`)
-//   onPublic(repo), onPrivate(repo)   ein Repo mit Pool ist öffentlich bzw. wieder privat (siehe actions.js)
-//   onForks(repo, reason), onForksClosed(repo)   Fork-PRs könnten auf den eigenen Runnern laufen bzw. nicht mehr (siehe forks.js)
+//   guard                   `block(repo, kind, reason)`, `unblock(repo, kind)`, `restUnchecked(repo)` (siehe actions.js, blocks.js)
 //   confirmResults(repo, done)   Ergebnisse abgeschlossener Jobs der eigenen Runner, wie GitHub sie meldet (siehe metrics.js)
 function createRemote({
   gh, githubApi, pipelines, routing, waiting, log, logError,
-  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, onPublic, onPrivate, onForks, onForksClosed, confirmResults = () => {},
+  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, guard, confirmResults = () => {},
 }) {
   const states = new Map(); // Repo -> { jobs, runs, error }
   const busy = new Set(); // Repos, deren Abfrage gerade läuft
   const again = new Set(); // … und die danach noch einmal dran sind
+  const checkedAt = new Map(); // Repo -> Zeit der letzten gelungenen Prüfung (siehe `checkVisibility`)
+  const unchecked = new Set(); // Repos, deren Pool ruht, weil keine frische Prüfung vorliegt
+  const failing = new Set(); // Repos, deren letzte Prüfung scheiterte (steht schon im Protokoll)
+  const retrying = new Set(); // … und für die eine neue Prüfung ansteht
 
   // Ein Repo abfragen. Läuft schon eine Abfrage, folgt danach genau eine weitere.
   async function refreshRepo(repo) {
@@ -117,21 +122,58 @@ function createRemote({
     return listRepos().then((found) => waiting.scan(candidates(found))).catch(() => {});
   }
 
-  // Pools gibt es nur für private Repos. Wird ein Repo später öffentlich, liefen Pull Requests von Fremden auf diesem
-  // Rechner: Das meldet `onPublic`. Ob ein Pool deshalb pausiert ist, steht in seinen Einstellungen (`pausedPublic`)
-  // und überdauert einen Neustart; erst eine gelungene Prüfung, die das Repo wieder privat findet, hebt es auf.
-  // Ebenso für Pull Requests aus Forks in Repos einer Organisation (`pausedForks`, siehe forks.js).
+  // Pools gibt es nur für private Repos, und in Repos einer Organisation nur, solange dort keine Workflows aus Pull
+  // Requests von Forks laufen dürfen (siehe forks.js). Ändert sich das später, sperrt `guard.block` den Pool (siehe
+  // blocks.js); erst eine gelungene Prüfung, die den Grund weggefallen findet, hebt die Sperre auf (`guard.unblock`).
+  // Eine Sperre, die schon besteht, wird nachgezogen, wenn der Pool trotzdem nicht pausiert.
+  //
+  // Ein Pool arbeitet nur, solange die letzte gelungene Prüfung höchstens CHECK_STALE alt ist (`vetted`, siehe
+  // pools.js): beim Start erst nach der ersten. Nach jedem Fehlschlag wird nach CHECK_RETRY erneut geprüft. Läuft die
+  // letzte gelungene ab, ruht der Pool sofort (`expire`): Freie, schon angemeldete Paare gehen, statt bis zur
+  // nächsten Runde ihres Platzes Jobs anzunehmen. Ein Ausfall steht einmal im Protokoll, nicht bei jedem Versuch.
   async function checkVisibility(repo) {
     const own = settingsOf(repo);
     if (!own) return;
     const info = await gh(['api', `repos/${repo}`]);
-    if (info.private === false && !own.pausedPublic) await onPublic(repo);
-    else if (info.private !== false && own.pausedPublic) await onPrivate(repo);
-    const forks = await forkExposure(gh, repo, info);
-    if (forks.exposed && !own.pausedForks) await onForks(repo, forks.reason);
-    else if (!forks.exposed && own.pausedForks) await onForksClosed(repo);
+    if (info.private === false) {
+      if (!own.pausedPublic || !own.paused) await guard.block(repo, 'public');
+    } else {
+      // Für Forks gilt höchstens eine Sperre: erlaubt oder nicht lesbar. Nicht lesbar ändert an „erlaubt“ nichts.
+      // Erst sperren, dann aufheben: So nennt die Meldung beim Aufheben eine Sperre, die bleibt.
+      const forks = await forkExposure(gh, repo, info);
+      const kind = !forks.exposed ? null : forks.unknown && !own.pausedForks ? 'forksUnknown' : 'forks';
+      if (kind && (!own[BLOCKS[kind]] || !own.paused)) await guard.block(repo, kind, forks.reason);
+      for (const other of ['forks', 'forksUnknown']) if (other !== kind && own[BLOCKS[other]]) guard.unblock(repo, other);
+      if (own.pausedPublic) guard.unblock(repo, 'public');
+    }
+    const at = now();
+    checkedAt.set(repo, at);
+    timer(() => expire(repo, at), CHECK_STALE);
+    failing.delete(repo);
+    if (unchecked.delete(repo)) log('Die Prüfung ist wieder gelungen; der Pool nimmt wieder Jobs an.', repo);
   }
-  const watchVisibility = (repo) => checkVisibility(repo).catch(logError(repo, 'Sichtbarkeit des Repos'));
+  const vetted = (repo) => now() - (checkedAt.get(repo) ?? -Infinity) < CHECK_STALE;
+  // Der Pool ruht, weil keine frische Prüfung vorliegt; gemeldet wird das einmal.
+  function rest(repo) {
+    if (unchecked.has(repo) || stopping() || !settingsOf(repo)) return;
+    unchecked.add(repo);
+    guard.restUnchecked(repo);
+    log('Ob das Repo privat ist und keine Workflows aus Forks zulässt, ließ sich nicht prüfen. Bis das gelingt, nimmt der Pool keine Jobs an.', repo, 'error');
+  }
+  // Die Prüfung von `at` läuft ab; gab es seither keine gelungene, ruht der Pool.
+  function expire(repo, at) {
+    if (checkedAt.get(repo) === at) rest(repo);
+  }
+  function watchVisibility(repo) {
+    return checkVisibility(repo).catch((error) => {
+      if (!failing.has(repo)) logError(repo, 'Sichtbarkeit des Repos')(error);
+      failing.add(repo);
+      if (!vetted(repo)) rest(repo);
+      if (retrying.has(repo) || stopping() || !settingsOf(repo)) return;
+      retrying.add(repo);
+      timer(() => { retrying.delete(repo); if (!stopping()) watchVisibility(repo); }, CHECK_RETRY);
+    });
+  }
 
   // Einen Lauf oder Job eines Repos mit Pool bei GitHub erneut starten (`endpoint` unter `actions/`) und danach, wenn
   // GitHub den neuen Versuch angelegt hat, die Läufe des Repos neu abfragen. `missing`: die Meldung, wenn es den Lauf
@@ -143,10 +185,11 @@ function createRemote({
   }
 
   return {
-    refreshRepo, refreshAll, refreshActive, watchQuota, listRepos, scanWaiting, watchVisibility, rerun,
+    refreshRepo, refreshAll, refreshActive, watchQuota, listRepos, scanWaiting, watchVisibility, vetted, rerun,
+    markChecked: (repo) => { const at = now(); checkedAt.set(repo, at); timer(() => expire(repo, at), CHECK_STALE); },
     view: (repo) => states.get(repo) ?? null,
-    forget: (repo) => states.delete(repo),
+    forget: (repo) => { for (const known of [states, checkedAt, unchecked, failing, retrying]) known.delete(repo); },
   };
 }
 
-module.exports = { createRemote, WAITING_INTERVAL, RERUN_SETTLE, REPO_LIST_MAX_AGE };
+module.exports = { createRemote, WAITING_INTERVAL, RERUN_SETTLE, REPO_LIST_MAX_AGE, CHECK_STALE, CHECK_RETRY };

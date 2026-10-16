@@ -22,13 +22,14 @@ const POLL_PAUSE = SECOND / 2; // so oft sieht nach, wer darauf wartet, dass ein
 //   log(text, repo, kind), sleep(ms)
 //   pools                   Map Repo -> Pool; `startPool` trägt neue Pools ein
 //   settingsOf(repo), limitsOf(repo), stopping(), dockerReady()
+//   vetted(repo)            ist das Repo frisch geprüft? (siehe remote.js)
 //   provision(pool, cancelled), removePair(repo, base, runnerId), abort(slot), slotLoop(pool, slot), abortIdle(slot)
 //                           aus slots.js
 //   prepareCaches(repo), measureSizes(pool)   Paket-Cache und Build-Dienst bereitstellen, Volumes messen (caches.js)
 //   refreshSeed(repo)       die Vorlage auffrischen (seed.js)
 function createPools({
   log, sleep, pools,
-  settingsOf, limitsOf, stopping, dockerReady,
+  settingsOf, limitsOf, stopping, dockerReady, vetted,
   provision, removePair, abort, slotLoop, abortIdle,
   prepareCaches, refreshSeed, measureSizes,
 }) {
@@ -93,7 +94,8 @@ function createPools({
     return staleSlots(pool).length + pool.reserve.filter((entry) => entry.built !== current).length;
   }
 
-  const poolResting = (pool) => !pool.prepared || pool.hold || settingsOf(pool.repo)?.paused;
+  // Ein Pool ohne frische Prüfung, ob sein Repo privat ist und keine Fork-PRs zulässt, ruht ebenso (siehe remote.js).
+  const poolResting = (pool) => !pool.prepared || pool.hold || settingsOf(pool.repo)?.paused || !vetted(pool.repo);
 
   // Die Zahl der Plätze an die Einstellung angleichen.
   function reconcile(pool) {

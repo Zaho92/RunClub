@@ -387,7 +387,16 @@ const TEXT = {
     minutesOut: 'Ohne Budget startet GitHub bis zum {0} keine Läufe mehr auf seinen Runnern.', minutesOutMore: 'Hol die Projekte auf deine eigenen Runner oder setz bei GitHub ein Budget.', toProjects: 'Zu den Projekten', toLog: 'Zum Protokoll',
     minutesNoScope: 'Mit dem Recht {0} zeigt RunClub hier deine GitHub-Minuten.', toAuth: 'In den Einstellungen ergänzen',
     minutesReading: 'Die Abrechnung ist noch nicht gelesen.', minutesFailed: 'Die Abrechnung ließ sich nicht lesen; RunClub versucht es wieder. Den Grund nennt das Protokoll.',
-    projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
+    projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', blockedTag: 'gesperrt',
+    blocked_public: 'Das Repo ist öffentlich.', blockedWay_public: 'Fortsetzen geht wieder, sobald es privat ist.',
+    blockedInfo_public: 'Pull Requests von Fremden liefen sonst auf diesem Rechner. RunClub prüft beim Start und alle 10 Minuten; ist das Repo wieder privat, lässt sich der Pool fortsetzen.',
+    blocked_forks: 'In diesem Repo dürfen Workflows aus Forks laufen.', blockedWay_forks: 'Abschalten unter Settings → Actions → General → „Run workflows from fork pull requests“.',
+    blockedInfo_forks: 'In einer Organisation dürfen auch Mitglieder mit Leserecht forken; ihr Code liefe auf diesem Rechner, auch mit Freigabepflicht. Nach der nächsten Prüfung (alle 10 Minuten) lässt sich der Pool fortsetzen.',
+    blocked_forksUnknown: 'Ob Workflows aus Forks laufen dürfen, ließ sich nicht prüfen.', blockedWay_forksUnknown: 'Die nächste Prüfung versucht es wieder; danach lässt sich der Pool fortsetzen.',
+    blockedInfo_forksUnknown: 'Ohne diese Angabe könnte Code aus Forks auf diesem Rechner laufen. Meist fehlt kurz die Verbindung zu GitHub, oder das Anfragelimit ist aufgebraucht.',
+    blockedWarn: '{0} gesperrt', checking: 'wird geprüft',
+    unchecked: 'Wartet auf die Prüfung bei GitHub; bis dahin nimmt der Pool keine Jobs an.',
+    uncheckedInfo: 'RunClub prüft beim Start und alle 10 Minuten, ob das Repo privat ist und keine Workflows aus Forks zulässt. Ein Pool arbeitet nur, solange die letzte gelungene Prüfung höchstens 25 Minuten alt ist; scheitert sie, versucht RunClub es jede Minute wieder.', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
     confirmClear: 'Der nächste Lauf von {0} lädt das wieder und ist deshalb langsamer.', confirmRemove: 'Der Pool für {0} wird mit allen Caches entfernt. Auch CI_RUNNER wird entfernt; die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner werden abgebaut. Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
     add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
@@ -468,7 +477,16 @@ const TEXT = {
     minutesOut: 'Without a budget, GitHub won’t start runs on its runners until {0}.', minutesOutMore: 'Move the projects to your own runners or set a budget on GitHub.', toProjects: 'Go to projects', toLog: 'Open log',
     minutesNoScope: 'With the {0} permission RunClub shows your GitHub minutes here.', toAuth: 'Add in settings',
     minutesReading: 'The billing data has not been read yet.', minutesFailed: 'The billing data could not be read; RunClub will try again. The log says why.',
-    projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
+    projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', blockedTag: 'blocked',
+    blocked_public: 'The repo is public.', blockedWay_public: 'Resuming works again once it is private.',
+    blockedInfo_public: 'Pull requests from strangers would otherwise run on this machine. RunClub checks at start and every 10 minutes; once the repo is private again, the pool can be resumed.',
+    blocked_forks: 'This repo lets workflows from forks run.', blockedWay_forks: 'Turn it off under Settings → Actions → General → “Run workflows from fork pull requests”.',
+    blockedInfo_forks: 'In an organization, members with read access can fork too; their code would run on this machine, even with approval required. After the next check (every 10 minutes) the pool can be resumed.',
+    blocked_forksUnknown: 'Whether workflows from forks may run could not be checked.', blockedWay_forksUnknown: 'The next check tries again; then the pool can be resumed.',
+    blockedInfo_forksUnknown: 'Without this, code from forks could run on this machine. Usually the connection to GitHub is briefly gone or the rate limit is used up.',
+    blockedWarn: '{0} blocked', checking: 'being checked',
+    unchecked: 'Waiting for the check with GitHub; until then the pool takes no jobs.',
+    uncheckedInfo: 'RunClub checks at start and every 10 minutes whether the repo is private and does not run workflows from forks. A pool only works while the last successful check is at most 25 minutes old; if checks fail, RunClub retries every minute.', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
     confirmClear: 'The next run of {0} downloads this again and is slower for it.', confirmRemove: 'The pool for {0} is removed with all its caches. CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'All runners are taken down. Running jobs are cut off, queued jobs wait until RunClub runs again.',
     add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
@@ -623,7 +641,9 @@ function projectState(entry) {
     const finish = entry.pipelines.map((p) => p.finishAt).filter(Boolean).sort().pop();
     return { dot: failed ? 'fail' : 'run', text: [failed ? t('failedN', failed) : '', finish ? '<span data-finish="' + esc(finish) + '"></span>' : t('noRunner')].filter(Boolean).join(' · ') };
   }
+  if (entry.pool?.blocked) return { dot: 'fail', text: t('blockedTag') };
   if (entry.pool?.paused) return { dot: 'idle', text: t('paused') };
+  if (entry.pool && !entry.pool.checked) return { dot: 'wait', text: t('checking') };
   const last = entry.lastRun;
   if (last?.conclusion === 'failure') return { dot: 'fail', text: t('failed') + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' };
   if (last && secondsSince(last.updatedAt) < 1800) return { dot: 'done', text: t('finished') + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' };
@@ -902,12 +922,13 @@ function seats(entries) {
     const ready = entry.pool?.reserve ?? 0;
     return '<span class="rsvs">' + Array.from({ length: count }, (_, k) => '<i class="rsv ' + (k < ready ? 'on' : 'half') + '" data-tip="' + esc(t('reserveTip', ready, count)) + '"></i>').join('') + '</span>';
   };
-  const paused = '<span class="dim">' + t('paused') + '</span>';
+  // Ein ruhender Pool zeigt statt der Plätze, warum: gesperrt (siehe blocks.js) als Störung, sonst „pausiert“.
+  const paused = (entry) => (entry.pool?.blocked ? '<span class="s-fail">' + icon('fail') + '</span><span class="dim">' + t('blockedTag') + '</span>' : '<span class="dim">' + t('paused') + '</span>');
   const row = (inner) => '<div class="seat">' + inner + '</div>';
   const rows = single
-    ? (entries[0].pool?.paused ? row(paused) : entries[0].runners.map((r, index) => row(seatIcon(r, index) + '<b>' + t('seatN', index + 1) + '</b><span class="dim">' + esc(runnerState(r)) + '</span>')).join('') +
+    ? (entries[0].pool?.paused ? row(paused(entries[0])) : entries[0].runners.map((r, index) => row(seatIcon(r, index) + '<b>' + t('seatN', index + 1) + '</b><span class="dim">' + esc(runnerState(r)) + '</span>')).join('') +
       (reserveOf(entries[0]) ? row(reserveDots(entries[0]) + '<b>' + t('reserveWord') + '</b><span class="dim">' + t('reserveSum', entries[0].pool?.reserve ?? 0, reserveOf(entries[0])) + '</span>') : ''))
-    : entries.map((entry) => row('<b data-tip="' + esc(entry.repo) + '">' + esc(shortRepo(entry.repo)) + '</b><span class="dots">' + (entry.pool?.paused ? paused : entry.runners.map(seatIcon).join('') + (widest ? reserveDots(entry) : '')) + '</span>')).join('');
+    : entries.map((entry) => row('<b data-tip="' + esc(entry.repo) + '">' + esc(shortRepo(entry.repo)) + '</b><span class="dots">' + (entry.pool?.paused ? paused(entry) : entry.runners.map(seatIcon).join('') + (widest ? reserveDots(entry) : '')) + '</span>')).join('');
   const shown = new Set(active.flatMap((entry) => entry.runners.map(seatState)));
   const keys = ['run', 'idle', 'wait', ...['fail', 'skip'].filter((state) => shown.has(state))];
   const words = { run: SLOT.WORKING, idle: SLOT.READY, wait: 'startet', fail: 'gestört', skip: 'aus' };
@@ -933,7 +954,7 @@ const minutesTrouble = () => { const { tight, out } = minutesState(); return tig
 const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
 // Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
-const warnings = (entries) => [data.machine.docker.ready ? '' : t('docker', data.machine.docker.error ?? t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+const warnings = (entries) => [data.machine.docker.ready ? '' : t('docker', data.machine.docker.error ?? t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', e.error)), ...entries.filter((e) => e.pool?.blocked).map((e) => t('blockedWarn', shortRepo(e.repo)))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz, `more` ist ein Info-Element am Titel.
 const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
@@ -955,12 +976,12 @@ function unservedRows() {
 function quietRows(entries) {
   return entries.map((entry) => {
     const last = entry.lastRun;
-    const state = entry.pool?.paused ? 'idle' : last ? jobState({ status: 'completed', conclusion: last.conclusion }) : 'idle';
+    const state = entry.pool?.blocked ? 'fail' : entry.pool?.paused ? 'idle' : last ? jobState({ status: 'completed', conclusion: last.conclusion }) : 'idle';
     const jobs = last ? [...last.jobs].sort((a, b) => a.stage - b.stage) : [];
     const mini = jobs.length > 1 ? '<span class="mini">' + jobs.slice(0, 14).map((j) => '<span class="s-' + jobState(j) + '" title="' + esc(j.name) + '">' + icon(jobState(j)) + '</span>').join('<i></i>') + '</span>' : '';
     return '<div class="quiet"><button class="who s-' + state + '" data-view="' + esc(entry.repo) + '">' + icon(state) + esc(shortRepo(entry.repo)) + '</button>' +
       '<div class="what">' + (last ? mini + '<a href="' + esc(last.url) + '" target="_blank" rel="noopener">' + esc(last.title || last.workflow) + '</a>' : '<span class="dim">' + t('nothing') + '</span>') + '</div>' +
-      '<div class="sub">' + (entry.pool?.paused ? t('paused') : last ? t('s_' + state) + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' : '') + '</div></div>';
+      '<div class="sub">' + (entry.pool?.blocked ? t('blockedTag') : entry.pool?.paused ? t('paused') : last ? t('s_' + state) + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' : '') + '</div></div>';
   }).join('');
 }
 
@@ -1158,7 +1179,7 @@ function renderSettings() {
   const attrs = (values) => Object.entries(values).map(([k, v]) => ' data-' + k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()) + '="' + esc(v) + '"').join('');
   // Symbol mit Wort. `only` zeigt nur das Symbol; die Aktion steht dann als Tooltip und für Vorleseprogramme daran.
   // `why` sperrt die Schaltfläche und nennt den Grund im Tooltip.
-  const button = (name, text, values, { cls = '', only = false, why = '' } = {}) => '<button class="btn' + (only ? ' only' : '') + (cls ? ' ' + cls : '') + '"' + (only ? ' aria-label="' + esc(text) + '"' : '') + (only || why ? ' data-tip="' + esc(why || text) + '"' : '') + (why ? ' aria-disabled="true"' : '') + attrs(values) + '>' + glyph(name) + (only ? '' : esc(text)) + '</button>';
+  const button = (name, text, values, { cls = '', only = false, why = '', describedBy = '' } = {}) => '<button class="btn' + (only ? ' only' : '') + (cls ? ' ' + cls : '') + '"' + (only ? ' aria-label="' + esc(text) + '"' : '') + (only || why ? ' data-tip="' + esc(why || text) + '"' : '') + (why ? ' aria-disabled="true"' + (describedBy ? ' aria-describedby="' + esc(describedBy) + '"' : '') : '') + attrs(values) + '>' + glyph(name) + (only ? '' : esc(text)) + '</button>';
   const seg = (name, options, current) => '<span class="seg">' + options.map(([value, text]) => '<button data-set="' + name + '" data-value="' + value + '" aria-pressed="' + (current === value) + '">' + text + '</button>').join('') + '</span>';
   const stop = routeStop;
 
@@ -1204,11 +1225,17 @@ function renderSettings() {
     const size = (key) => (p.sizes ? mb(p.sizes[key]) : '…');
     const crow = (title, detail, amount, action) => '<div class="crow"><span>' + title + (detail ? '<small>' + detail + '</small>' : '') + '</span><span>' + amount + '</span>' + action + '</div>';
     const clear = (what, text) => button('clear', text, { do: 'pool/clear', repo, what, confirm: t('confirmClear', repo) }, { only: true });
+    // Ein gesperrter Pool (siehe blocks.js) wie eine Störung mit Ausweg (vgl. quotaOut): kurz in Rot, der Ausweg in
+    // `ink`, das Warum im Info. Fortsetzen und Umleiten sind gesperrt und verweisen mit `aria-describedby` hierher.
+    const blocked = p.blocked ? t('blocked_' + p.blocked) + ' ' + t('blockedWay_' + p.blocked) : '';
+    const noteId = 'block-' + repo.replace(/[^A-Za-z0-9_-]/g, '-');
+    const guardNote = p.blocked ? '<div class="note measure strong" id="' + noteId + '"><span class="c-fail">' + esc(t('blocked_' + p.blocked)) + '</span> <span class="ink">' + esc(t('blockedWay_' + p.blocked)) + '</span>' + info(t('blockedTag'), esc(t('blockedInfo_' + p.blocked))) + '</div>'
+      : !p.checked && !p.paused ? '<div class="note measure">' + esc(t('unchecked')) + info(t('checking'), esc(t('uncheckedInfo'))) + '</div>' : '';
     const r = p.routing;
     const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
-    const route = !r ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' ? ' c-fail' : '') + '">' +
+    const route = !r ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' && !p.blocked ? ' c-fail' : '') + '">' +
       (r.error ? esc(r.error) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet + info('runs-on', t('routeNoneInfo')) : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
-      (r.uses === 'fixed' ? '' : r.here ? button('route', t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button('route', t('routeTo'), { do: 'pool/routing', repo, on: '1' })) + '</div>';
+      (r.uses === 'fixed' ? '' : r.here ? button('route', t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button('route', t('routeTo'), { do: 'pool/routing', repo, on: '1' }, { why: blocked, describedBy: noteId })) + '</div>';
     const caches = (p.cache ? crow(t('packages'), '', size('packages'), clear('packages', t('clearOf', t('packages')))) + crow(t('layers'), '', size('build'), clear('build', t('clearOf', t('layers'))))
       : '<div class="crow"><span class="dim">' + t('cacheIsOff') + '</span><span></span><span></span></div>') +
       crow(t('images', p.images.length), p.images.map(esc).join(' · '), size('images'), clear('images', t('forgetImages')));
@@ -1223,16 +1250,16 @@ function renderSettings() {
     const choice = (text, pressed, values) => '<button data-do="limits/set" data-repo="' + esc(repo) + '"' + attrs(values) + ' aria-pressed="' + pressed + '">' + text + '</button>';
     const limits = !p.limits ? '' : '<div class="plim"><div class="row"><b class="grow">' + t('limitsTitle') + '</b><span class="seg">' + choice(t('limitsShared'), !own, { inherit: '1' }) + choice(t('limitsOwn'), own, Object.fromEntries(LIMIT_KEYS.map((key) => [key, mine[key]]))) + '</span></div>' +
       (own ? sliders(mine, p.limits.suggestion, repo) + suggested(p.limits.suggestion, p.limits.values, repo) : '<div class="note">' + t('limitsSharedNote', gbShort(mine.runnerMemory), gbShort(mine.dockerMemory), mine.runnerCpus, mine.dockerCpus) + '</div>') + '<div class="vary">' + fitNote + '</div></div>';
-    const foot = '<div class="row">' + button(p.paused ? 'resume' : 'pause', p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }) +
+    const foot = '<div class="row">' + button(p.paused ? 'resume' : 'pause', p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }, { why: p.paused ? blocked : '', describedBy: noteId }) +
       button('cache', p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
       // Was löscht, steht abgesetzt am rechten Ende.
       '<span class="row push">' + button('clear', t('clearAll'), { do: 'pool/clear', repo, what: 'all', confirm: t('confirmClear', repo) }) + button('remove', t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, { cls: 'danger' }) + '</span></div>';
     return '<div class="proj" data-open="' + open + '"><div class="phead"><button class="popen" data-open-repo="' + esc(repo) + '" aria-expanded="' + open + '" data-tip="' + esc(repo) + '">' + glyph('open') + '<b>' + esc(shortRepo(repo)) + '</b>' +
-      (p.paused ? '<span class="tag">' + t('paused') + '</span>' : '') + (p.limits?.own ? '<span class="tag">' + t('ownTag') + '</span>' : '') + (fitTag ? '<span class="tag' + (pressing ? ' c-fail' : '') + '">' + fitTag + '</span>' : '') + (p.busy ? '<span class="tag">' + t('rebuilding') + '</span>' : '') +
+      (p.blocked ? '<span class="tag c-fail">' + t('blockedTag') + '</span>' : p.paused ? '<span class="tag">' + t('paused') + '</span>' : '') + (p.limits?.own ? '<span class="tag">' + t('ownTag') + '</span>' : '') + (fitTag ? '<span class="tag' + (pressing ? ' c-fail' : '') + '">' + fitTag + '</span>' : '') + (p.busy ? '<span class="tag">' + t('rebuilding') + '</span>' : '') +
       '<span class="sz">' + t('cachesSum', p.sizes ? mb(p.sizes.packages + p.sizes.images + p.sizes.build) : '…') + '</span></button>' +
       '<span class="note">' + t('slots') + '</span><span class="stepper">' + button('minus', t('fewer'), { do: 'pool/set', repo, parallel: p.parallel - 1 }, { only: true, why: p.parallel <= 1 ? t('minSlots') : '' }) + '<b>' + p.parallel + '</b>' +
       button('plus', t('more'), { do: 'pool/set', repo, parallel: p.parallel + 1 }, { only: true, why: p.parallel >= 4 ? t('maxSlots') : '' }) + '</span></div>' +
-      '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + route + limits + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
+      '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + guardNote + route + limits + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
   }).join('');
   // Vorschläge nur, wo ein Pool möglich ist (siehe `free` in listRepos).
   const free = (repoList ?? []).filter((r) => r.free);

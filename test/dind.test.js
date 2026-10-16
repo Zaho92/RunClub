@@ -56,6 +56,11 @@ test('die Daemons laufen mit dem eigenen Seccomp-Profil, nie ohne', () => {
   assert.ok(fs.existsSync(SECCOMP_PROFILE));
 });
 
+test('whyNotReady nimmt nur ganze Wörter als Fehler: „errors=0“ ist keiner', async () => {
+  const logs = (stdout) => async () => ({ code: 0, stdout, stderr: '' });
+  assert.equal(await whyNotReady(logs('level=error msg="kaputt"\nlevel=info msg="errors=0"\nlevel=info msg="bye"\n'), 'x'), ' – level=error msg="kaputt"');
+});
+
 test('whyNotReady nennt die letzte Fehlerzeile des Daemons und bei „operation not permitted“ das Seccomp-Profil', async () => {
   const logs = (stdout, stderr) => async (args) => { assert.deepEqual(args, ['logs', '--tail', '30', 'paar-dind']); return { code: 0, stdout, stderr }; };
   const blocked = await whyNotReady(logs('', 'level=info msg="start"\n[rootlesskit:parent] error: fork/exec /proc/self/exe: operation not permitted\nlevel=info msg="bye"\n'), 'paar-dind');

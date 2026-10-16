@@ -17,7 +17,7 @@ function world() {
     log: () => {}, sleep: turn, timer: () => {}, newId: () => 'a1',
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1,
     settings: { settingsOf: () => w.settings, limitsOf: () => LIMITS, state: { learned: {}, rejected: {} }, saveState: () => {} },
-    metrics: {}, stopping: () => false, dockerReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
+    metrics: {}, stopping: () => false, dockerReady: () => w.ready, vetted: () => true, refreshRepo: () => {}, forgetStats: () => {},
   });
   w.pool = { repo: REPO, slots: [], reserve: [], leaving: 0, hold: false, prepared: true, removed: false, seeded: new Set(), sizes: null };
   w.runners.pools.set(REPO, w.pool);

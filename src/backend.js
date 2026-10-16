@@ -126,8 +126,10 @@ function start({
   const remote = createRemote({
     gh, githubApi, pipelines, routing, waiting, log, logError,
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
-    onPublic: (repo) => actionsApi.pauseForPublic(repo), onPrivate: (repo) => actionsApi.allowPrivate(repo),
-    onForks: (repo, reason) => actionsApi.pauseForForks(repo, reason), onForksClosed: (repo) => actionsApi.allowForksClosed(repo),
+    guard: {
+      block: (repo, kind, reason) => actionsApi.guard.block(repo, kind, reason), unblock: (repo, kind) => actionsApi.guard.unblock(repo, kind),
+      restUnchecked: (repo) => actionsApi.guard.restUnchecked(repo),
+    },
     confirmResults: metrics.confirmResults,
   });
   let dockerWatch = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist
@@ -137,7 +139,7 @@ function start({
   runners = createRunners({
     docker, dockerList, gh, log, sleep,
     host: os.hostname(), names, image: IMAGE, dind: DAEMON_IMAGE, buildkit: BUILDKIT, longTimeout: DOCKER_LONG,
-    settings, metrics, stopping: isStopping, dockerReady: () => dockerWatch.ready(),
+    settings, metrics, stopping: isStopping, dockerReady: () => dockerWatch.ready(), vetted: remote.vetted,
     refreshRepo: remote.refreshRepo, forgetStats: usage.forget,
   });
   dockerWatch = createDockerWatch({

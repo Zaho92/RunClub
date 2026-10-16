@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createRemote, RERUN_SETTLE, WAITING_INTERVAL, REPO_LIST_MAX_AGE } = require('../src/remote');
+const { createRemote, RERUN_SETTLE, WAITING_INTERVAL, REPO_LIST_MAX_AGE, CHECK_STALE, CHECK_RETRY } = require('../src/remote');
 const { STATE: QUOTA } = require('../src/github');
+const { BLOCKS } = require('../src/blocks');
 const { turn } = require('./support');
 
 const REPO = 'wer/App';
@@ -10,7 +11,7 @@ const REPO = 'wer/App';
 // werfen oder ein Promise liefern); `calls` hält die Pfade in ihrer Reihenfolge.
 function world() {
   const w = {
-    calls: [], logs: [], timers: [], public: [], private: [], forks: [], forksClosed: [], time: 1000000, checked: [], scanned: null, stopping: false, may: () => true,
+    calls: [], logs: [], timers: [], guarded: [], time: 1000000, checked: [], scanned: null, stopping: false, may: () => true,
     settings: { [REPO]: { repo: REPO } }, pools: { [REPO]: { slots: [] } }, quota: null,
     answers: {}, pipelines: [], confirmed: [],
   };
@@ -31,8 +32,13 @@ function world() {
     logError: (repo, what) => (error) => w.logs.push([`${what} – ${error.message}`, repo, 'error']),
     repos: () => Object.keys(w.settings), settingsOf: (repo) => w.settings[repo], poolOf: (repo) => w.pools[repo],
     stopping: () => w.stopping, timer: (work, ms) => w.timers.push({ work, ms }),
-    now: () => w.time, onPublic: async (repo) => { w.public.push(repo); }, onPrivate: async (repo) => { w.private.push(repo); },
-    onForks: async (repo, reason) => { w.forks.push([repo, reason]); }, onForksClosed: async (repo) => { w.forksClosed.push(repo); },
+    now: () => w.time,
+    // Wie actions.js: Sperren pausiert und markiert, Aufheben nimmt nur die Markierung.
+    guard: {
+      block: async (repo, kind, reason) => { w.guarded.push(['block', kind, reason]); Object.assign(w.settings[repo], { paused: true, [BLOCKS[kind]]: true }); },
+      unblock: (repo, kind) => { w.guarded.push(['unblock', kind]); delete w.settings[repo][BLOCKS[kind]]; },
+      restUnchecked: (repo) => w.guarded.push(['rest', repo]),
+    },
   });
   return w;
 }
@@ -177,48 +183,99 @@ test('wartende Läufe: Kandidaten aus der Liste der Repos; bei knappem Limit sel
   assert.equal(w.scanned, null);
 });
 
-test('ein öffentlich gewordenes Repo wird gemeldet, solange sein Pool nicht deshalb pausiert ist; wieder privat ebenso', async () => {
+test('ein öffentlich gewordenes Repo sperrt den Pool, einmal; wieder privat hebt die Sperre auf', async () => {
   const w = world();
   w.answers[`repos/${REPO}`] = { private: false };
   await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.public, [REPO]);
-  w.settings[REPO].pausedPublic = true; // so hält actions.js es fest
   await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.public, [REPO]);
+  assert.deepEqual(w.guarded, [['block', 'public', undefined]]);
+  assert.equal(w.calls.some((path) => path.includes('fork-pr')), false); // öffentlich: Forks zählen dann nicht mehr
+  w.settings[REPO].paused = false; // von Hand fortgesetzt, an der Sperre vorbei: wird nachgezogen
+  await w.remote.watchVisibility(REPO);
+  assert.equal(w.guarded.length, 2);
   w.answers[`repos/${REPO}`] = { private: true };
   await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.private, [REPO]);
-  delete w.settings[REPO].pausedPublic;
-  await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.private, [REPO]);
+  assert.deepEqual(w.guarded.at(-1), ['unblock', 'public']);
   await w.remote.watchVisibility('wer/ohnePool');
   assert.equal(w.calls.includes('repos/wer/ohnePool'), false);
-  w.answers[`repos/${REPO}`] = () => { throw new Error('HTTP 404'); };
-  await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.logs, [['Sichtbarkeit des Repos – HTTP 404', REPO, 'error']]);
 });
 
-test('ein Org-Repo, in dem Fork-PRs laufen dürfen, wird gemeldet, solange sein Pool nicht deshalb pausiert ist; abgeschaltet ebenso', async () => {
+test('ein Org-Repo, in dem Fork-PRs laufen dürfen, sperrt den Pool; nicht lesbar ist ein eigener Grund, der „erlaubt“ nicht ablöst', async () => {
   const w = world();
   const forks = `repos/${REPO}/actions/permissions/fork-pr-workflows-private-repos`;
   w.answers[`repos/${REPO}`] = { private: true, owner: { type: 'Organization' } };
   w.answers[forks] = { run_workflows_from_fork_pull_requests: true };
   await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.forks.map(([repo]) => repo), [REPO]);
-  assert.match(w.forks[0][1], /Forks/);
-  w.settings[REPO].pausedForks = true; // so hält actions.js es fest
+  assert.deepEqual(w.guarded.map(([what, kind]) => [what, kind]), [['block', 'forks']]);
+  assert.match(w.guarded[0][2], /Forks/);
+  w.answers[forks] = () => { throw new Error('HTTP 403'); }; // nicht lesbar: „erlaubt“ bleibt der Grund
   await w.remote.watchVisibility(REPO);
-  assert.equal(w.forks.length, 1);
-  w.answers[forks] = () => { throw new Error('HTTP 403'); }; // nicht lesbar: bleibt pausiert
-  await w.remote.watchVisibility(REPO);
-  assert.deepEqual([w.forks.length, w.forksClosed], [1, []]);
+  assert.equal(w.guarded.length, 1);
   w.answers[forks] = { run_workflows_from_fork_pull_requests: false };
   await w.remote.watchVisibility(REPO);
-  assert.deepEqual(w.forksClosed, [REPO]);
+  assert.deepEqual(w.guarded.at(-1), ['unblock', 'forks']);
+  w.answers[forks] = () => { throw new Error('HTTP 502'); }; // ohne bekannte Gefahr: eigener Grund
+  await w.remote.watchVisibility(REPO);
+  assert.deepEqual(w.guarded.at(-1).slice(0, 2), ['block', 'forksUnknown']);
+  w.answers[forks] = { run_workflows_from_fork_pull_requests: true }; // jetzt gelesen und erlaubt: Grund wechselt
+  await w.remote.watchVisibility(REPO);
+  assert.deepEqual(w.guarded.slice(-2).map(([what, kind]) => [what, kind]), [['block', 'forks'], ['unblock', 'forksUnknown']]);
   delete w.settings[REPO].pausedForks;
   w.answers[`repos/${REPO}`] = { private: true, owner: { type: 'User' } };
+  const before = w.guarded.length;
   await w.remote.watchVisibility(REPO);
-  assert.deepEqual([w.forks.length, w.forksClosed.length, w.public, w.private], [1, 1, [], []]);
+  assert.equal(w.guarded.length, before);
+});
+
+test('wird ein Repo wieder privat, während Fork-PRs erlaubt sind, wird erst gesperrt, dann aufgehoben', async () => {
+  const w = world();
+  Object.assign(w.settings[REPO], { paused: true, pausedPublic: true });
+  w.answers[`repos/${REPO}`] = { private: true, owner: { type: 'Organization' } };
+  w.answers[`repos/${REPO}/actions/permissions/fork-pr-workflows-private-repos`] = { run_workflows_from_fork_pull_requests: true };
+  await w.remote.watchVisibility(REPO);
+  assert.deepEqual(w.guarded.map(([what, kind]) => [what, kind]), [['block', 'forks'], ['unblock', 'public']]);
+});
+
+test('ein Pool gilt erst nach einer gelungenen Prüfung als geprüft und nur CHECK_STALE lang; scheitert sie, ruht er und es wird bald erneut geprüft', async () => {
+  const w = world();
+  const fail = (message) => { w.answers[`repos/${REPO}`] = () => { throw new Error(message); }; };
+  const succeed = () => { w.answers[`repos/${REPO}`] = { private: true }; };
+  const retries = () => w.timers.filter(({ ms }) => ms === CHECK_RETRY);
+  assert.equal(w.remote.vetted(REPO), false); // beim Start: noch keine Prüfung
+  fail('kein Netz');
+  await w.remote.watchVisibility(REPO);
+  assert.deepEqual(w.guarded, [['rest', REPO]]);
+  assert.deepEqual(w.logs.map(([text, , kind]) => [text.slice(0, 22), kind]), [['Sichtbarkeit des Repos', 'error'], ['Ob das Repo privat ist', 'error']]);
+  assert.equal(retries().length, 1);
+  await w.remote.watchVisibility(REPO); // etwa die Pflege dazwischen: keine Meldung, kein zweiter Versuch
+  assert.deepEqual([w.guarded.length, w.logs.length, retries().length], [1, 2, 1]);
+  succeed();
+  w.timers.splice(w.timers.indexOf(retries()[0]), 1).at(0).work();
+  await turn();
+  assert.equal(w.remote.vetted(REPO), true);
+  assert.equal(w.logs.at(-1)[0], 'Die Prüfung ist wieder gelungen; der Pool nimmt wieder Jobs an.');
+  const expiry = w.timers.find(({ ms }) => ms === CHECK_STALE);
+  assert.ok(expiry);
+  // Später scheitert sie: Es wird gleich wieder versucht, der Pool arbeitet weiter, solange die letzte frisch ist.
+  fail('HTTP 502');
+  w.time += CHECK_STALE - 1;
+  await w.remote.watchVisibility(REPO);
+  assert.deepEqual([w.remote.vetted(REPO), w.guarded.length, retries().length], [true, 1, 1]);
+  assert.equal(w.logs.at(-1)[0], 'Sichtbarkeit des Repos – HTTP 502');
+  // Läuft sie ab, ruht der Pool sofort, ohne auf den nächsten Versuch zu warten.
+  w.time += 1;
+  expiry.work();
+  assert.deepEqual(w.guarded, [['rest', REPO], ['rest', REPO]]);
+  // Ein älterer Ablauf nach einer neueren gelungenen Prüfung tut nichts.
+  succeed();
+  await w.remote.watchVisibility(REPO);
+  expiry.work();
+  assert.equal(w.guarded.length, 2);
+  // Ein eben angelegter Pool ist geprüft; ein entfernter vergessen.
+  w.remote.markChecked('wer/Neu');
+  assert.equal(w.remote.vetted('wer/Neu'), true);
+  w.remote.forget('wer/Neu');
+  assert.equal(w.remote.vetted('wer/Neu'), false);
 });
 
 test('erneut starten: nur für Repos mit Pool und mit einer Kennung aus Ziffern; danach wird das Repo neu abgefragt', async () => {

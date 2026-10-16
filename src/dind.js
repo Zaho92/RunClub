@@ -48,7 +48,7 @@ async function waitForDaemon({ docker, sleep, container, host = null, cancelled 
 async function whyNotReady(docker, container) {
   const found = await docker(['logs', '--tail', '30', container]);
   const lines = `${found.stdout ?? ''}\n${found.stderr ?? ''}`.split('\n');
-  const line = lastLine(lines.filter((entry) => /error|fatal|denied|not permitted/i.test(entry)).join('\n')) || lastLine(lines.join('\n'));
+  const line = lastLine(lines.filter((entry) => /\b(error|fatal)\b|denied|not permitted/i.test(entry)).join('\n')) || lastLine(lines.join('\n'));
   if (!line) return '';
   const blocked = /operation not permitted/i.test(line) ? ' (womöglich verbietet das Seccomp-Profil linux/seccomp.json einen Aufruf, den diese Docker-Version braucht)' : '';
   return ` – ${line}${blocked}`;

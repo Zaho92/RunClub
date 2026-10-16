@@ -41,7 +41,7 @@ function world() {
   w.status = createStatus({
     settings: { config: { limits: { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' }, pools: [w.settings] }, limitsOf: () => ({ runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' }), settingsOf: (repo) => (repo === REPO ? w.settings : undefined) },
     runners: { pools: new Map([[REPO, pool]]), reserveSize: () => 2, staleCount: () => 0 },
-    remote: { view: () => ({ jobs: [{ status: 'queued' }, { status: 'in_progress', runner: 'PC-linux-1', job: 'Bauen' }], runs: [{ id: 1 }], error: null }) },
+    remote: { vetted: () => true, view: () => ({ jobs: [{ status: 'queued' }, { status: 'in_progress', runner: 'PC-linux-1', job: 'Bauen' }], runs: [{ id: 1 }], error: null }) },
     pipelines: { view: (repo, slots) => [{ slots }], lastOf: () => null, waitOf: () => null },
     metrics: { jobsView: () => [], series: () => [] },
     usage: { statsOf: () => undefined, view: () => ({ hostCpu: 1 }), vmTight: () => null },
@@ -72,6 +72,9 @@ test('der Stand: je Repo mit Pool Plätze, Reserve, Einstellungen; Repos mit Poo
 
   w.settings.paused = true;
   assert.deepEqual(w.status.status().repos[0].pipelines, [{ slots: 0 }]); // ein pausierter Pool nimmt keine Jobs
+  assert.deepEqual([repo.pool.blocked, repo.pool.checked], [null, true]);
+  w.settings.pausedForks = true; // gesperrt (siehe blocks.js): die Oberfläche nennt den Grund
+  assert.equal(w.status.status().repos[0].pool.blocked, 'forks');
 });
 
 test('Docker: bereit, mit Fehler oder noch am Starten', () => {

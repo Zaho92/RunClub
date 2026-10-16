@@ -16,7 +16,7 @@ const KEY_NEW = `4/${6 * 1073741824}`;
 function brief(args) {
   if (args[0] === 'run') return args.includes('--name') ? `run ${args[args.indexOf('--name') + 1]}` : args.at(-1).includes('/c/nuget') ? 'run cache' : args.at(-1).includes('du -sm') ? 'run du' : 'run volumes';
   if (args[0] === 'network' && args[1] === 'create') return `network create ${args.at(-1)}`;
-  if (args[0] === 'inspect') return `inspect ${args.at(-1)}`;
+  if (args[0] === 'inspect') return `inspect ${args.includes('{{.State.Running}}') ? 'running ' : ''}${args.at(-1)}`;
   return args.join(' ');
 }
 
@@ -33,11 +33,12 @@ function world() {
     const name = brief(args);
     w.calls.push(name);
     w.details.push({ name, args });
-    return { code: 0, stdout: '', stderr: '', ...(await w.answer(name, args)) };
+    // Ein eben gestarteter Build-Dienst läuft, wenn der Test nichts anderes sagt.
+    return { code: 0, stdout: name.startsWith('inspect running') ? 'true' : '', stderr: '', ...(await w.answer(name, args)) };
   };
   const { docker, dockerList } = createEngine({ run, timeout: 99 });
   w.caches = createCaches({
-    docker, dockerList,
+    docker, dockerList, sleep: async () => {},
     log: (...entry) => w.logs.push(entry),
     dind: 'dind:test', buildkit: 'buildkit:test', serviceMark: 'runclub.service=test',
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
@@ -51,7 +52,7 @@ function world() {
 }
 
 const READY = ['volume create rc-cache-app', 'run cache', 'volume create rc-build-app', 'volume create rc-buildsock-app', 'network create rc-buildnet-app', 'inspect rc-buildkit-app'];
-const SERVICE = ['rm -f rc-buildkit-app', 'run volumes', 'run rc-buildkit-app'];
+const SERVICE = ['rm -f rc-buildkit-app', 'run volumes', 'run rc-buildkit-app', 'inspect running rc-buildkit-app'];
 const PREPARE = [...READY, ...SERVICE];
 // So meldet `docker inspect` einen laufenden Build-Dienst mit diesen Limits.
 const running = (key) => (name) => (name === 'inspect rc-buildkit-app' ? { stdout: `true ${key}\n` } : undefined);
@@ -68,13 +69,13 @@ test('bereitstellen legt Paket-Cache, Netz und Build-Dienst ohne Rechte mit den 
   // Build-Layer des früheren Dienstes mit Rechten gehören root: Sie werden geleert, dann gehören beide Volumes dem Dienst.
   assert.deepEqual(args('run volumes'), ['run', '--rm', '-v', 'rc-build-app:/b', '-v', 'rc-buildsock-app:/s', '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c',
     '[ "$(stat -c %u /b)" = 1000 ] || find /b -mindepth 1 -delete; chown 1000:1000 /b /s']);
-  assert.deepEqual(args('run rc-buildkit-app'),
+  assert.deepEqual(args('run rc-buildkit-app', 'inspect running rc-buildkit-app'),
     ['run', '-d', '--name', 'rc-buildkit-app', '--label', 'runclub.service=test', '--label', `runclub.limits=${KEY_OLD}`,
       '--restart', 'no', '--network', 'rc-buildnet-app', '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',
       ...SECURITY_FLAGS,
       '-v', 'rc-build-app:/home/user/.local/share/buildkit', '-v', 'rc-buildsock-app:/run/rc-buildkit',
       'buildkit:test', '--addr', 'unix:///run/rc-buildkit/buildkitd.sock']); // mit Sandbox der Build-Schritte
-  assert.equal(args('run rc-buildkit-app').includes('--privileged'), false);
+  assert.equal(args('run rc-buildkit-app', 'inspect running rc-buildkit-app').includes('--privileged'), false);
   assert.equal(w.pool.serviceBuilt, KEY_OLD);
   assert.equal(w.pool.serviceFailed, false);
   assert.equal(w.pool.serviceFailures, 0);
@@ -110,7 +111,7 @@ test('ein Netz, das schon steht, ist kein Fehler', async () => {
   const w = world();
   w.answer = (name) => (name.startsWith('network create') ? { code: 1, stderr: 'Error response from daemon: network with name rc-buildnet-app already exists' } : undefined);
   await w.caches.prepareCaches(REPO);
-  assert.ok(w.calls.includes('run rc-buildkit-app'));
+  assert.ok(w.calls.includes('run rc-buildkit-app', 'inspect running rc-buildkit-app'));
   assert.equal(w.pool.serviceBuilt, KEY_OLD);
   assert.deepEqual(w.logs, []);
 });
@@ -119,12 +120,28 @@ test('lässt sich das Netz nicht anlegen, startet der Build-Dienst nicht, und es
   const w = world();
   w.answer = (name) => (name.startsWith('network create') ? { code: 1, stderr: 'Error response from daemon: kaputt' } : undefined);
   await w.caches.prepareCaches(REPO);
-  assert.equal(w.calls.includes('run rc-buildkit-app'), false);
+  assert.equal(w.calls.includes('run rc-buildkit-app', 'inspect running rc-buildkit-app'), false);
   assert.equal(w.pool.serviceFailed, true);
   assert.equal(w.pool.serviceBuilt, null);
   assert.equal(w.logs.length, 1);
   assert.match(w.logs[0][0], /^Netz für den Build-Dienst lässt sich nicht anlegen – /);
   assert.deepEqual(w.logs[0].slice(1), [REPO, 'error']);
+});
+
+test('endet der Build-Dienst gleich nach dem Start, steht der Grund aus seinem Protokoll in der Meldung', async () => {
+  const w = world();
+  w.answer = (name) => (name === 'inspect running rc-buildkit-app' ? { stdout: 'false' }
+    : name.startsWith('logs') ? { stderr: 'level=info msg="start"\nerror: unshare: operation not permitted' } : undefined);
+  await w.caches.prepareCaches(REPO);
+  assert.equal(w.pool.serviceFailed, true);
+  assert.match(w.logs[0][0], /^Build-Dienst endet gleich nach dem Start – error: unshare: operation not permitted \(womöglich verbietet das Seccomp-Profil/);
+});
+
+test('lässt sich der Zustand des Build-Diensts nach dem Start nicht lesen, sagt die Meldung das, nicht „endet gleich“', async () => {
+  const w = world();
+  w.answer = (name) => (name === 'inspect running rc-buildkit-app' ? { code: 1, stderr: 'Error: context deadline exceeded' } : undefined);
+  await w.caches.prepareCaches(REPO);
+  assert.equal(w.logs[0][0], 'Build-Dienst: Zustand nach dem Start nicht lesbar – Error: context deadline exceeded');
 });
 
 test('startet der Build-Dienst nicht, wächst der Abstand bis zum nächsten Versuch', async () => {

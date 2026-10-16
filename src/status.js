@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const limitRules = require('./limits');
 const { SLOT } = require('./states');
+const { blockOf } = require('./blocks');
 
 // Ein Platz, wie die Oberfläche ihn zeigt. `jobs`: die laufenden Jobs des Repos bei GitHub (siehe remote.js);
 // `statsOf(name)`: der Verbrauch eines Containers (siehe usage.js); `cpus`: Kerne der Docker-VM.
@@ -24,7 +25,7 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 
 //   settings                `config`, `limitsOf` (siehe settings.js)
 //   runners                 `pools` (Map), `reserveSize(pool)`, `staleCount(pool)` (siehe runners.js)
-//   remote                  `view(repo)` (siehe remote.js)
+//   remote                  `view(repo)`, `vetted(repo)` (siehe remote.js)
 //   pipelines, metrics, usage, routing, waiting, account, githubApi   siehe die gleichnamigen Module
 //   dockerWatch             `ready()`, `error()`, `cpus()`, `memory()` (siehe dockerwatch.js)
 //   buildService(repo)      Name des Build-Dienstes (siehe names.js)
@@ -58,6 +59,8 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
     const service = usage.statsOf(buildService(repo));
     return {
       parallel: settingsOfRepo.parallel, paused: settingsOfRepo.paused, cache: settingsOfRepo.cache, busy: Boolean(pool?.hold),
+      // Warum der Pool gesperrt ist (siehe blocks.js) und ob sein Repo frisch geprüft ist (siehe remote.js).
+      blocked: blockOf(settingsOfRepo), checked: remote.vetted(repo),
       reserve: (pool?.reserve ?? []).filter((entry) => entry.ready).length, reserveWanted: pool ? runners.reserveSize(pool) : 0,
       sizes: pool?.sizes ?? null,
       limits: {

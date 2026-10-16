@@ -4,7 +4,7 @@
 // beim Anlegen. Das trägt auch bei zwei Instanzen der App und bei Resten nach einem Absturz.
 
 const DEFAULT_RANGE = '10.213.0.0/16';
-const SUBNET_BITS = 28; // 14 Adressen; im Netz eines Paars hängen nur der Docker-Daemon und der Build-Dienst
+const SUBNET_BITS = 28; // 14 Adressen; im Netz eines Paars hängen nur Runner und Docker-Daemon (der Build-Dienst hat ein eigenes)
 const SMALLEST_RANGE = 24; // darunter bleiben zu wenige Subnetze, um bei einer Überschneidung auszuweichen
 const ATTEMPTS = 10;
 const OVERLAP = /Pool overlaps/i;

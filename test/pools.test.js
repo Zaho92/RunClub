@@ -25,13 +25,13 @@ function basics() {
 // von den Plätzen verlangt. Ein Aufbau (`builds`) bleibt offen, bis der Test ihn mit `finish` oder `fail` beendet.
 // Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
 function world() {
-  const w = { ...basics(), builds: [], loops: [], aborted: [], removing: () => {}, caches: () => {} };
+  const w = { ...basics(), builds: [], loops: [], aborted: [], removing: () => {}, caches: () => {}, vetted: true };
   w.pools = createPools({
     log: (...entry) => w.logs.push(entry),
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
-    stopping: () => w.stopping, dockerReady: () => w.ready,
+    stopping: () => w.stopping, dockerReady: () => w.ready, vetted: () => w.vetted,
     provision: (pool, cancelled) => {
       const number = w.builds.length + 1;
       const build = { cancelled, pair: { id: String(number), base: `rc-app-${number}` } };
@@ -121,6 +121,9 @@ test('ein Pool ruht, solange er nicht vorbereitet, angehalten oder pausiert ist'
   w.settings.paused = true;
   assert.ok(w.pools.poolResting(w.pool));
   assert.ok(!w.pools.poolResting({ repo: 'wer/Anders', prepared: true, hold: false }));
+  w.settings.paused = false;
+  w.vetted = false; // ohne frische Prüfung des Repos (siehe remote.js)
+  assert.ok(w.pools.poolResting(w.pool));
 });
 
 test('ein gescheiterter Aufbau verlässt die Reserve und steht im Protokoll; ein abgebrochener geht still', async () => {
@@ -525,7 +528,7 @@ function wired() {
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1234,
     settings: { settingsOf: (repo) => (repo === REPO ? w.settings : undefined), limitsOf: () => w.limits, state: { learned: {}, rejected: {} }, saveState: () => {} },
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
-    stopping: () => w.stopping, dockerReady: () => w.ready, refreshRepo: () => {}, forgetStats: () => {},
+    stopping: () => w.stopping, dockerReady: () => w.ready, vetted: () => true, refreshRepo: () => {}, forgetStats: () => {},
   });
   w.abortIdle = w.runners.slots.abortIdle;
   // Am Ende eines Tests: alle Schleifen beenden, damit nichts weiterläuft.
@@ -665,7 +668,7 @@ function starter({ ready = true, failCaches = null } = {}) {
   s.api = createPools({
     log: (...entry) => s.logs.push(entry), sleep: turn, pools: s.pools,
     settingsOf: (repo) => ({ repo, parallel: 2, cache: true, paused: false }), limitsOf: () => OLD,
-    stopping: () => false, dockerReady: () => s.ready,
+    stopping: () => false, dockerReady: () => s.ready, vetted: () => true,
     provision: async () => null, removePair: async () => {}, slotLoop: (pool, slot) => s.calls.push(`loop ${pool.repo} ${pool.slots.indexOf(slot) + 1}`), abortIdle: async () => {},
     prepareCaches: async (repo) => { s.calls.push(`caches ${repo}`); if (failCaches) throw new Error(failCaches); },
     refreshSeed: async (repo) => { s.calls.push(`seed ${repo}`); },

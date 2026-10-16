@@ -5,7 +5,10 @@
 //
 // Ermittelt am 16.10.2026 mit Docker 29.6.1 (Profil aus moby/profiles v0.2.3): jeder Zusatz einzeln weggelassen, dann
 // scheiterte der Start des Daemons (clone, unshare, setns, mount) oder ein Job-Container, ein Build oder ein veröffentlichter
-// Port (umount2, pivot_root, keyctl, sethostname). Nicht nötig waren die neue Mount-API (fsopen, fsmount, move_mount,
+// Port (umount2, pivot_root, keyctl, sethostname). `keyctl` braucht runc nur, um jedem Container einen eigenen
+// Sitzungsschlüsselbund zu geben (KEYCTL_JOIN_SESSION_KEYRING, dann KEYCTL_DESCRIBE und KEYCTL_SETPERM); nur diese drei
+// Operationen sind erlaubt (erprobt ebenso: Daemon, Container mit Port, exec, Build im Daemon und im Build-Dienst).
+// Ohne `keyctl` scheitert jeder Container mit „unable to join session keyring“. Nicht nötig waren die neue Mount-API (fsopen, fsmount, move_mount,
 // open_tree, mount_setattr), chroot und setdomainname. Was ein Job im inneren Daemon startet, bekommt dort wieder dessen
 // eigenes Standardprofil.
 //
@@ -15,14 +18,18 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ADDED = ['clone', 'unshare', 'setns', 'mount', 'umount2', 'pivot_root', 'keyctl', 'sethostname'];
+const ADDED = ['clone', 'unshare', 'setns', 'mount', 'umount2', 'pivot_root', 'sethostname'];
+// Erlaubte Operationen von keyctl (erstes Argument): JOIN_SESSION_KEYRING, SETPERM, DESCRIBE aus linux/keyctl.h.
+const KEYCTL_OPS = [1, 5, 6];
 const TARGET = path.join(__dirname, '..', 'linux', 'seccomp.json');
 
-// Das Standardprofil mit einer Regel dazu, die die Zusätze ohne Bedingung erlaubt. Die Regel des Standardprofils, die
+// Das Standardprofil mit einer Regel dazu, die die Zusätze ohne Bedingung erlaubt, und je einer für die Operationen von
+// keyctl (Bedingungen einer Regel gelten zugleich, also eine Regel je Wert). Die Regel des Standardprofils, die
 // `clone` nur ohne Namensraum-Flags erlaubt, darf bleiben: Sie erlaubt ebenfalls, und die freie Regel gilt daneben
 // (erprobt). `clone3` bleibt bei ENOSYS; die C-Bibliothek nimmt dann `clone`.
 function derive(profile) {
-  return { ...profile, syscalls: [...profile.syscalls, { names: ADDED, action: 'SCMP_ACT_ALLOW' }] };
+  const keyctl = KEYCTL_OPS.map((value) => ({ names: ['keyctl'], action: 'SCMP_ACT_ALLOW', args: [{ index: 0, value, op: 'SCMP_CMP_EQ' }] }));
+  return { ...profile, syscalls: [...profile.syscalls, { names: ADDED, action: 'SCMP_ACT_ALLOW' }, ...keyctl] };
 }
 
 if (require.main === module) {
@@ -33,4 +40,4 @@ if (require.main === module) {
   console.log(`${path.relative(process.cwd(), TARGET)} geschrieben`);
 }
 
-module.exports = { derive, ADDED };
+module.exports = { derive, ADDED, KEYCTL_OPS };

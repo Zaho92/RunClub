@@ -15,11 +15,11 @@
 //   pool.renewingService  er wird gerade erneuert;  pool.measuring  die Volumes werden gerade gemessen
 
 const { lastLine } = require('./run');
-const { MINUTE, MB } = require('./units');
+const { MINUTE, SECOND, MB } = require('./units');
 const { createNetwork, alreadyExists } = require('./subnets');
 const limitRules = require('./limits');
 const { busy } = require('./states');
-const { RUNNER_USER, SECURITY_FLAGS, asRoot } = require('./dind');
+const { RUNNER_USER, SECURITY_FLAGS, asRoot, whyNotReady } = require('./dind');
 
 const VOLUME_PREFIX = 'rc-';
 const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren
@@ -28,10 +28,11 @@ const SERVICE_USER = 1000; // unter diesem Benutzer läuft der Build-Dienst; die
 const RETRY_MAX = 30 * MINUTE; // längster Abstand zwischen zwei Versuchen, den Build-Dienst anzulegen
 const LIMITS_LABEL = 'runclub.limits';
 const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legte sonst die ganze Docker-VM lahm
+const SERVICE_SETTLE = 3 * SECOND; // so lange nach dem Start wird gewartet, ob der Build-Dienst gleich wieder endet
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
 //   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
-//   log(text, repo, kind)
+//   log(text, repo, kind), sleep(ms)
 //   dind, buildkit          Abbild des Docker-Daemons (hier nur als Werkzeug für die Volumes, siehe dind.js) und des
 //                           Build-Diensts
 //   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze; was es trägt, räumt der nächste Start ab
@@ -40,7 +41,7 @@ const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legt
 //                           die Namen je Repo
 //   stopping(), dockerReady()
 function createCaches({
-  docker, dockerList, log,
+  docker, dockerList, log, sleep,
   dind, buildkit, serviceMark,
   settingsOf, limitsOf, poolOf,
   cacheVolume, seedVolume, buildVolume, buildSocket, buildService, buildNetwork,
@@ -85,7 +86,13 @@ function createCaches({
       ...SECURITY_FLAGS,
       '-v', `${buildVolume(repo)}:/home/user/.local/share/buildkit`, '-v', `${buildSocket(repo)}:${SOCKET_DIR}`,
       buildkit, '--addr', `unix://${SOCKET}`]);
-    return service.code === 0 ? null : `Build-Dienst startet nicht – ${lastLine(service.stderr)}`;
+    if (service.code !== 0) return `Build-Dienst startet nicht – ${lastLine(service.stderr)}`;
+    // Verbietet etwa das Seccomp-Profil buildkit einen Aufruf, endet er gleich nach dem Start. Das soll hier mit dem Grund
+    // ins Protokoll, nicht erst beim nächsten Build als fehlender Socket auffallen.
+    await sleep(SERVICE_SETTLE);
+    const state = await docker(['inspect', '--format', '{{.State.Running}}', buildService(repo)]);
+    if (state.code !== 0) return `Build-Dienst: Zustand nach dem Start nicht lesbar – ${lastLine(state.stderr)}`;
+    return state.stdout?.trim() === 'true' ? null : `Build-Dienst endet gleich nach dem Start${await whyNotReady(docker, buildService(repo))}`;
   }
 
   // Paket-Cache und Build-Dienst eines Repos bereitstellen.

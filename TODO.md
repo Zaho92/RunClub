@@ -35,15 +35,14 @@ Schritte, in dieser Reihenfolge:
    dort Workflows aus Fork-PRs laufen dürfen, auch mit Freigabepflicht („require approval“). Startet ein Daemon mit dem
    Seccomp-Profil nicht, gibt es einen klaren Fehler, keinen Rückfall auf `unconfined` und keine Einstellung zum
    Abschalten. Meldeweg in `SECURITY.md` ist GitHubs „Private vulnerability reporting“, keine E-Mail-Adresse.
-   Fork-PRs gebaut am 16.10.2026 (`src/forks.js`): geprüft beim Anlegen und in der seltenen Pflege; lässt sich die
-   Einstellung nicht lesen, pausiert der Pool ebenso, und fortgesetzt wird er danach von Hand. Seccomp-Profil gebaut am
-   16.10.2026 (`linux/seccomp.json`, erzeugt von `scripts/seccomp.js`; dort steht, wie die Zusätze ermittelt wurden),
-   erprobt mit einer Test-Instanz: Docker im Job, veröffentlichter Port, Build über den Build-Dienst, `services:`.
-   Nach einem größeren Update von Docker Desktop das Profil mit dessen Standardprofil neu erzeugen und erproben.
-   `SECURITY.md` (englisch, Bedrohungsmodell und Meldeweg) geschrieben am 16.10.2026. **Offen** (Wunsch des Nutzers,
-   16.10.2026, vor Schritt 3): großes Review über `503330f..HEAD`, zweistufig (Standards, Auftragstreue), dazu
-   `security-review` und ein eigener Sicherheitsprüfer, der auch `SECURITY.md` gegen den Code hält; Befunde beheben,
-   Abschluss-Review, Beta-Release.
+   **Erledigt am 16.10.2026.** Fork-PRs (`src/forks.js`, Sperrgründe in `src/blocks.js`): geprüft beim Anlegen, beim
+   Start und alle 10 Minuten; ein Pool nimmt nur Jobs an, solange die letzte gelungene Prüfung höchstens 25 Minuten alt
+   ist (`vetted` in `src/remote.js`), und die Oberfläche nennt Grund und Ausweg einer Sperre. Seccomp-Profil
+   (`linux/seccomp.json`, erzeugt von `scripts/seccomp.js`; dort steht, wie die Zusätze ermittelt wurden, `keyctl` nur
+   für den Sitzungsschlüsselbund von runc), erprobt: Docker im Job, veröffentlichter Port, `exec`, Build im Daemon und
+   über den Build-Dienst, `services:`. Nach einem größeren Update von Docker Desktop das Profil mit dessen
+   Standardprofil neu erzeugen und erproben. `SECURITY.md` (englisch) gegen den Code geprüft. Review dazu siehe
+   „Zwischendurch, regelmäßig“.
 3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
    (siehe „Kleinere Punkte“), Repo ins Englische, README mit Bildschirmfotos, Prüfung beim ersten Start (Docker Desktop
    installiert und gestartet, WSL).
@@ -112,6 +111,11 @@ Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 2 unten) 
   (`9686428..1098b74`, Richtigkeit, Sicherheit, Standards); was es fand, ist im Commit danach behoben (vor allem: Ende
   und Ergebnis eines Jobs nicht mehr aus der Ausgabe des Runners), aber nicht noch einmal gelesen. Der nächste
   Durchgang prüft die Änderungen danach.
+- Ein siebter Durchgang lief am 16.10.2026 über Schritt 2 „Sicher für Fremde“ (`503330f..d7e7edd`): Standards,
+  Auftragstreue, ein Sicherheitsdurchgang (der Skill `security-review` scheitert hier an fehlendem `origin/HEAD`; derselbe
+  Auftrag lief als Subagent) und ein eigener Sicherheitsprüfer, der `SECURITY.md` gegen den Code hielt. Alle Befunde
+  sind behoben; darüber liefen ein Abschluss-Review und der Gutachter der Oberfläche, deren Befunde ebenfalls behoben,
+  aber nicht noch einmal gelesen sind. Der nächste Durchgang prüft die Änderungen danach.
 
 ## Aus den Reviews noch offen
 
@@ -337,6 +341,12 @@ Bewusst so gelassen:
     „Operation not permitted“ achten.
 
 ## Offene Entscheidungen des Nutzers
+
+- **Updates signieren** (gefunden im Review vom 16.10.2026): Der Updater prüft nur die Prüfsumme aus demselben Release.
+  Wer im Repo einen Release anlegen kann, kann allen ein Update unterschieben; ist das Repo öffentlich, auch jeder
+  Workflow mit `contents: write` (`release.yml` legt Releases als `github-actions[bot]` an, eine Prüfung des Autors
+  hilft daher nicht). Vorschlag: vor Schritt 4 die Updates mit einem Schlüssel signieren, der nur beim Nutzer liegt,
+  und die App prüft die Signatur. Bis dahin steht die Grenze in `SECURITY.md`.
 
 - **Eigene OAuth-App „RunClub“ zur Veröffentlichung.** Entschieden vom Nutzer: Bis dahin nutzt RunClub die
   Anmeldung von `gh` (dieselbe wie im Terminal; Abmelden in der App meldet deshalb auch `gh` ab). Zur Veröffentlichung

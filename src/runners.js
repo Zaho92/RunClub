@@ -23,13 +23,13 @@ const { errorLog } = require('./journal');
 //   longTimeout             Zeitgrenze für Kopieren und Laden
 //   settings                `settingsOf`, `limitsOf`, `state`, `saveState` (siehe settings.js)
 //   metrics                 `meter()`, `recordJob(repo, record)` (siehe metrics.js)
-//   stopping(), dockerReady()
+//   stopping(), dockerReady(), vetted(repo)   vetted: siehe pools.js
 //   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen (siehe remote.js)
 //   forgetStats(name)       die Messwerte eines Containers verwerfen (siehe usage.js)
 function createRunners({
   docker, dockerList, gh, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, names, image, dind, buildkit, longTimeout,
-  settings, metrics, stopping, dockerReady, refreshRepo, forgetStats,
+  settings, metrics, stopping, dockerReady, vetted, refreshRepo, forgetStats,
 }) {
   const pools = new Map(); // Repo -> Pool (siehe pools.js)
   const { settingsOf, limitsOf } = settings;
@@ -54,7 +54,7 @@ function createRunners({
   });
 
   const caches = createCaches({
-    docker, dockerList, log,
+    docker, dockerList, log, sleep,
     dind, buildkit, serviceMark: names.serviceMark,
     settingsOf, limitsOf, poolOf,
     cacheVolume: names.cacheVolume, seedVolume: names.seedVolume, buildVolume: names.buildVolume, buildSocket: names.buildSocket,
@@ -64,7 +64,7 @@ function createRunners({
 
   reserve = createPools({
     log, sleep, pools,
-    settingsOf, limitsOf, stopping, dockerReady,
+    settingsOf, limitsOf, stopping, dockerReady, vetted,
     provision: slots.provision, removePair: slots.removePair, abort: slots.abort, slotLoop: slots.slotLoop, abortIdle: slots.abortIdle,
     prepareCaches: caches.prepareCaches, refreshSeed: seed.refreshSeed, measureSizes: caches.measureSizes,
   });
