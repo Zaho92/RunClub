@@ -24,11 +24,12 @@ und einem Updater, der sich aus den GitHub-Releases selbst aktualisiert. Entschi
 
 Schritte, in dieser Reihenfolge:
 
-1. **Installer und Updater** (siehe den Punkt unter „Als Nächstes“): `electron-builder` mit NSIS, Release-Workflow auf
-   `windows-latest` bei Versions-Tags (umgeht die `winCodeSign`-Hürde auf diesem Rechner), eigener Updater mit den
-   GitHub-Releases, Kanal Stabil/Beta, Anzeige in den Einstellungen (Abschnitt App: Version, Update bereit, Kanal),
-   Startmenü und Autostart auf die installierte App umstellen, Branching und Ablauf QS → Live festlegen und in
-   `README.md` beschreiben. Danach selbst über Wochen auf Beta betreiben.
+1. **Installer und Updater** – gebaut 16.10.2026: `electron-builder` mit NSIS (lokal baubar, ohne die befürchtete
+   `winCodeSign`-Hürde), eigener Updater mit Kanal Stabil/Beta, Anzeige in Einstellungen → App, Startmenü und Autostart
+   auf der installierten App, Ablauf QS → Live in `README.md`. v0.1.0-beta.2 ist installiert, das Update auf Klick
+   erprobt. Releases baut `npm run release` auf diesem Rechner, solange das Repo privat ist (die Windows-Runner von
+   GitHub kosten dann Minuten, und die waren am 16.10. aufgebraucht); öffentlich übernimmt `release.yml`, das bis dahin
+   übersprungen wird. **Offen:** über Wochen auf Beta betreiben.
 2. **Sicher für Fremde:** Fork-PRs in Org-Repos und Seccomp-Profil (siehe „Aus den Reviews noch offen“), `SECURITY.md`
    mit Bedrohungsmodell.
 3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
@@ -37,20 +38,15 @@ Schritte, in dieser Reihenfolge:
 4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, Git-Historie auf Geheimnisse und Persönliches
    prüfen (sie wird mit öffentlich), Repo öffentlich stellen, Release 0.1.0.
 
-Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 3 unten) und der MCP-Server (Punkt 4 unten).
+Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 2 unten) und der MCP-Server (Punkt 3 unten).
 
 ## Als Nächstes
 
-1. **Installer** (Schritt 1 des Wegs zur Veröffentlichung). Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
-   Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
-   Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
-   `docker build` einen echten Ordner braucht. Mit dem Installer erledigt sich der Repo-Umzug (Punkt 2) fast
-   nebenbei, weil Startmenü und Autostart dann nicht mehr auf den Entwicklungsordner zeigen.
-2. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
-   deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
-   Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
-   Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner unter `%APPDATA%\RunClub` bleibt, wo er ist.
-3. **Docker Engine statt Docker Desktop** (Idee des Nutzers, 14.10.2026; erst Analyse, dann entscheiden). Ziel: eine
+1. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
+   deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Seit dem Installer (16.10.2026) zeigen
+   Startmenü und Autostart auf die installierte App, und die läuft aus ihrer eigenen Kopie; mitzuziehen ist nur noch,
+   was den alten Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner `%APPDATA%\RunClub` bleibt.
+2. **Docker Engine statt Docker Desktop** (Idee des Nutzers, 14.10.2026; erst Analyse, dann entscheiden). Ziel: eine
    Abhängigkeit weniger. Eine eigene Docker Engine in einer eigenen WSL-Distro statt Docker Desktop. Für
    die Veröffentlichung spricht die Lizenz von Docker Desktop (in größeren Firmen kostenpflichtig) und mehr Kontrolle
    über den Daemon (etwa ein eigenes Seccomp-Profil oder sysbox, siehe unten). Dagegen:
@@ -70,7 +66,7 @@ Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 3 unten) 
    Weg für Fremde: der Runner-Prozess direkt auf Windows (bricht „frisch je Job, nichts bleibt“).
    **Mac-Runner** gibt es nur auf Apple-Hardware (Lizenz); RunClub müsste dafür selbst auf macOS laufen (Linux-Container
    wie bisher, macOS-Jobs in VMs, z. B. `tart`). Eigenes, späteres Vorhaben.
-4. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
+3. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
    können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
    Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
    holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein

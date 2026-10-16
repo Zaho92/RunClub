@@ -16,6 +16,8 @@ concurrency:
 jobs:
   release:
     name: Installer
+    # Solange das Repo privat ist, kosten die Windows-Runner Minuten; dann baut `npm run release` lokal (siehe README).
+    if: ${{ !github.event.repository.private }}
     # Windows von GitHub: Die eigenen Runner sind Linux, und der Installer wird unter Windows gebaut.
     runs-on: windows-latest
     timeout-minutes: 20
