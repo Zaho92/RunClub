@@ -1,14 +1,49 @@
 # Offene Punkte
 
-Stand: 15.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
+Stand: 16.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
 `CLAUDE.md`; wofür die App da ist, in `PRODUCT.md`; wie sie aussieht und warum, in `DESIGN.md`.
+
+## Weg zur Veröffentlichung
+
+Besprochen mit dem Nutzer am 16.10.2026. Ziel: RunClub als öffentliches Repo unter MIT, mit Installer zum Herunterladen
+und einem Updater, der sich aus den GitHub-Releases selbst aktualisiert. Entschieden:
+
+- **Lizenz MIT.**
+- **Installer erst unsigniert** (Windows warnt beim Installieren „Unbekannter Herausgeber“); Signatur später nachrüstbar.
+- **Updater:** lädt im Hintergrund, meldet „Update bereit“, eingespielt wird auf Klick und nur, wenn kein Runner arbeitet
+  (Beenden baut alle Runner ab).
+- **QS vor Live:** Der Nutzer baut weiter und will Neues erst selbst erproben. Vorschlag (im Schritt 1 entscheiden):
+  QS als Beta-Kanal statt zweiter Instanz (zwei Instanzen mit denselben Pools melden sich gegenseitig die Runner ab).
+  Tags `vX.Y.Z-beta.N` erzeugen Vorabversionen, `vX.Y.Z` stabile; der Updater hat einen Kanal „Stabil“/„Beta“, der
+  Rechner des Nutzers läuft auf Beta. Branching anpassen (Feature-Branches, `main` liefert Betas; ob ein eigener
+  `qs`-Branch nötig ist, klären; an `core:release` QS → Live anlehnen).
+- **Repo ganz englisch** (README, Doku, Kommentare, TODO, DESIGN; die Regel in `CLAUDE.md` ändert sich dann). Die
+  Oberfläche bleibt zweisprachig. Erst in Schritt 3, damit nicht Code übersetzt wird, der gleich umgebaut wird.
+
+Schritte, in dieser Reihenfolge:
+
+1. **Installer und Updater** (siehe den Punkt unter „Als Nächstes“): `electron-builder` mit NSIS, Release-Workflow auf
+   `windows-latest` bei Versions-Tags (umgeht die `winCodeSign`-Hürde auf diesem Rechner), `electron-updater` mit den
+   GitHub-Releases, Kanal Stabil/Beta, Anzeige in den Einstellungen (Abschnitt App: Version, Update bereit, Kanal),
+   Startmenü und Autostart auf die installierte App umstellen, Branching und Ablauf QS → Live festlegen und in
+   `README.md` beschreiben. Danach selbst über Wochen auf Beta betreiben.
+2. **Sicher für Fremde:** Fork-PRs in Org-Repos und Seccomp-Profil (siehe „Aus den Reviews noch offen“), `SECURITY.md`
+   mit Bedrohungsmodell.
+3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
+   (siehe „Kleinere Punkte“), Repo ins Englische, README mit Bildschirmfotos, Prüfung beim ersten Start (Docker Desktop
+   installiert und gestartet, WSL).
+4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, Git-Historie auf Geheimnisse und Persönliches
+   prüfen (sie wird mit öffentlich), Repo öffentlich stellen, Release 0.1.0.
+
+Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 3 unten) und der MCP-Server (Punkt 4 unten).
 
 ## Als Nächstes
 
-1. **Installer** (zurückgestellt am 13.10.2026, nicht jetzt). Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
+1. **Installer** (Schritt 1 des Wegs zur Veröffentlichung). Eigenständige App statt der Verknüpfung auf den Entwicklungsordner (`electron-builder`, NSIS). Bekannte
    Hürde unter Windows: Das Paket `winCodeSign` enthält symbolische Links und lässt sich ohne Entwicklermodus oder
    Administratorrechte nicht entpacken. `asar` muss aus bleiben oder `linux/` als `extraResources` mitkommen, weil
-   `docker build` einen echten Ordner braucht.
+   `docker build` einen echten Ordner braucht. Mit dem Installer erledigt sich der Repo-Umzug (Punkt 2) fast
+   nebenbei, weil Startmenü und Autostart dann nicht mehr auf den Entwicklungsordner zeigen.
 2. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
    deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Nur bei beendeter App. Mitziehen: die
    Startmenü-Verknüpfung und der Autostart-Eintrag (beide zeigen auf den Entwicklungsordner) sowie alles, was den alten
@@ -287,7 +322,6 @@ Bewusst so gelassen:
 
 ## Offene Entscheidungen des Nutzers
 
-- **Lizenz.** RunClub soll später veröffentlicht werden (Entscheidung des Nutzers, 13.10.2026); bis dahin eine wählen.
 - **Eigene OAuth-App „RunClub“ zur Veröffentlichung.** Entschieden vom Nutzer: Bis dahin nutzt RunClub die
   Anmeldung von `gh` (dieselbe wie im Terminal; Abmelden in der App meldet deshalb auch `gh` ab). Zur Veröffentlichung
   ist eine eigene OAuth-App vorgesehen, mit eigener Anmeldung getrennt von `gh`, eigenem Namen auf der
