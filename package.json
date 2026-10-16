@@ -10,13 +10,44 @@
     "backend": "node src/backend.js",
     "check": "node scripts/check.js",
     "test": "node --test",
-    "icon": "electron scripts/make-icon.js"
+    "icon": "electron scripts/make-icon.js",
+    "dist": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
-    "electron": "^44.7.0"
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/Zaho92/RunClub.git"
+  },
+  "build": {
+    "appId": "RunClub",
+    "productName": "RunClub",
+    "directories": {
+      "output": "dist",
+      "buildResources": "installer"
+    },
+    "asar": false,
+    "files": [
+      "package.json",
+      "src/**/*",
+      "linux/**/*",
+      "build/icon.png",
+      "build/tray.png"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "RunClub-Setup-${version}.${ext}",
+      "shortcutName": "RunClub",
+      "createDesktopShortcut": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

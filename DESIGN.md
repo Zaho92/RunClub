@@ -366,14 +366,14 @@ Zurückhaltend und klein; sie gehören zum Einrichten, nicht zum Zustand.
 - Eine gefüllte Hauptschaltfläche gibt es nicht.
 
 ### Bediensymbole
-Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“. Der Bogen im Uhrzeigersinn heißt „Runner neu aufbauen“; der Bogen zurück an den Anfang mit dem Dreieck darin heißt „erneut starten“, für den Lauf wie für den einzelnen Job. Das „i“ im Kreis heißt „mehr dazu“ und steht nur am Info-Element.
+Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“. Der Bogen im Uhrzeigersinn heißt „Runner neu aufbauen“; der Bogen zurück an den Anfang mit dem Dreieck darin heißt „erneut starten“, für den Lauf wie für den einzelnen Job. Der Pfeil hinauf an die Linie heißt „Update einspielen“ (das Spiegelbild von „Speichern“). Das „i“ im Kreis heißt „mehr dazu“ und steht nur am Info-Element.
 
 ### Info-Element
 Erklärungen stehen nicht als Textwand in der Fläche, sondern hinter einem kleinen „i“. **Die Kurz-in-der-Fläche-Regel:** Sichtbar bleibt, was etwas ist, sein Zustand und was zu tun ist, in einer knappen Zeile. Gründe, Folgen, Hintergrund und was man beim dritten Mal nicht mehr liest, stehen im Info. Was aus der Fläche verschwindet, steht dort; nichts geht verloren. Rückfragen und Fehlermeldungen bleiben vollständig sichtbar; ein roter Warnsatz behält Störung und Ausweg in der Fläche, nur die Erläuterung wandert ins Info.
 - **Symbol:** ein Knopf (18 px, Trefferfläche größer) mit dem gezeichneten „i“ im Kreis (16er-Raster, Strich 1,7), in `muted`, überfahren und bei Fokus `ink`. Er steht direkt hinter einem Titel: der Überschrift einer Haltestelle oder Ansicht, dem Titel einer Zeile, einer Beschriftung über einer Kennzahl. Eine Zeile ohne Titel trägt ihn am Ende ihres Satzes. Je Titel höchstens eins.
 - **Info-Fläche:** wie der Tooltip `raised` mit Rahmen 1 px `track` und Radius 6 px, aber mehrzeilig: höchstens 44ch breit, Innenabstand 10 px 14 px, 13 px in `text` mit Zeilenhöhe 1,45; Code darin in `ink`. Mehrere Absätze stehen mit 7 px Abstand, der zustandsabhängige zuerst, das Allgemeine danach. Sie hängt am Symbol (nicht am Mauszeiger), steht darunter und nur ohne Platz darunter darüber, und bleibt seitlich im Fenster.
 - **Bedienung:** Überfahren und Tastaturfokus öffnen sie; der Zeiger kann vom Symbol auf die Fläche wandern, um zu lesen oder zu markieren (Verlassen schließt erst nach 180 ms, damit der Spalt dazwischen nicht schließt). Verlassen, Fokuswechsel und Escape schließen sie. Ein Klick hält sie fest, ein zweiter Klick oder ein Klick daneben schließt sie. Der Knopf steht neben der Überschrift, nicht in ihr, damit sie ihren Namen behält. Vorleseprogramme hören den Bezug als Namen des Knopfs („Mehr zu …“) und die Erklärung, die verborgen im Knopf steht, als seine Beschreibung.
-- **Wo:** Einstellungen: „Angemeldet als …“, die Störungen der Anmeldung, die Zeile eines freiwilligen Rechts, der Einmalcode beim Ergänzen, die Haltestellen Projekte, Limits je Job und Protokoll, „Darstellung“, der Weg der Jobs ohne `CI_RUNNER`, „Limit großzügig“, die Vorschläge, der Satz unter dem Speicherbalken. Verbrauch: die Haltestellen „Die letzten 24 Stunden“, „GitHub-Anfragen“ und „GitHub-Minuten“, die Beschriftung der Speicherspitzen. Ohne Projekte: die Überschrift des ersten Schritts.
+- **Wo:** Einstellungen: „Angemeldet als …“, die Störungen der Anmeldung, die Zeile eines freiwilligen Rechts, der Einmalcode beim Ergänzen, die Haltestellen Projekte, Limits je Job und Protokoll, „Darstellung“, der Weg der Jobs ohne `CI_RUNNER`, „Limit großzügig“, die Vorschläge, der Satz unter dem Speicherbalken, die Version, der Update-Kanal und das bereite Update. Verbrauch: die Haltestellen „Die letzten 24 Stunden“, „GitHub-Anfragen“ und „GitHub-Minuten“, die Beschriftung der Speicherspitzen. Ohne Projekte: die Überschrift des ersten Schritts.
 
 ### Haltestelle
 Die Gliederung der Einstellungen. Hinter der Überschrift kann ein Info-Element stehen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
@@ -497,6 +497,17 @@ Regeln stehen in `src/minutes.js`; die Oberfläche liest sie nur ab.
   versucht.
 
 
+### App (Version und Update)
+Der Abschnitt App beginnt mit der Version, die läuft („RunClub 0.2.0-beta.1“), darunter ein Satz in `muted`, was das
+Update gerade tut: sieht nach, lädt, aktuell mit der Uhrzeit des letzten Nachsehens, gescheitert, Entwicklerbetrieb. Ist
+nichts unterwegs, steht rechts „Nachsehen“ (nur Wort); liegt ein Update bereit, bleiben Satz und „Nachsehen“ weg, außer
+ein erneutes Nachsehen ist gescheitert. Darunter der Update-Kanal als Segmentschalter (Stabil, Beta);
+was die Kanäle bekommen, steht im Info. Im Entwicklerbetrieb ist er gesperrt und nennt den Grund im Tooltip. Ist ein
+Update geladen und geprüft, folgt die Zeile „Update auf X ist bereit“ mit „Jetzt aktualisieren“ (Symbol mit Wort);
+dass dabei alle Runner abgebaut werden, steht im Info und in der Rückfrage. Arbeitet ein Runner, ist die Schaltfläche
+gesperrt mit Grund. Nichts davon ist rot: Ein gescheitertes Nachsehen versucht es von selbst wieder, und der Grund
+steht im Info der Versionszeile. Eingespielt wird über die Ansicht „RunClub wird beendet“, danach startet die App neu.
+
 ### Protokoll
 Die letzte Haltestelle der Einstellungen; das Info an der Überschrift sagt, woher die Meldungen kommen, was Kopieren
 und Speichern nehmen und warum gefiltert die allgemeinen Fehler bleiben. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und
@@ -514,7 +525,7 @@ aufgeklappt rollt die Liste in sich (höchstens 496 px), damit „Weniger zeigen
 `raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px, eine Zeile) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden. Was mehr als eine Zeile braucht, ist kein Tooltip, sondern ein Info-Element (siehe dort).
 
 ### Rückfrage
-Vor allem, was löscht oder Jobs trifft (leeren, Projekt entfernen, zurückschalten, beenden), fragt die App nach, im
+Vor allem, was löscht oder Jobs trifft (leeren, Projekt entfernen, zurückschalten, beenden, aktualisieren), fragt die App nach, im
 eigenen Feld statt im Dialog von Windows. Das Feld ist `raised` mit Rahmen 1 px `track`, Radius 8 px wie alles
 Bedienbare, höchstens 440 px breit, mittig über einem Schleier in `rail` mit 72 % Deckkraft; kein Schatten, keine
 Unschärfe. Die Überschrift (Title) ist die Aktion als Frage, darunter steht die Folge als ein Satz, der das Projekt

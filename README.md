@@ -8,7 +8,7 @@ zeigt seine Oberfläche in einem Fenster.
 
 - Docker Desktop, gestartet
 - GitHub CLI (`gh`), installiert; das Konto braucht Verwaltungsrecht auf den Repos
-- Node.js (nur für `npm install`)
+- Node.js nur zum Entwickeln (siehe unten); der Installer bringt alles mit
 
 RunClub nutzt die Anmeldung von `gh`, dieselbe wie im Terminal, und braucht dafür das Recht `repo`; mit dem
 Recht `user` zeigt es zusätzlich das Minuten-Kontingent des Kontos. Das Anmelden in der App verlangt beide in einem
@@ -27,12 +27,22 @@ runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
 
 und setzt `CI_RUNNER` im Repo auf `["self-hosted","Linux"]`.
 
-## Start
+## Installieren
 
-```sh
-npm install
-npm start
-```
+Den Installer `RunClub-Setup-X.Y.Z.exe` aus den [Releases](https://github.com/Zaho92/RunClub/releases) laden und
+starten. Er ist nicht signiert: Windows warnt deshalb „Unbekannter Herausgeber“ („Weitere Informationen“ → „Trotzdem
+ausführen“). RunClub landet in `%LOCALAPPDATA%\Programs\RunClub`, mit Verknüpfung im Startmenü; die Daten liegen in
+`%APPDATA%\RunClub` und bleiben beim Aktualisieren und Deinstallieren erhalten.
+
+## Aktualisieren
+
+RunClub sieht kurz nach dem Start und danach alle sechs Stunden in den Releases nach, lädt eine neuere Version im
+Hintergrund und prüft sie gegen die Prüfsumme im Release. Eingespielt wird erst auf Klick (Einstellungen → App →
+„Jetzt aktualisieren“), und nur, wenn kein Runner arbeitet: RunClub baut dabei wie beim Beenden alle Runner ab, startet
+den Installer und öffnet sich danach wieder.
+
+Der Kanal steht in denselben Einstellungen: **Stabil** bekommt nur abgenommene Versionen, **Beta** auch Vorabversionen.
+Solange das Repo privat ist, liest RunClub die Releases mit der Anmeldung von `gh`.
 
 Das Fenster zu schließen beendet nichts. Beendet wird über das Symbol im Infobereich (Rechtsklick → Beenden)
 oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
@@ -114,6 +124,31 @@ die ein Schritt im Runner auf `localhost` startet, und umgekehrt.
 npm run check   # Syntax aller Skripte, auch des Skripts in der Oberfläche
 npm test        # Tests aller Module außer backend.js und main.js
 ```
+
+Ohne Installer starten:
+
+```sh
+npm install
+npm start
+```
+
+Neben der installierten App läuft eine Entwicklungsinstanz nur mit eigenem Datenordner und Port und nur als Dienst
+(`RUNCLUB_DATA` auf einen leeren Ordner, `RUNCLUB_PORT` auf einen anderen Port, `npm run backend`); siehe `CLAUDE.md`,
+warum zwei Instanzen nie dieselben Repos bedienen dürfen. Den Installer lokal bauen: `npm run dist` (landet in `dist/`).
+
+### Release: QS → Live
+
+Es gibt keinen eigenen QS-Zweig. QS ist der Kanal Beta.
+
+1. Entwickelt wird auf Feature-Branches, fertig geht es nach `main`.
+2. Eine Beta entsteht mit einem Tag auf `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`. Der Workflow
+   `.github/workflows/release.yml` baut auf Windows den Installer und legt ihn als Vorabversion ab; jede RunClub im
+   Kanal Beta bietet ihn danach an.
+3. Die Beta wird im eigenen Betrieb erprobt. Was auffällt, kommt als nächste Beta (`-beta.2`).
+4. Ist eine Beta abgenommen, bekommt **derselbe Commit** den stabilen Tag: `git tag v0.2.0 v0.2.0-beta.2 && git push
+   origin v0.2.0`. Der Workflow legt ihn als gewöhnlichen Release ab, den auch der Kanal Stabil bekommt.
+
+Die Version kommt aus dem Tag; `version` in `package.json` wird dafür nicht angefasst.
 
 Dieselben beiden Schritte laufen als CI bei jedem Push und Pull Request (`.github/workflows/ci.yml`).
 Hinweise für die Arbeit mit Claude Code stehen in `CLAUDE.md`, die Produktbeschreibung für die Gestaltung in `PRODUCT.md`.

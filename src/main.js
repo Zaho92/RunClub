@@ -3,9 +3,14 @@
 // Das Fenster zu schließen beendet nichts – beendet wird über das Symbol im Infobereich oder „Alles beenden“.
 
 const { app, BrowserWindow, Tray, Menu, shell } = require('electron');
+const { spawn } = require('node:child_process');
 const path = require('node:path');
-const { SECOND } = require('./units');
+const { SECOND, MINUTE, HOUR } = require('./units');
 const { SLOT } = require('./states');
+const { run, lastLine } = require('./run');
+const { GH_ENV } = require('./github');
+const { createUpdater } = require('./updater');
+const pkg = require('../package.json');
 
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const TRAY_ICON = path.join(__dirname, '..', 'build', 'tray.png');
@@ -17,6 +22,10 @@ const RAIL = '#091230';
 const TEXT = '#c9d2ea';
 const NARROW = 760;
 const TOOLTIP_INTERVAL = 5 * SECOND; // so oft wird der Hinweis am Symbol im Infobereich aufgefrischt
+const UPDATE_FIRST = MINUTE; // nach dem Start, wenn die Runner stehen
+const UPDATE_INTERVAL = 6 * HOUR;
+// Die Releases liegen im Repo aus package.json (`repository.url`).
+const REPO = pkg.repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1];
 
 if (!app.requestSingleInstanceLock()) app.exit(0);
 
@@ -26,8 +35,10 @@ process.env.RUNCLUB_DATA ||= path.join(app.getPath('userData'), 'data');
 let backend = null;
 let window = null;
 let tray = null;
+let updater = null;
 let quitting = false; // RunClub baut ab; das Fenster zeigt dabei, was noch fehlt
 let exiting = false; // der Abbau ist fertig, das Programm endet
+let installer = null; // soll nach dem Abbau eingespielt werden (siehe `installUpdate`)
 
 // Ungepackt startet electron.exe mit dem Projektordner als Argument; das muss auch der Autostart tun.
 const loginItem = { path: process.execPath, args: app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden'] };
@@ -35,6 +46,38 @@ const autostart = () => app.getLoginItemSettings(loginItem).openAtLogin;
 function setAutostart(on) {
   app.setLoginItemSettings({ ...loginItem, openAtLogin: Boolean(on) });
   refreshTray();
+}
+
+// Der Autostart-Eintrag trägt unter Windows den Namen der App. Zeigt er noch auf eine andere RunClub (den
+// Entwicklungsordner vor der Installation), übernimmt ihn die installierte App: sonst startete mit Windows die falsche.
+function adoptAutostart() {
+  if (!app.isPackaged) return;
+  const items = app.getLoginItemSettings(loginItem).launchItems ?? [];
+  if (!autostart() && items.some((item) => item.name === 'RunClub' && item.enabled)) setAutostart(true);
+}
+
+// Das Token von `gh` für die Releases, solange das Repo privat ist; ohne Anmeldung wird ohne gefragt.
+async function ghToken() {
+  const result = await run('gh', ['auth', 'token', '--hostname', 'github.com'], { env: GH_ENV, timeout: 30 * SECOND });
+  return result.code === 0 ? lastLine(result.stdout) || null : null;
+}
+
+// Spielt das geladene Update ein: nur, wenn kein Runner arbeitet, denn Beenden baut alle ab. Der Installer startet
+// erst, wenn der Abbau fertig ist (hooks.onExit), und öffnet RunClub danach wieder.
+function installUpdate() {
+  const ready = updater.installer();
+  if (!ready) throw new Error('Es ist kein Update geladen.');
+  const working = backend.status().repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === SLOT.WORKING).length;
+  if (working) throw new Error(`Gerade arbeitet ein Runner (${working}). Das Update lässt sich einspielen, sobald keiner mehr arbeitet.`);
+  installer = ready;
+  backend.log(`RunClub wird beendet und auf ${ready.version} aktualisiert.`);
+  quit();
+}
+
+function exit() {
+  exiting = true;
+  if (installer) spawn(installer.file, installer.args, { detached: true, stdio: 'ignore' }).unref();
+  app.exit(0);
 }
 
 // Die Knöpfe von Windows über dem Streifen der Seite: in der Farbe des Grundes, im schmalen Fenster der Leiste.
@@ -121,11 +164,21 @@ app.on('window-all-closed', () => { /* läuft im Infobereich weiter */ });
 app.whenReady().then(() => {
   backend = require('./backend').start({
     hooks: {
-      onExit: () => { exiting = true; app.exit(0); },
-      status: () => ({ app: { autostart: autostart() } }),
-      actions: { 'app/autostart': async ({ on }) => setAutostart(on) },
+      onExit: exit,
+      status: () => ({ app: { autostart: autostart(), update: updater.view() } }),
+      actions: {
+        'app/autostart': async ({ on }) => setAutostart(on),
+        'app/channel': async ({ channel }) => { updater.setChannel(channel); },
+        'app/check': async () => { updater.check(); },
+        'app/update': async () => installUpdate(),
+      },
     },
   });
+  updater = createUpdater({
+    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, token: ghToken, log: (text) => backend.log(text),
+  });
+  adoptAutostart();
+  setTimeout(() => { updater.check(); setInterval(() => updater.check(), UPDATE_INTERVAL); }, UPDATE_FIRST);
 
   watchSession();
   tray = new Tray(TRAY_ICON);

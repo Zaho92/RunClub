@@ -1,0 +1,52 @@
+# Baut bei jedem Versions-Tag den Installer und legt ihn samt latest.yml (Prüfsumme für den Updater, siehe
+# src/updater.js) als GitHub-Release ab. Tags mit Zusatz (v0.2.0-beta.1) werden Vorabversionen: Sie sieht nur der
+# Kanal „Beta“. Ablauf QS → Live: siehe README.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  release:
+    name: Installer
+    # Windows von GitHub: Die eigenen Runner sind Linux, und der Installer wird unter Windows gebaut.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Syntax und Tests
+        run: |
+          node scripts/check.js
+          node --test
+      # Die Version kommt aus dem Tag; package.json im Repo bleibt dabei unverändert.
+      - name: Version aus dem Tag
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::Tag $GITHUB_REF_NAME ist keine Version"; exit 1; }
+          npm version "$version" --no-git-tag-version --allow-same-version
+      - name: Installer bauen
+        run: npx electron-builder --win nsis --publish never
+      - name: Release anlegen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=(--title "RunClub ${GITHUB_REF_NAME#v}" --generate-notes --verify-tag)
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          # Neben dem Installer die Datei für den Updater (latest.yml, bei Betas beta.yml), nicht builder-debug.yml.
+          files=(dist/*.exe dist/*.blockmap)
+          for channel in latest beta alpha; do if [[ -f "dist/$channel.yml" ]]; then files+=("dist/$channel.yml"); fi; done
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" "${flags[@]}"
