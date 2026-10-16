@@ -1,6 +1,7 @@
 // Was RunClub bei GitHub abfragt: Läufe und Jobs der Repos mit Pool (für den Netzplan und die Plätze), das
-// Anfragelimit, die Repos des Kontos, wartende Läufe in Repos ohne Pool, die Sichtbarkeit der Repos mit Pool. Dazu
-// das erneute Starten eines Laufs oder Jobs.
+// Anfragelimit, die Repos des Kontos, wartende Läufe in Repos ohne Pool, die Sichtbarkeit der Repos mit Pool und ob
+// dort Pull Requests aus Forks laufen dürften. Dazu das
+// erneute Starten eines Laufs oder Jobs.
 //
 // Je Repo steht der letzte Stand bereit (`view`): { jobs, runs, error }. Eine Abfrage, die scheitert, behält Jobs und
 // Läufe des vorigen Stands und trägt nur den Fehler.
@@ -10,6 +11,7 @@ const { STATE: QUOTA, PAGE_MAX } = require('./github');
 const { candidates } = require('./waiting');
 const { noteWorkflows } = require('./slots');
 const { SLOT } = require('./states');
+const { forkExposure } = require('./forks');
 
 const RUNS_PER_REPO = 20;
 const REPO_LIST_MAX_AGE = 5 * MINUTE; // so lange gilt die Liste der Repos des Kontos
@@ -25,10 +27,11 @@ const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne 
 //   poolOf(repo)            der stehende Pool oder undefined
 //   stopping(), timer (wie `setTimeout`)
 //   onPublic(repo), onPrivate(repo)   ein Repo mit Pool ist öffentlich bzw. wieder privat (siehe actions.js)
+//   onForks(repo, reason), onForksClosed(repo)   Fork-PRs könnten auf den eigenen Runnern laufen bzw. nicht mehr (siehe forks.js)
 //   confirmResults(repo, done)   Ergebnisse abgeschlossener Jobs der eigenen Runner, wie GitHub sie meldet (siehe metrics.js)
 function createRemote({
   gh, githubApi, pipelines, routing, waiting, log, logError,
-  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, onPublic, onPrivate, confirmResults = () => {},
+  repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, onPublic, onPrivate, onForks, onForksClosed, confirmResults = () => {},
 }) {
   const states = new Map(); // Repo -> { jobs, runs, error }
   const busy = new Set(); // Repos, deren Abfrage gerade läuft
@@ -117,12 +120,16 @@ function createRemote({
   // Pools gibt es nur für private Repos. Wird ein Repo später öffentlich, liefen Pull Requests von Fremden auf diesem
   // Rechner: Das meldet `onPublic`. Ob ein Pool deshalb pausiert ist, steht in seinen Einstellungen (`pausedPublic`)
   // und überdauert einen Neustart; erst eine gelungene Prüfung, die das Repo wieder privat findet, hebt es auf.
+  // Ebenso für Pull Requests aus Forks in Repos einer Organisation (`pausedForks`, siehe forks.js).
   async function checkVisibility(repo) {
     const own = settingsOf(repo);
     if (!own) return;
     const info = await gh(['api', `repos/${repo}`]);
     if (info.private === false && !own.pausedPublic) await onPublic(repo);
     else if (info.private !== false && own.pausedPublic) await onPrivate(repo);
+    const forks = await forkExposure(gh, repo, info);
+    if (forks.exposed && !own.pausedForks) await onForks(repo, forks.reason);
+    else if (!forks.exposed && own.pausedForks) await onForksClosed(repo);
   }
   const watchVisibility = (repo) => checkVisibility(repo).catch(logError(repo, 'Sichtbarkeit des Repos'));
 

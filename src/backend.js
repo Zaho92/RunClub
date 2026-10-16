@@ -122,11 +122,12 @@ function start({
   const routing = createRouting({ gh }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
   const waiting = createWaiting({ gh }); // Repos ohne Pool, in denen nichts vorankommt
   let runners = null; // die Pools; sie brauchen die Abfragen bei GitHub, die Abfragen ihre Pools
-  let actionsApi = null; // die Aufrufe; sie brauchen fast alles, und ein öffentlich gewordenes Repo braucht sie
+  let actionsApi = null; // die Aufrufe; sie brauchen fast alles, und ein öffentlich gewordenes Repo (oder eins mit Fork-PRs) braucht sie
   const remote = createRemote({
     gh, githubApi, pipelines, routing, waiting, log, logError,
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
     onPublic: (repo) => actionsApi.pauseForPublic(repo), onPrivate: (repo) => actionsApi.allowPrivate(repo),
+    onForks: (repo, reason) => actionsApi.pauseForForks(repo, reason), onForksClosed: (repo) => actionsApi.allowForksClosed(repo),
     confirmResults: metrics.confirmResults,
   });
   let dockerWatch = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist

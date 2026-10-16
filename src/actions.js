@@ -3,13 +3,15 @@
 // und wirft mit einer Meldung für die Oberfläche, wenn er nicht geht. Was länger dauert (ein Pool wird entfernt, ein
 // Cache geleert), läuft nach der Antwort weiter und meldet sich im Protokoll.
 //
-// Dazu `pauseForPublic`: was geschieht, wenn ein Repo mit Pool öffentlich geworden ist (siehe remote.js).
+// Dazu `pauseForPublic` und `pauseForForks`: was geschieht, wenn ein Repo mit Pool öffentlich geworden ist oder Pull
+// Requests aus Forks auf diesem Rechner laufen könnten (siehe remote.js, forks.js).
 
 const limitRules = require('./limits');
 const { VARIABLE } = require('./routing');
 const { sameRepo, clashes } = require('./images');
 const { clampParallel, REPO_NAME } = require('./settings');
 const { SECOND } = require('./units');
+const { forkExposure } = require('./forks');
 
 const CACHE_PARTS = { packages: 'den Paket-Cache', build: 'die Build-Layer', images: 'die gelernten Abbilder', all: 'alle Caches' };
 const SHUTDOWN_DELAY = SECOND / 10; // erst antworten, dann beenden
@@ -17,6 +19,8 @@ const NO_POOL = 'Diesen Pool gibt es nicht.';
 // Was eine Änderung an CI_RUNNER bewirkt, für das Protokoll.
 const routedText = (on) => `${VARIABLE} ${on ? 'gesetzt – die Jobs laufen auf den eigenen Runnern' : 'entfernt – die Jobs gehen wieder an GitHubs Runner'}`;
 const KEPT = `${VARIABLE} bleibt, wie es ist`;
+// Wo sich Fork-PRs abschalten lassen (siehe forks.js).
+const FORKS_HOW = 'Abschalten unter Settings → Actions → General → „Fork pull request workflows in private repositories“ („Run workflows from fork pull requests“ aus); die Organisation kann das vorgeben.';
 
 //   gh(args)                Aufruf der GitHub-API
 //   settings                siehe settings.js
@@ -110,11 +114,36 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
   }
   const PUBLIC = 'Das Repo ist öffentlich. Der Pool lässt sich erst wieder nutzen, wenn es privat ist.';
 
+  // In einem Repo einer Organisation dürfen Workflows aus Pull Requests von Forks laufen (siehe forks.js), oder ob sie
+  // es dürfen, ließ sich nicht lesen. Wie bei einem öffentlich gewordenen Repo: Pool pausiert, Jobs zurück an GitHubs
+  // Runner; erst eine Prüfung, die Fork-PRs ausgeschlossen findet, gibt ihn wieder frei.
+  async function pauseForForks(repo, reason) {
+    const own = settingsOf(repo);
+    const pool = pools.get(repo);
+    if (!own || !pool || pool.removed) return;
+    Object.assign(own, { paused: true, pausedForks: true });
+    saveConfig();
+    rest(repo, pool);
+    log(`${reason}. Damit kein Code aus Forks auf diesem Rechner läuft, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner. ${FORKS_HOW}`, repo, 'error');
+    await routing.set(repo, false).catch(logError(repo, KEPT));
+  }
+  async function allowForksClosed(repo) {
+    const own = settingsOf(repo);
+    if (!own?.pausedForks) return;
+    delete own.pausedForks;
+    saveConfig();
+    log('Workflows aus Forks laufen in diesem Repo nicht mehr; der Pool lässt sich fortsetzen.', repo);
+  }
+  const FORKS = `Pull Requests aus Forks könnten auf diesem Rechner Code ausführen. ${FORKS_HOW}`;
+
   const actions = {
     async 'pool/add'({ repo, parallel }) {
       if (!REPO_NAME.test(String(repo))) throw new Error('Das Repo wird als besitzer/name angegeben.');
       const info = await gh(['api', `repos/${repo}`]);
       if (!info.permissions?.admin) throw new Error('Für dieses Repo fehlen dir die Verwaltungsrechte; ohne sie lässt sich kein Runner anmelden.');
+      // Ein Org-Repo, in dem Workflows aus Forks laufen dürfen, bekommt keinen Pool (siehe forks.js).
+      const forks = await forkExposure(gh, info.full_name, info);
+      if (forks.exposed) throw new Error(`${forks.reason}. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust. ${FORKS_HOW}`);
       // Erst hier prüfen, mit dem Namen, wie GitHub ihn schreibt, und ohne weiteres Warten bis zum Eintrag:
       // sonst entstünde bei anderer Schreibweise oder zwei Anfragen kurz nacheinander ein zweiter Pool.
       const taken = [...settings.repos(), ...pools.keys()];
@@ -137,6 +166,7 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
     async 'pool/set'({ repo, parallel, paused, cache }) {
       const { own, pool } = poolOf(repo);
       if (paused === false && own.pausedPublic) throw new Error(PUBLIC);
+      if (paused === false && own.pausedForks) throw new Error(FORKS);
       if (parallel !== undefined) own.parallel = clampParallel(parallel);
       if (paused !== undefined) own.paused = Boolean(paused);
       const cacheChanged = cache !== undefined && Boolean(cache) !== own.cache;
@@ -178,6 +208,7 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
       const own = settingsOf(repo);
       if (!own) throw new Error(NO_POOL);
       if (on && own.pausedPublic) throw new Error(PUBLIC);
+      if (on && own.pausedForks) throw new Error(FORKS);
       await routing.set(repo, Boolean(on));
       log(routedText(Boolean(on)), repo);
     },
@@ -236,7 +267,7 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
     async shutdown() { timer(shutdown, SHUTDOWN_DELAY); },
   };
 
-  return { actions, pauseForPublic, allowPrivate };
+  return { actions, pauseForPublic, allowPrivate, pauseForForks, allowForksClosed };
 }
 
 module.exports = { createActions };

@@ -31,11 +31,17 @@ Schritte, in dieser Reihenfolge:
    GitHub kosten dann Minuten, und die waren am 16.10. aufgebraucht); öffentlich übernimmt `release.yml`, das bis dahin
    übersprungen wird. **Offen:** über Wochen auf Beta betreiben.
 2. **Sicher für Fremde:** Fork-PRs in Org-Repos und Seccomp-Profil (siehe „Aus den Reviews noch offen“), `SECURITY.md`
-   mit Bedrohungsmodell.
+   mit Bedrohungsmodell. Entscheidungen des Nutzers vom 16.10.2026: Ein Pool eines Org-Repos pausiert **immer**, wenn
+   dort Workflows aus Fork-PRs laufen dürfen, auch mit Freigabepflicht („require approval“). Startet ein Daemon mit dem
+   Seccomp-Profil nicht, gibt es einen klaren Fehler, keinen Rückfall auf `unconfined` und keine Einstellung zum
+   Abschalten. Meldeweg in `SECURITY.md` ist GitHubs „Private vulnerability reporting“, keine E-Mail-Adresse.
+   Fork-PRs gebaut am 16.10.2026 (`src/forks.js`): geprüft beim Anlegen und in der seltenen Pflege; lässt sich die
+   Einstellung nicht lesen, pausiert der Pool ebenso, und fortgesetzt wird er danach von Hand.
 3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
    (siehe „Kleinere Punkte“), Repo ins Englische, README mit Bildschirmfotos, Prüfung beim ersten Start (Docker Desktop
    installiert und gestartet, WSL).
-4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, Git-Historie auf Geheimnisse und Persönliches
+4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
+   Einstellungen des Repos einschalten (`SECURITY.md` verweist darauf), Git-Historie auf Geheimnisse und Persönliches
    prüfen (sie wird mit öffentlich), Repo öffentlich stellen, Release 0.1.0.
 
 Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 2 unten) und der MCP-Server (Punkt 3 unten).
@@ -111,11 +117,6 @@ festgenagelt und Dependabot meldet neue Stände (umgesetzt); der localhost von W
 1. **Seccomp-Profil für Daemon und Build-Dienst.** Beide laufen ohne Rechte, brauchen dafür aber `seccomp=unconfined`
    (eigene Namensräume). Ein eigenes Profil, das nur das Nötige erlaubt, verkleinerte die Angriffsfläche am Kernel weiter.
    Erst angehen, wenn RunClub veröffentlicht wird.
-2. **Fork-PRs in Org-Repos** (sechster Durchgang, 15.10.2026; Entscheidung des Nutzers: nur vormerken). Vor der
-   Veröffentlichung: Pools von Org-Repos pausieren, solange dort Workflows aus Fork-PRs erlaubt sind (Einstellung bei
-   GitHub lesen, wie `pauseForPublic`). Sonst forkt ein Leser, sein PR-Workflow läuft auf dem Pool und vergiftet
-   Paket-Cache und Build-Layer. Heute ohne Risiko: Alle Pools gehören zu Repos auf dem eigenen Konto Zaho92, und dort
-   kann nur forken, wer ohnehin Schreibrecht hat.
 
 Bewusst so gelassen:
 

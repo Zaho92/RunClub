@@ -15,7 +15,7 @@ const REPO = 'wer/App';
 // Alles um die Aufrufe herum nachgestellt; die Einstellungen sind echt (in einem leeren Ordner). `calls` hält in
 // Kurzform, was die Aufrufe auslösen.
 function world({ pools: repos = [REPO] } = {}) {
-  const w = { calls: [], logs: [], timers: [], ready: true, info: {}, routingState: { uses: 'variable', here: false, error: null }, plan: null, stale: 1 };
+  const w = { calls: [], logs: [], timers: [], ready: true, info: {}, answers: {}, routingState: { uses: 'variable', here: false, error: null }, plan: null, stale: 1 };
   w.settings = createSettings({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-actions-')), log: () => {} });
   w.pools = new Map();
   for (const repo of repos) {
@@ -36,8 +36,8 @@ function world({ pools: repos = [REPO] } = {}) {
     caches: { removeCaches: async (repo, parts) => { w.calls.push(`removeCaches ${repo} ${Object.keys(parts).filter((key) => parts[key]).join('+')}`); if (w.cachesFail) throw new Error(w.cachesFail); }, prepareCaches: call('prepareCaches'), measureSizes: async (pool) => w.calls.push(`measureSizes ${pool.repo}`) },
     seed: { forget: call('forgetSeed'), refreshSeed: call('refreshSeed') },
   };
-  const { actions, pauseForPublic, allowPrivate } = createActions({
-    gh: async (args) => { w.calls.push(`gh ${args.at(-1)}`); return w.info; },
+  const { actions, pauseForPublic, allowPrivate, pauseForForks, allowForksClosed } = createActions({
+    gh: async (args) => { w.calls.push(`gh ${args.at(-1)}`); const answer = w.answers[args.at(-1)]; return answer === undefined ? w.info : typeof answer === 'function' ? answer() : answer; },
     settings: w.settings, runners,
     remote: { refreshAll: call('refreshAll'), forget: (repo) => w.calls.push(`remote.forget ${repo}`), rerun: call('rerun') },
     routing: { check: async (repo) => { w.calls.push(`routing.check ${repo}`); return w.routingState; }, set: async (repo, on) => { w.calls.push(`routing.set ${repo} ${on}`); }, forget: (repo) => w.calls.push(`routing.forget ${repo}`) },
@@ -52,7 +52,7 @@ function world({ pools: repos = [REPO] } = {}) {
     shutdown: () => w.calls.push('shutdown'),
     timer: (work, ms) => w.timers.push({ work, ms }),
   });
-  Object.assign(w, { actions, pauseForPublic, allowPrivate });
+  Object.assign(w, { actions, pauseForPublic, allowPrivate, pauseForForks, allowForksClosed });
   return w;
 }
 
@@ -104,6 +104,39 @@ test('ein öffentlich gewordenes Repo: weder fortsetzen noch Jobs umleiten, bis 
   assert.equal(w.logs.at(-1)[0], 'Das Repo ist wieder privat; der Pool lässt sich fortsetzen.');
   await w.actions['pool/set']({ repo: REPO, paused: false });
   assert.equal(w.settings.settingsOf(REPO).paused, false);
+});
+
+test('Fork-PRs in einem Org-Repo: Pool pausiert, laut im Protokoll; weder fortsetzen noch umleiten, bis sie abgeschaltet sind', async () => {
+  const w = world();
+  await w.pauseForForks(REPO, 'Workflows aus Forks dürfen laufen');
+  assert.deepEqual([w.settings.settingsOf(REPO).paused, w.settings.settingsOf(REPO).pausedForks], [true, true]);
+  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`, `routing.set ${REPO} false`]);
+  assert.match(w.logs[0][0], /^Workflows aus Forks dürfen laufen. /);
+  assert.equal(w.logs[0][2], 'error');
+  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false }), /Forks/);
+  await assert.rejects(w.actions['pool/routing']({ repo: REPO, on: true }), /Forks/);
+  await w.allowForksClosed(REPO);
+  assert.equal(w.settings.settingsOf(REPO).pausedForks, undefined);
+  await w.actions['pool/set']({ repo: REPO, paused: false });
+  assert.equal(w.settings.settingsOf(REPO).paused, false);
+  w.calls.length = 0;
+  w.pools.get(REPO).removed = true;
+  await w.pauseForForks(REPO, 'x');
+  assert.deepEqual(w.calls, []);
+});
+
+test('pool/add lehnt ein Org-Repo ab, in dem Fork-PRs laufen dürfen oder es sich nicht lesen lässt', async () => {
+  const w = world({ pools: [] });
+  const forks = 'repos/firma/App/actions/permissions/fork-pr-workflows-private-repos';
+  w.info = { full_name: 'firma/App', private: true, permissions: { admin: true }, owner: { type: 'Organization' } };
+  w.answers[forks] = { run_workflows_from_fork_pull_requests: true, require_approval_for_fork_pr_workflows: true };
+  await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /Forks/);
+  w.answers[forks] = () => { throw new Error('HTTP 403'); };
+  await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /HTTP 403/);
+  assert.deepEqual(w.settings.repos(), []);
+  w.answers[forks] = { run_workflows_from_fork_pull_requests: false };
+  await w.actions['pool/add']({ repo: 'firma/App', parallel: 1 });
+  assert.deepEqual(w.settings.repos(), ['firma/App']);
 });
 
 test('pool/remove: sofort aus den Einstellungen; danach Caches, Vorlage, Variable, Anmeldungen, Gelerntes; dann ist der Name frei', async () => {

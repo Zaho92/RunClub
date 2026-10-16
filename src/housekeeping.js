@@ -1,7 +1,7 @@
-// Seltene Pflege der Pools: ob ein Repo öffentlich geworden ist (siehe remote.js) und ob verwaiste Runner bei GitHub
-// stehen (siehe dockerwatch.js). Ein Paar, das mitten im Job endet (beim Beenden, nach einem Absturz), kann seinen
-// Runner nicht abmelden: GitHub führt ihn noch eine Weile als beschäftigt. Ist er frei und ohne Verbindung, wird er
-// hier abgemeldet.
+// Seltene Pflege der Pools: ob ein Repo öffentlich geworden ist oder Pull Requests aus Forks zulässt (siehe
+// remote.js) und ob verwaiste Runner bei GitHub stehen (siehe dockerwatch.js). Ein Paar, das mitten im Job endet (beim
+// Beenden, nach einem Absturz), kann seinen Runner nicht abmelden: GitHub führt ihn noch eine Weile als beschäftigt.
+// Ist er frei und ohne Verbindung, wird er hier abgemeldet.
 
 const { pairNames } = require('./slots');
 
