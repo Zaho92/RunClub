@@ -19,7 +19,7 @@ const { MINUTE, MB } = require('./units');
 const { createNetwork, alreadyExists } = require('./subnets');
 const limitRules = require('./limits');
 const { busy } = require('./states');
-const { RUNNER_USER, asRoot } = require('./dind');
+const { RUNNER_USER, SECURITY_FLAGS, asRoot } = require('./dind');
 
 const VOLUME_PREFIX = 'rc-';
 const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren
@@ -80,9 +80,9 @@ function createCaches({
       '--restart', 'no', '--network', buildNetwork(repo),
       '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory, '--pids-limit', String(PIDS_MAX),
       // Ohne Rechte braucht buildkit eigene Namensräume, die Dockers Vorgaben verbieten, und ein eigenes /proc für die
-      // Sandbox seiner Build-Schritte (siehe docs/rootless.md von buildkit). Mit der Sandbox sieht ein Schritt weder
-      // buildkitd noch die Schritte anderer Builds desselben Repos.
-      '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
+      // Sandbox seiner Build-Schritte (siehe docs/rootless.md von buildkit, und dind.js zum Seccomp-Profil). Mit der
+      // Sandbox sieht ein Schritt weder buildkitd noch die Schritte anderer Builds desselben Repos.
+      ...SECURITY_FLAGS,
       '-v', `${buildVolume(repo)}:/home/user/.local/share/buildkit`, '-v', `${buildSocket(repo)}:${SOCKET_DIR}`,
       buildkit, '--addr', `unix://${SOCKET}`]);
     return service.code === 0 ? null : `Build-Dienst startet nicht – ${lastLine(service.stderr)}`;

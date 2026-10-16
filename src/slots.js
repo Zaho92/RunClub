@@ -22,7 +22,7 @@ const { resultKind, resultText } = require('./journal');
 const limitRules = require('./limits');
 const { SOCKET_DIR, SOCKET, SERVICE_USER, PIDS_MAX } = require('./caches');
 const { SECOND, HOUR } = require('./units');
-const { waitForDaemon, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
+const { waitForDaemon, whyNotReady, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { unregisterRunner } = require('./github');
 const { runnerName } = require('./names');
 const { SLOT, busy } = require('./states');
@@ -130,7 +130,7 @@ function createSlots({
     if (daemon.code !== 0) return giveUp(new Error(`Docker-Daemon startet nicht: ${lastLine(daemon.stderr)}`));
     const ready = await waitForDaemon({ docker, sleep, container: `${base}-dind`, host: PAIR_SOCKET, cancelled });
     if (cancelled()) return giveUp();
-    if (!ready) return giveUp(new Error('Docker-Daemon wurde nicht bereit'));
+    if (!ready) return giveUp(new Error(`Docker-Daemon wurde nicht bereit${await whyNotReady(docker, `${base}-dind`)}`));
 
     if (settingsOf(pool.repo)?.cache) {
       pair.extras.push('-v', `${cacheVolume(pool.repo)}:/opt/rc-cache`, '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm');

@@ -36,7 +36,11 @@ Schritte, in dieser Reihenfolge:
    Seccomp-Profil nicht, gibt es einen klaren Fehler, keinen Rückfall auf `unconfined` und keine Einstellung zum
    Abschalten. Meldeweg in `SECURITY.md` ist GitHubs „Private vulnerability reporting“, keine E-Mail-Adresse.
    Fork-PRs gebaut am 16.10.2026 (`src/forks.js`): geprüft beim Anlegen und in der seltenen Pflege; lässt sich die
-   Einstellung nicht lesen, pausiert der Pool ebenso, und fortgesetzt wird er danach von Hand.
+   Einstellung nicht lesen, pausiert der Pool ebenso, und fortgesetzt wird er danach von Hand. Seccomp-Profil gebaut am
+   16.10.2026 (`linux/seccomp.json`, erzeugt von `scripts/seccomp.js`; dort steht, wie die Zusätze ermittelt wurden),
+   erprobt mit einer Test-Instanz: Docker im Job, veröffentlichter Port, Build über den Build-Dienst, `services:`.
+   Nach einem größeren Update von Docker Desktop das Profil mit dessen Standardprofil neu erzeugen und erproben.
+   **Offen:** `SECURITY.md`.
 3. **Verständlich für Fremde:** eigene OAuth-App (siehe „Offene Entscheidungen“), Backend-Meldungen als Schlüssel
    (siehe „Kleinere Punkte“), Repo ins Englische, README mit Bildschirmfotos, Prüfung beim ersten Start (Docker Desktop
    installiert und gestartet, WSL).
@@ -55,7 +59,7 @@ Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 2 unten) 
 2. **Docker Engine statt Docker Desktop** (Idee des Nutzers, 14.10.2026; erst Analyse, dann entscheiden). Ziel: eine
    Abhängigkeit weniger. Eine eigene Docker Engine in einer eigenen WSL-Distro statt Docker Desktop. Für
    die Veröffentlichung spricht die Lizenz von Docker Desktop (in größeren Firmen kostenpflichtig) und mehr Kontrolle
-   über den Daemon (etwa ein eigenes Seccomp-Profil oder sysbox, siehe unten). Dagegen:
+   über den Daemon (etwa sysbox oder ein AppArmor-Profil). Dagegen:
    RunClub müsste die Distro selbst einrichten, starten und aktuell halten, und die Windows-CLI erreicht den Daemon nur
    über einen Umweg (Aufruf über `wsl`, gesicherter TCP-Port oder Weiterleitung einer Named Pipe). Erster Schritt erledigt
    (14.10.2026): Der Zugang zu Docker ist austauschbar (`src/engine.js`, Umgebungsvariablen `RUNCLUB_DOCKER_HOST`,
@@ -114,9 +118,11 @@ Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umges
 festgenagelt und Dependabot meldet neue Stände (umgesetzt); der localhost von Windows bleibt für die Jobs erreichbar
 (siehe unten). Noch offen:
 
-1. **Seccomp-Profil für Daemon und Build-Dienst.** Beide laufen ohne Rechte, brauchen dafür aber `seccomp=unconfined`
-   (eigene Namensräume). Ein eigenes Profil, das nur das Nötige erlaubt, verkleinerte die Angriffsfläche am Kernel weiter.
-   Erst angehen, wenn RunClub veröffentlicht wird.
+1. **Container-Jobs (`container:` im Workflow) scheitern** (gefunden 16.10.2026 beim Erproben des Seccomp-Profils, ebenso
+   mit `seccomp=unconfined`, also seit die Daemons ohne Rechte laufen): Der Runner hängt `/home/runner/externals` und
+   weitere Ordner außerhalb von `_work` in den Job-Container ein; die gibt es im Daemon-Container nicht, und der Daemon
+   ohne Rechte darf sie nicht anlegen (`mkdir /home/runner: permission denied`). Lösung noch offen (etwa diese Ordner
+   wie `_work` als Volume in beide Container).
 
 Bewusst so gelassen:
 

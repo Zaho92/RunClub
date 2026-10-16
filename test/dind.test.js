@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { waitForDaemon, asRoot, READY_TRIES, DAEMON_POLL, PROBE_TIMEOUT, PAIR_SOCKET } = require('../src/dind');
+const fs = require('node:fs');
+const { waitForDaemon, whyNotReady, asRoot, SECCOMP_PROFILE, SECURITY_FLAGS, READY_TRIES, DAEMON_POLL, PROBE_TIMEOUT, PAIR_SOCKET } = require('../src/dind');
 
 // Ein Daemon, der nach `answersAfter` Fragen antwortet (nie, wenn null). `calls` hält die Aufrufe, `slept` die Pausen.
 function daemon(answersAfter) {
@@ -47,4 +48,19 @@ test('waitForDaemon hört auf, sobald abgebrochen wird', async () => {
 
 test('asRoot startet das Abbild als root mit einem Skript für sh', () => {
   assert.deepEqual([...asRoot('dind:test'), 'echo ok'], ['--user', '0', '--entrypoint', 'sh', 'dind:test', '-c', 'echo ok']);
+});
+
+test('die Daemons laufen mit dem eigenen Seccomp-Profil, nie ohne', () => {
+  assert.equal(SECURITY_FLAGS.includes('seccomp=unconfined'), false);
+  assert.ok(SECURITY_FLAGS.includes(`seccomp=${SECCOMP_PROFILE}`));
+  assert.ok(fs.existsSync(SECCOMP_PROFILE));
+});
+
+test('whyNotReady nennt die letzte Fehlerzeile des Daemons und bei „operation not permitted“ das Seccomp-Profil', async () => {
+  const logs = (stdout, stderr) => async (args) => { assert.deepEqual(args, ['logs', '--tail', '30', 'paar-dind']); return { code: 0, stdout, stderr }; };
+  const blocked = await whyNotReady(logs('', 'level=info msg="start"\n[rootlesskit:parent] error: fork/exec /proc/self/exe: operation not permitted\nlevel=info msg="bye"\n'), 'paar-dind');
+  assert.match(blocked, /^ – \[rootlesskit:parent\] error: fork\/exec \/proc\/self\/exe: operation not permitted \(womöglich verbietet das Seccomp-Profil/);
+  assert.equal(await whyNotReady(logs('nur das\n', ''), 'paar-dind'), ' – nur das');
+  assert.equal(await whyNotReady(logs('', ''), 'paar-dind'), '');
+  assert.equal(await whyNotReady(async () => ({ code: 1, stdout: '', stderr: 'Error: No such container: paar-dind' }), 'paar-dind'), ' – Error: No such container: paar-dind');
 });

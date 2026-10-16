@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_MAX, RUNNER_LOG_MAX, ROUND_PAUSE, IDLE_PAUSE, BROKEN_PAUSE } = require('../src/slots');
-const { READY_TRIES, DAEMON_POLL } = require('../src/dind');
+const { READY_TRIES, DAEMON_POLL, SECURITY_FLAGS } = require('../src/dind');
 const { SECOND, HOUR } = require('../src/units');
 
 const PAUSE_STEPS = BROKEN_PAUSE / SECOND; // die Pause nach einem Fehler, in Sekundenschritten
@@ -118,7 +118,7 @@ test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () =
   assert.deepEqual(call(`run ${BASE}-seed`).options, { timeout: 1234 });
   // Der Daemon läuft ohne Rechte (siehe dind.js).
   assert.deepEqual(call(`run ${BASE}-dind`).args, ['run', '-d', '--label', MARK, '--name', `${BASE}-dind`,
-    '--device', '/dev/net/tun', '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
+    '--device', '/dev/net/tun', ...SECURITY_FLAGS,
     '--network', BASE, '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',
     '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/home/rootless/.local/share/docker`,
     'dind:test', 'dockerd', '--host=unix:///sock/docker.sock']);

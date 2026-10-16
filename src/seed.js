@@ -12,7 +12,7 @@
 
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
-const { waitForDaemon, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
+const { waitForDaemon, whyNotReady, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { permanentPullError, daysSince, pruneOlder } = require('./images');
 const { errorLog } = require('./journal');
 
@@ -78,7 +78,11 @@ function createSeed({
       // wartet nicht auf die Vorlage und hat ihn womöglich nicht mehr gesehen.
       if (stopping()) { await docker(['rm', '-f', '-v', loader]); return; }
       // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
-      if (!ready) { await docker(['rm', '-f', '-v', loader]); throw new Error('Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.'); }
+      if (!ready) {
+        const why = await whyNotReady(docker, loader);
+        await docker(['rm', '-f', '-v', loader]);
+        throw new Error(`Der Lade-Daemon wurde nicht bereit${why}; die Vorlage bleibt unverändert.`);
+      }
       const present = new Set();
       const retry = new Set();
       for (const image of wanted) {

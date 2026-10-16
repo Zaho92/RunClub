@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createCaches } = require('../src/caches');
+const { SECURITY_FLAGS } = require('../src/dind');
 const { MINUTE } = require('../src/units');
 const { createEngine } = require('../src/engine');
 
@@ -70,7 +71,7 @@ test('bereitstellen legt Paket-Cache, Netz und Build-Dienst ohne Rechte mit den 
   assert.deepEqual(args('run rc-buildkit-app'),
     ['run', '-d', '--name', 'rc-buildkit-app', '--label', 'runclub.service=test', '--label', `runclub.limits=${KEY_OLD}`,
       '--restart', 'no', '--network', 'rc-buildnet-app', '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',
-      '--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined', '--security-opt', 'systempaths=unconfined',
+      ...SECURITY_FLAGS,
       '-v', 'rc-build-app:/home/user/.local/share/buildkit', '-v', 'rc-buildsock-app:/run/rc-buildkit',
       'buildkit:test', '--addr', 'unix:///run/rc-buildkit/buildkitd.sock']); // mit Sandbox der Build-Schritte
   assert.equal(args('run rc-buildkit-app').includes('--privileged'), false);
