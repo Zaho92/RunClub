@@ -127,9 +127,26 @@
   .legend .ic { width: 18px; height: 18px; } .legend .ic svg { width: 11px; height: 11px; }
 
   /* Auslastung */
-  .band { position: sticky; top: -26px; z-index: 4; background: var(--ground); margin-top: -26px; padding: 26px 0 16px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 34px; }
+  .band { position: sticky; top: -26px; z-index: 4; background: var(--ground); margin-top: -26px; padding: 26px 0 16px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.7fr); gap: 34px; }
   .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; }
-  .seats { max-height: 132px; overflow-y: auto; padding-right: 6px; }
+  /* Plätze: so hoch wie die Kurven daneben; die Zeilen rollen in sich, die Legende bleibt unten stehen. */
+  #seats { display: flex; flex-direction: column; min-width: 0; }
+  .seatlist { flex: 1 1 0; min-height: 0; contain: size; overflow-y: auto; align-content: start; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 18px; padding-right: 6px; }
+  .seatlist.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seat { display: flex; align-items: center; gap: 8px; height: 22px; font-size: 13px; min-width: 0; }
+  .seat b { flex: 1 1 auto; min-width: 0; font-weight: 400; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seat .dots { display: flex; align-items: center; gap: 4px; flex: none; }
+  .seat .ic, .seatkey .ic { width: 14px; height: 14px; border-width: 1.5px; } .seat .ic svg, .seatkey .ic svg { width: 10px; height: 10px; }
+  .seat .s-wait circle, .seatkey .s-wait circle { r: 3px; }
+  /* Die Reserve ist in allen Zeilen gleich breit (--rsv Punkte), so enden die Platzsymbole an einer Kante. */
+  .rsvs { display: flex; align-items: center; gap: 4px; flex: none; width: calc(var(--rsv) * 11px - 4px); margin-left: 4px; }
+  .rsv { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--track); }
+  .rsv.on { background: var(--track); } .rsv.half { background: linear-gradient(90deg, var(--track) 50%, transparent 50%); }
+  .seatlist.one .seat { gap: 10px; } .seatlist.one .seat b { flex: none; }
+  .seatlist.one .seat .ic { width: 16px; height: 16px; }
+  .seatlist.one .rsvs { width: auto; min-width: 16px; margin: 0; justify-content: center; gap: 2px; }
+  .seatkey { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-top: 8px; font-size: 11px; color: var(--muted); }
+  .seatkey span { display: inline-flex; align-items: center; gap: 5px; }
   .k { font-size: 12px; font-weight: 400; color: var(--muted); }
   .v { font-size: 26px; line-height: 1.25; color: var(--ink); }
   .v small { font-size: 13px; color: var(--muted); }
@@ -332,7 +349,7 @@
 
   @media (max-width: 900px) { .quiet { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; } .quiet .what { grid-column: 1 / 3; grid-row: 2; } }
   @media (max-width: 1100px) { .band { grid-template-columns: 1fr 1fr; position: static; margin-top: 0; padding-top: 0; } .trio { grid-template-columns: 1fr; } #main { padding: 22px 24px 32px; } }
-  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } .nav.todo b::after { content: " •"; color: var(--fail-text); } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .ax .wide { display: none; } #seats { grid-column: 1 / -1; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } .shell #app { grid-template-rows: 32px auto minmax(0, 1fr); } .shell #bar { grid-column: 1; background: var(--rail); padding: 0 14px; font-weight: 600; font-size: 18px; line-height: 34px; color: var(--ink); } .shell #bar::before { content: "RunClub"; } .shell #rail { grid-row: 2; padding-top: 4px; } .shell #rail::before, .shell .brand { display: none; } .shell #main { grid-row: 3; } .sliders, .meters { grid-template-columns: 1fr; } table.fixed { min-width: 620px; } table.fixed th.r { width: 84px; } .popen .sz { display: none; } .popen { flex-wrap: wrap; row-gap: 4px; } .popen .tag { white-space: nowrap; } .route { gap: 36px; padding-left: 36px; } .stop:not(:last-child)::before { left: -29px; height: calc(100% + 36px); } .stopdot { left: -36px; } .pin { margin: 0 12px 0 14px; } .addrow form { flex-basis: 100%; } }
+  @media (max-width: 760px) { #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } #rail { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; } .nav { flex: none; } .brand { padding: 6px 10px; } .railfoot { margin: 0; flex-direction: row; padding: 0; } .nav { width: auto; } .nav > span:not(.ic) { display: none; } .nav.todo b::after { content: " •"; color: var(--fail-text); } #rail, .planwrap { scrollbar-width: none; } .band { grid-template-columns: 1fr 1fr; gap: 16px 20px; } .chart { height: 44px; } .ax .wide { display: none; } #seats { grid-column: 1 / -1; } .seatlist { flex: none; contain: none; max-height: 132px; } .head { flex-direction: column; align-items: flex-start; } .eta { margin: 0; text-align: left; } .eta b { font-size: 40px; } .shell #app { grid-template-rows: 32px auto minmax(0, 1fr); } .shell #bar { grid-column: 1; background: var(--rail); padding: 0 14px; font-weight: 600; font-size: 18px; line-height: 34px; color: var(--ink); } .shell #bar::before { content: "RunClub"; } .shell #rail { grid-row: 2; padding-top: 4px; } .shell #rail::before, .shell .brand { display: none; } .shell #main { grid-row: 3; } .sliders, .meters { grid-template-columns: 1fr; } table.fixed { min-width: 620px; } table.fixed th.r { width: 84px; } .popen .sz { display: none; } .popen { flex-wrap: wrap; row-gap: 4px; } .popen .tag { white-space: nowrap; } .route { gap: 36px; padding-left: 36px; } .stop:not(:last-child)::before { left: -29px; height: calc(100% + 36px); } .stopdot { left: -36px; } .pin { margin: 0 12px 0 14px; } .addrow form { flex-basis: 100%; } }
   @media (prefers-reduced-motion: reduce) { .pill, .pill .more, .pill .line, .pill .pg, .btn, .job > .rejob, .plan > svg path, dialog[open], dialog[open]::backdrop, .proj, .pbody, .popen .g, .stopdot, input.sw, input.sw::after { transition: none; } dialog[open], dialog[open]::backdrop { animation: none; } }
 </style></head>
 <body>
@@ -354,8 +371,8 @@ const TEXT = {
     lastRun: 'Letzter Lauf', nothing: 'Hier lief noch nichts.', unservedOne: 'Kein Pool: Ein Job wartet seit {1} auf einen eigenen Runner', unservedMany: 'Kein Pool: {0} Jobs warten seit {1} auf einen eigenen Runner',
     noMinutesOne: 'Keine GitHub-Minuten: Ein Lauf ist seit {1} nicht gestartet', noMinutesMany: 'Keine GitHub-Minuten: {0} Läufe sind seit {1} nicht gestartet', noMinutesTip: 'Die GitHub-Minuten sind aufgebraucht. Mit einem Pool laufen die Jobs auf diesem Rechner und brauchen keine.',
     rerun: 'Erneut starten', rerunFailed: 'Nur Gescheiterte', rerunJob: 'Job erneut starten', rerunTip: 'Alle Jobs dieses Laufs noch einmal ausführen', rerunFailedTip: 'Nur die gescheiterten Jobs noch einmal ausführen; die gelungenen behalten ihr Ergebnis', rerunDone: 'Erneut gestartet. Bei GitHub dauert es einen Augenblick, bis der Lauf wieder erscheint.', vmMem: 'Docker-VM · Arbeitsspeicher', vmCpu: 'Docker-VM · CPU', hostMem: 'Windows · Arbeitsspeicher', of: 'von {0}', cores: 'von {0} Kernen',
-    peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', seat: 'Platz', job: 'Job', ram: 'RAM', coresShort: 'Kerne', 
-    reserve: 'Reserve {0} von {1} vorbereitet', docker: 'Docker: {0}', dockerStarting: 'startet', retiring: 'läuft aus', github: 'GitHub: {0}',
+    peak: 'Spitze {0} {1}', freeOnly: 'nur {0} frei', before30: 'vor 30 min', before24: 'vor 24 h', now: 'jetzt', follows: 'Verlauf folgt', seats: 'Plätze', job: 'Job', 
+    reserveWord: 'Reserve', reserveKeyTip: 'Voll: bereit · Halb: wird vorbereitet', reserveSum: '{0} von {1} bereit', reserveTip: 'Reserve: {0} von {1} bereit', docker: 'Docker: {0}', dockerStarting: 'startet', retiring: 'läuft aus', github: 'GitHub: {0}',
     runs: 'Läufe', usualTime: 'üblich', cpuAvg: 'Kerne Ø', cpuPeak: 'Kerne Spitze', noUsage: 'Noch keine Messwerte. Sie entstehen mit dem nächsten Lauf.',
     wait: 'Wartezeit auf einen Runner: üblich {0}, längste {1} (letzte {2} Jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '„{0}“ brauchte {1} von {2} {3}-Speicher. Viel Luft bleibt da nicht.',
     day: 'Die letzten 24 Stunden',
@@ -423,8 +440,8 @@ const TEXT = {
     lastRun: 'Last run', nothing: 'Nothing has run here yet.', unservedOne: 'No pool: one job has been waiting {1} for a self-hosted runner', unservedMany: 'No pool: {0} jobs have been waiting {1} for a self-hosted runner',
     noMinutesOne: 'No GitHub minutes: one run has not started for {1}', noMinutesMany: 'No GitHub minutes: {0} runs have not started for {1}', noMinutesTip: 'The GitHub minutes are used up. With a pool the jobs run on this machine and need none.',
     rerun: 'Re-run', rerunFailed: 'Failed only', rerunJob: 'Re-run job', rerunTip: 'Run all jobs of this run again', rerunFailedTip: 'Run only the failed jobs again; the successful ones keep their result', rerunDone: 'Re-run started. It takes GitHub a moment to show the run again.', vmMem: 'Docker VM · memory', vmCpu: 'Docker VM · CPU', hostMem: 'Windows · memory', of: 'of {0}', cores: 'of {0} cores',
-    peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', seat: 'Slot', job: 'Job', ram: 'RAM', coresShort: 'Cores', 
-    reserve: 'Reserve {0} of {1} prepared', docker: 'Docker: {0}', dockerStarting: 'starting', retiring: 'retiring', github: 'GitHub: {0}',
+    peak: 'peak {0} {1}', freeOnly: 'only {0} free', before30: '30 min ago', before24: '24 h ago', now: 'now', follows: 'History follows', seats: 'Slots', job: 'Job', 
+    reserveWord: 'Reserve', reserveKeyTip: 'Full: ready · Half: being prepared', reserveSum: '{0} of {1} ready', reserveTip: 'Reserve: {0} of {1} ready', docker: 'Docker: {0}', dockerStarting: 'starting', retiring: 'retiring', github: 'GitHub: {0}',
     runs: 'Runs', usualTime: 'usual', cpuAvg: 'Cores avg', cpuPeak: 'Cores peak', noUsage: 'No measurements yet. They appear with the next run.',
     wait: 'Waiting for a runner: usually {0}, longest {1} (last {2} jobs).', ramRunner: 'RAM Runner', ramDocker: 'RAM Docker', nearLimit: '“{0}” used {1} of {2} {3} memory. That leaves little headroom.',
     day: 'The last 24 hours',
@@ -840,24 +857,39 @@ function bandCharts(marks) {
     chart('hostMem', t('hostMem'), num((m.memoryTotal - m.memoryFree) / 1073741824), t('of', gb(m.memoryTotal)), src('hostMemory'), m.memoryTotal, gb, tight, marks, tight ? t('freeOnly', gb(m.memoryFree)) : '');
 }
 
+// Ein Platz als Zustandssymbol wie im Netzplan: arbeitet läuft, bereit ist der leere Ring, alles Vorbereitende
+// (startet, wartet, räumt auf) wartet. Rot nur, wenn der Platz gestört ist; ein pausierter oder abgeschalteter ist ausgesetzt.
+const SEAT_STATE = { 'arbeitet': 'run', 'bereit': 'idle', 'gestört': 'fail', 'pausiert': 'skip', 'aus': 'skip' };
+const seatState = (r) => SEAT_STATE[r.state] ?? 'wait';
+
+// Plätze: je Projekt eine Zeile mit einem Symbol je Platz und einem Punkt je Runner der Reserve. Die Reserve ist in
+// allen Zeilen gleich breit, damit die Platzsymbole an einer Kante enden. Ein einzelnes Projekt zeigt je Platz eine
+// Zeile mit dem Zustand in Worten und braucht keine Legende. Sonst steht die Legende außerhalb des rollenden Teils
+// und bleibt so unten im Band.
 function seats(entries) {
-  const many = entries.length > 1;
-  const rows = [];
-  const idle = [];
-  for (const entry of entries) {
-    const short = shortRepo(entry.repo);
-    entry.runners.forEach((r, index) => {
-      if (r.state !== SLOT.WORKING) return;
-      rows.push('<tr><td style="white-space:nowrap">' + esc(many ? short + ' ' + (index + 1) : index + 1) + '</td><td class="cut" title="' + esc(r.job?.job ?? '') + '">' + esc(r.job?.job ?? '') + '</td><td class="r">' + mb(r.memory) + '</td><td class="r">' + num(r.cores ?? 0) + '</td></tr>');
-    });
-    const rest = entry.runners.filter((r) => r.state !== SLOT.WORKING);
-    const states = [...new Set(rest.map(runnerState))].map((state) => rest.filter((r) => runnerState(r) === state).length + ' ' + state).join(', ');
-    if (rest.length) idle.push((many ? short + ': ' : '') + states);
-  }
-  const reserve = entries.reduce((sum, e) => sum + (e.pool?.reserve ?? 0), 0);
-  const wanted = entries.reduce((sum, e) => sum + (e.pool?.reserveWanted ?? 0), 0);
-  return '<div class="label">' + t('seats') + '</div><div class="seats">' + (rows.length ? '<table><tr><th>' + t('seat') + '</th><th>' + t('job') + '</th><th class="r">' + t('ram') + '</th><th class="r">' + t('coresShort') + '</th></tr>' + rows.join('') + '</table>' : '') +
-    idle.map((line) => '<div class="note" style="padding:6px 0;border-bottom:1px solid var(--rule)">' + esc(line) + '</div>').join('') + '<div class="note" style="padding-top:6px">' + t('reserve', reserve, wanted) + '</div></div>';
+  const single = entries.length === 1;
+  const reserveOf = (entry) => Math.max(entry.pool?.reserveWanted ?? 0, entry.pool?.reserve ?? 0);
+  const active = entries.filter((entry) => !entry.pool?.paused);
+  const widest = Math.max(0, ...active.map(reserveOf));
+  const seatIcon = (r, index) => '<span class="s-' + seatState(r) + '" data-tip="' + esc([t('seatN', index + 1), runnerState(r), r.state === SLOT.WORKING ? r.job?.job : ''].filter(Boolean).join(' · ')) + '">' + icon(seatState(r)) + '</span>';
+  const reserveDots = (entry) => {
+    const count = reserveOf(entry);
+    const ready = entry.pool?.reserve ?? 0;
+    return '<span class="rsvs">' + Array.from({ length: count }, (_, k) => '<i class="rsv ' + (k < ready ? 'on' : 'half') + '" data-tip="' + esc(t('reserveTip', ready, count)) + '"></i>').join('') + '</span>';
+  };
+  const paused = '<span class="dim">' + t('paused') + '</span>';
+  const row = (inner) => '<div class="seat">' + inner + '</div>';
+  const rows = single
+    ? (entries[0].pool?.paused ? row(paused) : entries[0].runners.map((r, index) => row(seatIcon(r, index) + '<b>' + t('seatN', index + 1) + '</b><span class="dim">' + esc(runnerState(r)) + '</span>')).join('') +
+      (reserveOf(entries[0]) ? row(reserveDots(entries[0]) + '<b>' + t('reserveWord') + '</b><span class="dim">' + t('reserveSum', entries[0].pool?.reserve ?? 0, reserveOf(entries[0])) + '</span>') : ''))
+    : entries.map((entry) => row('<b data-tip="' + esc(entry.repo) + '">' + esc(shortRepo(entry.repo)) + '</b><span class="dots">' + (entry.pool?.paused ? paused : entry.runners.map(seatIcon).join('') + (widest ? reserveDots(entry) : '')) + '</span>')).join('');
+  const shown = new Set(active.flatMap((entry) => entry.runners.map(seatState)));
+  const keys = ['run', 'idle', 'wait', ...['fail', 'skip'].filter((state) => shown.has(state))];
+  const words = { run: SLOT.WORKING, idle: SLOT.READY, wait: 'startet', fail: 'gestört', skip: 'aus' };
+  const open = active.some((entry) => (entry.pool?.reserve ?? 0) < (entry.pool?.reserveWanted ?? 0));
+  return '<div class="label">' + t('seats') + '</div><div class="seatlist ' + (single ? 'one' : 'two') + '" style="--rsv:' + widest + '">' + rows + '</div>' + (single ? '' :
+    '<div class="seatkey">' + keys.map((state) => '<span class="s-' + state + '">' + icon(state) + stateText(words[state]) + '</span>').join('') +
+    '<span data-tip="' + esc(t('reserveKeyTip')) + '"><i class="rsv on"></i>' + (open ? '<i class="rsv half"></i>' : '') + t('reserveWord') + '</span></div>');
 }
 
 // --- Ansichten ---
