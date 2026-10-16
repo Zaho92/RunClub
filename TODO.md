@@ -12,18 +12,20 @@ und einem Updater, der sich aus den GitHub-Releases selbst aktualisiert. Entschi
 - **Installer erst unsigniert** (Windows warnt beim Installieren „Unbekannter Herausgeber“); Signatur später nachrüstbar.
 - **Updater:** lädt im Hintergrund, meldet „Update bereit“, eingespielt wird auf Klick und nur, wenn kein Runner arbeitet
   (Beenden baut alle Runner ab).
-- **QS vor Live:** Der Nutzer baut weiter und will Neues erst selbst erproben. Vorschlag (im Schritt 1 entscheiden):
-  QS als Beta-Kanal statt zweiter Instanz (zwei Instanzen mit denselben Pools melden sich gegenseitig die Runner ab).
-  Tags `vX.Y.Z-beta.N` erzeugen Vorabversionen, `vX.Y.Z` stabile; der Updater hat einen Kanal „Stabil“/„Beta“, der
-  Rechner des Nutzers läuft auf Beta. Branching anpassen (Feature-Branches, `main` liefert Betas; ob ein eigener
-  `qs`-Branch nötig ist, klären; an `core:release` QS → Live anlehnen).
+- **QS vor Live als Beta-Kanal** (entschieden 16.10.2026), keine zweite Instanz (zwei Instanzen mit denselben Pools
+  melden sich gegenseitig die Runner ab). Tags `vX.Y.Z-beta.N` erzeugen Vorabversionen, `vX.Y.Z` stabile; der Updater
+  hat einen Kanal „Stabil“/„Beta“, der Rechner des Nutzers läuft auf Beta. **Kein `qs`-Branch:** Feature-Branches →
+  `main`, Betas werden von `main` getaggt; nimmt der Nutzer eine Beta ab, kommt der stabile Tag auf genau deren Commit.
+- **Updater als eigenes Modul**, nicht `electron-updater` (bleibt ohne Laufzeit-Abhängigkeiten): GitHub-Releases-API,
+  Download, SHA512-Prüfung gegen `latest.yml`, NSIS-Installer still starten; solange das Repo privat ist, mit dem
+  Token der gh-Anmeldung.
 - **Repo ganz englisch** (README, Doku, Kommentare, TODO, DESIGN; die Regel in `CLAUDE.md` ändert sich dann). Die
   Oberfläche bleibt zweisprachig. Erst in Schritt 3, damit nicht Code übersetzt wird, der gleich umgebaut wird.
 
 Schritte, in dieser Reihenfolge:
 
 1. **Installer und Updater** (siehe den Punkt unter „Als Nächstes“): `electron-builder` mit NSIS, Release-Workflow auf
-   `windows-latest` bei Versions-Tags (umgeht die `winCodeSign`-Hürde auf diesem Rechner), `electron-updater` mit den
+   `windows-latest` bei Versions-Tags (umgeht die `winCodeSign`-Hürde auf diesem Rechner), eigener Updater mit den
    GitHub-Releases, Kanal Stabil/Beta, Anzeige in den Einstellungen (Abschnitt App: Version, Update bereit, Kanal),
    Startmenü und Autostart auf die installierte App umstellen, Branching und Ablauf QS → Live festlegen und in
    `README.md` beschreiben. Danach selbst über Wochen auf Beta betreiben.
