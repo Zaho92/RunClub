@@ -20,6 +20,7 @@
 // Protokoll Hinein kommt nur, dass an- oder abgemeldet wurde und als wer. Code und Token bleiben draußen.
 
 const fs = require('node:fs');
+const path = require('node:path');
 const { SECOND, MINUTE } = require('./units');
 const { API, apiHeaders } = require('./github');
 const { msg, Fault, reason } = require('./messages');
@@ -116,13 +117,14 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
           fs.writeFileSync(draft(), secrets.encrypt(Buffer.from(JSON.stringify(entry), 'utf8')));
           settle(draft());
         } else {
-          fs.rmSync(draft(), { force: true });
-          fs.rmSync(file, { force: true });
+          // Jede für sich: Bliebe eine liegen, wäre der Nutzer nach dem nächsten Start wieder angemeldet.
+          for (const name of [draft(), file]) {
+            try { fs.rmSync(name, { force: true }); } catch (error) { log(msg('m_tokenNotRemoved', path.basename(name), reason(error))); }
+          }
         }
       } catch (error) {
-        // Neu angemeldet oder erneuert: Der neue Stand liegt dann wenigstens daneben und gilt beim nächsten Start (siehe
-        // `load`). Abgemeldet: Das Token bliebe auf der Platte, also muss der Nutzer davon wissen.
-        log(msg(entry ? 'm_tokenNotSaved' : 'm_tokenNotRemoved', reason(error)));
+        // Der neue Stand liegt dann wenigstens daneben und gilt beim nächsten Start (siehe `load`).
+        log(msg('m_tokenNotSaved', reason(error)));
       }
     }
     held = entry;
@@ -154,8 +156,9 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   }
 
   // Das Konto zum Token. Wirft mit `status`, wenn GitHub ablehnt.
-  async function userOf(token) {
-    const response = await fetch(`${API}/user`, { headers: apiHeaders(token, version), signal: AbortSignal.timeout(timeout) });
+  async function userOf(token, signal) {
+    const limit = AbortSignal.timeout(timeout);
+    const response = await fetch(`${API}/user`, { headers: apiHeaders(token, version), signal: signal ? AbortSignal.any([signal, limit]) : limit });
     if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
     const login = String((await response.json())?.login ?? '');
     if (!LOGIN.test(login)) throw new Fault('m_githubNoAccount');
@@ -239,6 +242,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
 
   function end(mine, state, why = null, error = null) {
     Object.assign(mine, { state, why, error, code: null, url: null });
+    if (state === FLOW.FAILED && why !== WHY.DENIED) log(msg('m_loginFailed', why === WHY.LATE ? msg('m_loginLate') : error ?? msg('m_noReason')));
   }
 
   // Fragt, bis der Nutzer im Browser bestätigt hat, abgelehnt hat oder der Code verfallen ist.
@@ -264,8 +268,8 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
       // Das Token ist erteilt; ein kurzer Aussetzer beim Erfragen des Kontos soll es nicht verwerfen.
       let login;
       for (let tries = 1; !login; tries += 1) {
-        try { login = await userOf(entry.token); } catch (error) {
-          if (tries >= USER_TRIES || mine.controller.signal.aborted) { end(mine, FLOW.FAILED, WHY.GITHUB, error.msg ? null : said(error)); return; }
+        try { login = await userOf(entry.token, mine.controller.signal); } catch (error) {
+          if (tries >= USER_TRIES || error.status === 401 || mine.controller.signal.aborted) { end(mine, FLOW.FAILED, WHY.GITHUB, error.msg ? null : said(error)); return; }
           await wait(interval, mine.controller.signal);
         }
       }
@@ -332,8 +336,10 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   }
 
   // Die App endet: einen wartenden Ablauf beenden und keinen neuen mehr beginnen.
+  // Auch ein schon bestätigter Ablauf endet: Das Programm soll nicht auf das Erfragen des Kontos warten.
   function close() {
     closed = true;
+    if (flow?.settled && running()) flow.controller.abort();
     return cancel();
   }
 

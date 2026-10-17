@@ -537,7 +537,7 @@ const TEXT = {
     m_loginFirst: 'Erst bei GitHub anmelden.',
     m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
     m_notIn: 'Du bist nicht bei GitHub angemeldet.',
-    m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).', m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.', m_githubNoAccount: 'GitHub nennt kein Konto zur Anmeldung.', m_tokenNotSaved: 'Die Anmeldung ließ sich nicht sichern ({0}); sie gilt bis zum Ende dieses Programms.', m_tokenNotRemoved: 'Das Token ließ sich nicht von der Platte löschen ({0}); es liegt noch verschlüsselt im Datenordner (github.token).',
+    m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).', m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.', m_githubNoAccount: 'GitHub nennt kein Konto zur Anmeldung.', m_tokenNotSaved: 'Die Anmeldung ließ sich nicht sichern ({0}); sie gilt bis zum Ende dieses Programms.', m_tokenNotRemoved: '{0} ließ sich nicht löschen ({1}); nach einem Neustart gilt die Anmeldung wieder. Die Datei liegt verschlüsselt im Datenordner.', m_loginFailed: 'Anmeldung bei GitHub gescheitert: {0}', m_loginLate: 'der Code wurde nicht rechtzeitig bestätigt', m_noReason: 'GitHub nannte keinen Grund',
     m_listening: 'Runner-Anzeige: {0}', m_stopping: 'Beende die Runner …',
     m_stopped: 'Beendet.', m_keyNotSaved: 'Der Schlüssel ließ sich nicht ablegen – {0}',
     m_settingsBroken: '{0} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter {1}.',
@@ -719,7 +719,7 @@ const TEXT = {
     m_alreadyIn: 'You are already signed in as {0}.',
     m_loginFirst: 'Sign in to GitHub first.',
     m_finishLogin: 'Finish or cancel the running sign-in first.', m_notIn: 'You are not signed in to GitHub.',
-    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).', m_signInLost: 'GitHub no longer accepts the sign-in of {0}; please sign in again.', m_githubNoAccount: 'GitHub names no account for the sign-in.', m_tokenNotSaved: 'The sign-in could not be saved ({0}); it lasts until this program ends.', m_tokenNotRemoved: 'The token could not be deleted from disk ({0}); it is still stored encrypted in the data folder (github.token).',
+    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).', m_signInLost: 'GitHub no longer accepts the sign-in of {0}; please sign in again.', m_githubNoAccount: 'GitHub names no account for the sign-in.', m_tokenNotSaved: 'The sign-in could not be saved ({0}); it lasts until this program ends.', m_tokenNotRemoved: '{0} could not be deleted ({1}); after a restart the sign-in applies again. The file is stored encrypted in the data folder.', m_loginFailed: 'Signing in to GitHub failed: {0}', m_loginLate: 'the code was not confirmed in time', m_noReason: 'GitHub gave no reason',
     m_listening: 'Runner display: {0}',
     m_stopping: 'Stopping the runners …', m_stopped: 'Stopped.', m_keyNotSaved: 'Could not save the key – {0}',
     m_settingsBroken: 'Could not read {0}; it is created anew. The old file is at {1}.', m_bodyIncomplete: 'The request did not arrive completely.',
@@ -1572,9 +1572,8 @@ function renderEmpty() {
   // Fehlt dem Rechner etwas für Docker, steht das als eigener Abschnitt unter dem Schritt; es hält ihn nicht auf.
   const setup = setupMissing().length ? '<div class="setup first"><div><h2>' + t('setupTitle') + '</h2>' + info(t('setupTitle'), t('setupInfo')) + '<div class="note">' + t('setupText') + '</div></div>' + setupRows(true) + '</div>' : '';
   if (trouble) { put(main, '<div class="stack empty">' + viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) + authBody(true) + setup + '</div>'); return; }
-  // Noch auf keinem Repo freigegeben (die App ist nirgends installiert): Dann ist das Installieren der nächste Schritt.
-  const free = (repoList ?? []).filter((r) => r.free);
-  if (repoList && !free.length && githubUrl(data.auth?.install)) {
+  // Noch kein Repo freigegeben (die App ist nirgends installiert): Dann ist das Installieren der nächste Schritt.
+  if (repoList && !repoList.length && githubUrl(data.auth?.install)) {
     put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('installFirstText'), '', info(t('firstTitle'), t('projectsInfo'))) + '<div class="row">' + githubButton(data.auth.install, t('installFirst')) + '</div><div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
     return;
   }
@@ -1697,6 +1696,8 @@ async function fetchLogFile() {
   return response.text();
 }
 const copyLog = () => copyText(fetchLogFile, (text) => t('logCopied', text.split('\n').filter(Boolean).length), t('logCopyFailed'));
+// Zurück aus dem Browser (etwa nach dem Installieren der App bei GitHub): die Repos neu holen.
+window.addEventListener('focus', () => { if (data?.auth?.state === 'in') loadRepos(); });
 async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* Vorschläge sind Beiwerk */ } }
 async function loadDay() { try { dayData = await (await fetch('/api/metrics/day')).json(); if (view === 'usage') render(); } catch { /* Verlauf ist Beiwerk */ } }
 async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })) { toast(t('added')); loadRepos(); return true; } return false; }

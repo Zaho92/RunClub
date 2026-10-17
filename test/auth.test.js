@@ -309,3 +309,45 @@ test('nennt GitHub kein Konto, scheitert der Ablauf ohne eigenen Satz als Text v
   await step();
   assert.deepEqual(auth.view().flow, { state: 'failed', code: null, url: null, why: 'github', error: null });
 });
+
+test('ein gescheiterter Ablauf steht im Protokoll, eine Ablehnung nicht', async () => {
+  for (const [answer, expected] of [[{ error: 'expired_token' }, ['Anmeldung bei GitHub gescheitert: der Code wurde nicht rechtzeitig bestätigt']], [{ error: 'access_denied' }, []], [{ error: 'x', error_description: 'Kaputt.' }, ['Anmeldung bei GitHub gescheitert: Kaputt.']]]) {
+    const { auth, world, logs, step } = fake();
+    await auth.login();
+    world.tokens.push(json(200, answer));
+    await step();
+    assert.deepEqual(logs, expected);
+  }
+});
+
+test('lehnt GitHub das neue Token beim Erfragen des Kontos ab, wird nicht wiederholt', async () => {
+  const { auth, world, step } = fake();
+  await auth.login();
+  let asked = 0;
+  world.user = () => { asked += 1; return json(401, { message: 'Bad credentials' }); };
+  world.tokens.push(json(200, grant(1)));
+  await step();
+  assert.equal(asked, 1);
+  assert.equal(auth.view().flow.state, 'failed');
+});
+
+test('beim Beenden endet auch ein Ablauf, der nach der Bestätigung noch das Konto erfragt', async () => {
+  const { auth, world, step } = fake();
+  await auth.login();
+  world.user = () => json(502, {});
+  world.tokens.push(json(200, grant(1)));
+  await step();
+  await auth.close();
+  assert.equal(auth.view().flow.state, 'failed');
+  assert.equal(auth.view().state, 'out');
+});
+
+test('lässt sich beim Abmelden eine Datei nicht löschen, sagt das Protokoll welche, und die andere geht trotzdem', async () => {
+  const { auth, file, logs } = fake({ stored: STORED });
+  fs.writeFileSync(`${file}.neu`, 'x');
+  const origin = fs.rmSync;
+  fs.rmSync = (name, options) => { if (name.endsWith('.neu')) throw new Error('belegt'); return origin(name, options); };
+  try { await auth.logout(); } finally { fs.rmSync = origin; }
+  assert.equal(fs.existsSync(file), false);
+  assert.match(logs[0], /^github\.token\.neu ließ sich nicht löschen \(belegt\)/);
+});

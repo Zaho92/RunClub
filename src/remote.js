@@ -16,6 +16,7 @@ const { msg, Fault, reason } = require('./messages');
 
 const RUNS_PER_REPO = 20;
 const REPO_LIST_MAX_AGE = 5 * MINUTE; // so lange gilt die Liste der Repos des Kontos
+const EMPTY_LIST_MAX_AGE = 15 * SECOND; // … und so lange eine leere: Gleich nach dem Installieren der App soll sie sich füllen
 const REPO_PAGES_MAX = 10;
 const RERUN_SETTLE = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
 const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht (Takt in backend.js)
@@ -104,7 +105,7 @@ function createRemote({
   // ist ein Pool möglich (es hat keinen, und öffentliche bekommen keinen; siehe `pool/add` in actions.js).
   let repoList = { at: 0, repos: [] };
   async function listRepos() {
-    if (now() - repoList.at > REPO_LIST_MAX_AGE) {
+    if (now() - repoList.at > (repoList.repos.length ? REPO_LIST_MAX_AGE : EMPTY_LIST_MAX_AGE)) {
       const found = [];
       for (let page = 1; page <= REPO_PAGES_MAX; page += 1) {
         const batch = await github.get(`user/repos?per_page=${PAGE_MAX}&page=${page}&sort=pushed`);
