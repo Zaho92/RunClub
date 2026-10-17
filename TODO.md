@@ -73,7 +73,7 @@ Schritte, in dieser Reihenfolge:
       `safeStorage` verschlüsselt ab; Abmelden vergisst es nur auf diesem Rechner (Widerrufen braucht das Geheimnis
       der App), die Oberfläche verlinkt den Widerruf bei GitHub. Unter „Projekt hinzufügen“ und bei einem Repo, das
       mit 404 antwortet, steht der Link zum Installieren der App. Der Updater nutzt dasselbe Token. **Offen:** echt
-      erproben (siehe „Noch nicht echt ausprobiert“).
+      erproben (siehe „Noch nicht echt ausprobiert“). **Erprobt und als v0.1.0-beta.4 eingespielt am 18.10.2026.**
    4. Repo ins Englische (siehe oben).
    5. README mit Bildschirmfotos.
 4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
@@ -199,8 +199,9 @@ Bewusst so gelassen:
   Repo-Liste, Anfragelimit, Minuten samt `plan.name` (`free`), Abmelden; im Protokoll stehen weder Code noch Token.
   Erneuern mit vorgezogener Ablaufzeit: neues Token und neuer Schlüssel, ohne Client-Secret. Ein schon benutzter
   Schlüssel bringt `incorrect_client_credentials` statt des dokumentierten `bad_refresh_token`; beides meldet jetzt ab.
-  Noch echt prüfen: Neustart der installierten App mit gesichertem Token (`safeStorage`), „Abbrechen“ während des
-  Wartens, und wie die App dasteht, solange niemand angemeldet ist.
+  In der installierten App (v0.1.0-beta.4, 18.10.2026): Anmelden, alle Pools bekommen Runner, und nach einem Neustart
+  ist sie mit dem gesicherten Token (`safeStorage`, kein Klartext in `github.token`) sofort wieder angemeldet.
+  Noch echt prüfen: „Abbrechen“ während des Wartens.
 - **Abmelden von Windows** (`watchSession` in `src/main.js`, `releaseIdle` in `src/runners.js`): nur am Code geprüft. Nach
   einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
   Rechners stehen geblieben sind.
