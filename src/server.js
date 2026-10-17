@@ -1,12 +1,12 @@
-// Der lokale Dienst: die Seite, ihre Schriften und die Schnittstelle unter `/api/`. Er lauscht nur auf 127.0.0.1
-// (`listen` macht backend.js) und lässt nur herein, wer den Schlüssel dieses Programmlaufs als Cookie trägt (siehe
-// access.js). Ändernde Aufrufe (POST) brauchen dazu das Token aus der Seite: Eine fremde Webseite kann es nicht kennen.
+// The local service: the page, its fonts and the API under `/api/`. It listens only on 127.0.0.1
+// (`listen` is done by backend.js) and lets in only whoever carries this program run's key as a cookie (see
+// access.js). Changing calls (POST) also need the token from the page: a foreign web page can't know it.
 //
-//   GET  /api/ping, /fonts/<name>.woff2   ohne Schlüssel
-//   GET  /?key=<Schlüssel>                tauscht den Schlüssel gegen das Cookie
-//   GET  /                                die Seite (ui.html mit Token und Nonce)
+//   GET  /api/ping, /fonts/<name>.woff2   without key
+//   GET  /?key=<key>                      swaps the key for the cookie
+//   GET  /                                the page (ui.html with token and nonce)
 //   GET  /api/status, /api/metrics/day, /api/log, /api/log/file, /api/repos
-//   POST /api/<Aufruf>                    ein Aufruf aus actions.js oder von der App (`hooks.actions`)
+//   POST /api/<call>                      a call from actions.js or from the app (`hooks.actions`)
 
 const http = require('node:http');
 const fs = require('node:fs');
@@ -14,17 +14,17 @@ const path = require('node:path');
 const { pageHeaders, newNonce, same } = require('./access');
 const { msg, isMsg, render, Fault, reason } = require('./messages');
 
-const BODY_MAX = 10000; // Zeichen; kein Aufruf der Oberfläche braucht mehr
+const BODY_MAX = 10000; // characters; no call from the interface needs more
 const FONT = /^\/fonts\/([a-z0-9-]+\.woff2)$/;
-// Eine Antwort mit Fehler: der deutsche Satz in `error`, dazu die Meldung als Schlüssel (`msg`, siehe messages.js),
-// damit die Oberfläche sie in ihrer Sprache zeigt. Ein Text von außen kommt ohne `msg`.
+// An answer with an error: the English sentence in `error`, plus the message as a key (`msg`, see messages.js),
+// so that the interface shows it in its own language. A text from outside comes without `msg`.
 const failure = (message) => (isMsg(message) ? { error: render(message), msg: message } : { error: String(message) });
 
-// Liest das JSON-Objekt einer Anfrage. Wirft mit einer Meldung für die Oberfläche, wenn es keines ist oder zu groß.
+// Reads the JSON object of a request. Throws with a message for the interface if it isn't one or is too large.
 function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
-    // Bricht die Verbindung mitten im Aufruf ab, endet das Warten trotzdem.
+    // If the connection breaks off mid-call, the waiting ends anyway.
     request.on('error', reject);
     request.on('close', () => { if (!request.complete) reject(new Fault('m_bodyIncomplete')); });
     request.on('data', (chunk) => {
@@ -34,25 +34,25 @@ function readBody(request) {
     request.on('end', () => {
       try {
         const data = body ? JSON.parse(body) : {};
-        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('kein Objekt');
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not an object');
         resolve(data);
       } catch { reject(new Fault('m_bodyNotJson')); }
     });
   });
 }
 
-//   access                  siehe access.js
-//   token                   schützt die ändernden Aufrufe; steht in der Seite
-//   uiFile, fontsDir        die Seite (wird bei jedem Laden frisch gelesen) und der Ordner der Schriften
-//   routes                  `status()`, `dayMinutes()`, `log()` ({ stamp, entries }), `logFile()` (Text), `repos()` (Promise)
-//   actions()               die Aufrufe: Name -> async (Objekt aus der Anfrage)
+//   access                  see access.js
+//   token                   protects the changing calls; is in the page
+//   uiFile, fontsDir        the page (read fresh on every load) and the fonts folder
+//   routes                  `status()`, `dayMinutes()`, `log()` ({ stamp, entries }), `logFile()` (text), `repos()` (promise)
+//   actions()               the calls: name -> async (object from the request)
 function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
   const page = (nonce) => fs.readFileSync(uiFile, 'utf8').replace('__TOKEN__', token).replace('__NONCE__', nonce);
 
   return http.createServer(async (request, response) => {
     const json = (code, data) => { response.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data)); };
     const get = (url) => request.method === 'GET' && request.url === url;
-    // Nur der eigene Rechner unter seinem eigenen Namen: hält umgeleitete Namen fremder Seiten draußen.
+    // Only this machine under its own name: keeps out redirected names of foreign pages.
     if (!access.hostAllowed(request.headers)) return json(403, failure(msg('m_wrongHost')));
     if (get('/api/ping')) return json(200, { ok: true });
     const font = request.method === 'GET' && request.url.match(FONT);
@@ -60,7 +60,7 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
       response.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=31536000, immutable' });
       return response.end(fs.readFileSync(path.join(fontsDir, font[1])));
     }
-    // Der Einstieg tauscht den Schlüssel gegen das Cookie; alles Weitere gibt es nur mit Cookie (siehe access.js).
+    // The entry swaps the key for the cookie; everything else is only available with the cookie (see access.js).
     if (request.method === 'GET' && access.entering(request.url)) {
       response.writeHead(302, { location: '/', 'set-cookie': access.cookie, 'cache-control': 'no-store' });
       return response.end();
@@ -74,7 +74,7 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
     if (get('/api/status')) return json(200, routes.status());
     if (get('/api/metrics/day')) return json(200, routes.dayMinutes());
     if (get('/api/log')) return json(200, routes.log());
-    // Die ganze Datei zum Speichern oder Kopieren.
+    // The whole file for saving or copying.
     if (get('/api/log/file')) {
       response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': 'attachment; filename="runclub.log"', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
       return response.end(routes.logFile());
@@ -94,13 +94,13 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
   });
 }
 
-// Führt die Aufrufe aus actions.js und die der App zusammen. Derselbe Name an zwei Stellen ist ein Fehler: Einer der
-// beiden würde sonst still verdeckt.
+// Merges the calls from actions.js and those of the app. The same name in two places is an error: otherwise one of
+// the two would be silently hidden.
 function mergeActions(...sets) {
   const merged = {};
   for (const set of sets) {
     for (const [name, action] of Object.entries(set)) {
-      if (Object.hasOwn(merged, name)) throw new Error(`Den Aufruf ${name} gibt es doppelt.`);
+      if (Object.hasOwn(merged, name)) throw new Error(`The call ${name} exists twice.`);
       merged[name] = action;
     }
   }

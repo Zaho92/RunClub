@@ -19,9 +19,9 @@
   a { color: inherit; text-decoration: none; }
   button, input { font: inherit; color: inherit; }
   #app { display: grid; grid-template-columns: 232px minmax(0, 1fr); height: 100%; }
-  /* Im Fenster der App gibt es keine Titelleiste von Windows. Die obersten 32 px sind über die ganze Breite der
-     Griff zum Ziehen; rechts oben liegen darüber die Knöpfe von Windows. Darunter beginnen Leiste und Hauptbereich
-     auf derselben Höhe. Im Browser entfällt der Streifen. */
+  /* The app window has no Windows title bar. The top 32 px across the full width are the
+     handle for dragging; at the top right the Windows buttons lie above it. Below it the bar and main area start
+     at the same height. In the browser the strip is dropped. */
   #bar { display: none; }
   .shell #app { grid-template-rows: 32px minmax(0, 1fr); }
   .shell #bar { display: block; grid-column: 2; grid-row: 1; -webkit-app-region: drag; }
@@ -30,7 +30,7 @@
   .shell .brand { -webkit-app-region: drag; }
   .shell #main { grid-row: 2; padding-top: 6px; }
   .shell .band { top: -6px; margin-top: -6px; padding-top: 6px; }
-  /* Beim Beenden gehört das ganze Fenster dem Abbau (siehe renderShutdown): keine Leiste, im Streifen die Wortmarke. */
+  /* On quit the whole window belongs to the teardown (see renderShutdown): no bar, the wordmark in the strip. */
   .ending #app { grid-template-columns: minmax(0, 1fr); }
   .ending #rail { display: none; }
   .shell.ending #bar { grid-column: 1; padding: 0 14px; font-weight: 600; font-size: 15px; line-height: 32px; color: var(--muted); }
@@ -45,13 +45,13 @@
   .ending .col { max-width: none; }
   .ending .pill { pointer-events: none; }
   .ending .s-wait .tm { color: var(--muted); }
-  /* Gekürzt wird beim Abbruch nur der Name des Jobs, nie was mit ihm geschieht oder seine Anführungszeichen. */
+  /* On truncation only the job name is shortened, never what happens to it or its quotation marks. */
   .ending .abort { display: flex; min-width: 0; }
   .ending .abort > span { flex: none; }
   .ending .abort > span:first-child { margin-right: .3em; }
   .ending .abort > .jn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-  /* Projektleiste */
+  /* Project bar */
   #rail { background: var(--rail); padding: 22px 14px 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
   .brand { font-weight: 600; font-size: 22px; color: var(--ink); padding: 0 12px 14px; }
   .nav { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 12px 8px 36px; position: relative; cursor: pointer; }
@@ -65,7 +65,7 @@
   .nav > span > .c-fail { display: block; overflow: hidden; text-overflow: ellipsis; }
   .railfoot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 16px; }
 
-  /* Hauptbereich */
+  /* Main area */
   #main { overflow-y: auto; padding: 26px 44px 40px; }
   .stack { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
   .head { display: flex; align-items: flex-end; gap: 24px; }
@@ -82,7 +82,7 @@
   .tag { display: inline-block; font-size: 12px; border: 1px solid var(--edge); border-radius: 999px; padding: 1px 10px; color: var(--muted); }
   .tag.c-fail { border-color: var(--fail-edge); }
 
-  /* Netzplan */
+  /* Network plan */
   .planwrap { overflow-x: auto; padding: 4px 0 72px; margin-bottom: -72px; }
   .plan { position: relative; display: flex; align-items: center; gap: clamp(40px, 6vw, 96px); width: 100%; }
   .plan > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -104,8 +104,8 @@
   .pill .tm { color: var(--text); }
   .pill .tm.over { color: var(--run); }
   .pill .line { grid-column: 2 / 4; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 2px; }
-  /* Die Details sind eine zweite Fläche in der Form der Pill, deckungsgleich hinter ihrem Inhalt. Beim Überfahren
-     wächst diese eine Form nach unten; Ecken und Rand ändern sich dabei nicht. */
+  /* The details are a second surface in the shape of the pill, congruent behind its content. On hover
+     this one shape grows downwards; corners and border do not change. */
   .pill .more { position: absolute; z-index: 0; left: -1px; right: -1px; top: -1px; min-height: calc(100% + 2px); padding-top: 38px; display: grid; grid-template-rows: 0fr; opacity: 0; pointer-events: none; background: var(--raised); border: 1px solid var(--track); border-radius: 21px; transition: grid-template-rows .28s var(--ease), opacity .12s linear; }
   .pill.lined .more { padding-top: 33px; }
   .pill .line { transition: opacity .12s linear; }
@@ -126,10 +126,10 @@
   .legend span { display: inline-flex; align-items: center; gap: 7px; }
   .legend .ic { width: 18px; height: 18px; } .legend .ic svg { width: 11px; height: 11px; }
 
-  /* Auslastung */
+  /* Usage */
   .band { position: sticky; top: -26px; z-index: 4; background: var(--ground); margin-top: -26px; padding: 26px 0 16px; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.7fr); gap: 34px; }
   .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; }
-  /* Plätze: so hoch wie die Kurven daneben; die Zeilen rollen in sich, die Legende bleibt unten stehen. */
+  /* Slots: as tall as the curves next to them; the rows scroll within, the legend stays at the bottom. */
   #seats { display: flex; flex-direction: column; min-width: 0; }
   .seatlist { flex: 1 1 0; min-height: 0; contain: size; overflow-y: auto; align-content: start; display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 18px; padding-right: 6px; }
   .seatlist.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -138,7 +138,7 @@
   .seat .dots { display: flex; align-items: center; gap: 4px; flex: none; }
   .seat .ic, .seatkey .ic { width: 14px; height: 14px; border-width: 1.5px; } .seat .ic svg, .seatkey .ic svg { width: 10px; height: 10px; }
   .seat .s-wait circle, .seatkey .s-wait circle { r: 3px; }
-  /* Die Reserve ist in allen Zeilen gleich breit (--rsv Punkte), so enden die Platzsymbole an einer Kante. */
+  /* The reserve is equally wide in all rows (--rsv dots), so the slot symbols end at one edge. */
   .rsvs { display: flex; align-items: center; gap: 4px; flex: none; width: calc(var(--rsv) * 11px - 4px); margin-left: 4px; }
   .rsv { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--track); }
   .rsv.on { background: var(--track); } .rsv.half { background: linear-gradient(90deg, var(--track) 50%, transparent 50%); }
@@ -179,7 +179,7 @@
   .mini { display: inline-flex; align-items: center; margin-right: 12px; vertical-align: -3px; } .mini i { width: 9px; height: 2px; background: var(--track); }
   .quiet .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Bedienelemente */
+  /* Controls */
   section + section { border-top: 1px solid var(--rule); padding-top: 22px; }
   .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .grow { flex: 1; min-width: 0; }
@@ -194,9 +194,9 @@
   .push { margin-left: auto; }
   .btn.danger { color: var(--fail-text); border-color: var(--fail-edge); }
   .btn.step, .btn.only { width: 30px; padding: 5px 0; }
-  /* „Job erneut starten“: Die Schaltfläche steckt nicht im Link der Pill, sondern steht neben ihm im selben Rahmen
-     (.job) und erscheint rechts in den aufgeklappten Details. Über ihr verhält sich die Pill wie überfahren. Sie liegt
-     auf `raised` und nimmt deshalb die Rahmentöne als Stufen, wie die Schaltflächen der Rückfrage. */
+  /* "Re-run job": the button is not inside the pill's link but next to it in the same frame
+     (.job) and appears on the right in the expanded details. Over it the pill behaves as if hovered. It sits
+     on `raised` and therefore takes the border tones as steps, like the buttons of the confirmation. */
   .job { position: relative; }
   .job:hover > .pill, .job:has(:focus-visible) > .pill { background: var(--raised); border-color: var(--track); z-index: 3; }
   .job:hover > .pill.lined .line, .job:has(:focus-visible) > .pill.lined .line { opacity: 0; }
@@ -226,7 +226,7 @@
   input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--ink); border: 0; }
   input[type=range]:disabled { opacity: .5; cursor: default; }
   code { font: 12px Consolas, monospace; color: var(--text); overflow-wrap: anywhere; }
-  /* Protokoll: je Meldung eine Zeile aus Zeit, Projekt, Zustandssymbol und Text; die neueste steht oben. */
+  /* Log: one row per message of time, project, state symbol and text; the newest is on top. */
   .log { list-style: none; margin: 0; padding: 0; }
   .log.open { max-height: 496px; overflow-y: auto; }
   .log li { display: grid; grid-template-columns: 92px 128px 16px minmax(0, 1fr); column-gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); }
@@ -238,7 +238,7 @@
   .seg.wide { flex-wrap: wrap; max-width: 100%; }
   .empty { max-width: 52ch; }
 
-  /* Einstellungen: eine Strecke mit einer Haltestelle je Abschnitt */
+  /* Settings: a line with one stop per section */
   .set { max-width: 860px; }
   .route { display: flex; flex-direction: column; gap: 44px; padding-left: 44px; }
   .route section + section { border-top: 0; padding-top: 0; }
@@ -298,7 +298,7 @@
   .um { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; column-gap: 14px; }
   .um.solo { grid-template-columns: minmax(0, 1fr); }
   .um i { position: relative; height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--chart) var(--v), var(--edge) var(--v)); }
-  /* Ab dieser Marke gilt es als knapp; wo sie sitzt, sagt das Backend (`tightAt`). */
+  /* From this mark on it counts as tight; where it sits is up to the backend (`tightAt`). */
   .um i::after { content: ""; position: absolute; left: var(--mark); top: -4px; height: 12px; border-left: 2px dotted var(--muted); }
   .um i.alarm { background: linear-gradient(to right, var(--fail) var(--v), var(--edge) var(--v)); }
   .um b { font-weight: 400; color: var(--ink); white-space: nowrap; }
@@ -315,12 +315,12 @@
   .setup.first h2 + .info { vertical-align: 0; }
   .arow .fault { margin-bottom: 6px; }
   .flow { display: flex; flex-direction: column; gap: 10px; }
-  /* Anmeldung bei GitHub: der Einmalcode als Kennzahl, mit einem Klick als Ganzes markiert. */
+  /* Sign-in with GitHub: the one-time code as a figure, selected as a whole with one click. */
   .v.code { user-select: all; font-family: Consolas, monospace; }
   .note a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
   .note a:hover { color: var(--ink); }
 
-  /* Rückfrage: schwebt wie Tooltip und Meldung, eine Stufe über der Fläche, mit Rahmen statt Schatten. */
+  /* Confirmation: floats like tooltip and toast, one step above the surface, with a border instead of a shadow. */
   dialog { width: min(440px, calc(100vw - 48px)); padding: 22px 24px 20px; background: var(--raised); color: var(--text); border: 1px solid var(--track); border-radius: 8px; }
   dialog::backdrop { background: color-mix(in srgb, var(--rail) 72%, transparent); }
   dialog[open] { animation: rise .2s var(--ease); }
@@ -329,20 +329,20 @@
   @keyframes veil { from { opacity: 0; } }
   dialog h2 { overflow-wrap: anywhere; }
   dialog p { margin: 8px 0 22px; max-width: 46ch; }
-  /* Auf `raised` gibt es keine hellere Fläche mehr: Schaltflächen nehmen hier die Rahmentöne als Stufen. */
+  /* On `raised` there is no lighter surface left: buttons take the border tones as steps here. */
   dialog .btn { background: var(--edge); border-color: var(--cap); }
   dialog .btn:hover { background: var(--cap); border-color: var(--track); }
   dialog .btn:active { background: var(--raised); }
   dialog .btn.danger { border-color: var(--fail-edge); }
-  /* Was Enter auslöst, ist immer zu sehen, auch wenn die Rückfrage mit der Maus geöffnet wurde. */
+  /* What Enter triggers is always visible, even if the confirmation was opened with the mouse. */
   dialog .btn:focus { outline: 2px solid var(--chart); outline-offset: 2px; }
 
   #tip, #toast { position: fixed; z-index: 5; background: var(--raised); color: var(--ink); border: 1px solid var(--track); border-radius: 6px; font-weight: 400; display: none; }
   input { caret-color: var(--chart); }
   #tip { pointer-events: none; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
   #toast { left: 50%; bottom: 22px; transform: translateX(-50%); padding: 9px 16px; max-width: 90vw; }
-  /* Das Info-Element: ein kleines gezeichnetes „i“ neben einem Titel. Überfahren und Fokus zeigen die Erklärung in
-     einer Fläche wie der Tooltip, aber mehrzeilig und am Symbol verankert (siehe showInfo). */
+  /* The info element: a small drawn "i" next to a title. Hover and focus show the explanation in
+     a surface like the tooltip, but multi-line and anchored to the symbol (see showInfo). */
   .info { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; margin: 0 0 0 6px; padding: 0; vertical-align: -3px; background: none; border: 0; border-radius: 50%; color: var(--muted); cursor: help; transition: color .15s; }
   .info::after { content: ""; position: absolute; inset: -5px; }
   .info:hover, .info:focus-visible { color: var(--ink); }
@@ -522,7 +522,7 @@ const TEXT = {
     m_rebuildFailed: '{0} ließ sich nicht neu bauen ({1}); die Runner nutzen das vorhandene.',
     m_imagesDaily: 'Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …',
     m_imagesBuild: 'Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …',
-    m_whatImages: 'Abbilder von Runner und Docker-Daemon', m_orphansRemoved: 'Reste nach der Unterbrechung entfernt: {0} Container, {1} Volumes',
+    m_whatImages: 'Abbilder von Runner und Docker-Daemon', m_whatTemplate: 'Vorlage', m_orphansRemoved: 'Reste nach der Unterbrechung entfernt: {0} Container, {1} Volumes',
     m_staleRunners: '{0} verwaiste Runner bei GitHub abgemeldet', m_whatOldRunners: 'Abmelden alter Runner',
     m_serviceRetry: 'Versuche erneut, den Build-Dienst anzulegen', m_serviceRenew: 'Lege den Build-Dienst mit den neuen Limits an',
     m_serviceNetFailed: 'Netz für den Build-Dienst lässt sich nicht anlegen – {0}', m_serviceFailed: 'Build-Dienst startet nicht – {0}',
@@ -537,7 +537,7 @@ const TEXT = {
     m_loginFirst: 'Erst bei GitHub anmelden.',
     m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
     m_notIn: 'Du bist nicht bei GitHub angemeldet.',
-    m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).', m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.', m_githubNoAccount: 'GitHub nennt kein Konto zur Anmeldung.', m_tokenNotSaved: 'Die Anmeldung ließ sich nicht sichern ({0}); sie gilt bis zum Ende dieses Programms.', m_tokenNotRemoved: '{0} ließ sich nicht löschen ({1}); nach einem Neustart gilt die Anmeldung wieder. Die Datei liegt verschlüsselt im Datenordner.', m_loginFailed: 'Anmeldung bei GitHub gescheitert: {0}', m_loginLate: 'der Code wurde nicht rechtzeitig bestätigt', m_noReason: 'GitHub nannte keinen Grund',
+    m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).', m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.', m_githubNoAccount: 'GitHub nennt kein Konto zur Anmeldung.', m_tokenNotSaved: 'Die Anmeldung ließ sich nicht sichern ({0}); sie gilt bis zum Ende dieses Programms.', m_tokenNotRemoved: '{0} ließ sich nicht löschen ({1}); nach einem Neustart gilt die Anmeldung wieder. Die Datei liegt verschlüsselt im Datenordner.', m_loginFailed: 'Anmeldung bei GitHub gescheitert: {0}', m_loginLate: 'der Code wurde nicht rechtzeitig bestätigt', m_noReason: 'GitHub nannte keinen Grund', m_whatSignIn: 'Anmeldung bei GitHub',
     m_listening: 'Runner-Anzeige: {0}', m_stopping: 'Beende die Runner …',
     m_stopped: 'Beendet.', m_keyNotSaved: 'Der Schlüssel ließ sich nicht ablegen – {0}',
     m_settingsBroken: '{0} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter {1}.',
@@ -705,7 +705,7 @@ const TEXT = {
     m_rebuildFailed: '{0} could not be rebuilt ({1}); the runners use the existing one.',
     m_imagesDaily: 'Rebuilding the runner and Docker daemon images (daily refresh) …',
     m_imagesBuild: 'Building the runner image (with GitHub’s latest runner) and the Docker daemon image …',
-    m_whatImages: 'Runner and Docker daemon images', m_orphansRemoved: 'Removed leftovers after the interruption: {0} containers, {1} volumes',
+    m_whatImages: 'Runner and Docker daemon images', m_whatTemplate: 'Template', m_orphansRemoved: 'Removed leftovers after the interruption: {0} containers, {1} volumes',
     m_staleRunners: 'Removed {0} orphaned runners from GitHub', m_whatOldRunners: 'Removing old runners',
     m_serviceRetry: 'Trying again to create the build service', m_serviceRenew: 'Creating the build service with the new limits',
     m_serviceNetFailed: 'Could not create the network for the build service – {0}', m_serviceFailed: 'Build service does not start – {0}',
@@ -719,7 +719,7 @@ const TEXT = {
     m_alreadyIn: 'You are already signed in as {0}.',
     m_loginFirst: 'Sign in to GitHub first.',
     m_finishLogin: 'Finish or cancel the running sign-in first.', m_notIn: 'You are not signed in to GitHub.',
-    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).', m_signInLost: 'GitHub no longer accepts the sign-in of {0}; please sign in again.', m_githubNoAccount: 'GitHub names no account for the sign-in.', m_tokenNotSaved: 'The sign-in could not be saved ({0}); it lasts until this program ends.', m_tokenNotRemoved: '{0} could not be deleted ({1}); after a restart the sign-in applies again. The file is stored encrypted in the data folder.', m_loginFailed: 'Signing in to GitHub failed: {0}', m_loginLate: 'the code was not confirmed in time', m_noReason: 'GitHub gave no reason',
+    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).', m_signInLost: 'GitHub no longer accepts the sign-in of {0}; please sign in again.', m_githubNoAccount: 'GitHub names no account for the sign-in.', m_tokenNotSaved: 'The sign-in could not be saved ({0}); it lasts until this program ends.', m_tokenNotRemoved: '{0} could not be deleted ({1}); after a restart the sign-in applies again. The file is stored encrypted in the data folder.', m_loginFailed: 'Signing in to GitHub failed: {0}', m_loginLate: 'the code was not confirmed in time', m_noReason: 'GitHub gave no reason', m_whatSignIn: 'Signing in to GitHub',
     m_listening: 'Runner display: {0}',
     m_stopping: 'Stopping the runners …', m_stopped: 'Stopped.', m_keyNotSaved: 'Could not save the key – {0}',
     m_settingsBroken: 'Could not read {0}; it is created anew. The old file is at {1}.', m_bodyIncomplete: 'The request did not arrive completely.',
@@ -734,32 +734,32 @@ const TEXT = {
     m_updateNoInstaller: 'The installer {1} is missing for {0}.', m_unknownChannel: 'Unknown channel: {0}',
   },
 };
-// Die Zustände eines Platzes, wie das Backend sie nennt (SLOT in src/states.js); ihre Wörter stehen als `st_<Zustand>` in TEXT.
+// The states of a slot as the backend names them (SLOT in src/states.js); their words are in TEXT as `st_<state>`.
 const SLOT = { WORKING: 'working', READY: 'ready', STARTING: 'starting', BROKEN: 'broken', OFF: 'off', PAUSED: 'paused' };
-// Bis zu dieser Breite gilt das Fenster als schmal; dieselbe Grenze steht im CSS (`max-width: 760px`) und in main.js.
+// Up to this width the window counts as narrow; the same limit is in the CSS (`max-width: 760px`) and in main.js.
 const NARROW = 760;
-const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* ohne Speicher */ } } };
-// Im Fenster der App zeichnet die Seite den Streifen zum Ziehen selbst.
+const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* no storage */ } } };
+// In the app window the page draws the drag strip itself.
 if (/Electron/.test(navigator.userAgent)) document.documentElement.classList.add('shell');
-let lang = store.get('lang', /^de\b/i.test(navigator.language) ? 'de' : 'en'); // ohne Wahl die Sprache des Systems
+let lang = store.get('lang', /^de\b/i.test(navigator.language) ? 'de' : 'en'); // without a choice, the system's language
 let mode = store.get('mode', 'compact');
 let view = store.get('view', 'all');
 let data = null;
 let repoList = null;
 let dayData = null;
-let seatOf = new Map(); // Name eines Runners -> sein Platz im Pool
-const charts = {}; // Kennung -> { at, values, span, format } für die Anzeige unter dem Mauszeiger
+let seatOf = new Map(); // a runner's name -> its slot in the pool
+const charts = {}; // id -> { at, values, span, format } for the readout under the mouse pointer
 
 const t = (key, ...args) => (TEXT[lang][key] ?? key).replace(/\{(\d)\}/g, (_, i) => args[i]);
-// Eine Meldung des Backends ({ key, args }, siehe src/messages.js) in der gewählten Sprache; ein Text von außen bleibt,
-// wie er ist. Ein Wert kann selbst eine Meldung sein, eine Liste oder eine Uhrzeit ({ time }).
+// A backend message ({ key, args }, see src/messages.js) in the chosen language; a text from outside stays
+// as it is. A value can itself be a message, a list or a time of day ({ time }).
 const said = (m) => (Array.isArray(m) ? m.map(said).join(', ') : typeof m === 'number' ? m.toLocaleString(locale(), { maximumFractionDigits: 1 })
   : !m || typeof m !== 'object' ? String(m ?? '') : 'time' in m ? hourMinute(m.time) : typeof m.key === 'string' ? t(m.key, ...(Array.isArray(m.args) ? m.args : []).map(said)) : '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-// Zahlen, Zeiten und Daten in der Schreibweise der gewählten Sprache.
+// Numbers, times and dates in the notation of the chosen language.
 const locale = () => (lang === 'de' ? 'de-DE' : 'en-GB');
 const hourMinute = (date) => new Date(date).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
-const whole = (n) => n.toLocaleString(locale()); // eine ganze Zahl mit Tausenderzeichen
+const whole = (n) => n.toLocaleString(locale()); // a whole number with thousands separators
 const num = (n, digits = 1) => n.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
 const gb = (b) => num(b / 1073741824) + ' GB';
 const mb = (b) => (b >= 1073741824 ? gb(b) : Math.round(b / 1048576) + ' MB');
@@ -769,15 +769,15 @@ const span = (s) => (s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 6
 const ago = (iso) => { const s = secondsSince(iso); return s < 45 ? t('justNow') : t('ago', span(s)); };
 const leftText = (iso) => { const s = (new Date(iso) - Date.now()) / 1000; return s < 40 ? t('soon') : t('left', Math.max(1, Math.round(s / 60))); };
 const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/i); return m ? Number(m[1]) * (m[2].toLowerCase() === 'g' ? 1073741824 : 1048576) : 0; };
-const shortRepo = (repo) => repo.split('/')[1]; // der Name ohne den Besitzer
+const shortRepo = (repo) => repo.split('/')[1]; // the name without the owner
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
 const stateText = (state) => (TEXT[lang]['st_' + state] ? t('st_' + state) : state);
-// Der Zustand eines Runners samt „läuft aus“, wenn der Platz wegfällt, sobald er frei ist.
+// The state of a runner including "phasing out" if the slot goes away as soon as it is free.
 const runnerState = (r) => stateText(r.state) + (r.retiring ? ', ' + t('retiring') : '');
 const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
 const icon = (state) => '<span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[state] + '</svg></span>';
 const jobState = (j) => j.status === 'in_progress' ? 'run' : j.status !== 'completed' ? 'wait' : ({ success: 'done', failure: 'fail', timed_out: 'fail', cancelled: 'cancel', skipped: 'skip' })[j.conclusion] ?? 'done';
-// Setzt den Inhalt nur, wenn er sich geändert hat – so bleiben Mauszeiger-Zustand und Übergänge erhalten.
+// Sets the content only if it changed – so hover state and transitions are kept.
 function morph(from, to) {
   if (from.nodeType !== to.nodeType || from.nodeName !== to.nodeName) { from.replaceWith(to.cloneNode(true)); return; }
   if (from.nodeType === 3) { if (from.data !== to.data) from.data = to.data; return; }
@@ -795,8 +795,8 @@ function put(el, html) {
   return true;
 }
 
-// Die Rückfrage der App: nennt in der Überschrift, was geschehen soll, darunter die Folge. „Abbrechen“ hat den
-// Fokus; Escape und ein Klick neben das Feld brechen ebenfalls ab.
+// The app's confirmation: the heading names what is about to happen, below it the consequence. "Cancel" has
+// focus; Escape and a click beside the box cancel as well.
 function ask({ title, text, ok, danger }) {
   const box = document.getElementById('ask');
   const yes = document.getElementById('askYes');
@@ -828,7 +828,7 @@ async function call(action, body) {
   } catch { toast(t('noAnswer')); return false; }
 }
 
-// --- Projektleiste ---
+// --- Project bar ---
 
 function projectState(entry) {
   const jobs = entry.pipelines.flatMap((p) => p.jobs);
@@ -847,7 +847,7 @@ function projectState(entry) {
   return { dot: 'idle', text: t('ready') };
 }
 
-// Projekte, deren Jobs ihr Limit erreicht haben oder ihm nahe kamen: Dort gibt es in den Einstellungen etwas zu tun.
+// Projects whose jobs reached their limit or came close to it: there is something to do in the settings.
 function limitTrouble() {
   const at = (state) => data.repos.filter((entry) => entry.pool?.limits?.fit?.state === state);
   const full = at('full');
@@ -855,50 +855,50 @@ function limitTrouble() {
   return repos.length ? { text: t(full.length ? 'tagFull' : 'tagTight'), repos: repos.map((entry) => entry.repo) } : null;
 }
 
-// --- Anmeldung bei GitHub ---
+// --- Sign-in with GitHub ---
 
-// Was an der Anmeldung zu tun ist, als kurzer Satz für Leiste und Warn-Tag; sonst null. Nicht angemeldet ist eine
-// Störung mit Ausweg und deshalb rot. Die Zustandswörter kommen vom Backend (siehe STATE und FLOW in auth.js).
+// What needs doing about the sign-in, as a short sentence for bar and warning tag; otherwise null. Signed out is a
+// fault with a way out and therefore red. The state words come from the backend (see STATE and FLOW in auth.js).
 function authTrouble() {
   return data.auth?.state === 'out' ? t('authOut') : null;
 }
-// Noch kein Projekt und niemand angemeldet: Das ist der Anfang und keine Störung, also nicht rot.
+// No project yet and nobody signed in: that is the beginning and not a fault, so not red.
 const authStart = () => data.auth?.state === 'out' && !data.repos.length;
-// Ein Link zu GitHub; nur solche öffnet das Fenster der App im Browser (siehe main.js). Ohne gültige Adresse nichts.
+// A link to GitHub; only such links are opened by the app window in the browser (see main.js). No valid URL, nothing.
 const githubUrl = (url) => String(url ?? '').startsWith('https://github.com/');
 const githubLink = (url, text) => (githubUrl(url) ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(text) + '</a>' : '');
 const githubButton = (url, text) => (githubUrl(url) ? '<a class="btn" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(text) + '</a>' : '');
-// Wo die App RunClub für ein weiteres Konto oder eine Org installiert wird; ohne Adresse entfällt der ganze Satz.
+// Where the RunClub app is installed for another account or org; without a URL the whole sentence is dropped.
 const installNote = () => (githubUrl(data.auth?.install) ? '<div class="note">' + esc(t('addMissing')) + ' ' + githubLink(data.auth.install, t('addInstall')) + '</div>' : '');
 
-// Der Inhalt der Haltestelle „GitHub“: wer angemeldet ist und was RunClub darf, oder der laufende Ablauf mit dem
-// Einmalcode. `first`: als erster Schritt ohne Projekte; dort sagt schon die Überschrift, dass die Anmeldung fehlt.
+// The content of the "GitHub" stop: who is signed in and what RunClub may do, or the running flow with the
+// one-time code. `first`: as the first step without projects; there the heading already says the sign-in is missing.
 function authBody(first) {
   const a = data.auth;
   const flow = a.flow;
   const act = (action, text, values = '') => '<button class="btn" data-do="' + action + '"' + values + '>' + esc(text) + '</button>';
-  // Eine Zeile wie im Abschnitt App: Titel, Satz darunter, rechts die Schaltfläche. `alarm` färbt den Titel rot.
-  // `above`: die Meldung eines gescheiterten Ablaufs; sie steht in der Zeile, damit sie nicht als Nachsatz der vorigen
-  // gelesen wird. Als erster Schritt steht der Titel der Störung schon in der Überschrift der Ansicht, und die Zeilen
-  // kommen ohne Haarlinie aus. `more`: die Absätze des Info-Elements am Titel.
+  // A row like in the App section: title, sentence below, the button on the right. `alarm` colours the title red.
+  // `above`: the message of a failed flow; it sits in the row so that it is not read as a trailer of the previous
+  // one. As the first step the title of the fault is already in the view's heading, and the rows
+  // do without a hairline. `more`: the paragraphs of the info element at the title.
   const line = (title, hint, control, alarm, above = '', more = []) => {
     const titled = title && !(first && alarm);
     const tip = info(title, ...more);
     return '<div class="arow' + (first ? ' bare' : '') + '"><div>' + above + (titled ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' + tip : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + '</div></div>' + (control ?? '') + '</div>';
   };
   if (flow?.state === 'starting') return line('', t('authStarting'), act('auth/cancel', t('cancel')));
-  // Erst der Code, dann die Seite, auf der er einzugeben ist.
+  // First the code, then the page where it is to be entered.
   if (flow?.state === 'waiting') return '<div class="flow"><div><div class="k">' + t('authCode') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + t('authEnter') + '</div>' +
     '<div class="row"><button class="btn" data-copy="' + esc(flow.code) + '">' + glyph('copy') + t('authCopy') + '</button>' + githubButton(flow.url, t('authOpen')) + '<span class="row push">' + act('auth/cancel', t('cancel')) + '</span></div></div>';
-  // Warum ein Ablauf scheiterte, sagt die Oberfläche in ihrer Sprache; nur was GitHub selbst meldet, steht wörtlich da.
-  // Abgelehnt hat der Nutzer selbst: Das ist keine Störung und steht ohne Rot da.
+  // Why a flow failed is said by the interface in its language; only what GitHub itself reports is shown verbatim.
+  // The user declined themselves: that is not a fault and is shown without red.
   const why = flow?.state !== 'failed' || flow.why === 'denied' ? '' : flow.why === 'late' ? t('authLate') : flow.error ? t('authGithubSays', flow.error) : t('authNoReason');
   const failed = flow?.state === 'failed' && flow.why === 'denied' ? '<div class="note measure">' + esc(t('authDenied')) + '</div>' : why ? '<div class="note measure c-fail fault">' + esc(t('authFailed', why)) + '</div>' : '';
   if (a.state === 'out') return first ? failed + '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true, failed, [t('authOutInfo')]);
   if (a.state !== 'in') return '<div class="note">' + t('authChecking') + '</div>';
-  // In der Zeile steht kurz, wofür RunClub die Anmeldung nutzt; im Info, was die App darf und wo man sie widerruft.
-  // Abmelden trifft Jobs und fragt deshalb nach; rot ist es nicht, weil sich wieder anmelden lässt.
-  // Der Widerruf steht als Link in der Zeile: Im Info wäre er weder zu sehen noch mit der Tastatur zu erreichen.
+  // The row says briefly what RunClub uses the sign-in for; the info says what the app may do and where to revoke it.
+  // Signing out affects jobs and therefore asks first; it is not red because one can sign in again.
+  // Revoking is a link in the row: in the info it would neither be visible nor reachable by keyboard.
   const revoke = githubLink(a.revoke, t('authRevokeLink'));
   return line(t('authIn', a.login ?? ''), t('authWhatShort') + (revoke ? ' ' + revoke : ''), act('auth/logout', t('authLogout'), ' data-confirm="' + esc(t('authConfirmOut')) + '"'), false, failed,
     [t('authWhat', '<code>CI_RUNNER</code>'), t('authLocal')]);
@@ -907,7 +907,7 @@ function authBody(first) {
 function renderRail() {
   const runners = data.repos.flatMap((r) => r.runners);
   const count = (state) => runners.filter((r) => r.state === state).length;
-  // Fehlt die Anmeldung, geht das allem anderen vor: Ohne sie lässt sich an den Limits nichts tun.
+  // A missing sign-in comes before everything else: without it nothing can be done about the limits.
   const signIn = authTrouble();
   const trouble = limitTrouble();
   const usage = usageTrouble();
@@ -919,11 +919,11 @@ function renderRail() {
     '<div class="railfoot">' + item('usage', t('usage'), !usage ? '' : usage.out ? '<span class="c-fail">' + esc(usage.text) + '</span>' : esc(usage.text), '', true, Boolean(usage?.out)) + item('settings', t('settings'), signIn ? (authStart() ? esc(signIn) : '<span class="c-fail">' + esc(signIn) + '</span>') : trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean((signIn && !authStart()) || trouble)) + '</div>');
 }
 
-// --- Docker auf diesem Rechner ---
+// --- Docker on this machine ---
 
-// Was dem Rechner für Docker fehlt (siehe setup.js), je Stück eine Zeile wie bei der Anmeldung: Titel mit Info, was zu
-// tun ist, rechts der Ausweg. Ohne Projekte ist das der Anfang und nicht rot, und die Zeilen tragen wie dort keine
-// Haarlinie; fällt Docker später aus, ist es eine Störung mit Ausweg. Der Link führt zur Anleitung von Docker (main.js öffnet ihn im Browser).
+// What the machine lacks for Docker (see setup.js), one row per item like for the sign-in: title with info, what to
+// do, the way out on the right. Without projects this is the beginning and not red, and as there the rows carry no
+// hairline; if Docker fails later, it is a fault with a way out. The link leads to Docker's guide (main.js opens it in the browser).
 const DOCKER_INSTALL = 'https://docs.docker.com/desktop/setup/install/windows-install/';
 const setupMissing = () => data.machine.docker.setup?.missing ?? [];
 function setupRows(first) {
@@ -938,27 +938,27 @@ function setupRows(first) {
   return setupMissing().filter((key) => controls[key]).map((key) => row(key, key === 'wsl' ? t('su_wslMore', '<code>wsl --install</code>') : t('su_' + key + 'More'), controls[key]())).join('');
 }
 
-// --- Netzplan ---
+// --- Network plan ---
 
 function columnsOf(pipeline) {
   const jobs = pipeline.jobs;
-  if (!pipeline.graph || jobs.every((j) => !j.needs.length)) { // ohne Abhängigkeiten: in Startreihenfolge, sechs je Spalte
+  if (!pipeline.graph || jobs.every((j) => !j.needs.length)) { // without dependencies: in start order, six per column
     const ordered = [...jobs].sort((a, b) => String(a.startedAt ?? '9').localeCompare(String(b.startedAt ?? '9')));
     return Array.from({ length: Math.ceil(ordered.length / 6) }, (_, i) => ordered.slice(i * 6, i * 6 + 6));
   }
   const columns = [];
   for (const job of jobs) (columns[job.stage] ??= []).push(job);
   const rowOf = new Map();
-  columns.filter(Boolean).forEach((column, index) => { // Reihenfolge wie bei den Vorgängern, damit sich Strecken wenig kreuzen
+  columns.filter(Boolean).forEach((column, index) => { // order as for the predecessors, so that lines cross little
     if (index) column.sort((a, b) => Math.min(...a.needs.map((n) => rowOf.get(n) ?? 99), 99) - Math.min(...b.needs.map((n) => rowOf.get(n) ?? 99), 99));
     column.forEach((job, row) => rowOf.set(job.name, row / Math.max(1, column.length - 1)));
   });
   return columns.filter(Boolean);
 }
 
-// `again`: das Repo, wenn sich die Jobs dieses Laufs erneut starten lassen (der Lauf ist abgeschlossen), sonst leer.
-// Läufe und Jobs, die eben erneut gestartet wurden ("Repo/Kennung" -> wann): Ihre Schaltflächen bleiben gesperrt, bis
-// GitHub den neuen Versuch zeigt und sie damit verschwinden; ein zweiter Klick brächte nur eine Absage.
+// `again`: the repo if the jobs of this run can be re-run (the run is finished), otherwise empty.
+// Runs and jobs that were just re-run ("repo/id" -> when): their buttons stay disabled until
+// GitHub shows the new attempt and they disappear with it; a second click would only bring a refusal.
 const restarted = new Map();
 const RESTART_HOLD_MS = 60000;
 const held = (repo, id) => (Date.now() - (restarted.get(repo + '/' + id) ?? 0) < RESTART_HOLD_MS ? ' aria-disabled="true"' : '');
@@ -986,13 +986,13 @@ function pill(j, again) {
   const link = '<a class="pill s-' + state + (lined ? ' lined' : '') + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
     '<span class="n">' + esc(j.name) + '</span>' + time + (lined ? '<span class="line">' + full[0] + '</span>' : '') + '<div class="more"><div>' + full.map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
     (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
-  // Die Pill ist ein Link; die Schaltfläche steht deshalb neben ihr, nicht in ihr.
-  // Ein ausgesetzter Job lief nie: Da gibt es nichts erneut zu starten.
+  // The pill is a link; the button therefore sits next to it, not inside it.
+  // A skipped job never ran: there is nothing to re-run.
   if (!again || !j.id || j.status !== 'completed' || state === 'skip') return link;
   return '<div class="job">' + link + '<button class="btn only rejob" data-do="job/rerun" data-repo="' + esc(again) + '" data-id="' + esc(j.id) + '"' + held(again, j.id) + ' aria-label="' + esc(t('rerunJob')) + '" data-tip="' + esc(t('rerunJob')) + '">' + glyph('rerun') + '</button></div>';
 }
 
-// `repo` steht im Kopf, wenn `named`. Ein abgeschlossener Lauf trägt unter dem Kopf, was sich erneut starten lässt.
+// `repo` is in the header if `named`. A finished run carries below the header what can be re-run.
 function runBlock(pipeline, running, repo, named) {
   const jobs = pipeline.jobs;
   const done = jobs.filter((j) => j.status === 'completed').length;
@@ -1016,7 +1016,7 @@ function runBlock(pipeline, running, repo, named) {
     (pipeline.graph ? '' : '<div class="note">' + t('noGraph') + '</div>') + '</div>';
 }
 
-// Strecken zwischen den Pills: aus der rechten Mitte des Vorgängers in die linke Mitte des Nachfolgers.
+// Lines between the pills: from the right middle of the predecessor into the left middle of the successor.
 function drawLinks(plan) {
   const box = plan.getBoundingClientRect();
   const pills = new Map([...plan.querySelectorAll('.pill')].map((el) => [el.dataset.job, el]));
@@ -1043,10 +1043,10 @@ function watchPlans(root) {
     for (const el of plan.querySelectorAll('.pill')) observer.observe(el);
   }
 }
-// Beim Überfahren einer Pill ihre Strecken hervorheben, die übrigen zurücknehmen.
+// On hovering a pill, highlight its lines and tone down the rest.
 let traced = null;
 function trace(event) {
-  // Die Schaltfläche neben einer Pill (siehe .job) zählt zu ihr.
+  // The button next to a pill (see .job) belongs to it.
   const pill = event.target.closest ? event.target.closest('.pill') ?? event.target.closest('.job')?.querySelector('.pill') ?? null : null;
   const active = pill && (event.type === 'mouseover' || event.type === 'focusin');
   traced = active ? pill : null;
@@ -1060,7 +1060,7 @@ for (const type of ['mouseover', 'mouseout', 'focusin', 'focusout']) document.ad
 
 const legend = () => '<div class="legend">' + ['run', 'done', 'fail', 'cancel', 'skip', 'wait'].map((state) => '<span class="s-' + state + '">' + icon(state) + t('s_' + state) + '</span>').join('') + '</div>';
 
-// --- Auslastung ---
+// --- Usage ---
 
 function chart(id, label, value, of, source, max, format, warn, marks, note) {
   const at = source.at || [];
@@ -1073,13 +1073,13 @@ function chart(id, label, value, of, source, max, format, warn, marks, note) {
   const x = (time) => ((1 - (end - time) / span) * 300);
   const y = (v) => 70 - Math.min(1, v / max) * 62;
   const first = Math.max(0, at.findIndex((time) => end - time <= span));
-  // Wo länger nichts gemessen wurde (die App war aus), reißt die Kurve ab, statt die Lücke zu überbrücken.
+  // Where nothing was measured for a while (the app was off), the curve breaks off instead of bridging the gap.
   const pieces = [];
   values.slice(first).forEach((v, i) => {
     if (!i || at[first + i] - at[first + i - 1] > span / 48) pieces.push([]);
     pieces.at(-1).push(x(at[first + i]).toFixed(1) + ',' + y(v).toFixed(1));
   });
-  for (const points of pieces) if (points.length === 1) { const [px, py] = points[0].split(','); points.push((Number(px) + 1).toFixed(1) + ',' + py); } // ein einzelner Punkt wäre unsichtbar
+  for (const points of pieces) if (points.length === 1) { const [px, py] = points[0].split(','); points.push((Number(px) + 1).toFixed(1) + ',' + py); } // a single point would be invisible
   const edge = (point) => point.split(',')[0] + ',74';
   const curve = pieces.map((points) => '<polygon points="' + edge(points[0]) + ' ' + points.join(' ') + ' ' + edge(points.at(-1)) + '"/><polyline points="' + points.join(' ') + '"/>').join('');
   const peak = Math.max(...values.slice(first));
@@ -1097,21 +1097,21 @@ function bandCharts(marks) {
   const s = m.series;
   const tight = m.memoryFree < m.memoryTotal * 0.08;
   const src = (key) => ({ at: s.at, values: s[key], span: 30 * 60000 });
-  const vmTight = m.vmTight; // die Docker-VM selbst meldet kaum noch freien Speicher: { free }
+  const vmTight = m.vmTight; // the Docker VM itself reports hardly any free memory: { free }
   return chart('vmMem', t('vmMem'), num((u.vmUsed ?? u.vmMemory + u.otherMemory) / 1073741824), t('of', gb(m.dockerMemory || m.memoryTotal)), src('vmMemory'), m.dockerMemory || m.memoryTotal, gb, Boolean(vmTight), marks, vmTight ? t('freeOnly', gb(vmTight.free)) : '') +
     chart('vmCpu', t('vmCpu'), num(u.vmCpu + u.otherCpu), t('cores', m.dockerCpus), src('vmCpu'), m.dockerCpus, (v) => num(v), false, marks) +
     chart('hostMem', t('hostMem'), num((m.memoryTotal - m.memoryFree) / 1073741824), t('of', gb(m.memoryTotal)), src('hostMemory'), m.memoryTotal, gb, tight, marks, tight ? t('freeOnly', gb(m.memoryFree)) : '');
 }
 
-// Ein Platz als Zustandssymbol wie im Netzplan: arbeitet läuft, bereit ist der leere Ring, alles Vorbereitende
-// (startet, wartet, räumt auf) wartet. Rot nur, wenn der Platz gestört ist; ein pausierter oder abgeschalteter ist ausgesetzt.
+// A slot as a state symbol like in the network plan: working is running, ready is the empty ring, everything preparatory
+// (starting, waiting, cleaning up) is waiting. Red only if the slot is faulty; a paused or switched-off one is skipped.
 const SEAT_STATE = { [SLOT.WORKING]: 'run', [SLOT.READY]: 'idle', [SLOT.BROKEN]: 'fail', [SLOT.PAUSED]: 'skip', [SLOT.OFF]: 'skip' };
 const seatState = (r) => SEAT_STATE[r.state] ?? 'wait';
 
-// Plätze: je Projekt eine Zeile mit einem Symbol je Platz und einem Punkt je Runner der Reserve. Die Reserve ist in
-// allen Zeilen gleich breit, damit die Platzsymbole an einer Kante enden. Ein einzelnes Projekt zeigt je Platz eine
-// Zeile mit dem Zustand in Worten und braucht keine Legende. Sonst steht die Legende außerhalb des rollenden Teils
-// und bleibt so unten im Band.
+// Slots: one row per project with one symbol per slot and one dot per runner of the reserve. The reserve is equally
+// wide in all rows so the slot symbols end at one edge. A single project shows one row per slot
+// with the state in words and needs no legend. Otherwise the legend sits outside the scrolling part
+// and so stays at the bottom of the band.
 function seats(entries) {
   const single = entries.length === 1;
   const reserveOf = (entry) => Math.max(entry.pool?.reserveWanted ?? 0, entry.pool?.reserve ?? 0);
@@ -1123,7 +1123,7 @@ function seats(entries) {
     const ready = entry.pool?.reserve ?? 0;
     return '<span class="rsvs">' + Array.from({ length: count }, (_, k) => '<i class="rsv ' + (k < ready ? 'on' : 'half') + '" data-tip="' + esc(t('reserveTip', ready, count)) + '"></i>').join('') + '</span>';
   };
-  // Ein ruhender Pool zeigt statt der Plätze, warum: gesperrt (siehe blocks.js) als Störung, sonst „pausiert“.
+  // A resting pool shows why instead of the slots: blocked (see blocks.js) as a fault, otherwise "paused".
   const paused = (entry) => (entry.pool?.blocked ? '<span class="s-fail">' + icon('fail') + '</span><span class="dim">' + t('blockedTag') + '</span>' : '<span class="dim">' + t('paused') + '</span>');
   const row = (inner) => '<div class="seat">' + inner + '</div>';
   const rows = single
@@ -1139,33 +1139,33 @@ function seats(entries) {
     '<span data-tip="' + esc(t('reserveKeyTip')) + '"><i class="rsv on"></i>' + (open ? '<i class="rsv half"></i>' : '') + t('reserveWord') + '</span></div>');
 }
 
-// --- Ansichten ---
+// --- Views ---
 
-// Das Anfragelimit des GitHub-Kontos, wenn es knapp oder aufgebraucht ist; sonst null.
-// `out` heißt: RunClub fragt gar nicht mehr ab. Nur das ist eine Störung und rot.
-// Die einzige Stelle, die die Zustandswörter des Backends kennt (siehe STATE in github.js).
+// The GitHub account's request limit if it is tight or used up; otherwise null.
+// `out` means: RunClub no longer queries at all. Only that is a fault and red.
+// The only place that knows the backend's state words (see STATE in github.js).
 const quotaState = () => ({ tight: data.quota?.state === 'tight', out: data.quota?.state === 'out' });
 const quotaTrouble = () => { const { tight, out } = quotaState(); return tight || out ? { out, text: t(out ? 'quotaOutShort' : 'quotaTightShort') } : null; };
-// Dasselbe für das Minuten-Kontingent von GitHub Actions (siehe STATE in minutes.js, dort stehen die Regeln). `out`
-// heißt: Ohne Budget startet GitHub auf seinen Runnern nichts mehr.
+// The same for the GitHub Actions minutes quota (see STATE in minutes.js, the rules are there). `out`
+// means: without a budget GitHub starts nothing more on its runners.
 const minutesState = () => ({ tight: data.minutes?.state === 'tight', out: data.minutes?.state === 'out' });
 const minutesTrouble = () => { const { tight, out } = minutesState(); return tight || out ? { out, text: t(out ? 'minutesOutShort' : 'minutesTightShort') } : null; };
-// Was „Verbrauch“ in der Leiste meldet: eine Zeile, auch wenn beides zutrifft. Aufgebraucht geht vor knapp, bei
-// Gleichstand die Anfragen vor den Minuten, weil ohne Anfragen auch die Anzeige stehen bleibt.
+// What "Consumption" reports in the bar: one row, even if both apply. Used up goes before tight; on a
+// tie, requests go before minutes, because without requests the display stops too.
 const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
-// Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
+// A rail: filled up to `share` (0 to 1), red on `alarm`, with the dotted mark at `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
 const warnings = (entries) => [data.machine.docker.ready || setupMissing().length ? '' : t('docker', data.machine.docker.error ? said(data.machine.docker.error) : t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', said(e.error))), ...entries.filter((e) => e.pool?.blocked).map((e) => t('blockedWarn', shortRepo(e.repo)))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
-// Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz, `more` ist ein Info-Element am Titel.
+// Heading of a view with a sentence below; `cls` colours the sentence, `more` is an info element at the title.
 const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
 
-// Repos ohne Pool, in denen nichts vorankommt: je eine Zeile mit dem Angebot, einen Pool anzulegen. Entweder warten
-// Jobs auf einen eigenen Runner (welche, steht im Tooltip), oder Läufe sind nicht gestartet, weil die Minuten bei
-// GitHub aufgebraucht sind. Das ist eine Störung mit Ausweg: Das Symbol ist rot, der Tooltip nennt den Ausweg.
+// Repos without a pool where nothing moves: one row each with the offer to create a pool. Either
+// jobs are waiting for an own runner (which ones is in the tooltip), or runs did not start because the minutes at
+// GitHub are used up. That is a fault with a way out: the symbol is red, the tooltip names the way out.
 function unservedRows() {
   return (data.unserved ?? []).map((entry) => {
-    // Je Grund: Zustandssymbol, Stamm der Textschlüssel, wie viele es sind, was der Tooltip sagt.
+    // Per reason: state symbol, stem of the text keys, how many there are, what the tooltip says.
     const row = entry.reason === 'minutes' ? { state: 'fail', text: 'noMinutes', count: entry.runs, tip: t('noMinutesTip') } : { state: 'wait', text: 'unserved', count: entry.jobs.length, tip: entry.jobs.join(', ') };
     return '<div class="quiet"><a class="who s-' + row.state + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(row.state) + esc(shortRepo(entry.repo)) + '</a>' +
       '<div class="what" data-tip="' + esc(row.tip) + '">' + esc(t(row.text + (row.count === 1 ? 'One' : 'Many'), row.count, span(secondsSince(entry.since)))) + '</div>' +
@@ -1173,7 +1173,7 @@ function unservedRows() {
   }).join('');
 }
 
-// „Alle Projekte“: was läuft, steht groß da; ruhige Projekte je eine Zeile.
+// "All projects": what runs is shown large; quiet projects one row each.
 function quietRows(entries) {
   return entries.map((entry) => {
     const last = entry.lastRun;
@@ -1195,32 +1195,32 @@ function projectBlocks(entry, withRepo) {
 function renderOverview(entries, single) {
   const main = document.getElementById('main');
   if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div></div>'; }
-  // Fehlt dem Rechner etwas für Docker, steht unter den Warn-Tags, wie es sich beheben lässt; die Zeilen ersetzen
-  // dann den Tag zu Docker.
+  // If the machine lacks something for Docker, below the warning tags it says how to fix it; the rows then replace
+  // the Docker tag.
   put(document.getElementById('warn'), warnings(entries) + (setupMissing().length ? '<div class="setup">' + setupRows(false) + '</div>' : ''));
   const busy = entries.filter((entry) => entry.pipelines.length);
   const idleHead = viewHead(t('all'), t('idleAll'));
   const blocks = single ? projectBlocks(entries[0]) + legend() : (busy.length ? busy.map((entry) => projectBlocks(entry, true)).join('') + legend() : idleHead) + '<div>' + unservedRows() + quietRows(entries.filter((entry) => !entry.pipelines.length)) + '</div>';
   if (put(document.getElementById('runs'), blocks)) {
     watchPlans(main);
-    // Schmale Fenster: die Spalte mit dem ersten laufenden oder roten Job in den Blick holen.
+    // Narrow windows: bring the column with the first running or red job into view.
     if (window.innerWidth <= NARROW) main.querySelector('.pill.s-fail, .pill.s-run')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
   put(document.getElementById('charts'), bandCharts(entries.flatMap((entry) => entry.pipelines.map((p) => new Date(p.startedAt).getTime()))));
   put(document.getElementById('seats'), seats(entries));
 }
 
-// Haltestelle „GitHub-Anfragen“: Kennzahl und Schiene zeigen das Verbrauchte, wie bei den Speicherspitzen mit der
-// Marke, ab der es knapp ist; ab dort fragt RunClub seltener ab. Was noch frei ist und wann es weitergeht, steht im Kopf.
-// Rot ist nur das erreichte Limit: Knapp verlangt nichts und vergeht von selbst. Ein Satz steht nur, wenn es knapp oder
-// erreicht ist; was das Limit ist und was daraus folgt, steht im Info an der Überschrift.
+// Stop "GitHub requests": figure and rail show what was used, as with the memory peaks with the
+// mark from which it is tight; from there RunClub queries less often. What is still free and when it resumes is in the header.
+// Only the reached limit is red: tight asks for nothing and passes by itself. A sentence appears only when it is tight or
+// reached; what the limit is and what follows from it is in the info at the heading.
 function quotaStop() {
   const q = data.quota;
   if (!q) return '';
   const count = whole;
   const { tight, out } = quotaState();
   const until = hourMinute(q.resetAt);
-  const left = Math.max(1, Math.round((new Date(q.resetAt) - Date.now()) / 60000)); // Minuten bis zum Ende des Fensters
+  const left = Math.max(1, Math.round((new Date(q.resetAt) - Date.now()) / 60000)); // minutes until the end of the window
   return routeStop('github', t('quotaTitle'), t('quotaReset', count(q.remaining), until, left),
     '<div><div class="k">' + t('quotaLabel') + '</div><div class="v' + (out ? ' c-fail' : '') + '">' + count(q.limit - q.remaining) + ' <small>' + t('quotaOf', count(q.limit)) + '</small></div></div>' +
     '<div class="um solo">' + fillBar((q.limit - q.remaining) / q.limit, out, q.tightAt) + '</div>' +
@@ -1228,12 +1228,12 @@ function quotaStop() {
     [out ? t('quotaOutInfo') : tight ? t('quotaTightInfo') : '', t('quotaInfo')]);
 }
 
-// Haltestelle „GitHub-Minuten“: was das Konto in diesem Monat auf GitHubs eigenen Runnern verbraucht hat, gebaut wie
-// die GitHub-Anfragen. Die Grenze sind die enthaltenen Minuten des Tarifs (Tabelle in minutes.js); ohne sie gibt es nur
-// die Kennzahl. In der Fläche steht der Zustand kurz, Gründe und Folgen stehen im Info an der Überschrift. Knapp verlangt nichts. Rot ist das Aufgebrauchte, weil es einen Ausweg gibt: eigene Runner oder ein Budget.
-// Wer über das Enthaltene hinaus bezahlt, hat ein Budget: Das ist weder knapp noch rot, aber der Kopf nennt die Kosten.
-// Fehlt das freiwillige Recht dafür, steht hier nur der Satz mit dem Weg zur Haltestelle „GitHub“ der Einstellungen;
-// solange es noch keinen Stand gibt, ein Satz dazu, damit die Haltestelle nicht erst später dazukommt.
+// Stop "GitHub minutes": what the account used this month on GitHub's own runners, built like
+// the GitHub requests. The limit is the plan's included minutes (table in minutes.js); without it there is only
+// the figure. The surface states the state briefly, reasons and consequences are in the info at the heading. Tight asks for nothing. Used up is red because there is a way out: own runners or a budget.
+// Whoever pays beyond what is included has a budget: that is neither tight nor red, but the header names the cost.
+// If the optional permission for it is missing, only the sentence with the way to the "GitHub" stop of the settings is here;
+// while there is no data yet, a sentence saying so, so that the stop does not only appear later.
 function minutesStop() {
   const m = data.minutes;
   const only = (body) => routeStop('minutes', t('minutesTitle'), '', body);
@@ -1245,21 +1245,21 @@ function minutesStop() {
   const paid = m.state === 'paid';
   const money = m.cost.toLocaleString(locale(), { style: 'currency', currency: 'USD' });
   const planName = (name) => name.charAt(0).toUpperCase() + name.slice(1);
-  // Der Monat der Abrechnung wechselt nach Weltzeit.
+  // The billing month changes by UTC.
   const day = new Date(m.resetAt).toLocaleDateString(locale(), { day: 'numeric', month: 'long', timeZone: 'UTC' });
   const systems = [['Linux', m.systems.linux], ['Windows', m.systems.windows], ['macOS', m.systems.macos], [t('minutesOther'), m.systems.other]].filter(([, value]) => value > 0);
-  // Woraus die Zahl besteht, was davon berechnet wird, und der Tarif mit seinen enthaltenen Minuten.
+  // What the number consists of, what of it is charged, and the plan with its included minutes.
   const about = [
     systems.length > 1 ? t('minutesParts', systems.map(([name, value]) => name + ' ' + count(value)).join(', ')) : systems.length ? t('minutesAll', systems[0][0]) : '',
     m.paid && !paid ? t('minutesBilled', count(m.paid), money) : '',
     m.included ? t('minutesPlan', esc(planName(m.plan)), count(m.included)) : m.plan ? t('minutesPlanUnknown', esc(planName(m.plan))) : t('minutesNoPlan'),
   ].filter(Boolean).join(' ');
-  // Im Info: was die Tarife enthalten (die Tabelle kommt mit dem Stand), dass jede Minute gleich zählt, und was für
-  // einen anderen Tarif gilt.
+  // In the info: what the plans include (the table comes with the data), that every minute counts the same, and what
+  // applies to another plan.
   const plans = Object.entries(m.plans ?? {}).map(([name, minutes]) => esc(planName(name)) + ' ' + count(minutes)).join(', ');
   const general = [plans ? t('minutesPlans', plans) : '', t('minutesEqual'), t(m.included ? 'minutesOtherPlan' : 'minutesOtherPlanHere')].filter(Boolean).join(' ');
   const side = !m.included ? t('minutesResetOnly', day) : paid ? t('minutesOver', count(m.paid), money, day) : t('minutesReset', count(Math.max(0, m.included - m.used)), day);
-  // Bezahlt: Was es kostet, steht schon im Kopf; hier nur, was daraus folgt.
+  // Paid: what it costs is already in the header; here only what follows from it.
   const lead = out ? '<span class="c-fail">' + t('minutesOut', day) + '</span> <span class="ink">' + t('minutesOutMore') + '</span>' : paid ? t('minutesBudget') : tight ? t('minutesTight') : '';
   const leadMore = out ? t('minutesOutInfo') : paid ? t('minutesBudgetInfo') : tight ? t('minutesTightInfo') : m.paid ? t('minutesBilledInfo') : '';
   return routeStop('minutes', t('minutesTitle'), side,
@@ -1276,27 +1276,27 @@ function renderUsage() {
   const m = data.machine;
   const day = dayData ?? [];
   const src = (key) => ({ at: day.map((p) => p.at), values: day.map((p) => p[key + 'Max']), span: 24 * 3600000 });
-  // Die höchste gemessene Spitze eines Projekts, gemessen an dem, was ein Job darf.
-  const tightAt = m.limitsView.tightAt; // ab diesem Anteil am Limit gilt eine Spitze als knapp
+  // The highest measured peak of a project, relative to what a job may use.
+  const tightAt = m.limitsView.tightAt; // from this share of the limit on, a peak counts as tight
   const meter = (label, peak, allowed) => {
     const tight = peak > allowed * tightAt;
     return '<div class="um"><span>' + label + '</span>' + fillBar(allowed ? peak / allowed : 0, tight, tightAt) + '<b' + (tight ? ' class="c-fail"' : '') + '>' + mb(peak) + ' <small>' + t('of', gb(allowed)) + '</small></b></div>';
   };
   const projects = data.repos.map((entry, index) => {
     const u = entry.usage ?? { jobs: [] };
-    // Gemessen wird am Limit dieses Projekts; ohne eigene Werte ist das das Limit für alle.
+    // Measured against this project's limit; without own values that is the limit for all.
     const allowRunner = entry.pool?.limits ? entry.pool.limits.values.runnerMemory * GIB : limitBytes(m.limits.runnerMemory);
     const allowDocker = entry.pool?.limits ? entry.pool.limits.values.dockerMemory * GIB : limitBytes(m.limits.dockerMemory);
     const peakRunner = Math.max(0, ...u.jobs.map((j) => j.peakRunner));
     const peakDocker = Math.max(0, ...u.jobs.map((j) => j.peakDocker));
-    // Der Wert, der die Schiene bestimmt, tritt in der Tabelle hervor.
+    // The value that determines the rail stands out in the table.
     const cell = (value, peak) => '<td class="r' + (value > 0 && value === peak ? ' top' : '') + '">' + (value > 0 ? mb(value) : '–') + '</td>';
-    // Zwei Workflows können einen Job gleich nennen: Nur dann steht der Workflow dabei.
-    // Kommt ein Jobname im Projekt mehrfach vor, steht der Workflow dabei: in der Tabelle gedämpft, im Satz mit Punkt.
+    // Two workflows can name a job the same: only then is the workflow shown with it.
+    // If a job name occurs more than once in the project, the workflow is shown with it: muted in the table, with a dot in the sentence.
     const sharesName = (j) => j.workflow && u.jobs.some((other) => other !== j && other.job === j.job);
     const jobLabel = (j, dim) => esc(j.job) + (sharesName(j) ? (dim ? ' <span class="dim">' + esc(j.workflow) + '</span>' : ' · ' + esc(j.workflow)) : '');
     const rows = u.jobs.map((j) => '<tr><td>' + jobLabel(j, true) + '</td>' + cell(j.peakRunner, peakRunner) + cell(j.peakDocker, peakDocker) + '<td class="r">' + (j.peakMemory ? num(j.peakCpu) : '–') + '</td><td class="r">' + (j.peakMemory ? num(j.cpu) : '–') + '</td><td class="r">' + clock(j.duration) + '</td><td class="r">' + j.runs + '</td></tr>').join('');
-    // Was am nächsten an seinem Limit liegt: welcher Job, welche Seite, wie viel.
+    // What is closest to its limit: which job, which side, how much.
     const near = [['Runner', peakRunner, allowRunner, 'peakRunner'], ['Docker', peakDocker, allowDocker, 'peakDocker']].filter(([, peak, allowed]) => peak > allowed * tightAt).sort((a, b) => b[1] / b[2] - a[1] / a[2])[0];
     const peaks = peakRunner + peakDocker > 0 ? '<div><div class="k">' + t('peakTitle') + info(t('peakTitle'), t('peakInfo', Math.round(tightAt * 100))) + '</div><div class="meters">' + meter('Runner', peakRunner, allowRunner) + meter('Docker', peakDocker, allowDocker) + '</div></div>' +
       (near ? '<div class="row"><span class="rt note c-fail">' + t('nearLimit', jobLabel(u.jobs.find((j) => j[near[3]] === near[1])), mb(near[1]), gb(near[2]), near[0]) + '</span><button class="btn" data-view="settings" data-goto="limits">' + glyph('gauge') + t('toLimits') + '</button></div>' : '') : '';
@@ -1310,7 +1310,7 @@ function renderUsage() {
     quotaStop() + minutesStop() + projects + '</div></div>');
 }
 
-// Gezeichnete Symbole der Bedienelemente: 16er-Raster, ein Strich, in Textfarbe – nie in einer Zustandsfarbe.
+// Drawn symbols of the controls: 16 grid, one stroke, in text colour – never in a state colour.
 const GLYPHS = {
   minus: '<path d="M4 8h8"/>', plus: '<path d="M8 4v8M4 8h8"/>', open: '<path d="M6 4l4 4-4 4"/>',
   clear: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/>',
@@ -1321,20 +1321,20 @@ const GLYPHS = {
   cache: '<path d="M8 3l5 2.5-5 2.5-5-2.5zM3 8.5l5 2.5 5-2.5"/>',
   gauge: '<path d="M2.5 11a5.5 5.5 0 0 1 11 0M8 11l2.5-3.5"/>',
   rebuild: '<path d="M12.6 8a4.6 4.6 0 1 1-1.5-3.4M12.6 2.6v2.6H10"/>',
-  // Erneut starten: der Bogen zurück an den Anfang, darin das Dreieck für „los“. Gilt für Lauf und Job.
+  // Re-run: the arc back to the start, inside it the triangle for "go". Applies to run and job.
   rerun: '<path d="M3.4 8a4.6 4.6 0 1 0 1.5-3.4M3.4 2.6v2.6H6M7 6.2v3.6l3-1.8z"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   save: '<path d="M8 2.5v8M4.8 7.4L8 10.5l3.2-3.1M3 13.5h10"/>',
   update: '<path d="M8 13.5v-8M4.8 8.6L8 5.5l3.2 3.1M3 2.5h10"/>',
-  // Mehr dazu: das „i“ im Kreis; steht nur am Info-Element.
+  // More on this: the "i" in a circle; only used on the info element.
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 4.9v.1"/>',
 };
 const glyph = (name, cls) => '<svg class="g' + (cls ? ' ' + cls : '') + '" viewBox="0 0 16 16" aria-hidden="true">' + GLYPHS[name] + '</svg>';
-// Das Info-Element neben einem Titel: In der Fläche steht kurz, was es ist und was zu tun ist; Gründe, Folgen und
-// Hintergrund stehen hier. `about` ist der Titel, zu dem es gehört (für Vorleseprogramme). `parts` sind die Absätze,
-// fertiges HTML aus der Texttabelle, in dem Werte von außen schon durch esc gegangen sind; leere fallen weg.
-// Die Erklärung steht verborgen im Knopf und ist seine Beschreibung für Vorleseprogramme; die Info-Fläche zeigt eine
-// Kopie. Die Kennung folgt aus dem Inhalt, damit derselbe Stand dasselbe HTML ergibt; gleiche Kennungen tragen gleichen Text.
+// The info element next to a title: the surface says briefly what it is and what to do; reasons, consequences and
+// background go here. `about` is the title it belongs to (for screen readers). `parts` are the paragraphs,
+// finished HTML from the text table in which values from outside have already gone through esc; empty ones are dropped.
+// The explanation sits hidden in the button and is its description for screen readers; the info surface shows a
+// copy. The id follows from the content so the same data gives the same HTML; equal ids carry equal text.
 const info = (about, ...parts) => {
   const html = parts.filter(Boolean).map((part) => '<p>' + part + '</p>').join('');
   if (!html) return '';
@@ -1345,56 +1345,56 @@ const info = (about, ...parts) => {
 };
 const GIB = 1073741824;
 const LIMIT_KEYS = ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'];
-let openRepo = store.get('open', ''); // das aufgeklappte Projekt in den Einstellungen
+let openRepo = store.get('open', ''); // the expanded project in the settings
 let logOpen = false;
-const LOG_GENERAL = '-'; // als Filter: die Meldungen ohne Projekt
-let logRepo = ''; // das Projekt, auf das das Protokoll gefiltert ist ('' = alle)
-let logData = []; // Einträge { at, repo, text, kind } und bei Jobs { job, runner }, der älteste zuerst
-let logStamp = ''; // Kennung des Stands, zu dem logData gehört (siehe logStamp in backend.js)
+const LOG_GENERAL = '-'; // as a filter: the messages without a project
+let logRepo = ''; // the project the log is filtered to ('' = all)
+let logData = []; // entries { at, repo, text, kind } and for jobs { job, runner }, the oldest first
+let logStamp = ''; // id of the state logData belongs to (see logStamp in backend.js)
 const LOG_SHORT = 8;
-// Ein Symbol bekommt nur, was ein Ergebnis ist. Der Beginn eines Jobs bleibt ohne: Gelb heißt „läuft jetzt“.
+// Only what is a result gets a symbol. The start of a job goes without: yellow means "running now".
 const LOG_STATE = { error: 'fail', done: 'done', fail: 'fail', cancel: 'cancel' };
-// Meldungen zu einem Job bildet die Oberfläche in ihrer Sprache aus Jobname, Runner und Art; alles andere ist der
-// Satz des Backends.
-const logText = (entry) => (entry.msg ? said(entry.msg) : entry.text); // ohne Schlüssel: ein Text von außen oder ein Eintrag einer älteren Version
-// Von heute genügt die Uhrzeit; Älteres nennt den Tag und spart dafür die Sekunden.
+// Messages about a job are built by the interface in its language from job name, runner and kind; everything else is the
+// backend's sentence.
+const logText = (entry) => (entry.msg ? said(entry.msg) : entry.text); // without a key: a text from outside or an entry of an older version
+// For today the time of day is enough; older entries name the day and skip the seconds instead.
 function logTime(iso) {
   const at = new Date(iso);
   return at.toDateString() === new Date().toDateString() ? at.toLocaleTimeString(locale())
     : at.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' }) + ' ' + hourMinute(at);
 }
-// Die erste Haltestelle einer Ansicht. In den Einstellungen ist das „GitHub“; ein Backend, das die Anmeldung noch nicht
-// meldet (die Seite ist neuer als das laufende Programm), hat sie nicht.
+// The first stop of a view. In the settings that is "GitHub"; a backend that does not report the sign-in yet
+// (the page is newer than the running program) does not have it.
 const firstStop = () => (view === 'usage' ? 'day' : data?.auth ? 'auth' : 'projects');
-let hereStop = ''; // die Haltestelle, an der die Seite gerade steht; leer heißt: an der ersten
+let hereStop = ''; // the stop the page is currently at; empty means: at the first
 const here = () => hereStop || firstStop();
-// Ein Abschnitt an der Strecke: Ring, Überschrift, rechts eine Randnotiz, darunter der Inhalt. `more`: die Absätze
-// des Info-Elements an der Überschrift.
+// A section on the line: ring, heading, a side note on the right, the content below. `more`: the paragraphs
+// of the info element at the heading.
 const routeStop = (key, title, side, body, more = []) => '<section class="stop' + (here() === key ? ' here' : '') + '" id="stop-' + key + '"><button class="stopdot" data-stop="' + key + '" aria-label="' + esc(title) + '"></button>' +
   '<div class="stophead"><div class="grow"><h2>' + esc(title) + '</h2>' + info(title, ...more) + '</div>' + (side ? '<span class="note">' + side + '</span>' : '') + '</div>' + body + '</section>';
-let draft = null; // Limits, solange ein Regler bewegt wird: { repo ('' = für alle), values: { runnerMemory, … } }
+let draft = null; // limits while a slider is being moved: { repo ('' = for all), values: { runnerMemory, … } }
 
 function renderSettings() {
   const main = document.getElementById('main');
   main.dataset.shape = 'settings';
-  // Namen mit Großbuchstaben werden zu `data-runner-memory`, damit sie als `dataset.runnerMemory` zurückkommen.
+  // Names with capitals become `data-runner-memory` so that they come back as `dataset.runnerMemory`.
   const attrs = (values) => Object.entries(values).map(([k, v]) => ' data-' + k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()) + '="' + esc(v) + '"').join('');
-  // Symbol mit Wort. `only` zeigt nur das Symbol; die Aktion steht dann als Tooltip und für Vorleseprogramme daran.
-  // `why` sperrt die Schaltfläche und nennt den Grund im Tooltip.
+  // Symbol with word. `only` shows just the symbol; the action is then attached as a tooltip and for screen readers.
+  // `why` disables the button and names the reason in the tooltip.
   const button = (name, text, values, { cls = '', only = false, why = '', describedBy = '' } = {}) => '<button class="btn' + (only ? ' only' : '') + (cls ? ' ' + cls : '') + '"' + (only ? ' aria-label="' + esc(text) + '"' : '') + (only || why ? ' data-tip="' + esc(why || text) + '"' : '') + (why ? ' aria-disabled="true"' + (describedBy ? ' aria-describedby="' + esc(describedBy) + '"' : '') : '') + attrs(values) + '>' + glyph(name) + (only ? '' : esc(text)) + '</button>';
   const seg = (name, options, current) => '<span class="seg">' + options.map(([value, text]) => '<button data-set="' + name + '" data-value="' + value + '" aria-pressed="' + (current === value) + '">' + text + '</button>').join('') + '</span>';
   const stop = routeStop;
 
   const withPool = data.repos.filter((entry) => entry.pool);
 
-  // --- Limits: für alle Projekte oder je Projekt eigene ---
+  // --- Limits: for all projects or per project ---
   const m = data.machine;
   const lv = m.limitsView ?? {
     values: { runnerMemory: limitBytes(m.limits.runnerMemory) / GIB, dockerMemory: limitBytes(m.limits.dockerMemory) / GIB, runnerCpus: m.limits.runnerCpus, dockerCpus: m.limits.dockerCpus },
     bounds: { memory: { min: 1, max: 8, step: 0.5 }, cpus: { min: 1, max: m.dockerCpus || 1, step: 1 } }, suggestion: null,
   };
   const gbShort = (value) => num(value, value % 1 ? 1 : 0);
-  // Ein Regler, der gerade bewegt wird, geht dem gespeicherten Stand vor.
+  // A slider being moved takes precedence over the saved state.
   const moved = (repo) => (draft && draft.repo === repo ? draft.values : {});
   const shared = { ...lv.values, ...moved('') };
   const limitsFor = (entry) => ({ ...(entry.pool.limits?.own ? entry.pool.limits.values : shared), ...moved(entry.repo) });
@@ -1404,14 +1404,14 @@ function renderSettings() {
     return '<label class="sl"><span>' + label + '</span><span class="tr" style="--s:' + (hint == null ? 0 : share(hint).toFixed(3)) + '"><input type="range" data-limit="' + key + '" data-repo="' + esc(repo) + '" min="' + range.min + '" max="' + range.max + '" step="' + range.step + '" value="' + values[key] + '" style="--v:' + (share(values[key]) * 100).toFixed(1) + '%">' +
       '<u' + (hint == null ? ' hidden' : '') + '></u></span><b>' + unit(values[key]) + '</b></label>';
   };
-  // Runner und Docker eines Jobs haben eine gemeinsame Obergrenze. Der Hinweis steht immer da; wer beim Ziehen
-  // darüber kommt, liest stattdessen, was beim Loslassen geschieht.
+  // A job's runner and Docker share an upper limit. The hint is always there; whoever goes over it while
+  // dragging reads instead what happens on release.
   const cap = lv.bounds.memory.total;
   const capNote = (values) => (cap === undefined ? '' : '<div class="note' + (values.runnerMemory + values.dockerMemory > cap ? ' strong' : '') + '">' +
     (values.runnerMemory + values.dockerMemory > cap ? t('capOver', gbShort(values.runnerMemory + values.dockerMemory), gbShort(cap)) : t('capNote', gbShort(cap))) + '</div>');
   const sliders = (values, hints, repo) => '<div class="sliders">' + slider('runnerMemory', t('memRunner'), lv.bounds.memory, (v) => gbShort(v) + ' GB', values, hints, repo) + slider('dockerMemory', t('memDocker'), lv.bounds.memory, (v) => gbShort(v) + ' GB', values, hints, repo) +
     slider('runnerCpus', t('cpuRunner'), lv.bounds.cpus, (v) => v, values, hints, repo) + slider('dockerCpus', t('cpuDocker'), lv.bounds.cpus, (v) => v, values, hints, repo) + '</div>' + capNote(values);
-  // Der Vorschlag aus den Messwerten, mit Knopf, solange die gespeicherten Limits davon abweichen.
+  // The suggestion from the measurements, with a button, as long as the saved limits differ from it.
   const suggested = (hints, saved, repo) => {
     if (!hints) return '<div class="note">' + t('suggestNone') + '</div>';
     const same = LIMIT_KEYS.every((key) => hints[key] === saved[key]);
@@ -1419,7 +1419,7 @@ function renderSettings() {
       (same ? '' : button('gauge', t('suggestApply'), { do: 'limits/set', ...(repo ? { repo } : {}), ...Object.fromEntries(LIMIT_KEYS.map((key) => [key, hints[key]])) })) + '</div>';
   };
 
-  // --- Projekte: je Projekt eine Zeile, eine davon aufgeklappt ---
+  // --- Projects: one row per project, one of them expanded ---
   const projects = withPool.map((entry) => {
     const p = entry.pool;
     const repo = entry.repo;
@@ -1427,26 +1427,26 @@ function renderSettings() {
     const size = (key) => (p.sizes ? mb(p.sizes[key]) : '…');
     const crow = (title, detail, amount, action) => '<div class="crow"><span>' + title + (detail ? '<small>' + detail + '</small>' : '') + '</span><span>' + amount + '</span>' + action + '</div>';
     const clear = (what, text) => button('clear', text, { do: 'pool/clear', repo, what, confirm: t('confirmClear', repo) }, { only: true });
-    // Ein gesperrter Pool (siehe blocks.js) wie eine Störung mit Ausweg (vgl. quotaOut): kurz in Rot, der Ausweg in
-    // `ink`, das Warum im Info. Fortsetzen und Umleiten sind gesperrt und verweisen mit `aria-describedby` hierher.
+    // A blocked pool (see blocks.js) like a fault with a way out (cf. quotaOut): briefly in red, the way out in
+    // `ink`, the why in the info. Resume and redirect are disabled and point here with `aria-describedby`.
     const blocked = p.blocked ? t('blocked_' + p.blocked) + ' ' + t('blockedWay_' + p.blocked) : '';
     const noteId = 'block-' + repo.replace(/[^A-Za-z0-9_-]/g, '-');
     const guardNote = p.blocked ? '<div class="note measure strong" id="' + noteId + '"><span class="c-fail">' + esc(t('blocked_' + p.blocked)) + '</span> <span class="ink">' + esc(t('blockedWay_' + p.blocked)) + '</span>' + info(t('blockedTag'), esc(t('blockedInfo_' + p.blocked))) + '</div>'
       : !p.checked && !p.paused ? '<div class="note measure">' + esc(t('unchecked')) + info(t('checking'), esc(t('uncheckedInfo'))) + '</div>' : '';
-    // GitHub antwortet für das Repo mit 404: meist fehlt die App auf seinem Konto.
+    // GitHub answers 404 for the repo: usually the app is missing on its account.
     const missing = entry.notFound ? '<div class="row"><span class="rt c-fail">' + esc(t('notFound')) + '</span>' + githubButton(data.auth?.install, t('grantAccess')) + '</div>' : '';
     const r = p.routing;
     const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
-    // Findet GitHub das Repo nicht, gilt auch der Stand der Umleitung nicht mehr.
+    // If GitHub cannot find the repo, the redirect state no longer holds either.
     const route = !r || entry.notFound ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' && !p.blocked ? ' c-fail' : '') + '">' +
       (r.error ? esc(said(r.error)) : r.uses === 'fixed' ? t('routeFixed') : r.uses === 'none' ? t('routeNone') + ' ' + snippet + info('runs-on', t('routeNoneInfo')) : r.here ? t('routeOn') : t('routeOff')) + '</span>' +
       (r.uses === 'fixed' ? '' : r.here ? button('route', t('routeBack'), { do: 'pool/routing', repo, on: '', confirm: t('confirmBack', repo) }) : button('route', t('routeTo'), { do: 'pool/routing', repo, on: '1' }, { why: blocked, describedBy: noteId })) + '</div>';
     const caches = (p.cache ? crow(t('packages'), '', size('packages'), clear('packages', t('clearOf', t('packages')))) + crow(t('layers'), '', size('build'), clear('build', t('clearOf', t('layers'))))
       : '<div class="crow"><span class="dim">' + t('cacheIsOff') + '</span><span></span><span></span></div>') +
       crow(t('images', p.images.length), p.images.map(esc).join(' · '), size('images'), clear('images', t('forgetImages')));
-    // Limits: wie alle Projekte oder eigene Werte, damit ein hungriges Projekt nicht hohe Limits für alle erzwingt.
+    // Limits: like all projects or own values, so that a hungry project does not force high limits on all.
     const own = Boolean(p.limits?.own);
-    // Wie gut die Limits zum Projekt passen: knapp und ausgeschöpft sind Störungen, großzügig nur ein Hinweis.
+    // How well the limits fit the project: tight and exhausted are faults, generous is just a hint.
     const fit = p.limits?.fit ?? { state: 'ok' };
     const pressing = fit.state === 'full' || fit.state === 'tight';
     const fitTag = { full: t('tagFull'), tight: t('tagTight'), generous: t('tagGenerous') }[fit.state];
@@ -1457,7 +1457,7 @@ function renderSettings() {
       (own ? sliders(mine, p.limits.suggestion, repo) + suggested(p.limits.suggestion, p.limits.values, repo) : '<div class="note">' + t('limitsSharedNote', gbShort(mine.runnerMemory), gbShort(mine.dockerMemory), mine.runnerCpus, mine.dockerCpus) + '</div>') + '<div class="vary">' + fitNote + '</div></div>';
     const foot = '<div class="row">' + button(p.paused ? 'resume' : 'pause', p.paused ? t('resume') : t('pause'), { do: 'pool/set', repo, paused: p.paused ? '' : '1' }, { why: p.paused ? blocked : '', describedBy: noteId }) +
       button('cache', p.cache ? t('cacheOff') : t('cacheOn'), { do: 'pool/set', repo, cache: p.cache ? '' : '1' }) +
-      // Was löscht, steht abgesetzt am rechten Ende.
+      // What deletes stands apart at the right end.
       '<span class="row push">' + button('clear', t('clearAll'), { do: 'pool/clear', repo, what: 'all', confirm: t('confirmClear', repo) }) + button('remove', t('remove'), { do: 'pool/remove', repo, confirm: t('confirmRemove', repo) }, { cls: 'danger' }) + '</span></div>';
     return '<div class="proj" data-open="' + open + '"><div class="phead"><button class="popen" data-open-repo="' + esc(repo) + '" aria-expanded="' + open + '" data-tip="' + esc(repo) + '">' + glyph('open') + '<b>' + esc(shortRepo(repo)) + '</b>' +
       (entry.notFound ? '<span class="tag c-fail">' + t('notFoundTag') + '</span>' : '') + (p.blocked ? '<span class="tag c-fail">' + t('blockedTag') + '</span>' : p.paused ? '<span class="tag">' + t('paused') + '</span>' : '') + (p.limits?.own ? '<span class="tag">' + t('ownTag') + '</span>' : '') + (fitTag ? '<span class="tag' + (pressing ? ' c-fail' : '') + '">' + fitTag + '</span>' : '') + (p.busy ? '<span class="tag">' + t('rebuilding') + '</span>' : '') +
@@ -1466,14 +1466,14 @@ function renderSettings() {
       button('plus', t('more'), { do: 'pool/set', repo, parallel: p.parallel + 1 }, { only: true, why: p.parallel >= 4 ? t('maxSlots') : '' }) + '</span></div>' +
       '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + guardNote + missing + route + limits + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
   }).join('');
-  // Vorschläge nur, wo ein Pool möglich ist (siehe `free` in listRepos).
+  // Suggestions only where a pool is possible (see `free` in listRepos).
   const free = (repoList ?? []).filter((r) => r.free);
   const add = '<div class="addrow"><span>' + t('add') + '</span><form id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false">' +
     '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + glyph('plus') + t('addButton') + '</button></form>' +
     (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(shortRepo(r.repo)) + '</button>').join('') + (free.length ? '</span>' : '') + installNote() + '</div><div class="note">' + esc(t('addHint')) + '</div>';
 
-  // --- Limits je Job: was alle Plätze zusammen dürfen, gemessen an der Docker-VM ---
-  // Mit eingeschaltetem Cache läuft je Projekt ein Build-Dienst mit dem Docker-Limit, auch während der Pool pausiert.
+  // --- Limits per job: what all slots together may use, measured against the Docker VM ---
+  // With the cache switched on, each project runs a build service with the Docker limit, even while the pool is paused.
   const serviceBytes = (entry) => (entry.pool.cache ? limitsFor(entry).dockerMemory * GIB : 0);
   const places = (entry) => (entry.pool.paused ? 0 : entry.pool.parallel);
   const active = withPool.filter((entry) => places(entry) || serviceBytes(entry));
@@ -1484,12 +1484,12 @@ function renderSettings() {
   const total = active.reduce((sum, entry) => sum + allowed(entry), 0);
   const vm = m.dockerMemory;
   const over = vm > 0 && total > vm;
-  const tooBig = vm > 0 && active.some((entry) => places(entry) && jobBytes(entry) + serviceBytes(entry) > vm); // schon ein Job allein darf mit seinem Build-Dienst mehr, als die VM hat
+  const tooBig = vm > 0 && active.some((entry) => places(entry) && jobBytes(entry) + serviceBytes(entry) > vm); // a single job with its build service may already use more than the VM has
   const capAt = vm / (Math.max(total, vm) || 1) * 100;
   const gbClean = (bytes) => { const value = Math.round(bytes / GIB * 10) / 10; return num(value, value % 1 ? 1 : 0) + ' GB'; };
-  // Gefüllt ist, was mit vollem Limit in die VM passt. Die Build-Dienste laufen immer und kommen deshalb zuerst;
-  // in den Rest passen die Plätze, die kleinsten voran.
-  const fitting = active.map(() => 0); // je Projekt: so viele seiner Plätze passen
+  // Filled is what fits into the VM at full limit. The build services always run and therefore come first;
+  // the slots fit into the rest, smallest first.
+  const fitting = active.map(() => 0); // per project: this many of its slots fit
   const serviceFits = active.map(() => false);
   let used = 0;
   const fill = (parts, mark) => { for (const part of parts.filter((p) => p.bytes).sort((a, b) => a.bytes - b.bytes)) { if (used + part.bytes > vm) break; used += part.bytes; mark(part.index); } };
@@ -1503,10 +1503,10 @@ function renderSettings() {
   const budget = !slots || !vm ? '' : '<div><div class="k">' + t(services ? 'budgetLabelService' : 'budgetLabel', slots) + '</div><div class="v' + (tooBig ? ' c-fail' : '') + '">' + gbClean(total) + ' <small>' + t('budgetOf', gbClean(vm)) + '</small></div>' +
     '<div class="budget">' + segments + (total < vm ? '<div style="flex:' + ((vm - total) / GIB).toFixed(3) + '"></div>' : '') + '<div class="bcap' + (capAt > 60 ? ' end' : '') + '" style="left:' + capAt.toFixed(2) + '%"><span>' + t('vmMark') + '</span></div></div>' +
     '<div class="note measure' + (tooBig ? ' c-fail' : '') + '" style="padding-top:12px">' + (!over ? t('budgetOk') : tooBig ? t('budgetOver1') : t(fits === 1 ? 'budgetOverOne' : 'budgetOver', fits, slots)) + info(t('infoMemory'), over && !tooBig ? t('budgetOverInfo') : '', t('budgetHow')) + '</div></div>';
-  // Freie Runner tragen ihre Limits bis zum nächsten Job; wer nicht warten will, baut sie neu auf.
+  // Free runners keep their limits until the next job; whoever doesn't want to wait rebuilds them.
   const stale = withPool.reduce((sum, entry) => sum + (entry.pool.limits?.stale ?? 0), 0);
   const rebuild = !stale ? '' : '<div class="row"><span class="rt note">' + t(stale === 1 ? 'staleOne' : 'staleMany', stale) + '</span>' + button('rebuild', t('rebuild'), { do: 'pool/rebuild' }) + '</div>';
-  // Der Vorschlag gilt für alle Projekte zusammen: ein Standard für die Mehrheit, eigene Limits für Ausreißer.
+  // The suggestion applies to all projects together: a default for the majority, own limits for outliers.
   const plan = lv.plan;
   const outliers = plan ? withPool.filter((entry) => plan.own[entry.repo]).map((entry) => esc(shortRepo(entry.repo))) : [];
   const planned = !plan ? '<div class="note">' + t('suggestNone') + '</div>' : '<div class="row"><span class="rt note">' +
@@ -1514,9 +1514,9 @@ function renderSettings() {
     (plan.applied ? '' : button('gauge', t('suggestApply'), { do: 'limits/plan' })) + '</div>';
   const limitsAll = '<div class="vary">' + budget + '</div>' + sliders(shared, plan?.shared, '') + '<div class="vary">' + planned + '</div><div class="vary">' + rebuild + '</div>';
 
-  // --- App und Protokoll ---
+  // --- App and log ---
   const arow = (title, hint, control, more = '') => '<div class="arow"><div><b>' + title + '</b>' + (more ? info(title, ...[].concat(more)) : '') + (hint ? '<div class="note">' + hint + '</div>' : '') + '</div>' + control + '</div>';
-  // Version und Update (aus main.js; fehlt, wenn das Backend allein läuft).
+  // Version and update (from main.js; missing when the backend runs on its own).
   const up = data.app?.update;
   const busy = data.repos.flatMap((entry) => entry.runners).filter((r) => r.state === SLOT.WORKING).length;
   const failCode = up?.error && ['private', 'network', 'http', 'broken', 'missing', 'other'].includes(up.error.code) ? up.error.code : 'other';
@@ -1524,7 +1524,7 @@ function renderSettings() {
     dev: t('updDev'), idle: t('updIdle'), checking: t('updChecking'), downloading: t('updDownloading', esc(up.available ?? '')),
     current: t('updCurrent', up.checkedAt ? new Date(up.checkedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : '–'), ready: '',
   })[up.phase] ?? '';
-  // Im Entwicklerbetrieb bleibt der Kanal sichtbar, aber gesperrt: Es gibt nichts zu holen.
+  // In development mode the channel stays visible but disabled: there is nothing to fetch.
   const dev = up?.phase === 'dev';
   const channel = (value, text) => '<button data-do="app/channel" data-channel="' + value + '" aria-pressed="' + (up.channel === value) + '"' + (dev ? ' aria-disabled="true" data-tip="' + esc(t('updDevTip')) + '"' : '') + '>' + text + '</button>';
   const checkNow = up && (up.error || ['current', 'error', 'idle'].includes(up.phase)) && !['checking', 'downloading'].includes(up.phase) ? '<button class="btn" data-do="app/check">' + t('updCheck') + '</button>' : '';
@@ -1534,31 +1534,31 @@ function renderSettings() {
   const app = update + (data.app ? arow(t('autostart'), '', '<input type="checkbox" class="sw" id="autostart" aria-label="' + t('autostart') + '"' + (data.app.autostart ? ' checked' : '') + '>') : '') +
     arow(t('view'), '', seg('mode', [['compact', t('compact')], ['detail', t('detail')]], mode), t('viewHint')) + arow(t('language'), '', seg('lang', [['de', 'Deutsch'], ['en', 'English']], lang)) +
     '<div class="row" style="padding-top:12px">' + button('power', t('quit'), { do: 'shutdown', confirm: t('confirmQuit') }, { cls: 'danger push' }) + '</div>';
-  // Filtern lässt sich nach jedem Projekt mit Pool und nach jedem, von dem noch Meldungen da sind (ein entfernter Pool).
+  // The filter offers every project with a pool and every one that still has messages (a removed pool).
   const logRepos = [...new Set([...withPool.map((entry) => entry.repo), ...logData.map((entry) => entry.repo).filter(Boolean)])];
   if (logRepo && logRepo !== LOG_GENERAL && !logRepos.includes(logRepo)) logRepo = '';
-  // Zu einem Projekt gehören auch die allgemeinen Fehler: Dort steht oft die Ursache (Docker antwortet nicht).
+  // General errors belong to a project too: that is often where the cause is (Docker not answering).
   const logShown = logData.filter((entry) => !logRepo || (logRepo === LOG_GENERAL ? !entry.repo : entry.repo === logRepo || (!entry.repo && entry.kind === 'error'))).reverse();
   const logPick = (repo, text) => '<button data-log-repo="' + esc(repo) + '" aria-pressed="' + (logRepo === repo) + '">' + esc(text) + '</button>';
   const logRow = (entry) => { const state = LOG_STATE[entry.kind]; return '<li' + (state ? ' class="s-' + state + '"' : '') + '><time datetime="' + esc(entry.at) + '" data-tip="' + esc(new Date(entry.at).toLocaleString(locale())) + '">' + logTime(entry.at) + '</time>' +
     (logRepo ? '' : '<span class="lp"' + (entry.repo ? ' data-tip="' + esc(entry.repo) + '"' : '') + '>' + esc((entry.repo ?? '').split('/').pop()) + '</span>') + (state ? icon(state) : '<span></span>') +
-    // Unter einem Projekt stehen auch allgemeine Fehler; ohne Projektspalte sagt das die Zeile selbst.
+    // Under a project general errors show up too; without a project column the row itself says so.
     '<span class="lm">' + (logRepo && logRepo !== LOG_GENERAL && !entry.repo ? '<span class="dim">' + t('logGeneral') + ' · </span>' : '') + esc(logText(entry)) + '</span></li>'; };
-  // Gezeigt werden die letzten Meldungen; Kopieren und Speichern nehmen die ganze Datei.
+  // The latest messages are shown; copy and save take the whole file.
   const log = '<div class="row">' + (logRepos.length > 1 ? '<span class="seg wide" role="group" aria-label="' + t('logFilter') + '">' + logPick('', t('logAll')) + logRepos.map((repo) => logPick(repo, shortRepo(repo))).join('') + logPick(LOG_GENERAL, t('logGeneral')) + '</span>' : '') +
     '<span class="row push"><button class="btn" data-log-copy data-tip="' + t('logCopyTip') + '">' + glyph('copy') + t('logCopy') + '</button><a class="btn" href="/api/log/file" download="runclub.log" data-tip="' + t('logSaveTip') + '">' + glyph('save') + t('logSave') + '</a></span></div>' +
     (logShown.length ? '<ul class="log' + (logRepo ? ' noproject' : '') + (logOpen ? ' open' : '') + '"' + (logOpen ? ' tabindex="0"' : '') + '>' + (logOpen ? logShown : logShown.slice(0, LOG_SHORT)).map(logRow).join('') + '</ul>' : logRepo ? '<div class="note">' + t('logNone') + '</div>' : '') +
     (logShown.length > LOG_SHORT ? '<div class="row"><button class="btn" data-log aria-expanded="' + logOpen + '">' + glyph('open') + t(logOpen ? 'showLess' : 'showAll') + '</button></div>' : '');
 
-  // „GitHub“ steht vorn: Die Anmeldung ist die Voraussetzung für alles danach, und die Strecke liest sich so in der
-  // Reihenfolge des Einrichtens. Ist alles in Ordnung, sind es zwei Zeilen.
+  // "GitHub" comes first: the sign-in is the precondition for everything after it, and so the line reads in the
+  // order of setting up. If all is well, it is two rows.
   const html = '<div class="stack set"><div class="head"><div><h1>' + t('settings') + '</h1></div></div><div class="route">' +
     (data.auth ? stop('auth', 'GitHub', '', authBody()) : '') + stop('projects', t('projects'), withPool.length ? t('projectsSum', withPool.length, withPool.reduce((sum, entry) => sum + entry.pool.parallel, 0)) : '', projects + add, [t('projectsInfo')]) +
     stop('limits', t('limitsTitle'), t('limitsNew'), limitsAll, [t('limitsInfo')]) + stop('app', t('app'), '', app) + stop('log', t('log'), !logShown.length ? '' : logShown.length === 1 ? t('logSideOne') : !logOpen && logShown.length > LOG_SHORT ? t('logSideOf', LOG_SHORT, logShown.length) : t('logSide', logShown.length), log, [t('logInfo')]) + '</div></div>';
-  // Nicht neu aufbauen, solange im Eingabefeld etwas steht, das noch nicht abgeschickt ist.
+  // Do not rebuild while the input field holds something not yet submitted.
   if (document.activeElement?.id === 'addRepo' && document.activeElement.value && main.dataset.html) return;
   put(main, html);
-  // Regler und Schalter merken sich, was der Nutzer zuletzt eingestellt hat; der gezeigte Stand kommt aus den Daten.
+  // Sliders and switches remember what the user last set; the shown state comes from the data.
   for (const el of main.querySelectorAll('input[type=range]')) el.value = el.getAttribute('value');
   const autostart = document.getElementById('autostart');
   if (autostart) autostart.checked = autostart.hasAttribute('checked');
@@ -1567,12 +1567,12 @@ function renderSettings() {
 function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
-  // Ohne Anmeldung lässt sich kein Projekt anlegen: Dann ist sie der erste Schritt.
+  // Without a sign-in no project can be created: then it is the first step.
   const trouble = authTrouble();
-  // Fehlt dem Rechner etwas für Docker, steht das als eigener Abschnitt unter dem Schritt; es hält ihn nicht auf.
+  // If the machine lacks something for Docker, that is a section of its own below the step; it does not hold it up.
   const setup = setupMissing().length ? '<div class="setup first"><div><h2>' + t('setupTitle') + '</h2>' + info(t('setupTitle'), t('setupInfo')) + '<div class="note">' + t('setupText') + '</div></div>' + setupRows(true) + '</div>' : '';
   if (trouble) { put(main, '<div class="stack empty">' + viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) + authBody(true) + setup + '</div>'); return; }
-  // Noch kein Repo freigegeben (die App ist nirgends installiert): Dann ist das Installieren der nächste Schritt.
+  // No repo granted yet (the app is installed nowhere): then installing is the next step.
   if (repoList && !repoList.length && githubUrl(data.auth?.install)) {
     put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('installFirstText'), '', info(t('firstTitle'), t('projectsInfo'))) + '<div class="row">' + githubButton(data.auth.install, t('installFirst')) + '</div><div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
     return;
@@ -1581,17 +1581,17 @@ function renderEmpty() {
     (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div>' + installNote() + '<div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
 }
 
-// --- Beenden ---
+// --- Quit ---
 
-// Das Beenden als Lauf: je Projekt eine Station, die seine Runner abbaut, danach Aufräumen und Abmelden. Die Stationen
-// sind keine Jobs und kein Link; Strecken und Zeichnung sind die des Netzplans. Rot gibt es hier nicht: Scheitert ein
-// Schritt, steht das im Protokoll, und der Abbau geht weiter.
+// Quitting as a run: one station per project that tears down its runners, then cleanup and sign-off. The stations
+// are not jobs and not links; lines and drawing are the network plan's. There is no red here: if a
+// step fails, that goes into the log, and the teardown continues.
 function station(key, needs, state, name, time, detail, progress) {
   return '<div class="pill lined s-' + state + '" data-job="' + esc(key) + '" data-needs="' + esc(JSON.stringify(needs)) + '">' + icon(state) + '<span class="n">' + esc(name) + '</span>' + time +
     '<span class="line">' + detail + '</span>' + (progress == null ? '' : '<i class="pg" style="--p:' + progress + '%"></i>') + '</div>';
 }
 const tookTime = (from, to) => '<span class="tm">' + clock((new Date(to) - new Date(from)) / 1000) + '</span>';
-// Eine Stufe nach dem Abbau: wartend mit der Schätzung, laufend mit der Zeit seit Beginn, fertig mit ihrer Dauer.
+// A stage after the teardown: waiting with the estimate, running with the time since start, done with its duration.
 function stageTime(stage) {
   if (stage.state === 'done') return tookTime(stage.startedAt, stage.endedAt);
   if (stage.state === 'run') return '<span class="tm" data-since="' + esc(stage.startedAt) + '"></span>';
@@ -1609,7 +1609,7 @@ function renderShutdown(end) {
   });
   const { cleanup, signoff } = end;
   const signoffWhat = signoff.state === 'run' ? t('endSignoffDone', signoff.done, signoff.total) : signoff.total === 1 ? t('endSignoffOne') : t('endSignoffWhat', signoff.total);
-  // Ohne Schätzung oder wenn sie überschritten ist, zählt die verstrichene Zeit; eine stehende Restzeit sähe aus wie eine hängende App.
+  // Without an estimate or once it is exceeded, the elapsed time counts; a frozen remaining time would look like a hung app.
   const big = end.finishAt ? '<span class="sub">' + t('endLeft') + '</span><b data-until="' + esc(end.finishAt) + '"></b>' : '<span class="sub">' + t(end.over ? 'endOver' : 'endSoFar') + '</span><b data-since="' + esc(end.startedAt) + '"></b>';
   const html = '<div class="stack"><div class="head"><div><h1>' + t('endTitle') + '</h1><p class="lede">' + t('endText') + '</p></div><div class="eta">' + big + '</div></div>' +
     '<div class="planwrap"><div class="plan"><svg aria-hidden="true"></svg><div class="col">' + projects.join('') + '</div>' +
@@ -1622,7 +1622,7 @@ function renderShutdown(end) {
 function render() {
   if (!data) return;
   document.documentElement.lang = lang;
-  // Beim Beenden gehört das Fenster dem Abbau; eine offene Rückfrage hat sich damit erledigt.
+  // On quit the window belongs to the teardown; an open confirmation is thereby settled.
   document.documentElement.classList.toggle('ending', Boolean(data.shutdown));
   if (data.shutdown) {
     if (document.getElementById('ask').open) document.getElementById('ask').close('');
@@ -1640,10 +1640,10 @@ function render() {
   else if (entry) renderOverview([entry], true);
   else { view = 'all'; renderOverview(data.repos, false); }
   tick();
-  placeInfo(); // die Info-Fläche folgt ihrem Symbol, wenn der neue Stand es verschoben hat
+  placeInfo(); // the info surface follows its symbol if the new state moved it
 }
 
-// Laufende Zeiten zählen zwischen den Abfragen in der Seite weiter.
+// Running times keep counting in the page between polls.
 function tick() {
   for (const el of document.querySelectorAll('[data-since]')) {
     const s = secondsSince(el.dataset.since);
@@ -1656,12 +1656,12 @@ function tick() {
   for (const el of document.querySelectorAll('[data-finish]')) el.textContent = el.dataset.short ? leftText(el.dataset.finish).replace(/^noch |\s*left$/g, '') : leftText(el.dataset.finish);
   for (const el of document.querySelectorAll('[data-ago]')) el.textContent = ago(el.dataset.ago);
   for (const el of document.querySelectorAll('[data-running]')) el.textContent = t('since', clock(secondsSince(el.dataset.running)));
-  // Die Restzeit beim Beenden; ist sie um, liefert die nächste Abfrage die verstrichene Zeit (siehe shutdown.js).
+  // The remaining time on quit; once it is over, the next poll delivers the elapsed time (see shutdown.js).
   for (const el of document.querySelectorAll('[data-until]')) el.textContent = clock(Math.max(1, (new Date(el.dataset.until) - Date.now()) / 1000));
 }
 
-// Bis zur ersten Antwort stehen Wortmarke und ein Satz da statt einer leeren Fläche; bleibt die Antwort aus, sagt
-// der Satz das.
+// Until the first answer, the wordmark and a sentence show instead of an empty surface; if the answer fails to come, the
+// sentence says so.
 function renderStart(failed) {
   const main = document.getElementById('main');
   main.dataset.shape = 'start';
@@ -1672,17 +1672,17 @@ function renderStart(failed) {
 async function refresh() {
   const before = data?.ui;
   const signedIn = data?.auth?.state;
-  // Beim Beenden ist ein Dienst, der nicht mehr antwortet, das erwartete Ende: Das Fenster schließt sich gleich.
+  // On quit a service that no longer answers is the expected end: the window closes shortly.
   try { data = await (await fetch('/api/status')).json(); } catch { if (data?.shutdown) return; if (data) toast(t('noAnswer')); else renderStart(true); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
-  // Frisch angemeldet: Die Repos des Kontos ließen sich bisher nicht lesen.
+  // Freshly signed in: the account's repos could not be read so far.
   if (signedIn && signedIn !== 'in' && data.auth?.state === 'in') loadRepos();
   render();
   if (view === 'settings' && data.logStamp !== logStamp) loadLog();
 }
-async function loadLog() { try { const response = await fetch('/api/log'); if (!response.ok) return; const answer = await response.json(); logData = answer.entries; logStamp = answer.stamp; if (view === 'settings') render(); } catch { /* das Protokoll kommt mit der nächsten Abfrage */ } }
-// Legt einen Text in die Zwischenablage und meldet, ob es geklappt hat. `text` darf auch erst geholt werden
-// (eine Funktion); scheitert das, gilt es wie ein gescheitertes Kopieren. `done(text)` bildet die Meldung.
+async function loadLog() { try { const response = await fetch('/api/log'); if (!response.ok) return; const answer = await response.json(); logData = answer.entries; logStamp = answer.stamp; if (view === 'settings') render(); } catch { /* the log comes with the next poll */ } }
+// Puts a text on the clipboard and reports whether it worked. `text` may also have to be fetched first
+// (a function); if that fails, it counts as a failed copy. `done(text)` builds the message.
 async function copyText(text, done, failed) {
   try {
     const found = typeof text === 'function' ? await text() : text;
@@ -1696,17 +1696,17 @@ async function fetchLogFile() {
   return response.text();
 }
 const copyLog = () => copyText(fetchLogFile, (text) => t('logCopied', text.split('\n').filter(Boolean).length), t('logCopyFailed'));
-// Zurück aus dem Browser (etwa nach dem Installieren der App bei GitHub): die Repos neu holen.
+// Back from the browser (say after installing the app on GitHub): fetch the repos again.
 window.addEventListener('focus', () => { if (data?.auth?.state === 'in') loadRepos(); });
-async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* Vorschläge sind Beiwerk */ } }
-async function loadDay() { try { dayData = await (await fetch('/api/metrics/day')).json(); if (view === 'usage') render(); } catch { /* Verlauf ist Beiwerk */ } }
+async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* suggestions are extras */ } }
+async function loadDay() { try { dayData = await (await fetch('/api/metrics/day')).json(); if (view === 'usage') render(); } catch { /* history is an extra */ } }
 async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })) { toast(t('added')); loadRepos(); return true; } return false; }
 
 document.addEventListener('click', async (event) => {
   const nav = event.target.closest('[data-view]');
   if (nav) { view = nav.dataset.view; store.set('view', view); document.getElementById('main').scrollTop = 0; hereStop = ''; if (view === 'usage') loadDay(); if (view === 'settings') { loadRepos(); loadLog(); const trouble = limitTrouble(); if (trouble && !trouble.repos.includes(openRepo)) openRepo = trouble.repos[0]; }
     render();
-    // Ein Verweis kann eine Haltestelle der Zielansicht nennen.
+    // A reference can name a stop of the target view.
     if (nav.dataset.goto) { hereStop = nav.dataset.goto; render(); document.getElementById('stop-' + hereStop)?.scrollIntoView({ block: 'start' }); }
     return; }
   const set = event.target.closest('[data-set]');
@@ -1726,32 +1726,32 @@ document.addEventListener('click', async (event) => {
   const el = event.target.closest('button[data-do]');
   if (!el || el.getAttribute('aria-disabled') === 'true') return;
   const { do: action, confirm: question, ...body } = el.dataset;
-  // Die Überschrift ist die Aktion selbst, als Frage; die Schaltfläche zum Bestätigen wiederholt sie.
+  // The heading is the action itself, as a question; the confirm button repeats it.
   const label = el.getAttribute('aria-label') || el.textContent.trim();
   if (question && !await ask({ title: label + '?', text: question, ok: label, danger: el.classList.contains('danger') })) return;
   for (const key of ['paused', 'cache', 'on', 'inherit', 'failedOnly']) if (key in body) body[key] = body[key] === '1';
   if ('parallel' in body) body.parallel = Number(body.parallel);
   el.setAttribute('aria-disabled', 'true');
   document.getElementById('tip').style.display = 'none';
-  // Der Knopf bleibt beim Beenden und nach einem erneuten Start gesperrt; sonst ist er nach der Antwort wieder da,
-  // auch wenn sich nichts ändert.
+  // The button stays disabled on quit and after a re-run; otherwise it is back after the answer,
+  // even if nothing changes.
   const done = await call(action, body);
-  // Der Dienst beendet kurz nach seiner Antwort (siehe actions.js); dann zeigt die Seite den Abbau.
+  // The service quits shortly after its answer (see actions.js); then the page shows the teardown.
   if (done && (action === 'shutdown' || action === 'app/update')) { setTimeout(refresh, 300); return; }
-  if (done && action.endsWith('/rerun')) { restarted.set(body.repo + '/' + body.id, Date.now()); toast(t('rerunDone')); render(); return; } // bei GitHub erscheint der Lauf erst nach einem Augenblick wieder
+  if (done && action.endsWith('/rerun')) { restarted.set(body.repo + '/' + body.id, Date.now()); toast(t('rerunDone')); render(); return; } // on GitHub the run only reappears after a moment
   el.removeAttribute('aria-disabled');
 });
 document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
 document.addEventListener('change', async (event) => {
   if (event.target.id === 'autostart') { call('app/autostart', { on: event.target.checked }); return; }
   if (!event.target.dataset?.limit || !draft) return;
-  // Der Regler ist losgelassen: speichern und den Entwurf erst fallen lassen, wenn der neue Stand da ist.
+  // The slider is released: save, and drop the draft only once the new state is there.
   const sent = draft;
   if (await call('limits/set', { ...sent.values, ...(sent.repo ? { repo: sent.repo } : {}) })) await refresh();
   if (draft === sent) draft = null;
   render();
 });
-// Solange ein Regler bewegt wird, rechnet der Balken darüber mit.
+// While a slider is being moved, the bar above it follows along.
 document.addEventListener('input', (event) => {
   const key = event.target.dataset?.limit;
   if (!key) return;
@@ -1759,7 +1759,7 @@ document.addEventListener('input', (event) => {
   draft = { repo, values: { ...(draft && draft.repo === repo ? draft.values : {}), [key]: Number(event.target.value) } };
   render();
 });
-// Die Haltestelle, an der die Einstellungen gerade stehen, tritt hervor.
+// The stop the settings are currently at stands out.
 document.getElementById('main').addEventListener('scroll', (event) => {
   if (view !== 'settings' && view !== 'usage') return;
   const main = event.currentTarget;
@@ -1772,7 +1772,7 @@ document.getElementById('main').addEventListener('scroll', (event) => {
   if (key && key !== here()) { hereStop = key; render(); }
 }, { passive: true });
 
-// Der Tooltip der App: am Mauszeiger oder, bei Tastaturbedienung, über dem Element.
+// The app's tooltip: at the mouse pointer or, with keyboard use, above the element.
 function showTip(text, x, y) {
   const tip = document.getElementById('tip');
   tip.textContent = text;
@@ -1788,15 +1788,15 @@ document.addEventListener('focusin', (event) => {
 });
 document.addEventListener('focusout', () => { document.getElementById('tip').style.display = 'none'; });
 
-// Die Info-Fläche: zeigt die Erklärung eines Info-Elements (siehe info), am Symbol verankert. Sie steht unter ihm und
-// nur, wenn dort kein Platz ist, darüber; seitlich bleibt sie im Fenster. Überfahren, Tastaturfokus und Klick öffnen
-// sie; Verlassen, Fokuswechsel und Escape schließen sie. Der Inhalt ist eine Kopie der verborgenen Erklärung im Knopf (`.ib`).
-let infoAt = null; // das Info-Element, dessen Erklärung gerade steht
-let infoHeld = false; // per Klick festgehalten: bleibt beim Verlassen stehen
+// The info surface: shows the explanation of an info element (see info), anchored to the symbol. It sits below it and
+// only if there is no room there, above; sideways it stays within the window. Hover, keyboard focus and click open
+// it; leaving, focus change and Escape close it. The content is a copy of the hidden explanation in the button (`.ib`).
+let infoAt = null; // the info element whose explanation is currently shown
+let infoHeld = false; // pinned by a click: stays when the pointer leaves
 function placeInfo() {
   const box = document.getElementById('info');
   if (!infoAt) return;
-  // Hat ein neuer Stand das Element ersetzt, gehört die Fläche zu nichts mehr.
+  // If a new state replaced the element, the surface belongs to nothing any more.
   if (!infoAt.isConnected) { hideInfo(); return; }
   const at = infoAt.getBoundingClientRect();
   const below = at.bottom + 8;
@@ -1817,10 +1817,10 @@ function hideInfo() {
   document.getElementById('info').style.display = 'none';
 }
 const infoOf = (target) => (target?.closest ? target.closest('.info') : null);
-// Zeiger auf dem Symbol oder auf der Fläche selbst: Die Fläche lässt sich zum Lesen und Markieren erreichen.
+// Pointer on the symbol or on the surface itself: the surface can be reached for reading and selecting.
 const inInfo = (target) => Boolean(target?.closest && (target.closest('#info') || (infoAt && target.closest('.info') === infoAt)));
-// Zwischen Symbol und Fläche liegt ein Spalt: Verlassen schließt deshalb erst nach einem Augenblick, und wer Symbol
-// oder Fläche bis dahin wieder erreicht, behält sie.
+// There is a gap between symbol and surface: leaving therefore closes only after a moment, and whoever reaches symbol
+// or surface again by then keeps it.
 let infoLeave = 0;
 document.addEventListener('mouseover', (event) => { if (inInfo(event.target)) clearTimeout(infoLeave); const el = infoOf(event.target); if (el && el !== infoAt) showInfo(el); });
 document.addEventListener('mouseout', (event) => {
@@ -1830,7 +1830,7 @@ document.addEventListener('mouseout', (event) => {
 });
 document.addEventListener('focusin', (event) => { const el = infoOf(event.target); if (el && el.matches(':focus-visible')) showInfo(el); else if (infoAt && !el && !infoHeld && !infoAt.matches(':hover')) hideInfo(); });
 document.addEventListener('focusout', (event) => { if (infoAt && infoOf(event.target) === infoAt && !infoHeld && !infoAt.matches(':hover')) hideInfo(); });
-// Ein Klick hält die Fläche fest, ein zweiter schließt sie; ein Klick daneben auch.
+// One click pins the surface, a second closes it; so does a click beside it.
 document.addEventListener('click', (event) => {
   const el = infoOf(event.target);
   if (el) { if (infoAt === el && infoHeld) hideInfo(); else { showInfo(el); infoHeld = true; } return; }
@@ -1841,7 +1841,7 @@ document.getElementById('main').addEventListener('scroll', placeInfo, { passive:
 window.addEventListener('resize', placeInfo);
 document.addEventListener('mouseleave', () => { document.getElementById('tip').style.display = 'none'; });
 
-// Verlauf unter dem Mauszeiger: Zeitpunkt und Wert, dazu eine Linie an der Stelle.
+// History under the mouse pointer: time and value, plus a line at that spot.
 document.addEventListener('mousemove', (event) => {
   const tip = document.getElementById('tip');
   const hinted = event.target.closest ? event.target.closest('[data-tip]') : null;
@@ -1866,7 +1866,7 @@ window.addEventListener('resize', () => document.querySelectorAll('.plan').forEa
 document.fonts?.ready.then(() => document.querySelectorAll('.plan').forEach(drawLinks));
 
 renderStart(false); loadRepos(); if (view === 'usage') loadDay();
-// Beim Beenden öfter fragen: Der Abbau dauert nur Sekunden.
+// Poll more often on quit: the teardown only takes seconds.
 (function poll() { refresh().finally(() => setTimeout(poll, data?.shutdown ? 1000 : 3000)); })();
 setInterval(tick, 1000); setInterval(() => { if (view === 'usage') loadDay(); }, 60000);
 </script></body></html>

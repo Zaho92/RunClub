@@ -1,14 +1,14 @@
-// Die Vorlage eines Repos und das Gelernte dahinter (siehe „Abbilder“ im Kopf von backend.js): Nach jedem Job hält
-// `learnImages` die Namen der Abbilder fest, die er selbst geladen hat. `refreshSeed` holt sie von der Registry in ein
-// Volume, die Vorlage; jedes neue Paar bekommt eine Kopie davon (`provision` in slots.js) und muss sie nicht mehr laden.
-// Kein Job schreibt in die Vorlage: Gemerkt werden nur Namen, geladen wird von hier aus.
+// The template of a repo and what was learned behind it (see “Images” in the head of backend.js): after each job
+// `learnImages` records the names of the images it pulled itself. `refreshSeed` fetches them from the registry into a
+// volume, the template; every new pair gets a copy of it (`provision` in slots.js) and no longer has to pull them.
+// No job writes to the template: only names are recorded, pulling happens from here.
 //
-//   Gelernt   `state.learned[repo]`  { Abbild: ISO-Zeitpunkt des letzten Gebrauchs }; fällt nach `LEARNED_DAYS` heraus
-//   Abgelehnt `state.rejected[repo]` { Abbild: ISO-Zeitpunkt }; was es bei der Registry nicht gibt, wird so lange
-//             nicht wieder gelernt
-//   Vorlage   `pool.seeded`: die Abbilder, die gerade im Volume liegen
+//   Learned   `state.learned[repo]`  { image: ISO time of last use }; drops out after `LEARNED_DAYS`
+//   Rejected  `state.rejected[repo]` { image: ISO time }; what the registry does not have is not learned again for
+//             that long
+//   Template  `pool.seeded`: the images that are in the volume right now
 //
-// Die Regeln für einzelne Abbilder liegen in images.js.
+// The rules for single images are in images.js.
 
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
@@ -19,17 +19,17 @@ const { msg, Fault } = require('./messages');
 
 const LEARNED_DAYS = 14;
 const LEARNED_MAX = 25;
-const LOCK_PAUSE = SECOND / 2; // so oft sieht nach, wer auf die Vorlage wartet
+const LOCK_PAUSE = SECOND / 2; // how often whoever waits for the template checks
 const IMAGE_NAME = /^[a-z0-9][a-z0-9._/:-]*:[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
-//   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
-//   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
+//   docker(args, options)   like `run('docker', …)`: returns `{ code, stdout, stderr }` and never throws
+//   dockerList(args)        the same, returns the lines of the output
 //   log(text, repo, kind), sleep(ms)
-//   mark, dind              Kennzeichen der eigenen Container und Abbild des Docker-Daemons
-//   longTimeout             Zeitgrenze für das Laden eines Abbilds
-//   settingsOf(repo), seedVolume(repo), poolOf(repo) (der Pool oder undefined)
-//   state, saveState()      das Gelernte (`learned`, `rejected`) und sein Speichern
-//   stopping()              RunClub endet: Ein Auffrischen hört dann auf, statt das Beenden aufzuhalten
+//   mark, dind              mark of our own containers and image of the Docker daemon
+//   longTimeout             time limit for pulling an image
+//   settingsOf(repo), seedVolume(repo), poolOf(repo) (the pool or undefined)
+//   state, saveState()      what was learned (`learned`, `rejected`) and saving it
+//   stopping()              RunClub is ending: a refresh then stops instead of holding up the shutdown
 function createSeed({
   docker, dockerList, log, sleep,
   mark, dind, longTimeout,
@@ -47,7 +47,7 @@ function createSeed({
     return [...new Set([...fixed, ...learned])].slice(0, LEARNED_MAX);
   }
 
-  // Kopieren darf gleichzeitig laufen, auffrischen nur allein.
+  // Copying may run at the same time, refreshing only alone.
   const seedLocks = new Map();
   async function withSeed(repo, exclusive, work) {
     if (!seedLocks.has(repo)) seedLocks.set(repo, { readers: 0, writing: false });
@@ -60,25 +60,25 @@ function createSeed({
   function refreshSeed(repo) {
     return withSeed(repo, true, async () => {
       const pool = poolOf(repo);
-      if (pool?.removed) return; // der Lade-Container hielte das Volume fest, das gerade gelöscht werden soll
+      if (pool?.removed) return; // the loader container would hold on to the volume that is about to be deleted
       const seed = seedVolume(repo);
       const loader = `${seed}-loader`;
       const wanted = wantedImages(repo);
-      // `-v` bei jedem Entfernen: Das Abbild des Daemons legt seinen Speicher als Volume an, das sonst liegen bliebe.
+      // `-v` on every removal: the daemon image creates its storage as a volume, which would otherwise be left behind.
       await docker(['rm', '-f', '-v', loader]);
       if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
       log(msg('m_seedRefresh', wanted.length), repo);
       await docker(['volume', 'create', seed]);
-      // Der Lade-Daemon läuft ohne Rechte wie der Daemon eines Paars (siehe dind.js), sonst taugte die Vorlage diesem
-      // nicht. Eine Vorlage aus der Zeit, als die Daemons Rechte hatten, gehört root: Sie wird einmal geleert.
+      // The loader daemon runs without privileges like the daemon of a pair (see dind.js), otherwise the template would
+      // be no use to it. A template from the time when the daemons had privileges belongs to root: it is cleared once.
       await docker(['run', '--rm', '-v', `${seed}:/d`, ...asRoot(dind),
         `[ "$(stat -c %u /d)" = ${RUNNER_USER} ] || { find /d -mindepth 1 -delete; chown ${RUNNER_USER}:${RUNNER_USER} /d; }`]);
       await docker(['run', '-d', '--label', mark, '--name', loader, ...DAEMON_FLAGS, '-v', `${seed}:${DATA_ROOT}`, dind, ...DAEMON_COMMAND]);
       const ready = await waitForDaemon({ docker, sleep, container: loader, host: PAIR_SOCKET, cancelled: stopping });
-      // Endet RunClub, ist das Warten nur abgebrochen, kein Fehler. Der Lade-Container geht trotzdem gleich: Das Beenden
-      // wartet nicht auf die Vorlage und hat ihn womöglich nicht mehr gesehen.
+      // If RunClub is ending, the waiting was only cancelled, no error. The loader container goes right away anyway:
+      // the shutdown does not wait for the template and may no longer have seen it.
       if (stopping()) { await docker(['rm', '-f', '-v', loader]); return; }
-      // Ohne laufenden Lade-Daemon ließe sich nichts laden; das Gelernte bleibt, wie es ist.
+      // Without a running loader daemon nothing could be pulled; what was learned stays as it is.
       if (!ready) {
         const why = await whyNotReady(docker, loader);
         await docker(['rm', '-f', '-v', loader]);
@@ -87,14 +87,14 @@ function createSeed({
       const present = new Set();
       const retry = new Set();
       for (const image of wanted) {
-        // Endet RunClub, bleibt die Vorlage, wie sie war; den Lade-Container räumt das Beenden ab.
+        // If RunClub is ending, the template stays as it was; the shutdown removes the loader container.
         if (stopping()) return;
         const pull = await docker(['exec', loader, 'docker', '-H', PAIR_SOCKET, 'pull', '-q', image], { timeout: longTimeout });
         if (pull.code === 0) { present.add(image); continue; }
         log(msg('m_seedPullFailed', image, lastLine(pull.stderr)), repo, 'error');
-        // Eine Störung (Netz, Anfragelimit) geht vorüber: Was schon in der Vorlage liegt, bleibt dort.
+        // A disruption (network, rate limit) passes: what is already in the template stays there.
         if (!permanentPullError(pull.stderr)) { retry.add(image); continue; }
-        // Was es bei der Registry nicht gibt, hat der Job selbst gebaut oder es ist nicht öffentlich: nicht wieder versuchen.
+        // What the registry does not have, the job built itself or it is not public: do not try again.
         (state.rejected[repo] ??= {})[image] = new Date().toISOString();
         delete state.learned[repo]?.[image];
       }
@@ -112,7 +112,7 @@ function createSeed({
     });
   }
 
-  // Nach einem Job: die Namen der Abbilder festhalten, die er selbst geladen hat.
+  // After a job: record the names of the images it pulled itself.
   const refreshQueued = new Set();
   async function learnImages(pool, slot) {
     const listing = await docker(['exec', `${slot.base}-dind`, 'docker', '-H', PAIR_SOCKET, 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
@@ -123,8 +123,8 @@ function createSeed({
     for (const image of new Set(listing.stdout.split('\n').map((s) => s.trim()))) {
       if (!IMAGE_NAME.test(image)) continue;
       if (rejected[image] && daysSince(rejected[image]) <= LEARNED_DAYS) continue;
-      // Was schon aus der Vorlage kam, kann unbenutzt sein: Sein Datum bleibt, damit es nach einer Frist herausfällt
-      // und nur zurückkommt, wenn ein Job es wieder selbst lädt.
+      // What already came from the template may be unused: its date stays, so that it drops out after a while
+      // and only comes back if a job pulls it itself again.
       if (slot.copied?.has(image)) continue;
       (state.learned[pool.repo] ??= {})[image] = now;
       if (!pool.seeded.has(image)) unknown = true;
@@ -132,12 +132,12 @@ function createSeed({
     saveState();
     if (unknown && !refreshQueued.has(pool.repo)) {
       refreshQueued.add(pool.repo);
-      refreshSeed(pool.repo).catch(logError(pool.repo, 'Vorlage')).finally(() => refreshQueued.delete(pool.repo));
+      refreshSeed(pool.repo).catch(logError(pool.repo, msg('m_whatTemplate'))).finally(() => refreshQueued.delete(pool.repo));
     }
   }
 
-  // Vorlage und Gelerntes eines Repos verwerfen, sobald keine Kopie und kein Auffrischen mehr läuft. Wirft, wenn
-  // sich das Volume nicht löschen lässt.
+  // Discard the template and what was learned for a repo as soon as no copy and no refresh is running. Throws if
+  // the volume cannot be deleted.
   function forget(repo) {
     return withSeed(repo, true, async () => {
       delete state.learned[repo];

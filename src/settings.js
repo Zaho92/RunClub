@@ -1,10 +1,10 @@
-// Einstellungen (`runners.json`) und Gelerntes (`state.json`) im Datenordner.
+// Settings (`runners.json`) and learned data (`state.json`) in the data folder.
 //
-//   Einstellungen  { limits, pools: [{ repo, parallel, cache, paused, preload, limits?, reserve? }] }
-//                  `limits` gilt für alle Projekte; ein Pool kann eigene tragen (siehe limits.js).
-//   Gelerntes      { learned, rejected } für die Vorlagen (siehe seed.js)
+//   Settings       { limits, pools: [{ repo, parallel, cache, paused, preload, limits?, reserve? }] }
+//                  `limits` applies to all projects; a pool can carry its own (see limits.js).
+//   Learned        { learned, rejected } for the templates (see seed.js)
 //
-// `config.pools` wird beim Entfernen eines Pools neu gesetzt: Wer die Liste braucht, liest sie jedes Mal über `config`.
+// `config.pools` is set anew when a pool is removed: whoever needs the list reads it through `config` every time.
 
 const path = require('node:path');
 const { readJson, writeJson } = require('./store');
@@ -12,17 +12,17 @@ const limitRules = require('./limits');
 const { msg } = require('./messages');
 
 const LIMIT_DEFAULTS = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, dockerMemory: '4g' };
-// Je Pool neu, damit sich keine zwei Pools eine Liste teilen.
+// New per pool, so that no two pools share a list.
 const poolDefaults = () => ({ parallel: 1, cache: true, paused: false, preload: [] });
 const PARALLEL_MAX = 4;
-// So schreibt GitHub einen Repo-Namen; nichts, was Docker als Option lesen könnte.
+// This is how GitHub writes a repo name; nothing Docker could read as an option.
 const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 
-// Zahl der Plätze eines Pools: eine ganze Zahl von 1 bis PARALLEL_MAX, was auch immer ankommt.
+// Number of slots of a pool: a whole number from 1 to PARALLEL_MAX, whatever arrives.
 const clampParallel = (value) => Math.min(PARALLEL_MAX, Math.max(1, Math.trunc(Number(value)) || 1));
 
-//   dataDir                 der Datenordner
-//   log(text, repo, kind)   meldet eine Datei, die sich nicht lesen ließ
+//   dataDir                 the data folder
+//   log(text, repo, kind)   reports a file that could not be read
 function createSettings({ dataDir, log }) {
   const configFile = path.join(dataDir, 'runners.json');
   const stateFile = path.join(dataDir, 'state.json');
@@ -46,7 +46,7 @@ function createSettings({ dataDir, log }) {
   const saveState = () => writeJson(stateFile, state);
 
   const settingsOf = (repo) => config.pools.find((pool) => pool.repo === repo);
-  // Eigene Limits des Projekts oder die für alle.
+  // The project's own limits or the ones for all.
   const limitsOf = (repo) => limitRules.effective(config.limits, settingsOf(repo)?.limits);
   const repos = () => config.pools.map((pool) => pool.repo);
 

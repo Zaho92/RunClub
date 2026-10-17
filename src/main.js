@@ -1,6 +1,6 @@
-// RunClub als Programm: Fenster, Symbol im Infobereich, Start mit Windows.
-// Die Runner verwaltet backend.js im selben Prozess; das Fenster zeigt dessen Oberfläche.
-// Das Fenster zu schließen beendet nichts – beendet wird über das Symbol im Infobereich oder „Alles beenden“.
+// RunClub as a program: window, tray icon, start with Windows.
+// backend.js manages the runners in the same process; the window shows its interface.
+// Closing the window ends nothing – quitting goes through the tray icon or “Quit RunClub”.
 
 const { app, BrowserWindow, Tray, Menu, shell, safeStorage } = require('electron');
 const { spawn } = require('node:child_process');
@@ -15,18 +15,18 @@ const pkg = require('../package.json');
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const TRAY_ICON = path.join(__dirname, '..', 'build', 'tray.png');
 const HIDDEN = process.argv.includes('--hidden');
-// Farben und Grenze der Oberfläche, die auch das Fenster braucht; maßgeblich ist ui.html (`--ground`, `--rail`, `--text`,
+// Colours and breakpoint of the interface that the window needs too; ui.html is authoritative (`--ground`, `--rail`, `--text`,
 // `NARROW`).
 const GROUND = '#0c1838';
 const RAIL = '#091230';
 const TEXT = '#c9d2ea';
 const NARROW = 760;
-// Was das Fenster im Browser öffnet: GitHub und die Anleitung, Docker Desktop zu installieren (siehe setup.js).
+// What the window opens in the browser: GitHub and the guide to installing Docker Desktop (see setup.js).
 const EXTERNAL = ['https://github.com/', 'https://docs.docker.com/desktop/'];
-const TOOLTIP_INTERVAL = 5 * SECOND; // so oft wird der Hinweis am Symbol im Infobereich aufgefrischt
-const UPDATE_FIRST = MINUTE; // nach dem Start, wenn die Runner stehen
+const TOOLTIP_INTERVAL = 5 * SECOND; // how often the tray icon's tooltip is refreshed
+const UPDATE_FIRST = MINUTE; // after startup, once the runners stand
 const UPDATE_INTERVAL = 6 * HOUR;
-// Die Releases liegen im Repo aus package.json (`repository.url`).
+// The releases live in the repo from package.json (`repository.url`).
 const REPO = pkg.repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1];
 
 if (!app.requestSingleInstanceLock()) app.exit(0);
@@ -38,11 +38,11 @@ let backend = null;
 let window = null;
 let tray = null;
 let updater = null;
-let quitting = false; // RunClub baut ab; das Fenster zeigt dabei, was noch fehlt
-let exiting = false; // der Abbau ist fertig, das Programm endet
-let installer = null; // soll nach dem Abbau eingespielt werden (siehe `installUpdate`)
+let quitting = false; // RunClub is tearing down; meanwhile the window shows what is left
+let exiting = false; // teardown is done, the program ends
+let installer = null; // to be installed after teardown (see `installUpdate`)
 
-// Ungepackt startet electron.exe mit dem Projektordner als Argument; das muss auch der Autostart tun.
+// Unpackaged, electron.exe starts with the project folder as argument; autostart must do the same.
 const loginItem = { path: process.execPath, args: app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden'] };
 const autostart = () => app.getLoginItemSettings(loginItem).openAtLogin;
 function setAutostart(on) {
@@ -50,23 +50,23 @@ function setAutostart(on) {
   refreshTray();
 }
 
-// Der Autostart-Eintrag trägt unter Windows den Namen der App (Wert „RunClub“ unter …\Run). Zeigt er noch auf eine
-// andere RunClub (den Entwicklungsordner vor der Installation), übernimmt ihn die installierte App: sonst startete mit
-// Windows die falsche. Electron nennt einen Eintrag mit fremdem Pfad nicht, deshalb wird die Registry gelesen.
+// On Windows the autostart entry carries the app's name (value “RunClub” under …\Run). If it still points to
+// another RunClub (the development folder before installing), the installed app takes it over: otherwise the wrong one
+// would start with Windows. Electron doesn't report an entry with a foreign path, so the registry is read.
 async function adoptAutostart() {
   if (!app.isPackaged || autostart()) return;
   const result = await run('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'RunClub'], { timeout: 10 * SECOND });
   if (result.code === 0 && /RunClub\s+REG_SZ/i.test(result.stdout)) setAutostart(true);
 }
 
-// So liegt das Token der Anmeldung bei GitHub im Datenordner: verschlüsselt mit dem Schlüssel des Windows-Benutzers
-// (DPAPI). Steht das nicht zur Verfügung, gilt die Anmeldung nur bis zum Ende des Programms (siehe auth.js).
+// This is how the GitHub sign-in token lies in the data folder: encrypted with the Windows user's key
+// (DPAPI). If that isn't available, the sign-in holds only until the program ends (see auth.js).
 const secrets = () => (safeStorage.isEncryptionAvailable()
   ? { encrypt: (buffer) => safeStorage.encryptString(buffer.toString('utf8')), decrypt: (buffer) => Buffer.from(safeStorage.decryptString(buffer), 'utf8') }
   : null);
 
-// Spielt das geladene Update ein: nur, wenn kein Runner arbeitet, denn Beenden baut alle ab. Der Installer startet
-// erst, wenn der Abbau fertig ist (hooks.onExit), und öffnet RunClub danach wieder.
+// Installs the downloaded update: only if no runner is working, since quitting tears all of them down. The installer
+// starts only once teardown is done (hooks.onExit), and opens RunClub again afterwards.
 function installUpdate() {
   const ready = updater.installer();
   if (!ready) throw new Fault('m_noUpdate');
@@ -83,33 +83,33 @@ function exit() {
   app.exit(0);
 }
 
-// Die Knöpfe von Windows über dem Streifen der Seite: in der Farbe des Grundes, im schmalen Fenster der Leiste.
+// The Windows buttons above the page's strip: in the ground colour, in a narrow window in the rail's.
 const overlay = (narrow) => ({ color: narrow ? RAIL : GROUND, symbolColor: TEXT, height: 32 });
 
 function showWindow() {
   if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); return; }
   window = new BrowserWindow({
     width: 980, height: 860, minWidth: 420, minHeight: 400, title: 'RunClub', icon: ICON, autoHideMenuBar: true, backgroundColor: GROUND,
-    // Keine Titelleiste von Windows: Die Seite zeichnet oben einen eigenen Streifen zum Ziehen (`#bar` in ui.html).
-    // Minimieren, Maximieren und Schließen bleiben die Knöpfe von Windows, in den Farben der App; so funktionieren
-    // Andocken und Tastatur wie gewohnt. Die Höhe muss zum Streifen der Seite passen.
+    // No Windows title bar: the page draws its own strip at the top for dragging (`#bar` in ui.html).
+    // Minimize, maximize and close stay Windows buttons, in the app's colours; that way snapping and the
+    // keyboard work as usual. The height must match the page's strip.
     titleBarStyle: 'hidden', titleBarOverlay: overlay(false),
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
   });
-  // Die Einstiegsadresse trägt den Schlüssel dieses Programmlaufs; damit bekommt nur dieses Fenster die Oberfläche.
+  // The entry address carries this program run's key; that way only this window gets the interface.
   const url = backend.entry;
-  const home = `http://127.0.0.1:${backend.port}/`; // wie die Einstiegsadresse (siehe access.js)
+  const home = `http://127.0.0.1:${backend.port}/`; // like the entry address (see access.js)
   window.loadURL(url);
-  // Das Fenster bleibt bei der eigenen Oberfläche; alles andere öffnet der Browser oder gar nichts.
+  // The window stays on our own interface; everything else is opened by the browser or not at all.
   window.webContents.on('will-navigate', (event, target) => { if (!target.startsWith(home)) event.preventDefault(); });
-  // Der Dienst im selben Prozess kann einen Moment später lauschen als das Fenster lädt.
+  // The service in the same process may start listening a moment after the window loads.
   window.webContents.on('did-fail-load', () => setTimeout(() => { if (window) window.loadURL(url); }, 500));
   window.webContents.setWindowOpenHandler(({ url: target }) => { if (EXTERNAL.some((prefix) => target.startsWith(prefix))) shell.openExternal(target); return { action: 'deny' }; });
-  // Im schmalen Fenster trägt der Streifen die Farbe der Leiste; die Knöpfe folgen ihm.
+  // In a narrow window the strip has the rail's colour; the buttons follow it.
   const matchBar = () => {
     if (!window) return;
     const narrow = window.getContentSize()[0] / window.webContents.getZoomFactor() <= NARROW;
-    try { window.setTitleBarOverlay(overlay(narrow)); } catch { /* nur unter Windows */ }
+    try { window.setTitleBarOverlay(overlay(narrow)); } catch { /* Windows only */ }
   };
   window.on('resize', matchBar);
   window.webContents.on('did-finish-load', matchBar);
@@ -117,8 +117,8 @@ function showWindow() {
   window.on('closed', () => { window = null; });
 }
 
-// Menü und Hinweis am Symbol im Infobereich in der Sprache von Windows; die Oberfläche beginnt ebenso (siehe `lang` in
-// ui.html), lässt sich dort aber umstellen.
+// Menu and tooltip of the tray icon in the language of Windows; the interface starts the same way (see `lang` in
+// ui.html), but can be switched there.
 const TRAY_TEXT = {
   de: { open: 'RunClub öffnen', closing: 'Wird beendet …', autostart: 'Mit Windows starten', quit: 'Beenden (Runner stoppen)', stopping: 'RunClub – beendet die Runner …', count: (working, ready) => `RunClub – ${working} arbeiten, ${ready} bereit` },
   en: { open: 'Open RunClub', closing: 'Shutting down …', autostart: 'Start with Windows', quit: 'Quit (stop runners)', stopping: 'RunClub – stopping the runners …', count: (working, ready) => `RunClub – ${working} working, ${ready} ready` },
@@ -137,7 +137,7 @@ function refreshTray() {
   ]));
 }
 
-// Beendet die Seite RunClub („RunClub beenden“ in den Einstellungen), erfährt das Symbol es hier.
+// If the page quits RunClub (“Quit RunClub” in the settings), the tray icon learns of it here.
 function refreshTooltip() {
   if (!tray || quitting) return;
   const status = backend.status();
@@ -147,8 +147,8 @@ function refreshTooltip() {
   tray.setToolTip(trayText().count(count(SLOT.WORKING), count(SLOT.READY)));
 }
 
-// Das Fenster zeigt beim Beenden groß, was noch abgebaut wird (`shutdown` in /api/status). Ein offenes Fenster fragt
-// sonst erst mit der nächsten Abfrage nach; es wird deshalb gleich angestoßen.
+// While quitting, the window shows in large what is still being torn down (`shutdown` in /api/status). An open window
+// would otherwise only ask with its next query; so it is nudged right away.
 async function quit() {
   if (quitting) return;
   quitting = true;
@@ -156,22 +156,22 @@ async function quit() {
   tray?.setToolTip(trayText().stopping);
   const open = Boolean(window);
   showWindow();
-  const done = backend.shutdown(); // endet über hooks.onExit
-  if (open) window.webContents.executeJavaScript('refresh()').catch(() => { /* dann mit der nächsten Abfrage */ });
+  const done = backend.shutdown(); // ends via hooks.onExit
+  if (open) window.webContents.executeJavaScript('refresh()').catch(() => { /* then with the next query */ });
   await done;
 }
 
-// Das Ende der Sitzung (Abmelden, Herunterfahren) meldet Windows nur an Fenster, und danach bleiben wenige Sekunden.
-// Ein unsichtbares Fenster nimmt die Meldung entgegen, auch wenn das eigentliche nie geöffnet wurde; das Backend meldet
-// dann nur noch die freien Runner bei GitHub ab. Gehandelt wird erst bei `session-end`: Die Frage
-// davor (`query-session-end`) kommt auch, wenn das Herunterfahren dann abgebrochen wird.
+// Windows reports the end of the session (sign-out, shutdown) only to windows, and after that only a few seconds remain.
+// An invisible window receives the notice, even if the real one was never opened; the backend then
+// only removes the free runners from GitHub. Action is taken only on `session-end`: the question
+// before it (`query-session-end`) also comes when the shutdown is then cancelled.
 function watchSession() {
   const listener = new BrowserWindow({ show: false, width: 1, height: 1, skipTaskbar: true, webPreferences: { sandbox: true } });
   listener.on('session-end', () => backend.release());
 }
 
 app.on('second-instance', showWindow);
-app.on('window-all-closed', () => { /* läuft im Infobereich weiter */ });
+app.on('window-all-closed', () => { /* keeps running in the tray */ });
 
 app.whenReady().then(() => {
   backend = require('./backend').start({

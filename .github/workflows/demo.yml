@@ -1,111 +1,111 @@
-name: Demo-Pipeline
+name: Demo pipeline
 
-# Tut nichts außer zu warten: eine mehrstufige Pipeline, um den Netzplan in RunClub anzusehen.
-# Start von Hand:  gh workflow run demo.yml   (mit Fehler:  gh workflow run demo.yml -f fehler=true)
+# Does nothing but wait: a multi-stage pipeline to look at the network plan in RunClub.
+# Start by hand:  gh workflow run demo.yml   (with a failure:  gh workflow run demo.yml -f fail=true)
 
 on:
   workflow_dispatch:
     inputs:
-      fehler:
-        description: Den Job „Unit-Tests“ scheitern lassen, damit rote und ausgesetzte Jobs zu sehen sind
+      fail:
+        description: Make the job “Unit tests” fail, so that red and skipped jobs show up
         type: boolean
         default: false
 
 permissions: {}
 
 jobs:
-  vorbereiten:
-    name: Vorbereiten
+  prepare:
+    name: Prepare
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Umgebung prüfen
+      - name: Check environment
         run: sleep 8
 
-  bauen:
-    name: Bauen
-    needs: vorbereiten
+  build:
+    name: Build
+    needs: prepare
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Abhängigkeiten laden
+      - name: Fetch dependencies
         run: sleep 10
-      - name: Übersetzen
+      - name: Compile
         run: sleep 25
-      - name: Artefakte ablegen
+      - name: Store artifacts
         run: sleep 5
 
   lint:
     name: Lint
-    needs: vorbereiten
+    needs: prepare
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Stil prüfen
+      - name: Check style
         run: sleep 18
 
   unit:
-    name: Unit-Tests
-    needs: vorbereiten
+    name: Unit tests
+    needs: prepare
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Tests vorbereiten
+      - name: Prepare tests
         run: sleep 6
-      - name: Tests ausführen
+      - name: Run tests
         run: |
           sleep 20
-          if [ "${{ inputs.fehler }}" = "true" ]; then echo "absichtlich gescheitert"; exit 1; fi
+          if [ "${{ inputs.fail }}" = "true" ]; then echo "failed on purpose"; exit 1; fi
 
   integration:
-    name: Integrationstests
-    needs: [bauen, unit]
+    name: Integration tests
+    needs: [build, unit]
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Dienste starten
+      - name: Start services
         run: sleep 10
-      - name: Tests ausführen
+      - name: Run tests
         run: sleep 25
 
-  paket:
-    name: Paket schnüren
-    needs: bauen
+  package:
+    name: Package
+    needs: build
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Packen
+      - name: Pack
         run: sleep 15
 
-  doku:
-    name: Doku bauen
+  docs:
+    name: Build docs
     needs: lint
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Seiten erzeugen
+      - name: Generate pages
         run: sleep 14
 
   smoke:
-    name: Smoke-Test
+    name: Smoke test
     needs:
       - integration
-      - paket
+      - package
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Paket starten
+      - name: Start package
         run: sleep 8
-      - name: Erreichbarkeit prüfen
+      - name: Check reachability
         run: sleep 12
 
-  veroeffentlichen:
-    name: Veröffentlichen
-    needs: [smoke, doku]
+  publish:
+    name: Publish
+    needs: [smoke, docs]
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
-      - name: Freigabe abwarten
+      - name: Wait for approval
         run: sleep 6
-      - name: Hochladen
+      - name: Upload
         run: sleep 8

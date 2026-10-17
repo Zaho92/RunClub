@@ -1,11 +1,11 @@
-// Messung: Auslastung von Windows und Docker-VM als Verlauf, dazu der Verbrauch jedes Jobs.
+// Measuring: load of Windows and the Docker VM over time, plus the consumption of each job.
 //
-// Verlauf   alle paar Sekunden ein Messpunkt für die letzte halbe Stunde (nur im Speicher),
-//           daraus je Minute ein Mittel- und Höchstwert für die letzten 24 Stunden (metrics.json).
-// Je Job    Dauer, Spitzen- und Durchschnittsverbrauch der letzten Durchläufe (metrics.json), abgelegt unter dem
-//           Jobnamen. Jeder Durchlauf trägt den Namen seines Workflows, soweit er bekannt war: Zwei Workflows
-//           können einen Job gleich nennen, und beim Lesen wird danach getrennt.
-// CPU steht überall in Kernen, Arbeitsspeicher in Bytes.
+// History   every few seconds a sample for the last half hour (in memory only),
+//           from that per minute a mean and a peak for the last 24 hours (metrics.json).
+// Per job   duration, peak and average consumption of the last runs (metrics.json), stored under the job
+//           name. Each run carries the name of its workflow as far as it was known: two workflows can give a job
+//           the same name, and reading separates by it.
+// CPU is in cores everywhere, memory in bytes.
 
 const path = require('node:path');
 
@@ -13,33 +13,33 @@ const { MINUTE, DAY } = require('./units');
 const { median } = require('./numbers');
 const { readJson, writeJson } = require('./store');
 
-const RECENT_MAX = 300; // Messpunkte der letzten halben Stunde
+const RECENT_MAX = 300; // samples of the last half hour
 const MINUTES_MAX = 1440;
-const JOB_KEEP = 20; // gemerkte Durchläufe je Job und Workflow
-const NAME_KEEP = 100; // … und je Jobname über alle Workflows
-const JOBS_MAX = 100; // gemerkte Jobnamen je Repo; mit wechselnden Namen (etwa einem Commit im Namen) wüchse die Datei ohne Ende
+const JOB_KEEP = 20; // runs kept per job and workflow
+const NAME_KEEP = 100; // … and per job name across all workflows
+const JOBS_MAX = 100; // job names kept per repo; with changing names (a commit in the name, say) the file would grow without end
 const FIELDS = ['hostCpu', 'hostMemory', 'vmCpu', 'vmMemory'];
-// Ergebnis eines Jobs, wie GitHub es nennt (`conclusion`), in den Wörtern des Runners.
+// Result of a job as GitHub names it (`conclusion`), in the runner's words.
 const CONCLUSIONS = Object.freeze({ success: 'Succeeded', failure: 'Failed', timed_out: 'Failed', cancelled: 'Canceled', skipped: 'Skipped' });
 
-// `now`: die Uhr in Millisekunden; in Tests steuerbar.
+// `now`: the clock in milliseconds; controllable in tests.
 function createMetrics({ dataDir, now: clock = Date.now }) {
   const file = path.join(dataDir, 'metrics.json');
-  const stored = readJson(file, {}).data; // eine beschädigte Datei bleibt als Kopie liegen
-  // Die Datei kann von Hand verändert oder beschädigt sein: nur nehmen, was die erwartete Form hat.
+  const stored = readJson(file, {}).data; // a damaged file is kept as a copy
+  // The file may have been changed by hand or damaged: only take what has the expected shape.
   const minutes = (Array.isArray(stored?.minutes) ? stored.minutes : []).filter((entry) => entry && Number.isFinite(entry.at));
   const jobs = stored?.jobs && typeof stored.jobs === 'object' && !Array.isArray(stored.jobs) ? stored.jobs : {};
-  // Job- und Repo-Namen kommen von außen und können wie eingebaute Eigenschaften heißen (constructor, __proto__):
-  // nur eigene Einträge zählen, und angelegt wird, ohne den Prototyp zu berühren.
+  // Job and repo names come from outside and can be named like built-in properties (constructor, __proto__):
+  // only own entries count, and entries are created without touching the prototype.
   const own = (object, key) => (Object.hasOwn(object, key) ? object[key] : undefined);
   const ensure = (object, key, make) => {
     if (!Object.hasOwn(object, key)) Object.defineProperty(object, key, { value: make(), enumerable: true, writable: true, configurable: true });
     return object[key];
   };
-  const save = () => { try { writeJson(file, { minutes, jobs }, { compact: true }); } catch { /* Messwerte sind Beiwerk */ } };
+  const save = () => { try { writeJson(file, { minutes, jobs }, { compact: true }); } catch { /* measurements are secondary */ } };
 
-  // Was älter als 24 Stunden ist, fällt heraus: Nach einer langen Pause lägen sonst alte Minuten auf der Achse eines Tages.
-  // Ebenso, was in der Zukunft liegt (die Uhr wurde zurückgestellt): Die Kurve liefe sonst rückwärts.
+  // What is older than 24 hours drops out: after a long pause old minutes would otherwise lie on the axis of a day.
+  // Likewise what lies in the future (the clock was set back): the curve would otherwise run backwards.
   const prune = (time) => {
     const kept = minutes.filter((entry) => entry.at >= time - DAY && entry.at <= time);
     if (kept.length !== minutes.length) minutes.splice(0, minutes.length, ...kept);
@@ -47,7 +47,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
   prune(clock());
 
   const recent = [];
-  let bucket = null; // die laufende Minute
+  let bucket = null; // the current minute
 
   // `point`: { hostCpu, hostMemory, vmCpu, vmMemory }
   function sample(point, now = clock()) {
@@ -68,7 +68,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     for (const field of FIELDS) { bucket.sum[field] += point[field]; bucket.max[field] = Math.max(bucket.max[field], point[field]); }
   }
 
-  // Zählt während eines Jobs mit; `finish` liefert, was davon gemerkt wird.
+  // Counts along during a job; `finish` returns what of it is kept.
   function meter() {
     const usage = { peakMemory: 0, peakRunner: 0, peakDocker: 0, peakCpu: 0, cpuSum: 0, samples: 0 };
     return {
@@ -86,17 +86,17 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     };
   }
 
-  // `record`: { job, workflow, runner, result, duration, ...meter().finish() }; `workflow` ist leer, wenn er nicht bekannt
-  // war; `result` ist vorläufig, bis `confirmResults` es durch das von GitHub ersetzt.
+  // `record`: { job, workflow, runner, result, duration, ...meter().finish() }; `workflow` is empty if it was not
+  // known; `result` is provisional until `confirmResults` replaces it with GitHub's.
   function recordJob(repo, record) {
     const list = ensure(ensure(jobs, repo, () => ({})), String(record.job), () => []);
     const workflow = String(record.workflow ?? '');
     const same = (run) => (run.workflow ?? '') === workflow;
     list.push({ at: new Date(clock()).toISOString(), ...record, job: undefined, workflow });
-    // Je Workflow gezählt: Sonst verdrängte der häufige Workflow die Durchläufe des seltenen gleichnamigen Jobs.
+    // Counted per workflow: otherwise the frequent workflow would push out the runs of the rare job of the same name.
     if (list.filter(same).length > JOB_KEEP) list.splice(list.findIndex(same), 1);
     if (list.length > NAME_KEEP) list.shift();
-    // Zu viele Namen: Die am längsten nicht gelaufenen fallen heraus.
+    // Too many names: those that have not run for the longest drop out.
     const names = Object.keys(jobs[repo]);
     if (names.length > JOBS_MAX) {
       const last = (name) => jobs[repo][name].at(-1)?.at ?? '';
@@ -105,9 +105,9 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     save();
   }
 
-  // Das Ergebnis eines Durchlaufs stammt aus der Ausgabe des Runners, in die auch der Job schreiben kann (siehe
-  // `serveOneJob` in slots.js), und ist deshalb vorläufig. Meldet GitHub den Job eines Runners als abgeschlossen, gilt
-  // dessen Ergebnis. `done`: [{ runner, conclusion }]; ein Runner-Name gehört zu genau einem Job.
+  // The result of a run comes from the runner's output, which the job can write to as well (see `serveOneJob` in
+  // slots.js), and is therefore provisional. Once GitHub reports a runner's job as completed, its result applies.
+  // `done`: [{ runner, conclusion }]; a runner name belongs to exactly one job.
   function confirmResults(repo, done) {
     const results = new Map(done.filter((job) => job.runner && Object.hasOwn(CONCLUSIONS, job.conclusion)).map((job) => [job.runner, CONCLUSIONS[job.conclusion]]));
     let changed = false;
@@ -123,9 +123,9 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
 
   const forget = (repo) => { delete jobs[repo]; save(); };
 
-  // Die Durchläufe eines Jobnamens je Workflow. Wo der Workflow fehlt (ältere Daten, oder GitHub hatte noch nicht
-  // geantwortet), zählt der Durchlauf zum Workflow mit den meisten bekannten Durchläufen; ist keiner bekannt, bleibt
-  // es eine Gruppe ohne Workflow.
+  // The runs of a job name per workflow. Where the workflow is missing (older data, or GitHub had not answered yet),
+  // the run counts towards the workflow with the most known runs; if none is known, it stays a group without a
+  // workflow.
   function byWorkflow(list) {
     const counts = new Map();
     for (const run of list) if (run.workflow) counts.set(run.workflow, (counts.get(run.workflow) ?? 0) + 1);
@@ -139,12 +139,12 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     return [...groups];
   }
 
-  // Je Workflow und Job eine Zeile; die hungrigsten zuerst.
+  // One row per workflow and job; the hungriest first.
   function jobsView(repo) {
     return Object.entries(own(jobs, repo) ?? {}).flatMap(([job, all]) => byWorkflow(all).map(([workflow, list]) => {
       const measured = list.filter((r) => r.samples > 0);
-      // Üblich ist, was ein erfolgreicher Durchlauf braucht (wie in pipeline.js): Ein Abbruch nach Sekunden verfälscht sonst die Dauer.
-      // Ohne einen erfolgreichen zählen alle, damit die Spalte nicht leer bleibt.
+      // Usual is what a successful run takes (as in pipeline.js): otherwise an abort after seconds skews the duration.
+      // Without a successful one all count, so that the column does not stay empty.
       const good = list.filter((r) => r.result === 'Succeeded');
       return {
         job, workflow, runs: list.length, measuredRuns: measured.length, lastAt: list.at(-1).at, lastResult: list.at(-1).result,
@@ -155,7 +155,7 @@ function createMetrics({ dataDir, now: clock = Date.now }) {
     })).sort((a, b) => b.peakMemory - a.peakMemory);
   }
 
-  // Die letzte halbe Stunde, je Messgröße eine Reihe.
+  // The last half hour, one series per measure.
   const series = () => ({ at: recent.map((p) => p.at), ...Object.fromEntries(FIELDS.map((field) => [field, recent.map((p) => Math.round(p[field] * 100) / 100)])) });
 
   return { sample, meter, recordJob, confirmResults, forget, jobsView, series, dayMinutes: () => { prune(clock()); return minutes; }, save };

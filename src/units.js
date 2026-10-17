@@ -1,4 +1,4 @@
-// Einheiten, mit denen überall gerechnet wird: Zeit in Millisekunden, Speicher in Bytes.
+// Units used for all calculations: time in milliseconds, memory in bytes.
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;

@@ -1,5 +1,5 @@
-// Limits je Job: wie viel Arbeitsspeicher und wie viele Kerne der Runner und sein Docker-Daemon bekommen.
-// In `runners.json` stehen sie, wie Docker sie liest (`4g`, `1536m`); die Oberfläche rechnet in GB und Kernen.
+// Limits per job: how much memory and how many cores the runner and its Docker daemon get.
+// `runners.json` holds them the way Docker reads them (`4g`, `1536m`); the interface works in GB and cores.
 
 const { MB, GB } = require('./units');
 const { median } = require('./numbers');
@@ -14,9 +14,9 @@ const bytesOf = (text) => {
 };
 const memoryText = (gb) => (Number.isInteger(gb) ? `${gb}g` : `${Math.round(gb * 1024)}m`);
 
-// Was sich einstellen lässt, hängt an der Docker-VM: mehr als sie hat, kann kein Job bekommen.
-// `total` deckelt Runner und Docker eines Jobs zusammen: Die VM braucht selbst etwa 1 GB, und ein Limit über ihrem
-// Speicher begrenzt nichts mehr – dann träfe ein voller Speicher irgendeinen Job, auch den eines anderen Projekts.
+// What can be set depends on the Docker VM: no job can get more than it has.
+// `total` caps runner and Docker of a job together: the VM itself needs about 1 GB, and a limit above its memory
+// limits nothing any more – then full memory would hit some job, even one of another project.
 function bounds({ dockerMemory, dockerCpus }) {
   const vm = (dockerMemory || 0) / GB;
   return {
@@ -25,21 +25,21 @@ function bounds({ dockerMemory, dockerCpus }) {
   };
 }
 
-// Hält Runner und Docker zusammen unter der Obergrenze: Der größere Wert gibt zuerst nach.
+// Keeps runner and Docker together below the cap: the larger value gives way first.
 function capped(runner, docker, { min, step, total }) {
   let [a, b] = [runner, docker];
   while (total !== undefined && a + b > total && (a > min || b > min)) { if (a >= b && a > min) a -= step; else b -= step; }
   return [a, b];
 }
 
-// Die Limits als Zahlen: Speicher in GB, Kerne als Anzahl.
+// The limits as numbers: memory in GB, cores as a count.
 const view = (limits) => ({
   runnerMemory: bytesOf(limits.runnerMemory) / GB, dockerMemory: bytesOf(limits.dockerMemory) / GB,
   runnerCpus: Number(limits.runnerCpus), dockerCpus: Number(limits.dockerCpus),
 });
 
-// Übernimmt neue Werte (Speicher in GB, Kerne als Anzahl) in die Schreibweise der Einstellungen.
-// Was fehlt, bleibt; was außerhalb der Grenzen liegt, wird an die Grenze gesetzt.
+// Takes new values (memory in GB, cores as a count) into the notation of the settings.
+// What is missing stays; what lies outside the bounds is set to the bound.
 function normalize(input, current, range) {
   const now = view(current);
   const pick = (key, { min, max, step }) => {
@@ -52,35 +52,35 @@ function normalize(input, current, range) {
   return { runnerCpus: pick('runnerCpus', range.cpus), runnerMemory: memoryText(runner), dockerCpus: pick('dockerCpus', range.cpus), dockerMemory: memoryText(docker) };
 }
 
-// Vorschlag aus den Messwerten: die höchste gemessene Spitze mit 50 % Luft, auf halbe GB gerundet.
-// `jobs`: Zeilen aus `metrics.jobsView` aller Repos. Ohne genug Durchläufe gibt es keinen Vorschlag.
+// Suggestion from the measurements: the highest measured peak with 50 % headroom, rounded to half GB.
+// `jobs`: rows from `metrics.jobsView` of all repos. Without enough runs there is no suggestion.
 const SUGGEST_RUNS = 5;
-// Gezählt werden nur Läufe, in denen wirklich gemessen wurde (`measuredRuns` aus `metrics.jobsView`).
+// Only runs that were actually measured count (`measuredRuns` from `metrics.jobsView`).
 const runsOf = (jobs) => jobs.filter((job) => job.peakMemory > 0).reduce((sum, job) => sum + (job.measuredRuns ?? job.runs), 0);
 function suggest(jobs, range) {
   const measured = jobs.filter((job) => job.peakMemory > 0);
   if (runsOf(jobs) < SUGGEST_RUNS) return null;
   const peak = (field) => Math.max(0, ...measured.map((job) => job[field] ?? 0));
   const memory = (bytes) => Math.min(range.memory.max, Math.max(range.memory.min, Math.ceil(bytes * 1.5 / GB * 2) / 2));
-  // Die Kerne sind nur zusammen gemessen: Runner und Docker bekommen dieselbe Zahl.
+  // The cores are only measured together: runner and Docker get the same number.
   const cpus = Math.min(range.cpus.max, Math.max(2, Math.ceil(peak('peakCpu'))));
   const [runner, docker] = capped(memory(peak('peakRunner')), memory(peak('peakDocker')), range.memory);
   return { runnerMemory: runner, dockerMemory: docker, runnerCpus: cpus, dockerCpus: cpus };
 }
 
-// Was für ein Projekt gilt: seine eigenen Limits, sonst die für alle.
+// What applies to a project: its own limits, otherwise those for all.
 const effective = (shared, own) => ({ ...shared, ...(own ?? {}) });
-// Kennung der Limits des Docker-Daemons: Die trägt auch der Build-Dienst (siehe caches.js).
+// Key of the Docker daemon's limits: the build service carries it too (see caches.js).
 const dockerKey = (limits) => [limits.dockerCpus, bytesOf(limits.dockerMemory)].join('/');
-// Kennung eines Satzes von Limits: Daran ist zu erkennen, ob ein Paar noch mit anderen gebaut wurde.
+// Key of a set of limits: it shows whether a pair was still built with others.
 const key = (limits) => [limits.runnerCpus, bytesOf(limits.runnerMemory), dockerKey(limits)].join('/');
 
 function sameValues(a, b) { return ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'].every((field) => a?.[field] === b?.[field]); }
 
-// Ein Vorschlag für alle Projekte zusammen: ein Standard, der die Projekte mit ähnlichem Bedarf deckt, und eigene
-// Limits nur für Ausreißer. Ein Durchschnitt taugt dafür nicht – ein Limit unter dem Bedarf bricht den Job ab.
-// Ausreißer ist, wer deutlich mehr Speicher braucht als das mittlere Projekt: über das Anderthalbfache und
-// mindestens 1 GB mehr. `projects`: [{ repo, jobs }] mit Zeilen aus `metrics.jobsView`.
+// A suggestion for all projects together: a default that covers the projects with similar needs, and own limits
+// only for outliers. An average is no good for this – a limit below the need breaks the job off.
+// An outlier is a project that needs clearly more memory than the median project: over one and a half times and
+// at least 1 GB more. `projects`: [{ repo, jobs }] with rows from `metrics.jobsView`.
 const OUTLIER_FACTOR = 1.5;
 const OUTLIER_GB = 1;
 function plan(projects, range) {
@@ -94,29 +94,29 @@ function plan(projects, range) {
   return {
     shared: { runnerMemory: most('runnerMemory'), dockerMemory: most('dockerMemory'), runnerCpus: most('runnerCpus'), dockerCpus: most('dockerCpus') },
     own: Object.fromEntries(needs.filter(outlier).map((entry) => [entry.repo, entry.need])),
-    // Nur für diese Projekte sagt der Vorschlag etwas. Wer noch zu wenige Läufe hat, behält, was er hat.
+    // The suggestion only says something about these projects. A project with too few runs yet keeps what it has.
     measured: needs.map((entry) => entry.repo),
   };
 }
 
-// Gilt der Vorschlag schon? `shared`: die Limits für alle als Zahlen; `projects`: [{ repo, own }] mit den eigenen
-// Limits eines Projekts als Zahlen oder `null`. Projekte ohne genug Läufe zählen nicht.
+// Does the suggestion already apply? `shared`: the limits for all as numbers; `projects`: [{ repo, own }] with a
+// project's own limits as numbers or `null`. Projects without enough runs do not count.
 function planApplied(found, shared, projects) {
   return sameValues(found.shared, shared) && projects.filter((project) => found.measured.includes(project.repo))
     .every((project) => (found.own[project.repo] ? sameValues(found.own[project.repo], project.own) : !project.own));
 }
 
-// Wie gut die geltenden Limits (`values`, Speicher in GB) zu einem Projekt passen:
-//   'full'       eine Spitze hat das Limit ausgeschöpft – der Job braucht mehr
-//   'tight'      eine Spitze kam ihm nahe (über 85 %); das zählt schon nach einem einzigen Lauf
-//   'generous'   das Limit ist mehr als doppelt so hoch wie der Bedarf (erst mit genug Läufen)
-//   'measuring'  noch zu wenige Läufe für ein Urteil
+// How well the current limits (`values`, memory in GB) fit a project:
+//   'full'       a peak used up the limit – the job needs more
+//   'tight'      a peak came close to it (over 85 %); that counts after a single run already
+//   'generous'   the limit is more than twice the need (only with enough runs)
+//   'measuring'  too few runs for a verdict yet
 //   'ok'
-const TIGHT = 0.85; // geht auch an die Oberfläche: Dort sitzt die Marke auf der Schiene
+const TIGHT = 0.85; // also goes to the interface: there the mark sits on the rail
 const FULL = 0.97;
 function rate(jobs, values, range) {
   const runs = runsOf(jobs);
-  if (!(values.runnerMemory > 0) || !(values.dockerMemory > 0)) return { state: 'measuring', runs }; // unlesbare Limits: kein Urteil
+  if (!(values.runnerMemory > 0) || !(values.dockerMemory > 0)) return { state: 'measuring', runs }; // unreadable limits: no verdict
   const share = Math.max(0, ...jobs.map((job) => Math.max((job.peakRunner ?? 0) / (values.runnerMemory * GB), (job.peakDocker ?? 0) / (values.dockerMemory * GB))));
   if (share >= FULL) return { state: 'full', runs };
   if (share > TIGHT) return { state: 'tight', runs };

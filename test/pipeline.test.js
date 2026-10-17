@@ -5,14 +5,14 @@ const os = require('node:os');
 const path = require('node:path');
 const { createPipelines } = require('../src/pipeline');
 
-const REPO = 'wer/was';
+const REPO = 'owner/repo';
 const iso = (secondsFromNow) => new Date(Date.now() + secondsFromNow * 1000).toISOString();
 const job = (name, values) => ({ name, labels: ['self-hosted', 'Linux'], html_url: 'https://example.invalid', steps: [], ...values });
 const done = (name, duration) => job(name, { status: 'completed', conclusion: 'success', created_at: iso(-600), started_at: iso(-598), completed_at: iso(-598 + duration) });
 
-// Ein früherer Lauf (Nr. 1) liefert die üblichen Dauern, Lauf Nr. 2 ist unterwegs.
+// An earlier run (no. 1) provides the usual durations, run no. 2 is under way.
 function setup(activeJobs) {
-  const jobsOf = { 1: [done('Kurz', 10), done('Lang', 100), done('Später', 50)], 2: activeJobs };
+  const jobsOf = { 1: [done('Short', 10), done('Long', 100), done('Later', 50)], 2: activeJobs };
   const github = { get: async (url) => ({ jobs: jobsOf[url.match(/runs\/(\d+)\/jobs/)[1]] }) };
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
   const runs = [
@@ -23,61 +23,61 @@ function setup(activeJobs) {
 }
 const left = (finishAt) => Math.round((new Date(finishAt) - Date.now()) / 1000);
 
-test('lernt die übliche Dauer und die Wartezeit aus abgeschlossenen Läufen', async () => {
+test('learns the usual duration and the wait time from completed runs', async () => {
   const { pipelines, runs, dataDir } = setup([]);
   await pipelines.refresh(REPO, runs);
   const history = JSON.parse(fs.readFileSync(path.join(dataDir, 'history.json'), 'utf8'))[REPO];
-  assert.deepEqual(history.durations['CI / Lang'], [100]);
-  assert.deepEqual(history.jobsOf.CI, ['Kurz', 'Lang', 'Später']);
+  assert.deepEqual(history.durations['CI / Long'], [100]);
+  assert.deepEqual(history.jobsOf.CI, ['Short', 'Long', 'Later']);
   assert.deepEqual(pipelines.waitOf(REPO), { usual: 2, longest: 2, jobs: 3 });
 });
 
-test('ein früher gestarteter Lauf, der nach einem späteren endet, bleibt einige Abfragen lang zum Bestätigen da', async () => {
-  const jobsOf = { 3: [done('Spät', 10)], 4: [done('Früh', 10)] };
+test('a run started earlier that ends after a later one stays around for a few queries to confirm', async () => {
+  const jobsOf = { 3: [done('Late', 10)], 4: [done('Early', 10)] };
   const github = { get: async (url) => ({ jobs: jobsOf[url.match(/runs\/(\d+)\/jobs/)[1]] }) };
   const pipelines = createPipelines({ github, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
   const run = (id, status) => ({ id, name: 'CI', status, conclusion: status === 'completed' ? 'success' : null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', updated_at: status });
-  // Lauf 4 ist der jüngere und schon fertig, Lauf 3 läuft noch und endet erst danach.
+  // Run 4 is the newer one and already finished, run 3 is still running and only ends afterwards.
   await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'in_progress')]);
   assert.deepEqual(pipelines.finishedOf(REPO), []);
   await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'completed')]);
   assert.equal(pipelines.lastOf(REPO).id, 4);
-  assert.deepEqual(pipelines.finishedOf(REPO).map((p) => [p.id, p.jobs.map((j) => j.name)]), [[3, ['Spät']]]);
+  assert.deepEqual(pipelines.finishedOf(REPO).map((p) => [p.id, p.jobs.map((j) => j.name)]), [[3, ['Late']]]);
   for (let round = 1; round < 6; round += 1) await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'completed')]);
-  assert.equal(pipelines.finishedOf(REPO).length, 1); // sechs Abfragen lang, die erste eingerechnet
+  assert.equal(pipelines.finishedOf(REPO).length, 1); // for six queries, the first one included
   await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'completed')]);
   assert.deepEqual(pipelines.finishedOf(REPO), []);
 });
 
-test('ein laufender Job ist fertig, wenn seine übliche Dauer um ist', async () => {
-  const { pipelines, runs } = setup([job('Lang', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null })]);
+test('a running job is done when its usual duration is up', async () => {
+  const { pipelines, runs } = setup([job('Long', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null })]);
   await pipelines.refresh(REPO, runs);
   const [pipeline] = pipelines.view(REPO, 4);
-  assert.equal(left(pipeline.jobs.find((j) => j.name === 'Lang').finishAt), 60);
+  assert.equal(left(pipeline.jobs.find((j) => j.name === 'Long').finishAt), 60);
 });
 
-test('wartende Jobs stellen sich hinter die laufenden, wenn es nur einen Platz gibt', async () => {
+test('waiting jobs line up behind the running ones when there is only one slot', async () => {
   const active = [
-    job('Lang', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null }),
-    job('Kurz', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null }),
+    job('Long', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null }),
+    job('Short', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null }),
   ];
   const { pipelines, runs } = setup(active);
   await pipelines.refresh(REPO, runs);
   const finish = (slots, name) => left(pipelines.view(REPO, slots)[0].jobs.find((j) => j.name === name).finishAt);
-  assert.equal(finish(4, 'Kurz'), 10); // freier Platz: sofort
-  assert.equal(finish(1, 'Kurz'), 60 + 8 + 10); // erst läuft „Lang“ aus, dann der Wechsel des Platzes
+  assert.equal(finish(4, 'Short'), 10); // free slot: right away
+  assert.equal(finish(1, 'Short'), 60 + 8 + 10); // first "Long" runs out, then the slot switches
 });
 
-test('kündigt Jobs an, die GitHub noch nicht angelegt hat', async () => {
-  const { pipelines, runs } = setup([done('Kurz', 10)]);
+test('announces jobs GitHub has not created yet', async () => {
+  const { pipelines, runs } = setup([done('Short', 10)]);
   await pipelines.refresh(REPO, runs);
   const [pipeline] = pipelines.view(REPO, 4);
-  assert.deepEqual(pipeline.jobs.filter((j) => j.status === 'pending').map((j) => j.name), ['Lang', 'Später']);
+  assert.deepEqual(pipeline.jobs.filter((j) => j.status === 'pending').map((j) => j.name), ['Long', 'Later']);
   assert.equal(left(pipeline.finishAt), 100);
 });
 
-test('ohne freien Platz gibt es keine Restzeit', async () => {
-  const { pipelines, runs } = setup([job('Kurz', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null })]);
+test('without a free slot there is no time left', async () => {
+  const { pipelines, runs } = setup([job('Short', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null })]);
   await pipelines.refresh(REPO, runs);
   assert.equal(pipelines.view(REPO, 0)[0].finishAt, null);
 });
@@ -88,13 +88,13 @@ const WORKFLOW = `name: CI
 on: [push]
 jobs:
   changes:
-    name: Berührte Bereiche
+    name: Changed areas
     runs-on: x
     steps:
-      - name: irgendein Schritt
+      - name: some step
         run: echo
   build:
-    name: "Build und Tests"   # Kommentar
+    name: "Build and tests"   # comment
     needs: changes
     steps:
       - run: echo
@@ -107,25 +107,25 @@ jobs:
       - lint
 `;
 
-test('liest Namen und Abhängigkeiten aus einer Workflow-Datei', () => {
+test('reads names and dependencies from a workflow file', () => {
   assert.deepEqual(parseWorkflow(WORKFLOW), [
-    { id: 'changes', name: 'Berührte Bereiche', needs: [] },
-    { id: 'build', name: 'Build und Tests', needs: ['changes'] },
+    { id: 'changes', name: 'Changed areas', needs: [] },
+    { id: 'build', name: 'Build and tests', needs: ['changes'] },
     { id: 'lint', name: 'lint', needs: ['changes'] },
     { id: 'smoke', name: 'Smoke-Test', needs: ['build', 'lint'] },
   ]);
 });
 
-test('ordnet Jobs nach ihren Abhängigkeiten in Stufen', () => {
+test('sorts jobs into stages by their dependencies', () => {
   const jobs = [{ name: 'c', needs: ['b'] }, { name: 'a', needs: [] }, { name: 'b', needs: ['a'] }, { name: 'd', needs: ['a', 'c'] }];
   stagesOf(jobs);
   assert.deepEqual(jobs.map((job) => [job.name, job.stage]), [['c', 2], ['a', 0], ['b', 1], ['d', 3]]);
 });
 
-test('mit Workflow-Datei: Abhängigkeiten, spätere Jobs und Restzeit in der richtigen Reihenfolge', async () => {
+test('with a workflow file: dependencies, later jobs and time left in the right order', async () => {
   const jobsOf = {
-    1: [done('Berührte Bereiche', 10), done('Build und Tests', 100), done('lint', 20), done('Smoke-Test', 50)],
-    2: [done('Berührte Bereiche', 10), job('Build und Tests', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null }), job('lint', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null })],
+    1: [done('Changed areas', 10), done('Build and tests', 100), done('lint', 20), done('Smoke-Test', 50)],
+    2: [done('Changed areas', 10), job('Build and tests', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null }), job('lint', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null })],
   };
   const github = { get: async (url) => url.includes('/contents/') ? { content: Buffer.from(WORKFLOW).toString('base64') } : { jobs: jobsOf[url.match(/runs\/(\d+)\/jobs/)[1]] } };
   const pipelines = createPipelines({ github, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
@@ -134,18 +134,18 @@ test('mit Workflow-Datei: Abhängigkeiten, spätere Jobs und Restzeit in der ric
   const [pipeline] = pipelines.view(REPO, 4);
   const smoke = pipeline.jobs.find((j) => j.name === 'Smoke-Test');
   assert.equal(smoke.status, 'pending');
-  assert.deepEqual(smoke.needs, ['Build und Tests', 'lint']);
+  assert.deepEqual(smoke.needs, ['Build and tests', 'lint']);
   assert.deepEqual(pipeline.jobs.map((j) => j.stage), [0, 1, 1, 2]);
-  assert.equal(left(smoke.finishAt), 60 + 50); // erst wenn „Build und Tests“ fertig ist
+  assert.equal(left(smoke.finishAt), 60 + 50); // only once "Build and tests" is done
   assert.equal(pipelines.lastOf(REPO).jobs.length, 4);
 });
 
-// Jobs, die bei GitHub anders heißen als in der Datei: Ausdruck im Namen, Matrix ohne Namen, aufgerufener Workflow.
+// Jobs named differently at GitHub than in the file: expression in the name, matrix without a name, called workflow.
 const RENAMED = `name: CI
 on: [push]
 jobs:
   prepare:
-    name: Vorbereiten
+    name: Prepare
     runs-on: x
   test:
     name: Test \${{ matrix.os }}
@@ -159,7 +159,7 @@ jobs:
       matrix:
         node: [18, 20]
   deploy:
-    name: Ausliefern
+    name: Ship
     needs: [test, lint]
     uses: ./.github/workflows/deploy.yml
   check:
@@ -168,9 +168,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 `;
-const EXPR = 'Test …'; // so heißt `Test ${{ matrix.os }}`, solange GitHub den Job nicht angelegt hat
+const EXPR = 'Test …'; // what `Test ${{ matrix.os }}` is called while GitHub has not created the job
 
-// `durations`: schon gelernte Dauern des Workflows „CI“, Jobname -> Sekunden.
+// `durations`: already learned durations of the workflow "CI", job name -> seconds.
 async function renamed(activeJobs, durations = {}) {
   const github = { get: async (url) => url.includes('/contents/') ? { content: Buffer.from(RENAMED).toString('base64') } : { jobs: activeJobs } };
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
@@ -182,92 +182,92 @@ async function renamed(activeJobs, durations = {}) {
   return { pipeline, pending: pipeline.jobs.filter((j) => j.status === 'pending').map((j) => j.name), needs: (name) => pipeline.jobs.find((j) => j.name === name).needs };
 }
 
-test('erkennt nur am Job selbst, dass er einen Workflow aufruft', () => {
+test('only the job itself shows that it calls a workflow', () => {
   assert.deepEqual(parseWorkflow(RENAMED).map((j) => [j.id, j.uses ?? false]), [['prepare', false], ['test', false], ['lint', false], ['deploy', true], ['check', false]]);
 });
 
-test('solange GitHub nichts Passendes liefert, bleiben die angekündigten Jobs stehen', async () => {
-  const { pending, needs } = await renamed([done('Vorbereiten', 10)]);
-  assert.deepEqual(pending, [EXPR, 'lint', 'Ausliefern', 'Test']);
-  assert.deepEqual(needs('Ausliefern'), [EXPR, 'lint']);
+test('as long as GitHub delivers nothing matching, the announced jobs stay', async () => {
+  const { pending, needs } = await renamed([done('Prepare', 10)]);
+  assert.deepEqual(pending, [EXPR, 'lint', 'Ship', 'Test']);
+  assert.deepEqual(needs('Ship'), [EXPR, 'lint']);
 });
 
-test('Ausdruck im Namen: die ausgewerteten Jobs lösen den angekündigten ab', async () => {
-  const { pending, needs } = await renamed([done('Vorbereiten', 10), done('Test ubuntu-latest', 10), done('Test windows-latest', 10)]);
-  assert.deepEqual(pending, ['lint', 'Ausliefern', 'Test']);
-  assert.deepEqual(needs('Test windows-latest'), ['Vorbereiten']);
-  assert.deepEqual(needs('Ausliefern'), ['Test ubuntu-latest', 'Test windows-latest', 'lint']);
+test('expression in the name: the evaluated jobs replace the announced one', async () => {
+  const { pending, needs } = await renamed([done('Prepare', 10), done('Test ubuntu-latest', 10), done('Test windows-latest', 10)]);
+  assert.deepEqual(pending, ['lint', 'Ship', 'Test']);
+  assert.deepEqual(needs('Test windows-latest'), ['Prepare']);
+  assert.deepEqual(needs('Ship'), ['Test ubuntu-latest', 'Test windows-latest', 'lint']);
 });
 
-test('Matrix ohne Namen: „Job (Wert)“ löst den angekündigten Job ab', async () => {
-  const { pending, needs } = await renamed([done('Vorbereiten', 10), done('lint (18)', 10), done('lint (20)', 10)]);
-  assert.deepEqual(pending, [EXPR, 'Ausliefern', 'Test']);
-  assert.deepEqual(needs('lint (20)'), ['Vorbereiten']);
-  assert.deepEqual(needs('Ausliefern'), [EXPR, 'lint (18)', 'lint (20)']);
+test('matrix without a name: "job (value)" replaces the announced job', async () => {
+  const { pending, needs } = await renamed([done('Prepare', 10), done('lint (18)', 10), done('lint (20)', 10)]);
+  assert.deepEqual(pending, [EXPR, 'Ship', 'Test']);
+  assert.deepEqual(needs('lint (20)'), ['Prepare']);
+  assert.deepEqual(needs('Ship'), [EXPR, 'lint (18)', 'lint (20)']);
 });
 
-test('aufgerufener Workflow: seine Jobs lösen den Aufruf ab und erben dessen Abhängigkeiten', async () => {
-  const all = [done('Vorbereiten', 10), done('Test ubuntu-latest', 10), done('Test windows-latest', 10), done('lint (18)', 10), done('lint (20)', 10), done('Test', 10), done('Ausliefern / Bauen', 10), done('Ausliefern / Hochladen', 10)];
+test('called workflow: its jobs replace the call and inherit its dependencies', async () => {
+  const all = [done('Prepare', 10), done('Test ubuntu-latest', 10), done('Test windows-latest', 10), done('lint (18)', 10), done('lint (20)', 10), done('Test', 10), done('Ship / Build', 10), done('Ship / Upload', 10)];
   const { pipeline, pending, needs } = await renamed(all);
   assert.deepEqual(pending, []);
-  assert.deepEqual(needs('Ausliefern / Hochladen'), ['Test ubuntu-latest', 'Test windows-latest', 'lint (18)', 'lint (20)']);
+  assert.deepEqual(needs('Ship / Upload'), ['Test ubuntu-latest', 'Test windows-latest', 'lint (18)', 'lint (20)']);
   assert.equal(pipeline.jobs.length, all.length);
-  assert.equal(left(pipeline.finishAt) || 0, 0); // kein Phantom-Job mehr, der die Restzeit verlängert (eine Rundung knapp unter null ergibt -0)
+  assert.equal(left(pipeline.finishAt) || 0, 0); // no phantom job any more that stretches the time left (rounding just below zero gives -0)
 });
 
-test('ein Job schluckt keinen fremden mit ähnlichem Namen', async () => {
-  const strangers = ['Tests bauen', 'lint / Docker', 'Ausliefern (alt)', 'lint-fix (18)'];
-  const { pending, needs } = await renamed([done('Vorbereiten', 10), ...strangers.map((name) => done(name, 10))]);
-  assert.deepEqual(pending, [EXPR, 'lint', 'Ausliefern', 'Test']);
+test('a job does not swallow a foreign one with a similar name', async () => {
+  const strangers = ['Tests nightly', 'lint / Docker', 'Ship (old)', 'lint-fix (18)'];
+  const { pending, needs } = await renamed([done('Prepare', 10), ...strangers.map((name) => done(name, 10))]);
+  assert.deepEqual(pending, [EXPR, 'lint', 'Ship', 'Test']);
   for (const name of strangers) assert.deepEqual(needs(name), []);
-  // „Test“ gehört zum Job, der genau so heißt – nicht zum Job mit dem Ausdruck im Namen.
-  assert.deepEqual((await renamed([done('Vorbereiten', 10), done('Test', 10)])).pending, [EXPR, 'lint', 'Ausliefern']);
+  // "Test" belongs to the job with exactly that name – not to the job with the expression in its name.
+  assert.deepEqual((await renamed([done('Prepare', 10), done('Test', 10)])).pending, [EXPR, 'lint', 'Ship']);
 });
 
-test('ein Ausdruck im Namen steht nie für „ / “ und darf leer sein', () => {
+test('an expression in the name never stands for " / " and may be empty', () => {
   const { matcherOf } = require('../src/pipeline');
   const test = matcherOf({ name: 'Test ${{ matrix.os }}' });
   assert.equal(test.test('Test ubuntu-latest'), true);
-  assert.equal(test.test('Test'), true); // der Ausdruck ergab nichts
+  assert.equal(test.test('Test'), true); // the expression yielded nothing
   assert.equal(test.test('Test (18)'), true);
-  assert.equal(test.test('Test / Docker'), false); // gehört zu einem fremden Aufruf
-  assert.equal(test.test('Tests bauen'), false);
-  const middle = matcherOf({ name: 'Bau ${{ inputs.ziel }} fertig' });
-  assert.deepEqual(['Bau x fertig', 'Bau fertig', 'Bau  fertig', 'Baufertig', 'Bau xfertig'].map((name) => middle.test(name)), [true, true, true, false, false]);
-  const call = matcherOf({ name: 'Ausliefern ${{ inputs.ziel }}', uses: true });
-  assert.equal(call.test('Ausliefern / Bauen'), true);
-  assert.equal(call.test('Ausliefern prod / Bauen'), true);
-  assert.equal(call.test('Ausliefern prod'), false);
+  assert.equal(test.test('Test / Docker'), false); // belongs to a foreign call
+  assert.equal(test.test('Tests nightly'), false);
+  const middle = matcherOf({ name: 'Build ${{ inputs.target }} done' });
+  assert.deepEqual(['Build x done', 'Build done', 'Build  done', 'Builddone', 'Build xdone'].map((name) => middle.test(name)), [true, true, true, false, false]);
+  const call = matcherOf({ name: 'Ship ${{ inputs.target }}', uses: true });
+  assert.equal(call.test('Ship / Build'), true);
+  assert.equal(call.test('Ship prod / Build'), true);
+  assert.equal(call.test('Ship prod'), false);
 });
 
-test('ein angekündigter Job hat die Dauer der passenden gelernten Jobs', async () => {
-  const { pipeline } = await renamed([done('Vorbereiten', 10)], { 'Test ubuntu-latest': [100], 'Test windows-latest': [200, 300], 'lint (18)': [40], Vorbereiten: [10], 'Ausliefern / Bauen': [30] });
+test('an announced job has the duration of the matching learned jobs', async () => {
+  const { pipeline } = await renamed([done('Prepare', 10)], { 'Test ubuntu-latest': [100], 'Test windows-latest': [200, 300], 'lint (18)': [40], Prepare: [10], 'Ship / Build': [30] });
   const estimate = (name) => pipeline.jobs.find((j) => j.name === name).estimate;
   assert.equal(estimate(EXPR), 200);
   assert.equal(estimate('lint'), 40);
-  assert.equal(estimate('Ausliefern'), null); // ein Aufruf läuft als mehrere Jobs: Einer davon sagt nichts über die Dauer
+  assert.equal(estimate('Ship'), null); // a call runs as several jobs: one of them says nothing about the duration
 });
 
-test('viele Ausdrücke im Namen werden nicht zum teuren Muster', async () => {
+test('many expressions in the name do not become an expensive pattern', async () => {
   const { matcherOf } = require('../src/pipeline');
   const long = 'a'.repeat(400) + '!';
   const started = Date.now();
   assert.equal(matcherOf({ name: '${{ a }}${{ b }}${{ c }}${{ d }}${{ e }}${{ f }}x' }).test(long), false);
   assert.equal(matcherOf({ name: 'T ${{ a }} ${{ b }} ${{ c }} ${{ d }} ${{ e }} z' }).test(`T ${long}`), false);
   assert.ok(Date.now() - started < 500);
-  // Ausdrücke direkt hintereinander zählen als einer und passen weiter.
+  // Expressions right after each other count as one and still match.
   assert.equal(matcherOf({ name: 'Test ${{ a }}${{ b }}' }).test('Test ubuntu 20'), true);
 });
 
-test('Lauf und Job tragen ihre Kennung von GitHub, damit sie sich erneut starten lassen; ein angekündigter Job hat keine', async () => {
+test('run and job carry their GitHub id so they can be re-run; an announced job has none', async () => {
   const { runs } = setup([]);
-  const github = { get: async (url) => ({ jobs: url.includes('runs/1/') ? [{ ...done('Kurz', 10), id: 71 }, { ...done('Lang', 100), id: 72 }] : [{ ...done('Kurz', 10), id: 115542192486 }] }) };
+  const github = { get: async (url) => ({ jobs: url.includes('runs/1/') ? [{ ...done('Short', 10), id: 71 }, { ...done('Long', 100), id: 72 }] : [{ ...done('Short', 10), id: 115542192486 }] }) };
   const withIds = createPipelines({ github, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
   await withIds.refresh(REPO, runs);
   const [active] = withIds.view(REPO, 4);
   assert.equal(active.id, 2);
-  assert.deepEqual(active.jobs.map((j) => [j.name, j.id]), [['Kurz', 115542192486], ['Lang', null]]);
+  assert.deepEqual(active.jobs.map((j) => [j.name, j.id]), [['Short', 115542192486], ['Long', null]]);
   const last = withIds.lastOf(REPO);
   assert.equal(last.id, 1);
-  assert.deepEqual(last.jobs.map((j) => [j.name, j.id]), [['Kurz', 71], ['Lang', 72]]);
+  assert.deepEqual(last.jobs.map((j) => [j.name, j.id]), [['Short', 71], ['Long', 72]]);
 });

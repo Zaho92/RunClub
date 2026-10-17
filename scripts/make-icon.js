@@ -1,5 +1,5 @@
-// Zeichnet das Symbol der App und legt es als PNG (Fenster, Infobereich) und ICO (Verknüpfung) in build/ ab.
-// Aufruf:  npm run icon
+// Draws the app's icon and stores it as PNG (window, tray) and ICO (shortcut) in build/.
+// Usage:  npm run icon
 
 const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
@@ -25,13 +25,13 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(OUT, 'icon.png'), image.toPNG());
   fs.writeFileSync(path.join(OUT, 'tray.png'), png(32));
 
-  // ICO mit einem einzigen PNG-Bild (256 px): Kopf, ein Verzeichniseintrag, dann die PNG-Daten.
+  // ICO with a single PNG image (256 px): header, one directory entry, then the PNG data.
   const data = png(256);
   const head = Buffer.alloc(22);
-  head.writeUInt16LE(1, 2); // Typ: Symbol
-  head.writeUInt16LE(1, 4); // ein Bild
-  head.writeUInt16LE(1, 10); // Farbebenen (Breite und Höhe 0 = 256)
-  head.writeUInt16LE(32, 12); // Bit je Pixel
+  head.writeUInt16LE(1, 2); // type: icon
+  head.writeUInt16LE(1, 4); // one image
+  head.writeUInt16LE(1, 10); // colour planes (width and height 0 = 256)
+  head.writeUInt16LE(32, 12); // bits per pixel
   head.writeUInt32LE(data.length, 14);
   head.writeUInt32LE(22, 18);
   fs.writeFileSync(path.join(OUT, 'icon.ico'), Buffer.concat([head, data]));

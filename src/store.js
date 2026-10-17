@@ -1,24 +1,24 @@
-// JSON-Dateien im Datenordner lesen und schreiben, ohne dass eine beschädigte Datei den Start verhindert
-// oder ein Absturz mitten im Schreiben eine halbe Datei hinterlässt.
+// Read and write JSON files in the data folder without a damaged file preventing the start
+// or a crash in the middle of writing leaving half a file behind.
 
 const fs = require('node:fs');
 
-// Liefert `{ data, broken }`. Lässt sich die Datei nicht lesen, bleibt eine Kopie unter `broken` liegen
-// und `data` ist der Ersatzwert.
+// Returns `{ data, broken }`. If the file cannot be read, a copy stays behind at `broken`
+// and `data` is the fallback.
 function readJson(file, fallback) {
   if (!fs.existsSync(file)) return { data: fallback, broken: null };
   try {
     return { data: JSON.parse(fs.readFileSync(file, 'utf8')), broken: null };
   } catch {
-    const broken = `${file}.kaputt-${Date.now()}`;
-    try { fs.copyFileSync(file, broken); } catch { /* dann eben ohne Kopie */ }
+    const broken = `${file}.broken-${Date.now()}`;
+    try { fs.copyFileSync(file, broken); } catch { /* then without a copy */ }
     return { data: fallback, broken };
   }
 }
 
-// Erst vollständig daneben schreiben, dann umbenennen. `compact` für große Dateien, die niemand von Hand liest.
+// Write it completely next to it first, then rename. `compact` for large files nobody reads by hand.
 function writeJson(file, data, { compact = false } = {}) {
-  const draft = `${file}.neu`;
+  const draft = `${file}.new`;
   fs.writeFileSync(draft, `${compact ? JSON.stringify(data) : JSON.stringify(data, null, 2)}\n`);
   fs.renameSync(draft, file);
 }

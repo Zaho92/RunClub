@@ -2,7 +2,7 @@
   "name": "runclub",
   "productName": "RunClub",
   "version": "0.1.0",
-  "description": "Eigene GitHub-Actions-Runner auf diesem Rechner: frisch je Job, mit Reserve und Caches.",
+  "description": "Your own GitHub Actions runners on this machine: fresh for every job, with a reserve and caches.",
   "private": true,
   "main": "src/main.js",
   "scripts": {

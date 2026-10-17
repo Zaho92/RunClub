@@ -1,19 +1,19 @@
-// Start und Ende eines Programmlaufs: die Takte (`every`, `everyAfter`), der Start der Pools (`startPools`), das Ablegen
-// des Schlüssels (`saveKey`), das Beenden (`shutdown`) und das schnelle Abmelden beim Abmelden von Windows (`release`).
-// `stopping()` sagt allen Modulen, dass RunClub endet; es wird früh gebraucht, die Arbeit beim Beenden erst spät.
+// Start and end of a program run: the beats (`every`, `everyAfter`), starting the pools (`startPools`), storing
+// the key (`saveKey`), shutting down (`shutdown`) and the quick sign-off on Windows sign-out (`release`).
+// `stopping()` tells all modules that RunClub is ending; it is needed early, the work on shutdown only late.
 
 const fs = require('node:fs');
 const { VARIABLE } = require('./routing');
 const { msg, reason } = require('./messages');
 
 //   log(text, repo, kind)
-//   beforeStop()            beim Beenden, nach dem Anhalten der Takte (Messung sichern, wartende Anmeldung beenden)
-//   dismantle()             alle Runner abbauen (pools.js)
-//   removeLeftovers(step)   danach übrig Gebliebenes abräumen, auch Build-Dienste und ihre Netze (dockerwatch.js)
-//   releaseIdle()           die freien Runner bei GitHub abmelden (runners.js)
-//   progress                `{ begin, step, finish }`: der Stand des Beendens für die Oberfläche (shutdown.js)
-//   onExit()                nach dem Beenden
-//   schedule                `{ set, clear }` wie `setInterval` und `clearInterval`
+//   beforeStop()            on shutdown, after the beats are stopped (save measurements, end a waiting sign-in)
+//   dismantle()             dismantle all runners (pools.js)
+//   removeLeftovers(step)   then clear what is left over, build services and their networks too (dockerwatch.js)
+//   releaseIdle()           remove the idle runners from GitHub (runners.js)
+//   progress                `{ begin, step, finish }`: the state of the shutdown for the interface (shutdown.js)
+//   onExit()                after the shutdown
+//   schedule                `{ set, clear }` like `setInterval` and `clearInterval`
 const quiet = { begin: () => {}, step: () => {}, finish: () => {} };
 
 function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseIdle, progress = quiet, onExit, schedule = { set: setInterval, clear: clearInterval } }) {
@@ -22,9 +22,9 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
   const timers = [];
 
   const every = (ms, work) => { work(); timers.push(schedule.set(work, ms)); };
-  const everyAfter = (ms, work) => { timers.push(schedule.set(work, ms)); }; // wie `every`, aber erst nach dem ersten Abstand
+  const everyAfter = (ms, work) => { timers.push(schedule.set(work, ms)); }; // like `every`, but only after the first interval
 
-  // Keine Takte mehr; danach, was beim Beenden noch zu sichern ist.
+  // No more beats; then whatever still needs saving on shutdown.
   function stopTimers() {
     stopping = true;
     for (const timer of timers) schedule.clear(timer);
@@ -45,17 +45,17 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
     onExit();
   }
 
-  // Beim Abmelden von Windows bleibt für den Abbau keine Zeit (siehe main.js). Dann nur die freien Runner bei GitHub
-  // abmelden, alle zugleich, damit dort keine toten Einträge stehen bleiben; Container und Volumes räumt der nächste
-  // Start ab. Beenden bleibt danach möglich: `shutdown` achtet nur auf sich selbst.
+  // On Windows sign-out there is no time for dismantling (see main.js). Then only remove the idle runners from GitHub,
+  // all at once, so that no dead entries are left there; containers and volumes are cleared by the next
+  // start. Shutting down stays possible afterwards: `shutdown` only watches itself.
   async function release() {
     if (stopping) return;
     stopTimers();
     await releaseIdle();
   }
 
-  // Je Repo mit Pool: den Pool starten, die Repo-Variable CI_RUNNER lesen, die Sichtbarkeit prüfen. Liest sich die
-  // Variable nicht (`error` im Ergebnis, siehe routing.js), steht das im Protokoll; der Pool arbeitet trotzdem.
+  // Per repo with a pool: start the pool, read the repo variable CI_RUNNER, check the visibility. If the
+  // variable cannot be read (`error` in the result, see routing.js), that is logged; the pool works anyway.
   function startPools(repos, { startPool, checkRouting, watchVisibility }) {
     for (const repo of repos) {
       startPool(repo);
@@ -65,9 +65,9 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
     }
   }
 
-  // Der Schlüssel steht nur in der Konsole und in einer Datei im Datenordner des Nutzers, nie im Protokoll, das die
-  // Oberfläche zeigt. Scheitert das Schreiben, gälte sonst still ein alter Schlüssel in der Datei: Das kommt ins
-  // Protokoll, und es bleibt nur die Konsole.
+  // The key is only in the console and in a file in the user's data folder, never in the log the
+  // interface shows. If writing fails, an old key in the file would otherwise silently apply: that goes into the
+  // log, and only the console remains.
   function saveKey(file, key) {
     try {
       fs.writeFileSync(file, `${key}\n`);

@@ -1,13 +1,13 @@
-// Wohin die Jobs eines Repos gehen: Die Workflows lesen ihr Ziel aus der Repo-Variablen CI_RUNNER
-// (`runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}`). RunClub setzt sie, wenn ein Pool entsteht,
-// und entfernt sie, wenn er geht.
+// Where a repo's jobs go: the workflows read their target from the repo variable CI_RUNNER
+// (`runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}`). RunClub sets it when a pool is created
+// and removes it when the pool goes.
 
 const { Fault, reason } = require('./messages');
 
 const VARIABLE = 'CI_RUNNER';
 const VALUE = '["self-hosted","Linux"]';
 
-// Zeigt der Wert der Variablen auf die eigenen Runner? Schreibweise und Reihenfolge sind egal.
+// Does the variable's value point to your own runners? Case and order do not matter.
 function pointsHere(value) {
   try {
     const labels = JSON.parse(value);
@@ -16,10 +16,10 @@ function pointsHere(value) {
   } catch { return false; }
 }
 
-// Wie die Workflow-Dateien eines Repos ihr Ziel bestimmen:
-//   'variable'  über vars.CI_RUNNER – die Variable schaltet um
-//   'fixed'     fest auf self-hosted – läuft ohne Variable auf den eigenen Runnern
-//   'none'      weder noch – die Jobs gehen an GitHubs Runner, egal was die Variable sagt
+// How a repo's workflow files decide their target:
+//   'variable'  through vars.CI_RUNNER – the variable switches
+//   'fixed'     fixed to self-hosted – runs on your own runners without the variable
+//   'none'      neither – the jobs go to GitHub's runners, whatever the variable says
 function usage(texts) {
   if (texts.some((text) => /\bvars\.CI_RUNNER\b/.test(text))) return 'variable';
   if (texts.some((text) => /^\s*runs-on\s*:.*self-hosted/im.test(text) || /^\s*-\s*self-hosted\s*$/im.test(text))) return 'fixed';
@@ -27,7 +27,7 @@ function usage(texts) {
 }
 
 function createRouting({ github }) {
-  const known = new Map(); // Repo -> { value, here, uses, error }
+  const known = new Map(); // repo -> { value, here, uses, error }
 
   async function check(repo) {
     const info = { value: null, here: false, uses: null, error: null };
@@ -38,16 +38,16 @@ function createRouting({ github }) {
       const texts = [];
       for (const file of files) texts.push(Buffer.from((await github.get(`repos/${repo}/contents/${file.path}`)).content, 'base64').toString('utf8'));
       info.uses = usage(texts);
-    } catch { /* kein Workflow-Ordner oder kein Zugriff: unbekannt */ }
+    } catch { /* no workflow folder or no access: unknown */ }
     known.set(repo, info);
     return info;
   }
 
-  // Schaltet die Jobs des Repos auf die eigenen Runner (`on`) oder zurück zu GitHubs Runnern.
+  // Switches the repo's jobs to your own runners (`on`) or back to GitHub's runners.
   async function set(repo, on) {
-    // Immer frisch lesen: Die Variable kann inzwischen von Hand gesetzt oder entfernt worden sein.
+    // Always read fresh: the variable may have been set or removed by hand in the meantime.
     const current = await check(repo);
-    // Ohne den Stand der Variable (GitHub nicht erreichbar, Anfragelimit) wäre alles Weitere geraten.
+    // Without the variable's state (GitHub not reachable, rate limit) everything else would be guesswork.
     if (current.error) throw Fault.of(current.error);
     if (on) {
       const body = { name: VARIABLE, value: VALUE };

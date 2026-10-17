@@ -1,31 +1,31 @@
-// RunClub: Verwaltung der eigenen GitHub-Actions-Runner auf diesem Rechner.
-// Läuft im Hauptprozess der App (main.js, über `start`) oder allein:  node src/backend.js  ->  http://127.0.0.1:8770
+// RunClub: manages self-hosted GitHub Actions runners on this machine.
+// Runs in the app's main process (main.js, via `start`) or alone:  node src/backend.js  ->  http://127.0.0.1:8770
 //
-// Linux-Runner: je Repo ein Pool in `runners.json`. Für jeden Job entsteht ein frisches Paar aus
-// Runner-Container und eigenem Docker-Daemon; nach dem Job wird es samt Volumes entfernt. Der Docker-Socket
-// des Rechners und Windows-Ordner werden nie hineingereicht, die Anmeldung bei GitHub gilt für einen Job.
+// Linux runners: one pool per repo in `runners.json`. For every job a fresh pair of runner container and
+// its own Docker daemon is created; after the job it is removed along with its volumes. The machine's Docker socket
+// and Windows folders are never passed in; the GitHub registration holds for one job.
 //
-// Kein Container läuft mit `--privileged`: Der Docker-Daemon eines Jobs und der Build-Dienst laufen als gewöhnliche
-// Benutzer in eigenen Namensräumen (siehe dind.js und caches.js). Wer aus einem Job-Container ausbricht, landet im
-// Daemon-Container seines Paars, nicht in der Docker-VM. Anders der Runner-Container selbst: Dort haben die Schritte
-// des Jobs per `sudo` root, mit Dockers üblichen Capabilities bis auf einige, die kein Job braucht (siehe slots.js);
-// wer aus ihm ausbricht, ist root in der Docker-VM. Eine Grenze gegen jeden Angriff ist das alles nicht (ein Fehler im
-// Kernel reicht weiter): Auf diesen Runnern soll nur Code laufen, dem der Nutzer vertraut – Pools für öffentliche Repos
-// werden nicht angelegt, und wird ein Repo mit Pool öffentlich, pausiert sein Pool.
+// No container runs with `--privileged`: a job's Docker daemon and the build service run as ordinary
+// users in their own namespaces (see dind.js and caches.js). Whoever breaks out of a job container lands in the
+// daemon container of its pair, not in the Docker VM. The runner container itself is different: there the job's steps
+// have root via `sudo`, with Docker's usual capabilities except a few no job needs (see slots.js);
+// whoever breaks out of it is root in the Docker VM. None of this is a boundary against every attack (a kernel bug
+// goes further): only code the user trusts should run on these runners – pools for public repos
+// are not created, and if a repo with a pool turns public, its pool pauses.
 //
-// Was zwischen den Jobs eines Repos bleibt (alles abschaltbar und in der Oberfläche zu leeren):
-//   Pakete      Volume, im Runner als NuGet- und npm-Ordner gesetzt. Jobs schreiben hinein.
-//   Build-Layer ein Build-Dienst je Repo, ohne Rechte und nur über einen Socket erreichbar (siehe caches.js);
-//               einfaches `docker build` nutzt ihn (linux/docker-shim.sh). Jobs schreiben hinein. Wer mit eigenem
-//               Builder baut (Veröffentlichen), nutzt ihn nicht.
-//   Abbilder    Vorlage für den Docker-Daemon. Dieses Programm merkt sich nach jedem Job nur die Namen der
-//               geladenen Abbilder und holt sie selbst von der Registry – kein Job schreibt hinein.
+// What stays between the jobs of a repo (all of it can be switched off and cleared in the interface):
+//   Packages    volume, set in the runner as NuGet and npm folder. Jobs write to it.
+//   Build layers one build service per repo, without privileges and reachable only via a socket (see caches.js);
+//               plain `docker build` uses it (linux/docker-shim.sh). Jobs write to it. Whoever builds with their own
+//               builder (publishing) doesn't use it.
+//   Images      template for the Docker daemon. After each job this program remembers only the names of the
+//               loaded images and pulls them itself from the registry – no job writes to it.
 //
-// Endet dieses Programm, enden auch die Runner, die es gestartet hat.
+// When this program ends, the runners it started end too.
 //
-// Diese Datei verdrahtet nur: Sie legt die Module an (in der Reihenfolge, in der sie einander brauchen), startet die
-// Takte und den lokalen Dienst und beendet alles wieder (Ablauf von Start und Ende in lifecycle.js). Was die Module
-// tun, steht in ihnen.
+// This file only wires things up: it creates the modules (in the order in which they need each other), starts the
+// timers and the local service and shuts everything down again (start and end in lifecycle.js). What the modules
+// do is written in them.
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -60,26 +60,26 @@ const { createLifecycle } = require('./lifecycle');
 const { createShutdown } = require('./shutdown');
 
 const GITHUB_TIMEOUT = MINUTE;
-const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
-const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
-const SHUTDOWN_WAIT = 30 * SECOND; // so lange wartet das Beenden auf Paare, die gerade entstehen
-// Die Takte. Wo gerade ein Job auf den eigenen Runnern läuft, wird öfter bei GitHub nachgesehen.
+const DOCKER_TIMEOUT = 5 * MINUTE; // ordinary calls; whatever may take longer names its own limit
+const DOCKER_LONG = 30 * MINUTE; // building, pulling, copying images
+const SHUTDOWN_WAIT = 30 * SECOND; // shutdown waits this long for pairs being created
+// The timers. Where a job is running on our own runners, GitHub is checked more often.
 const EVERY = {
   github: 20 * SECOND, githubActive: 8 * SECOND, account: MINUTE, quota: MINUTE, waiting: WAITING_INTERVAL,
   image: DAY, measure: 2 * SECOND, reserve: MINUTE, sizes: 5 * MINUTE,
-  housekeeping: 10 * MINUTE, // Sichtbarkeit der Repos prüfen, verwaiste Runner abmelden
-  setup: 15 * SECOND, // solange Docker nicht antwortet: was dem Rechner fehlt
+  housekeeping: 10 * MINUTE, // check the repos' visibility, remove orphaned runners
+  setup: 15 * SECOND, // while Docker doesn't answer: what the machine lacks
 };
 
-//   port, dataDir           Port des lokalen Dienstes und Datenordner (sonst RUNCLUB_PORT und RUNCLUB_DATA)
-//   hooks                   was die App beisteuert: `actions` (weitere Aufrufe), `status()` (weitere Angaben für die
-//                           Oberfläche), `onExit()` (nach dem Beenden; ohne Angabe endet der Prozess), `secrets`
-//                           ({ encrypt(buffer), decrypt(buffer) }: so liegt das Token der Anmeldung verschlüsselt im
-//                           Datenordner; ohne sie nur im Speicher, siehe auth.js), `version` (für die Kennung bei GitHub)
+//   port, dataDir           port of the local service and data folder (otherwise RUNCLUB_PORT and RUNCLUB_DATA)
+//   hooks                   what the app contributes: `actions` (more calls), `status()` (more details for the
+//                           interface), `onExit()` (after shutdown; if missing, the process ends), `secrets`
+//                           ({ encrypt(buffer), decrypt(buffer) }: this way the sign-in token lies encrypted in the
+//                           data folder; without them only in memory, see auth.js), `version` (for the identification at GitHub)
 function start({
   port = Number(process.env.RUNCLUB_PORT) || DEFAULT_PORT,
-  // Allein gestartet liegen die Daten im Profil des Nutzers, getrennt von denen der App: Im Ordner des Repos könnten
-  // andere Benutzer des Rechners den Schlüssel lesen (access.key).
+  // Started alone, the data lives in the user's profile, apart from the app's: in the repo's folder
+  // other users of the machine could read the key (access.key).
   dataDir = process.env.RUNCLUB_DATA || path.join(process.env.APPDATA || os.homedir(), 'RunClub', 'backend'),
   hooks = {},
 } = {}) {
@@ -87,19 +87,19 @@ function start({
   fs.mkdirSync(dataDir, { recursive: true });
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  // --- Protokoll ---
+  // --- Log ---
   const journal = createJournal({ file: path.join(dataDir, 'runclub.log'), echo: (line) => console.log(line) });
-  // `message`: eine Meldung (siehe messages.js) oder ein Text von außen. `repo` nennt das Projekt, zu dem sie gehört;
-  // `kind` siehe journal.js.
+  // `message`: a message (see messages.js) or a text from outside. `repo` names the project it belongs to;
+  // `kind` see journal.js.
   const log = (message, repo, kind) => journal.add(message, { repo, kind });
   const logError = errorLog(log);
-  // Start und Ende; was das Beenden braucht, entsteht erst weiter unten.
+  // Start and end; what shutdown needs is only created further below.
   const progress = createShutdown({
     dataDir, wait: SHUTDOWN_WAIT, repos: () => [...runners.pools.keys()], remaining: (repo) => (runners.pools.has(repo) ? runners.remaining(runners.pools.get(repo)) : null),
   });
   const lifecycle = createLifecycle({
     log,
-    // Die Messung sichern, eine Anmeldung, die noch auf die Bestätigung im Browser wartet, nicht zurücklassen.
+    // Save the metrics, don't leave behind a sign-in still waiting for confirmation in the browser.
     beforeStop: () => { metrics.save(); account.close(); },
     dismantle: () => runners.dismantle(SHUTDOWN_WAIT),
     removeLeftovers: (step) => dockerWatch.removeLeftovers(step),
@@ -109,32 +109,32 @@ function start({
   });
   const isStopping = lifecycle.stopping;
   const { shutdown, release, every, everyAfter } = lifecycle;
-  // Kennung des Stands für die Oberfläche: Sie ändert sich mit jedem Eintrag und mit jedem Start, damit ein offenes
-  // Fenster nach einem Neustart nicht zufällig dieselbe Zahl sieht und das Nachladen auslässt.
+  // Stamp of the state for the interface: it changes with every entry and every start, so that an open
+  // window doesn't happen to see the same number after a restart and skip reloading.
   const started = Date.now();
   const logStamp = () => `${started}-${journal.count()}`;
 
-  // --- Einstellungen, Namen, Zugang zu GitHub und Docker ---
+  // --- Settings, names, access to GitHub and Docker ---
   const settings = createSettings({ dataDir, log });
   const names = createNames({ dataDir, port });
   const { dind: DIND, buildkit: BUILDKIT } = pinnedImages();
-  // Die Anmeldung bei GitHub; ihr Token gilt für alle Anfragen. Nach einem gelungenen Anmelden Anfragelimit, Repos und
-  // Minuten des neuen Kontos lesen.
+  // The GitHub sign-in; its token holds for all requests. After a successful sign-in, read the new account's request
+  // limit, repos and minutes.
   const auth = createAuth({
     file: path.join(dataDir, TOKEN_FILE), secrets, version, log: (text) => log(text),
     onAccount: () => { remote.watchQuota(); remote.refreshAll(); account.changed(); },
   });
-  const github = createGitHub({ token: auth.token, renew: auth.renew, timeout: GITHUB_TIMEOUT, version }); // bedingt, wo es geht, und mit dem Stand des Anfragelimits
-  const engine = createEngine({ run, timeout: DOCKER_TIMEOUT, ...engineFrom() }); // wo Docker läuft
+  const github = createGitHub({ token: auth.token, renew: auth.renew, timeout: GITHUB_TIMEOUT, version }); // conditional where possible, and with the state of the request limit
+  const engine = createEngine({ run, timeout: DOCKER_TIMEOUT, ...engineFrom() }); // where Docker runs
   const { docker, dockerList } = engine;
 
-  // --- Was gemessen, gelernt und bei GitHub gelesen wird ---
+  // --- What is measured, learned and read at GitHub ---
   const metrics = createMetrics({ dataDir });
   const pipelines = createPipelines({ github, dataDir });
-  const routing = createRouting({ github }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
-  const waiting = createWaiting({ github }); // Repos ohne Pool, in denen nichts vorankommt
-  let runners = null; // die Pools; sie brauchen die Abfragen bei GitHub, die Abfragen ihre Pools
-  let actionsApi = null; // die Aufrufe; sie brauchen fast alles, und ein öffentlich gewordenes Repo (oder eins mit Fork-PRs) braucht sie
+  const routing = createRouting({ github }); // where a repo's jobs go (repo variable CI_RUNNER)
+  const waiting = createWaiting({ github }); // repos without a pool where nothing moves on
+  let runners = null; // the pools; they need the GitHub queries, the queries need their pools
+  let actionsApi = null; // the calls; they need almost everything, and a repo turned public (or one with fork PRs) needs them
   const remote = createRemote({
     github, pipelines, routing, waiting, log, logError,
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
@@ -144,10 +144,10 @@ function start({
     },
     confirmResults: metrics.confirmResults,
   });
-  let dockerWatch = null; // die Docker-Überwachung; sie bereitet die Pools vor, die Pools fragen sie, ob Docker bereit ist
+  let dockerWatch = null; // the Docker watch; it prepares the pools, the pools ask it whether Docker is ready
   const usage = createUsage({ docker, inVm: engine.inVm, metrics, pools: () => runners.pools.values(), log, stopping: isStopping });
 
-  // --- Die Runner und die Docker-Überwachung ---
+  // --- The runners and the Docker watch ---
   runners = createRunners({
     docker, dockerList, github, log, sleep,
     host: os.hostname(), names, image: IMAGE, dind: DAEMON_IMAGE, buildkit: BUILDKIT, longTimeout: DOCKER_LONG,
@@ -166,9 +166,9 @@ function start({
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
     stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,
   });
-  const setup = createSetup({ run, docker, ready: dockerWatch.ready, desktop: engine.desktop, log }); // was dem Rechner für Docker fehlt
+  const setup = createSetup({ run, docker, ready: dockerWatch.ready, desktop: engine.desktop, log }); // what the machine lacks for Docker
 
-  // --- Konto, Oberfläche, Aufrufe ---
+  // --- Account, interface, calls ---
   const account = createAccount({ auth, github, log, logError, stopping: isStopping });
   const uiFile = path.join(__dirname, 'ui.html');
   const { status, limitRange, limitPlan } = createStatus({
@@ -180,10 +180,10 @@ function start({
     github, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown,
   });
 
-  // --- Lokaler Dienst ---
-  const actions = mergeActions(actionsApi.actions, appActions); // ein Name, den es schon gibt, ist ein Fehler
-  const token = crypto.randomBytes(24).toString('hex'); // schützt die ändernden Aufrufe vor fremden Webseiten
-  const access = createAccess({ port }); // schützt Seite und Daten vor allem, was nicht das eigene Fenster ist
+  // --- Local service ---
+  const actions = mergeActions(actionsApi.actions, appActions); // a name that already exists is an error
+  const token = crypto.randomBytes(24).toString('hex'); // protects the changing calls from foreign web pages
+  const access = createAccess({ port }); // protects page and data from everything that isn't our own window
   const server = createServer({
     access, token, uiFile, fontsDir: path.join(__dirname, 'fonts'),
     routes: { status, dayMinutes: metrics.dayMinutes, log: () => ({ stamp: logStamp(), entries: journal.recent() }), logFile: journal.read, repos: remote.listRepos },
@@ -192,10 +192,10 @@ function start({
   server.listen(port, '127.0.0.1', () => {
     log(msg('m_listening', `http://127.0.0.1:${port}`));
     lifecycle.saveKey(path.join(dataDir, 'access.key'), access.key);
-    console.log(`Öffnen mit: ${access.entry}`);
+    console.log(`Open with: ${access.entry}`);
   });
 
-  // --- Takte ---
+  // --- Timers ---
   every(EVERY.account, account.watch);
   every(EVERY.setup, setup.check);
   every(EVERY.quota, remote.watchQuota);
@@ -215,7 +215,7 @@ function start({
   dockerWatch.watch();
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, shutdown);
 
-  // `githubToken()`: das Token der Anmeldung, etwa für den Updater (main.js); null ohne Anmeldung.
+  // `githubToken()`: the sign-in token, e.g. for the updater (main.js); null without a sign-in.
   return { port, entry: access.entry, status, shutdown, release, log, githubToken: auth.token };
 }
 

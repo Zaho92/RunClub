@@ -1,9 +1,9 @@
-// Was RunClub bei GitHub abfragt: Läufe und Jobs der Repos mit Pool (für den Netzplan und die Plätze), das
-// Anfragelimit, die Repos des Kontos, wartende Läufe in Repos ohne Pool, die Sichtbarkeit der Repos mit Pool und ob
-// dort Pull Requests aus Forks laufen dürften. Dazu das erneute Starten eines Laufs oder Jobs.
+// What RunClub asks GitHub: runs and jobs of the repos with a pool (for the pipeline graph and the slots), the
+// request limit, the account's repos, waiting runs in repos without a pool, the visibility of the repos with a pool and
+// whether pull requests from forks may run there. Plus re-running a run or job.
 //
-// Je Repo steht der letzte Stand bereit (`view`): { jobs, runs, error, notFound (GitHub antwortete 404) }. Eine Abfrage, die scheitert, behält Jobs und
-// Läufe des vorigen Stands und trägt nur den Fehler.
+// Per repo the latest state is available (`view`): { jobs, runs, error, notFound (GitHub answered 404) }. A query that fails keeps jobs and
+// runs of the previous state and only carries the error.
 
 const { MINUTE, SECOND } = require('./units');
 const { STATE: QUOTA, PAGE_MAX } = require('./github');
@@ -15,38 +15,38 @@ const { BLOCKS } = require('./blocks');
 const { msg, Fault, reason } = require('./messages');
 
 const RUNS_PER_REPO = 20;
-const REPO_LIST_MAX_AGE = 5 * MINUTE; // so lange gilt die Liste der Repos des Kontos
-const EMPTY_LIST_MAX_AGE = 15 * SECOND; // … und so lange eine leere: Gleich nach dem Installieren der App soll sie sich füllen
+const REPO_LIST_MAX_AGE = 5 * MINUTE; // the list of the account's repos holds this long
+const EMPTY_LIST_MAX_AGE = 15 * SECOND; // … and an empty one this long: right after installing the app it should fill up
 const REPO_PAGES_MAX = 10;
-const RERUN_SETTLE = 3 * SECOND; // so lange braucht GitHub etwa, bis ein erneut gestarteter Lauf wieder als laufend erscheint
-const WAITING_INTERVAL = 5 * MINUTE; // so oft wird nach wartenden Läufen ohne Pool gesucht (Takt in backend.js)
-const CHECK_STALE = 25 * MINUTE; // so lange gilt eine gelungene Prüfung; die Pflege prüft alle 10 Minuten (backend.js)
-const CHECK_RETRY = MINUTE; // so bald wird erneut geprüft, solange ein Pool ruht, weil die Prüfung scheitert
+const RERUN_SETTLE = 3 * SECOND; // roughly how long GitHub takes until a re-run run shows as running again
+const WAITING_INTERVAL = 5 * MINUTE; // how often to look for waiting runs without a pool (timer in backend.js)
+const CHECK_STALE = 25 * MINUTE; // a successful check holds this long; housekeeping checks every 10 minutes (backend.js)
+const CHECK_RETRY = MINUTE; // how soon to check again while a pool rests because the check fails
 
-//   github                  Zugang zu GitHub (siehe github.js): `get`, `send`, `mayPoll(key, every)`, `refreshQuota()`
-//   pipelines, routing, waiting   siehe pipeline.js, routing.js, waiting.js
-//   log(text, repo, kind), logError(repo, what)   siehe journal.js
-//   repos(), settingsOf(repo)     die Repos mit Pool und ihre Einstellungen (siehe settings.js)
-//   poolOf(repo)            der stehende Pool oder undefined
-//   stopping(), timer (wie `setTimeout`)
-//   guard                   `block(repo, kind, reason)`, `unblock(repo, kind)`, `restUnchecked(repo)` (siehe actions.js, blocks.js)
-//   confirmResults(repo, done)   Ergebnisse abgeschlossener Jobs der eigenen Runner, wie GitHub sie meldet (siehe metrics.js)
+//   github                  access to GitHub (see github.js): `get`, `send`, `mayPoll(key, every)`, `refreshQuota()`
+//   pipelines, routing, waiting   see pipeline.js, routing.js, waiting.js
+//   log(text, repo, kind), logError(repo, what)   see journal.js
+//   repos(), settingsOf(repo)     the repos with a pool and their settings (see settings.js)
+//   poolOf(repo)            the standing pool or undefined
+//   stopping(), timer (like `setTimeout`)
+//   guard                   `block(repo, kind, reason)`, `unblock(repo, kind)`, `restUnchecked(repo)` (see actions.js, blocks.js)
+//   confirmResults(repo, done)   results of finished jobs of our own runners, as GitHub reports them (see metrics.js)
 function createRemote({
   github, pipelines, routing, waiting, log, logError,
   repos, settingsOf, poolOf, stopping, timer = setTimeout, now = Date.now, guard, confirmResults = () => {},
 }) {
-  const states = new Map(); // Repo -> { jobs, runs, error, notFound }
-  const busy = new Set(); // Repos, deren Abfrage gerade läuft
-  const again = new Set(); // … und die danach noch einmal dran sind
-  const checkedAt = new Map(); // Repo -> Zeit der letzten gelungenen Prüfung (siehe `checkVisibility`)
-  const unchecked = new Set(); // Repos, deren Pool ruht, weil keine frische Prüfung vorliegt
-  const failing = new Set(); // Repos, deren letzte Prüfung scheiterte (steht schon im Protokoll)
-  const retrying = new Set(); // … und für die eine neue Prüfung ansteht
+  const states = new Map(); // repo -> { jobs, runs, error, notFound }
+  const busy = new Set(); // repos whose query is running right now
+  const again = new Set(); // … and which are due once more afterwards
+  const checkedAt = new Map(); // repo -> time of the last successful check (see `checkVisibility`)
+  const unchecked = new Set(); // repos whose pool rests because there is no fresh check
+  const failing = new Set(); // repos whose last check failed (already in the log)
+  const retrying = new Set(); // … and for which a new check is pending
 
-  // Ein Repo abfragen. Läuft schon eine Abfrage, folgt danach genau eine weitere.
+  // Query one repo. If a query is already running, exactly one more follows afterwards.
   async function refreshRepo(repo) {
     if (busy.has(repo)) { again.add(repo); return; }
-    if (!github.mayPoll(repo)) return; // das Anfragelimit ist knapp oder aufgebraucht (siehe github.js)
+    if (!github.mayPoll(repo)) return; // the request limit is tight or used up (see github.js)
     busy.add(repo);
     try {
       const runs = (await github.get(`repos/${repo}/actions/runs?per_page=${RUNS_PER_REPO}`)).workflow_runs;
@@ -59,13 +59,13 @@ function createRemote({
         runs: runs.map((r) => ({ id: r.id, name: r.name, branch: r.head_branch, event: r.event, status: r.status, conclusion: r.conclusion, at: r.run_started_at ?? r.created_at, url: r.html_url, title: r.display_title })),
       });
       noteWorkflows(poolOf(repo), jobs);
-      // Abgeschlossene Jobs der eigenen Runner, auch aus eben beendeten und dem letzten fertigen Lauf: Ihr Ergebnis bei
-      // GitHub gilt (siehe metrics.js).
+      // Finished jobs of our own runners, also from runs that just ended and the last finished run: their result at
+      // GitHub counts (see metrics.js).
       const done = [...active, ...pipelines.finishedOf(repo), pipelines.lastOf(repo)].filter(Boolean).flatMap((pipeline) => pipeline.jobs)
         .filter((job) => job.status === 'completed' && job.own && job.runner).map((job) => ({ runner: job.runner, conclusion: job.conclusion }));
       if (done.length) confirmResults(repo, done);
     } catch (error) {
-      // 404: GitHub kennt das Repo nicht, oder die GitHub-App ist für sein Konto nicht installiert.
+      // 404: GitHub doesn't know the repo, or the GitHub App is not installed for its account.
       states.set(repo, { ...(states.get(repo) ?? { jobs: [], runs: [] }), error: reason(error), notFound: error?.status === 404 });
     } finally {
       busy.delete(repo);
@@ -73,13 +73,13 @@ function createRemote({
     }
   }
 
-  // Alle Repos der Reihe nach – der ruhige Takt.
+  // All repos one after another – the calm pace.
   async function refreshAll() {
     for (const repo of repos()) await refreshRepo(repo);
   }
 
-  // Wo gerade etwas auf den eigenen Runnern läuft oder darauf wartet, öfter nachsehen: Dort ändert sich der Stand im
-  // Sekundentakt. Jobs auf GitHubs Runnern genügt der ruhige Takt.
+  // Look more often where something is running on our own runners or waiting for them: there the state changes every
+  // second. Jobs on GitHub's runners are fine with the calm pace.
   function refreshActive() {
     for (const repo of repos()) {
       const working = poolOf(repo)?.slots.some((slot) => slot.state === SLOT.WORKING);
@@ -87,7 +87,7 @@ function createRemote({
     }
   }
 
-  // Den Stand des Anfragelimits holen und ins Protokoll schreiben, wenn er kippt.
+  // Fetch the state of the request limit and write it to the log when it flips.
   async function checkQuota() {
     const changed = await github.refreshQuota();
     if (!changed) return;
@@ -96,13 +96,13 @@ function createRemote({
     else if (changed.state === QUOTA.OUT) log(msg('m_quotaOut', changed.remaining, changed.limit, until));
     else if (changed.state === QUOTA.TIGHT) log(msg('m_quotaTight', changed.remaining, changed.limit, until));
     else if (changed.before !== QUOTA.UNKNOWN) log(msg('m_quotaFree'));
-    // Solange nichts gelesen werden durfte, blieb auch der Stand von CI_RUNNER unbekannt: jetzt nachholen.
+    // As long as nothing could be read, the state of CI_RUNNER stayed unknown too: catch up now.
     if (changed.before === QUOTA.OUT) for (const repo of repos()) routing.check(repo).catch(() => {});
   }
   const watchQuota = () => checkQuota().catch(logError(null, msg('m_whatQuota')));
 
-  // Repos, für die sich Runner anmelden lassen (Verwaltungsrecht), die zuletzt bewegten zuerst. `free`: Für das Repo
-  // ist ein Pool möglich (es hat keinen, und öffentliche bekommen keinen; siehe `pool/add` in actions.js).
+  // Repos for which runners can be registered (admin permission), most recently pushed first. `free`: a pool is
+  // possible for the repo (it has none, and public ones don't get one; see `pool/add` in actions.js).
   let repoList = { at: 0, repos: [] };
   async function listRepos() {
     if (now() - repoList.at > (repoList.repos.length ? REPO_LIST_MAX_AGE : EMPTY_LIST_MAX_AGE)) {
@@ -117,23 +117,23 @@ function createRemote({
     return repoList.repos.map((r) => { const pool = Boolean(settingsOf(r.repo)); return { ...r, pool, free: !pool && r.private !== false }; });
   }
 
-  // Nach Läufen suchen, für die es keinen Pool gibt und die deshalb auf einen eigenen Runner warten oder am
-  // aufgebrauchten Kontingent von GitHub gescheitert sind (siehe waiting.js). Bei knappem Limit nur jede dritte Runde.
-  // Lässt sich die Liste der Repos nicht lesen, bleibt der letzte Stand.
+  // Look for runs that have no pool and therefore wait for a self-hosted runner or failed on GitHub's used-up
+  // quota (see waiting.js). With a tight limit only every third round.
+  // If the list of repos can't be read, the last state stays.
   function scanWaiting() {
-    if (stopping() || !github.mayPoll('wartende Läufe', 3 * WAITING_INTERVAL)) return Promise.resolve();
+    if (stopping() || !github.mayPoll('waiting runs', 3 * WAITING_INTERVAL)) return Promise.resolve();
     return listRepos().then((found) => waiting.scan(candidates(found))).catch(() => {});
   }
 
-  // Pools gibt es nur für private Repos, und in Repos einer Organisation nur, solange dort keine Workflows aus Pull
-  // Requests von Forks laufen dürfen (siehe forks.js). Ändert sich das später, sperrt `guard.block` den Pool (siehe
-  // blocks.js); erst eine gelungene Prüfung, die den Grund weggefallen findet, hebt die Sperre auf (`guard.unblock`).
-  // Eine Sperre, die schon besteht, wird nachgezogen, wenn der Pool trotzdem nicht pausiert.
+  // Pools exist only for private repos, and in an organization's repos only as long as workflows from pull requests
+  // of forks may not run there (see forks.js). If that changes later, `guard.block` blocks the pool (see
+  // blocks.js); only a successful check that finds the reason gone lifts the block (`guard.unblock`).
+  // An existing block is reapplied if the pool doesn't pause anyway.
   //
-  // Ein Pool arbeitet nur, solange die letzte gelungene Prüfung höchstens CHECK_STALE alt ist (`vetted`, siehe
-  // pools.js): beim Start erst nach der ersten. Nach jedem Fehlschlag wird nach CHECK_RETRY erneut geprüft. Läuft die
-  // letzte gelungene ab, ruht der Pool sofort (`expire`): Freie, schon angemeldete Paare gehen, statt bis zur
-  // nächsten Runde ihres Platzes Jobs anzunehmen. Ein Ausfall steht einmal im Protokoll, nicht bei jedem Versuch.
+  // A pool works only as long as the last successful check is at most CHECK_STALE old (`vetted`, see
+  // pools.js): at startup only after the first one. After each failure it checks again after CHECK_RETRY. When the
+  // last successful one expires, the pool rests at once (`expire`): free, already registered pairs leave instead of
+  // accepting jobs until their slot's next round. An outage is logged once, not on every attempt.
   async function checkVisibility(repo) {
     const own = settingsOf(repo);
     if (!own) return;
@@ -141,8 +141,8 @@ function createRemote({
     if (info.private === false) {
       if (!own.pausedPublic || !own.paused) await guard.block(repo, 'public');
     } else {
-      // Für Forks gilt höchstens eine Sperre: erlaubt oder nicht lesbar. Nicht lesbar ändert an „erlaubt“ nichts.
-      // Erst sperren, dann aufheben: So nennt die Meldung beim Aufheben eine Sperre, die bleibt.
+      // For forks at most one block applies: allowed or unreadable. Unreadable doesn't change “allowed”.
+      // Block first, then lift: that way the message on lifting names a block that stays.
       const forks = await forkExposure(github, repo, info);
       const kind = !forks.exposed ? null : forks.unknown && !own.pausedForks ? 'forksUnknown' : 'forks';
       if (kind && (!own[BLOCKS[kind]] || !own.paused)) await guard.block(repo, kind, forks.reason);
@@ -156,14 +156,14 @@ function createRemote({
     if (unchecked.delete(repo)) log(msg('m_checkBack'), repo);
   }
   const vetted = (repo) => now() - (checkedAt.get(repo) ?? -Infinity) < CHECK_STALE;
-  // Der Pool ruht, weil keine frische Prüfung vorliegt; gemeldet wird das einmal.
+  // The pool rests because there is no fresh check; this is reported once.
   function rest(repo) {
     if (unchecked.has(repo) || stopping() || !settingsOf(repo)) return;
     unchecked.add(repo);
     guard.restUnchecked(repo);
     log(msg('m_unchecked'), repo, 'error');
   }
-  // Die Prüfung von `at` läuft ab; gab es seither keine gelungene, ruht der Pool.
+  // The check from `at` expires; if there was no successful one since, the pool rests.
   function expire(repo, at) {
     if (checkedAt.get(repo) === at) rest(repo);
   }
@@ -178,9 +178,9 @@ function createRemote({
     });
   }
 
-  // Einen Lauf oder Job eines Repos mit Pool bei GitHub erneut starten (`endpoint` unter `actions/`) und danach, wenn
-  // GitHub den neuen Versuch angelegt hat, die Läufe des Repos neu abfragen. `missing`: die Meldung, wenn es den Lauf
-  // oder Job nicht gibt (ein Schlüssel, siehe messages.js).
+  // Re-run a run or job of a repo with a pool at GitHub (`endpoint` under `actions/`) and afterwards, once
+  // GitHub has created the new attempt, query the repo's runs again. `missing`: the message if the run
+  // or job doesn't exist (a key, see messages.js).
   async function rerun(repo, id, endpoint, missing) {
     if (!settingsOf(repo) || !/^\d+$/.test(String(id))) throw new Fault(missing);
     await github.send('POST', `repos/${repo}/actions/${endpoint}`);

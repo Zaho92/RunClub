@@ -1,16 +1,16 @@
-// Aktualisieren aus den GitHub-Releases des Repos: nachsehen, ob es eine neuere Version gibt, den Installer im
-// Hintergrund laden und prüfen, dann „Update bereit“ melden. Eingespielt wird nur auf Klick (main.js): RunClub endet
-// dabei wie beim Beenden und startet den Installer, der die App danach wieder öffnet.
+// Updating from the repo's GitHub releases: look whether there is a newer version, download and verify the installer
+// in the background, then report “update ready”. It is installed only on click (main.js): RunClub ends
+// as on quitting and starts the installer, which opens the app again afterwards.
 //
-// Kanal     „stable“ sieht nur stabile Versionen (Tag vX.Y.Z), „beta“ auch Vorabversionen (vX.Y.Z-beta.N). Der Kanal
-//           steht in `update.json` im Datenordner; ohne Eintrag gilt der, zu dem die laufende Version gehört.
-// Prüfen    Jeder Release trägt neben dem Installer die Datei, die electron-builder schreibt (`latest.yml`, bei Betas
-//           `beta.yml`): Name des Installers und dessen SHA-512. Ein Installer, dessen Prüfsumme nicht stimmt, wird
-//           verworfen.
-// Anmeldung Solange das Repo privat ist, braucht schon das Lesen der Releases ein Token (das der Anmeldung in RunClub, siehe main.js).
-//           Gibt es keins, wird ohne gefragt; ein öffentliches Repo braucht keins.
+// Channel   “stable” sees only stable versions (tag vX.Y.Z), “beta” also pre-releases (vX.Y.Z-beta.N). The channel
+//           is stored in `update.json` in the data folder; without an entry, the one the running version belongs to applies.
+// Verify    Next to the installer, every release carries the file electron-builder writes (`latest.yml`, for betas
+//           `beta.yml`): the installer's name and its SHA-512. An installer whose checksum doesn't match is
+//           discarded.
+// Sign-in   As long as the repo is private, even reading the releases needs a token (the RunClub sign-in's, see main.js).
+//           Without one it asks without; a public repo needs none.
 //
-// Ohne Nebenwirkungen beim Laden; `createUpdater` tut erst etwas, wenn `check` oder `setChannel` gerufen wird.
+// No side effects on load; `createUpdater` does nothing until `check` or `setChannel` is called.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -21,32 +21,32 @@ const { msg, render, Fault, reason } = require('./messages');
 const FILE = 'update.json';
 const CHANNELS = ['stable', 'beta'];
 const API = 'https://api.github.com';
-const PER_PAGE = 30; // so viele Releases werden gelesen; ältere sind ohnehin nicht neuer
+const PER_PAGE = 30; // this many releases are read; older ones aren't newer anyway
 const REDIRECTS = 5;
-const CHANNEL_FILE = /^(?:latest|beta|alpha)\.yml$/; // so benennt electron-builder die Datei für den Updater
+const CHANNEL_FILE = /^(?:latest|beta|alpha)\.yml$/; // how electron-builder names the file for the updater
 const PHASE = { DEV: 'dev', IDLE: 'idle', CHECKING: 'checking', CURRENT: 'current', DOWNLOADING: 'downloading', READY: 'ready', ERROR: 'error' };
 
-// Ein Fehler, den die Oberfläche in ihrer Sprache nennt (`code`); die Meldung selbst geht nur ins Protokoll.
-//   private   GitHub gibt die Releases nicht heraus (401/404; das Repo ist privat und die Anmeldung fehlt)
-//   network   GitHub ist nicht erreichbar
-//   http      eine andere Antwort mit Fehler (`status`)
-//   broken    der Installer ist beschädigt (Prüfsumme)
-//   missing   zum Release fehlt der Installer oder seine Angabe
-//   other     alles andere (Platte voll, Abbruch mitten im Laden); Einzelheiten im Protokoll
-// `message` ist eine Meldung (siehe messages.js).
+// An error the interface names in its own language (`code`); the message itself goes only to the log.
+//   private   GitHub doesn't hand out the releases (401/404; the repo is private and the sign-in is missing)
+//   network   GitHub is unreachable
+//   http      another answer with an error (`status`)
+//   broken    the installer is damaged (checksum)
+//   missing   the release lacks the installer or its entry
+//   other     everything else (disk full, aborted mid-download); details in the log
+// `message` is a message (see messages.js).
 class UpdateError extends Error {
   constructor(code, message, status = null) { super(render(message)); this.msg = message; this.code = code; this.status = status; }
 }
 
-// Zerlegt „1.2.3-beta.4“ (auch mit „v“ davor); null, wenn es keine Version ist.
+// Splits “1.2.3-beta.4” (also with a leading “v”); null if it isn't a version.
 function parseVersion(text) {
   const match = String(text ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/);
   if (!match) return null;
   return { core: match.slice(1, 4).map(Number), pre: match[4] ? match[4].split('.') : [] };
 }
 
-// Wie Semver: Eine Vorabversion liegt vor der Version ohne Zusatz, Zahlen werden als Zahlen verglichen.
-// Liefert < 0, 0 oder > 0; eine Angabe, die keine Version ist, liegt vor jeder anderen.
+// Like semver: a pre-release comes before the version without suffix, numbers are compared as numbers.
+// Returns < 0, 0 or > 0; a value that isn't a version comes before any other.
 function compareVersions(a, b) {
   const x = parseVersion(a);
   const y = parseVersion(b);
@@ -69,16 +69,16 @@ function compareVersions(a, b) {
 const isPrerelease = (version) => Boolean(parseVersion(version)?.pre.length);
 const channelOf = (version) => (isPrerelease(version) ? 'beta' : 'stable');
 
-// Die Angaben aus `latest.yml`: Version, Name des Installers und seine Prüfsumme (SHA-512, Base64). Nur die Felder der
-// obersten Ebene; die Liste `files` darunter wiederholt sie.
+// The entries from `latest.yml`: version, the installer's name and its checksum (SHA-512, Base64). Only the top-level
+// fields; the list `files` below repeats them.
 function parseUpdateInfo(text) {
   const field = (name) => String(text ?? '').match(new RegExp(`^${name}:\\s*['"]?([^'"\\r\\n]+?)['"]?\\s*$`, 'm'))?.[1] ?? null;
   const info = { version: field('version'), path: field('path'), sha512: field('sha512') };
   return info.version && info.path && info.sha512 ? info : null;
 }
 
-// Der neueste Release, der für den Kanal gilt und neuer ist als die laufende Version; sonst null. Entwürfe zählen nie,
-// Vorabversionen nur im Kanal „beta“ (der auch die stabilen sieht).
+// The newest release that applies to the channel and is newer than the running version; otherwise null. Drafts never
+// count, pre-releases only in the channel “beta” (which also sees the stable ones).
 function pickRelease(releases, { channel, current }) {
   let best = null;
   for (const release of releases ?? []) {
@@ -91,12 +91,12 @@ function pickRelease(releases, { channel, current }) {
   return best;
 }
 
-//   repo                    „besitzer/name“ des Repos mit den Releases
-//   current                 die laufende Version
-//   packaged                nur eine installierte App aktualisiert sich; sonst bleibt es bei der Anzeige der Version
-//   dataDir                 hier liegen `update.json` und der geladene Installer (Ordner `update`)
-//   token()                 liefert das Token für GitHub oder null
-//   fetch                   wie das von Node; in Tests steuerbar
+//   repo                    “owner/name” of the repo with the releases
+//   current                 the running version
+//   packaged                only an installed app updates itself; otherwise it just shows the version
+//   dataDir                 holds `update.json` and the downloaded installer (folder `update`)
+//   token()                 returns the token for GitHub or null
+//   fetch                   like Node's; controllable in tests
 //   log(text), now()
 function createUpdater({ repo, current, packaged, dataDir, token = async () => null, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
   const file = path.join(dataDir, FILE);
@@ -104,14 +104,14 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   const saved = readJson(file, {}).data ?? {};
   let channel = CHANNELS.includes(saved.channel) ? saved.channel : channelOf(current);
   let phase = packaged ? PHASE.IDLE : PHASE.DEV;
-  let available = null; // die neuere Version, sobald bekannt
-  let ready = null; // { version, file } nach geprüftem Download
+  let available = null; // the newer version, once known
+  let ready = null; // { version, file } after a verified download
   let error = null;
   let checkedAt = null;
   let lastLogged = null;
-  let running = null; // die laufende Prüfung; eine zweite wartet auf sie
+  let running = null; // the running check; a second one waits for it
 
-  // Eine Anfrage an GitHub. Weiterleitungen (Downloads liegen anderswo) folgen ohne Token: Das gilt nur für GitHub.
+  // A request to GitHub. Redirects (downloads live elsewhere) are followed without the token: it is only for GitHub.
   async function request(url, { accept, auth }) {
     let target = url;
     let secret = auth ? await token().catch(() => null) : null;
@@ -134,13 +134,13 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   }
 
   const asset = (release, name) => (release.assets ?? []).find((item) => item.name === name);
-  // Das Token geht nur an die Schnittstelle von GitHub, auch wenn die Antwort eine andere Adresse nennt.
+  // The token goes only to GitHub's API, even if the answer names another address.
   const loadAsset = (item) => request(item.url, { accept: 'application/octet-stream', auth: new URL(item.url).origin === API });
 
-  // Lädt den Installer neben die Zieldatei, prüft ihn und benennt ihn erst dann um.
+  // Downloads the installer next to the target file, verifies it and only then renames it.
   async function download(item, info, target) {
     const response = await loadAsset(item);
-    const draft = `${target}.teil`;
+    const draft = `${target}.part`;
     const hash = crypto.createHash('sha512');
     const out = fs.createWriteStream(draft);
     try {
@@ -154,7 +154,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     fs.renameSync(draft, target);
   }
 
-  // Entfernt geladene Installer bis auf `keep`.
+  // Removes downloaded installers except `keep`.
   function prune(keep) {
     if (!fs.existsSync(folder)) return;
     for (const name of fs.readdirSync(folder)) if (path.join(folder, name) !== keep) fs.rmSync(path.join(folder, name), { force: true });
@@ -180,7 +180,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
       phase = PHASE.DOWNLOADING;
       fs.mkdirSync(folder, { recursive: true });
       const target = path.join(folder, path.basename(info.path));
-      ready = null; // ein älteres geladenes Update weicht dem neueren
+      ready = null; // an older downloaded update gives way to the newer one
       prune(null);
       await download(installer, info, target);
       ready = { version: found.version, file: target };
@@ -189,7 +189,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     } catch (failure) {
       checkedAt = now();
       const message = msg('m_withReason', 'Update', reason(failure));
-      // Derselbe Fehler bei jeder Prüfung steht nur einmal im Protokoll.
+      // The same error on every check appears in the log only once.
       if (render(message) !== lastLogged) log(message);
       lastLogged = render(message);
       error = failure instanceof UpdateError ? { code: failure.code, status: failure.status } : { code: 'other', status: null };
@@ -197,14 +197,14 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     }
   }
 
-  // Sieht nach und lädt, was neuer ist; außerhalb der installierten App nichts.
+  // Looks and downloads what is newer; outside the installed app nothing.
   function check() {
     if (!packaged) return Promise.resolve();
     running ??= checkNow().finally(() => { running = null; });
     return running;
   }
 
-  // Wechselt den Kanal. Ein geladenes Update, das im neuen Kanal nicht gilt (eine Beta im Kanal „stable“), verfällt.
+  // Switches the channel. A downloaded update that doesn't apply in the new channel (a beta in channel “stable”) lapses.
   function setChannel(next) {
     if (!CHANNELS.includes(next)) throw new Fault('m_unknownChannel', String(next));
     channel = next;
@@ -213,12 +213,12 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     return check();
   }
 
-  // Was der Installer zum Einspielen braucht: still installieren, danach die App starten (`--force-run`).
+  // What the installer needs to install: install silently, then start the app (`--force-run`).
   const installer = () => (ready && fs.existsSync(ready.file) ? { file: ready.file, args: ['--updated', '/S', '--force-run'], version: ready.version } : null);
 
   //   phase    dev | idle | checking | current | downloading | ready | error
-  //   error    null oder `{ code, status }` (siehe UpdateError)
-  //   available  die neuere Version oder null; `ready` ist sie, sobald sie geladen und geprüft ist
+  //   error    null or `{ code, status }` (see UpdateError)
+  //   available  the newer version or null; `ready` is it once it is downloaded and verified
   const view = () => ({
     version: current, channel, phase, available, ready: ready?.version ?? null, error,
     checkedAt: checkedAt == null ? null : new Date(checkedAt).toISOString(),

@@ -1,9 +1,9 @@
-// Wie die Abbilder heißen, die RunClub nutzt, und wie es seine Container, Volumes und Netze nennt.
+// What the images RunClub uses are called, and how it names its containers, volumes and networks.
 //
-// Das Kennzeichen (`mark`) trägt den Datenordner in sich, damit eine zweite Instanz (zum Ausprobieren, mit eigenem
-// Datenordner) beim Aufräumen nicht die Paare der ersten entfernt. Caches, Vorlage und Build-Dienst heißen nach dem
-// Repo; eine zweite Instanz (anderer Port) hängt ihre Kennung an, damit sie der ersten nichts wegnimmt, wenn beide
-// ein Repo gleichen Namens bedienen.
+// The mark (`mark`) carries the data folder in it, so that a second instance (for trying things out, with its own
+// data folder) does not remove the first one's pairs when cleaning up. Caches, template and build service are named
+// after the repo; a second instance (other port) appends its id so that it takes nothing away from the first when both
+// serve a repo of the same name.
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -12,12 +12,12 @@ const { slug } = require('./images');
 
 const DEFAULT_PORT = 8770;
 const IMAGE = 'runclub-runner:latest';
-// Docker-Daemon und Build-Dienst sind per Version und Digest festgenagelt, in linux/pins.Dockerfile (dort steht, warum
-// und wie man sie anhebt). Liefert `{ dind, buildkit }`; fehlt eine Zeile, wirft es.
+// Docker daemon and build service are pinned by version and digest, in linux/pins.Dockerfile (it says why
+// and how to raise them). Returns `{ dind, buildkit }`; if a line is missing, it throws.
 const PINS_FILE = path.join(__dirname, '..', 'linux', 'pins.Dockerfile');
 function pinnedImages(text = fs.readFileSync(PINS_FILE, 'utf8')) {
   const pins = Object.fromEntries([...String(text).matchAll(/^FROM\s+(\S+)\s+AS\s+(\w+)\s*$/gim)].map((match) => [match[2], match[1]]));
-  for (const name of ['dind', 'buildkit']) if (!pins[name]) throw new Error(`In linux/pins.Dockerfile fehlt das Abbild ${name}.`);
+  for (const name of ['dind', 'buildkit']) if (!pins[name]) throw new Error(`The image ${name} is missing from linux/pins.Dockerfile.`);
   return { dind: pins.dind, buildkit: pins.buildkit };
 }
 
@@ -26,8 +26,8 @@ function createNames({ dataDir, port }) {
   const suffix = port === DEFAULT_PORT ? '' : `-${instance}`;
   const named = (kind) => (repo) => `rc-${kind}-${slug(repo)}${suffix}`;
   return {
-    mark: `runclub.runner=${instance}`, // Paare: ihre Container, Volumes und Netze
-    serviceMark: `runclub.service=${instance}`, // Build-Dienste und ihre Netze (siehe caches.js)
+    mark: `runclub.runner=${instance}`, // pairs: their containers, volumes and networks
+    serviceMark: `runclub.service=${instance}`, // build services and their networks (see caches.js)
     cacheVolume: named('cache'),
     seedVolume: named('seed'),
     buildVolume: named('build'),
@@ -37,7 +37,7 @@ function createNames({ dataDir, port }) {
   };
 }
 
-// Runner dieses Rechners heißen `<Rechner>-linux-<Kennung des Paars>`; daran erkennt RunClub sie bei GitHub wieder.
+// Runners of this machine are called `<machine>-linux-<pair id>`; that is how RunClub recognizes them at GitHub.
 const runnerPrefix = (host) => `${host}-linux-`;
 const runnerName = (host, id) => `${runnerPrefix(host)}${id}`;
 

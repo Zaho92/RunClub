@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { createRouting, usage, pointsHere, VALUE } = require('../src/routing');
 const { GitHubError } = require('../src/github');
 
-test('erkennt, wie Workflows ihr Ziel bestimmen', () => {
+test('recognizes how workflows decide their target', () => {
   assert.equal(usage([`runs-on: \${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}`]), 'variable');
   assert.equal(usage(['jobs:\n  a:\n    runs-on: [self-hosted, Linux]\n']), 'fixed');
   assert.equal(usage(['jobs:\n  a:\n    runs-on:\n      - self-hosted\n      - Linux\n']), 'fixed');
@@ -11,14 +11,14 @@ test('erkennt, wie Workflows ihr Ziel bestimmen', () => {
   assert.equal(usage([]), 'none');
 });
 
-test('erkennt, ob die Variable auf die eigenen Runner zeigt', () => {
+test('recognizes whether the variable points to your own runners', () => {
   assert.equal(pointsHere(VALUE), true);
   assert.equal(pointsHere('["Linux", "Self-Hosted"]'), true);
   assert.equal(pointsHere('"ubuntu-latest"'), false);
-  assert.equal(pointsHere('kein json'), false);
+  assert.equal(pointsHere('not json'), false);
 });
 
-// GitHub nachgestellt: eine Variable und ein Workflow-Ordner je Repo.
+// GitHub simulated: one variable and one workflow folder per repo.
 function fakeGitHub(variable) {
   const calls = [];
   const get = async (url) => {
@@ -39,45 +39,45 @@ function fakeGitHub(variable) {
   return { github: { get, send }, calls, value: () => variable, put: (value) => { variable = value; } };
 }
 
-test('setzt die Variable neu, wenn es sie nicht gibt, und entfernt sie wieder', async () => {
+test('creates the variable if it does not exist, and removes it again', async () => {
   const fake = fakeGitHub(null);
   const routing = createRouting({ github: fake.github });
-  assert.deepEqual(await routing.check('wer/was'), { value: null, here: false, uses: 'variable', error: null });
-  await routing.set('wer/was', true);
+  assert.deepEqual(await routing.check('who/what'), { value: null, here: false, uses: 'variable', error: null });
+  await routing.set('who/what', true);
   assert.equal(fake.value(), VALUE);
-  assert.equal(routing.of('wer/was').here, true);
-  assert.ok(fake.calls.includes('send POST repos/wer/was/actions/variables'));
-  await routing.set('wer/was', false);
+  assert.equal(routing.of('who/what').here, true);
+  assert.ok(fake.calls.includes('send POST repos/who/what/actions/variables'));
+  await routing.set('who/what', false);
   assert.equal(fake.value(), null);
-  assert.equal(routing.of('wer/was').here, false);
+  assert.equal(routing.of('who/what').here, false);
 });
 
-test('überschreibt eine vorhandene Variable, statt sie doppelt anzulegen', async () => {
+test('overwrites an existing variable instead of creating it twice', async () => {
   const fake = fakeGitHub('"ubuntu-latest"');
   const routing = createRouting({ github: fake.github });
-  assert.equal((await routing.check('wer/was')).here, false);
-  await routing.set('wer/was', true);
+  assert.equal((await routing.check('who/what')).here, false);
+  await routing.set('who/what', true);
   assert.equal(fake.value(), VALUE);
-  assert.ok(fake.calls.includes('send PATCH repos/wer/was/actions/variables/CI_RUNNER'));
+  assert.ok(fake.calls.includes('send PATCH repos/who/what/actions/variables/CI_RUNNER'));
 });
 
-test('liest den Stand frisch, bevor es schreibt: von Hand gesetzt führt nicht zum doppelten Anlegen', async () => {
+test('reads the state fresh before writing: set by hand does not lead to creating it twice', async () => {
   const fake = fakeGitHub(null);
   const routing = createRouting({ github: fake.github });
-  await routing.check('wer/was');
-  fake.put('"ubuntu-latest"'); // inzwischen bei GitHub von Hand angelegt
-  await routing.set('wer/was', true);
+  await routing.check('who/what');
+  fake.put('"ubuntu-latest"'); // created by hand at GitHub in the meantime
+  await routing.set('who/what', true);
   assert.equal(fake.value(), VALUE);
-  assert.ok(fake.calls.includes('send PATCH repos/wer/was/actions/variables/CI_RUNNER'));
-  assert.ok(!fake.calls.includes('send POST repos/wer/was/actions/variables'));
+  assert.ok(fake.calls.includes('send PATCH repos/who/what/actions/variables/CI_RUNNER'));
+  assert.ok(!fake.calls.includes('send POST repos/who/what/actions/variables'));
 });
 
-test('ohne lesbaren Stand wird nichts geschrieben und nichts als erledigt gemeldet', async () => {
+test('without a readable state nothing is written and nothing reported as done', async () => {
   const calls = [];
-  const fail = () => { throw new Error('Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.'); };
+  const fail = () => { throw new Error('The GitHub rate limit is used up; continuing at 17:05.'); };
   const github = { get: async (url) => { calls.push(`get ${url}`); fail(); }, send: async (method, url) => { calls.push(`send ${method} ${url}`); fail(); } };
   const routing = createRouting({ github });
-  await assert.rejects(routing.set('wer/was', false), /Anfragelimit/);
+  await assert.rejects(routing.set('who/what', false), /rate limit/);
   assert.ok(calls.every((call) => !call.startsWith('send')));
-  assert.match(routing.of('wer/was').error, /Anfragelimit/);
+  assert.match(routing.of('who/what').error, /rate limit/);
 });

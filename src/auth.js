@@ -1,23 +1,23 @@
-// Die Anmeldung bei GitHub über die GitHub-App „RunClub“ (Device Flow): RunClub holt einen Einmalcode, der Nutzer gibt
-// ihn auf github.com ein und bestätigt, RunClub bekommt ein Token für sein Konto. Was RunClub damit darf, legen die
-// Rechte der App fest und die Repos, auf denen sie installiert ist (siehe README).
+// Signing in to GitHub through the GitHub App “RunClub” (device flow): RunClub fetches a one-time code, the user enters
+// it on github.com and confirms, RunClub gets a token for their account. What RunClub may do with it is set by the
+// app's permissions and the repos it is installed on (see README).
 //
-// Stand     unknown (noch nicht gelesen) | out (nicht angemeldet, oder GitHub nimmt die Anmeldung nicht mehr an) |
-//           in (angemeldet; dann mit Konto).
-// Ablauf    starting (der Code ist noch nicht da) | waiting (wartet auf die Bestätigung, mit Code und Adresse) |
-//           done | failed | cancelled. Höchstens einer zugleich. Ein beendeter Ablauf bleibt stehen, bis der nächste
-//           beginnt. Ein gescheiterter nennt den Grund als Kennung (`why`), damit die Oberfläche ihn in ihrer Sprache
-//           sagt: late (nicht rechtzeitig bestätigt) | denied (im Browser abgelehnt) | github (GitHub meldete einen
-//           Fehler oder war nicht erreichbar; was es dazu sagte, steht wörtlich in `error`, sonst ist `error` null).
-// Token     Gilt acht Stunden und wird 5 Minuten vor Ablauf erneuert, ebenso, wenn GitHub es ablehnt. Jeder
-//           Erneuerungsschlüssel gilt nur einmal: Der neue wird erst gesichert, dann benutzt, und es erneuert nur
-//           einer zugleich. Nimmt GitHub den Schlüssel nicht mehr an (widerrufen, ein halbes Jahr unbenutzt), ist der
-//           Nutzer abgemeldet.
-// Ablage    Verschlüsselt über `secrets` (main.js liefert Electrons safeStorage, unter Windows DPAPI) in `github.token`
-//           im Datenordner. Ohne `secrets` (das Backend allein) nur im Speicher: Nach einem Neustart ist neu anzumelden.
-// Abmelden  Vergisst das Token auf diesem Rechner. Bei GitHub widerrufen ließe es sich nur mit dem Geheimnis der App,
-//           und das hat RunClub nicht; die Oberfläche nennt dafür die Seite bei GitHub (`revoke`).
-// Protokoll Hinein kommt nur, dass an- oder abgemeldet wurde und als wer. Code und Token bleiben draußen.
+// State     unknown (not read yet) | out (not signed in, or GitHub no longer accepts the sign-in) |
+//           in (signed in; then with account).
+// Flow      starting (the code is not there yet) | waiting (waits for confirmation, with code and address) |
+//           done | failed | cancelled. At most one at a time. A finished flow stays until the next one
+//           begins. A failed one names the reason as an id (`why`), so the interface can say it in its language:
+//           late (not confirmed in time) | denied (declined in the browser) | github (GitHub reported an
+//           error or was unreachable; what it said is in `error` verbatim, otherwise `error` is null).
+// Token     Valid for eight hours and renewed 5 minutes before it expires, likewise when GitHub rejects it. Each
+//           refresh key is valid only once: the new one is saved first, then used, and only one renewal runs
+//           at a time. If GitHub no longer accepts the key (revoked, unused for half a year), the
+//           user is signed out.
+// Storage   Encrypted via `secrets` (main.js supplies Electron's safeStorage, DPAPI on Windows) in `github.token`
+//           in the data folder. Without `secrets` (the backend alone) only in memory: after a restart, sign in again.
+// Sign-out  Forgets the token on this machine. Revoking it at GitHub would need the app's secret,
+//           and RunClub doesn't have it; for that the interface names the page on GitHub (`revoke`).
+// Log       Only that someone signed in or out, and as whom. Code and token stay out.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -25,14 +25,14 @@ const { SECOND, MINUTE } = require('./units');
 const { API, apiHeaders } = require('./github');
 const { msg, Fault, reason } = require('./messages');
 
-// Die GitHub-App „RunClub“ (https://github.com/settings/apps/runclub-runners). Die Client-ID ist kein Geheimnis.
+// The GitHub App “RunClub” (https://github.com/settings/apps/runclub-runners). The client ID is not a secret.
 const CLIENT_ID = 'Iv23liMHlB06HEzY8bPM';
 const APP_SLUG = 'runclub-runners';
-// Wo die App für ein weiteres Konto oder eine Organisation installiert wird, und wo der Nutzer ihre Freigabe widerruft.
+// Where the app is installed for another account or organization, and where the user revokes its authorization.
 const INSTALL_URL = `https://github.com/apps/${APP_SLUG}/installations/new`;
 const REVOKE_URL = 'https://github.com/settings/apps/authorizations';
-// Wo der Einmalcode einzugeben ist. Die Adresse steht fest und wird nicht aus der Antwort gelesen: Die Oberfläche macht
-// daraus einen Link.
+// Where to enter the one-time code. The address is fixed and not read from the reply: the interface turns it
+// into a link.
 const DEVICE_URL = 'https://github.com/login/device';
 const CODE_URL = 'https://github.com/login/device/code';
 const TOKEN_URL = 'https://github.com/login/oauth/access_token';
@@ -42,19 +42,19 @@ const FILE = 'github.token';
 const STATE = { UNKNOWN: 'unknown', OUT: 'out', IN: 'in' };
 const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
 const WHY = { LATE: 'late', DENIED: 'denied', GITHUB: 'github' };
-const FLOW_TIMEOUT = 15 * MINUTE; // so lange gilt der Einmalcode bei GitHub; nennt GitHub weniger, gilt das
-const EARLY = 5 * MINUTE; // so lange vor Ablauf wird das Token erneuert
-const SLOW_DOWN = 5 * SECOND; // so viel länger wird gewartet, wenn GitHub um langsameres Fragen bittet
+const FLOW_TIMEOUT = 15 * MINUTE; // how long the one-time code is valid at GitHub; if GitHub says less, that applies
+const EARLY = 5 * MINUTE; // how long before expiry the token is renewed
+const SLOW_DOWN = 5 * SECOND; // how much longer to wait when GitHub asks for slower polling
 const USER_CODE = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/; // so sieht ein Konto bei GitHub aus
-const SECRET = /^[\w.-]{10,512}$/; // ein Token oder Schlüssel, wie GitHub sie ausgibt; nichts für eine Kopfzeile Gefährliches
-// So lehnt GitHub einen Erneuerungsschlüssel ab, der nicht mehr gilt. Einen schon benutzten beantwortet es (echt
-// erprobt am 18.10.2026) mit `incorrect_client_credentials`, nicht mit dem dokumentierten `bad_refresh_token`.
+const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/; // what an account on GitHub looks like
+const SECRET = /^[\w.-]{10,512}$/; // a token or key as GitHub issues them; nothing dangerous for a header
+// How GitHub rejects a refresh key that is no longer valid. An already used one it answers (actually
+// tried on 18.10.2026) with `incorrect_client_credentials`, not with the documented `bad_refresh_token`.
 const REJECTED = ['bad_refresh_token', 'incorrect_client_credentials'];
-const USER_TRIES = 3; // so oft wird nach der Bestätigung das Konto erfragt, bevor der Ablauf scheitert
-const RENAME_TRIES = 5; // Windows hält eine eben geschriebene Datei manchmal kurz fest (Virenscanner, Index)
+const USER_TRIES = 3; // how often the account is asked for after confirmation before the flow fails
+const RENAME_TRIES = 5; // Windows sometimes briefly holds a file just written (virus scanner, indexer)
 
-// Wartet `ms`, oder bis `signal` abbricht.
+// Waits `ms`, or until `signal` aborts.
 function pause(ms, signal) {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, ms);
@@ -63,29 +63,29 @@ function pause(ms, signal) {
   });
 }
 
-// Was ein Fehler beim Fragen sagt, als Text von außen.
+// What an error while asking says, as outside text.
 const said = (error) => String(error?.cause?.code ?? error?.message ?? error ?? '').slice(0, 300) || null;
 
-//   file, secrets           wo das Token liegt und wie es ver- und entschlüsselt wird ({ encrypt(buffer), decrypt(buffer) });
-//                           ohne beides nur im Speicher
-//   log(text)               schreibt ins Protokoll
-//   onAccount()             ein anderes Token gilt (nach einem gelungenen Anmelden): Anfragelimit und Repos neu lesen
-//   fetch, now, wait        wie die von Node und `pause`; in Tests steuerbar
+//   file, secrets           where the token lives and how it is encrypted and decrypted ({ encrypt(buffer), decrypt(buffer) });
+//                           without both only in memory
+//   log(text)               writes to the log
+//   onAccount()             a different token applies (after a successful sign-in): re-read rate limit and repos
+//   fetch, now, wait        like Node's and `pause`; controllable in tests
 function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch = globalThis.fetch, log = () => {}, onAccount = () => {}, now = Date.now, timeout = MINUTE, flowTimeout = FLOW_TIMEOUT, wait = pause, version = '0' }) {
-  let held = null; // { token, expiresAt, refresh, refreshExpiresAt, login } oder null
-  let current = { state: STATE.UNKNOWN, login: null }; // bis die Ablage gelesen ist
-  let checked = false; // das gesicherte Token wurde bei GitHub geprüft
-  let checking = null; // die laufende Prüfung
-  let renewing = null; // das laufende Erneuern; es läuft höchstens eines
-  let flow = null; // der laufende oder der zuletzt beendete Ablauf
-  let closed = false; // die App endet: Es beginnt nichts mehr
+  let held = null; // { token, expiresAt, refresh, refreshExpiresAt, login } or null
+  let current = { state: STATE.UNKNOWN, login: null }; // until storage is read
+  let checked = false; // the saved token was checked at GitHub
+  let checking = null; // the running check
+  let renewing = null; // the running renewal; at most one runs
+  let flow = null; // the running or the last finished flow
+  let closed = false; // the app is ending: nothing new begins
 
-  const accountChanged = () => { try { onAccount(); } catch { /* der Stand gilt trotzdem */ } };
+  const accountChanged = () => { try { onAccount(); } catch { /* the state applies anyway */ } };
   const running = () => flow?.state === FLOW.STARTING || flow?.state === FLOW.WAITING;
 
-  // --- Ablage ---
+  // --- Storage ---
 
-  // Prüft, was aus der Datei oder von GitHub kommt; null, wenn es keine brauchbare Anmeldung ist.
+  // Checks what comes from the file or from GitHub; null if it is not a usable sign-in.
   function valid(entry) {
     if (!entry || typeof entry !== 'object' || !SECRET.test(String(entry.token))) return null;
     const time = (value) => (Number.isFinite(value) && value > 0 ? value : null);
@@ -95,14 +95,16 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     };
   }
 
-  const draft = () => `${file}.neu`;
+  const draft = () => `${file}.new`;
+  // Up to 0.1.0-beta.4 the draft was called `.neu`; one left behind still counts and goes on signing out.
+  const legacy = () => `${file}.neu`;
   function read(name) {
     try { return { entry: valid(JSON.parse(secrets.decrypt(fs.readFileSync(name)).toString('utf8'))), at: fs.statSync(name).mtimeMs }; } catch { return null; }
   }
-  // Ließ sich ein neuer Stand nicht an seinen Platz bringen, liegt er noch daneben (siehe `keep`); dann gilt der neuere.
+  // If a new state could not be moved into place, it still lies next to it (see `keep`); then the newer one applies.
   function load() {
     if (!file || !secrets) return null;
-    const found = [read(file), read(draft())].filter((item) => item?.entry).sort((a, b) => b.at - a.at);
+    const found = [read(file), read(draft()), read(legacy())].filter((item) => item?.entry).sort((a, b) => b.at - a.at);
     return found[0]?.entry ?? null;
   }
 
@@ -112,7 +114,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     }
   }
 
-  // Erst sichern, dann gilt es: Ein neuer Erneuerungsschlüssel darf nicht verloren gehen, nachdem der alte verbraucht ist.
+  // Save first, then it applies: a new refresh key must not get lost after the old one is used up.
   function keep(entry) {
     if (file && secrets) {
       try {
@@ -120,13 +122,13 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
           fs.writeFileSync(draft(), secrets.encrypt(Buffer.from(JSON.stringify(entry), 'utf8')));
           settle(draft());
         } else {
-          // Jede für sich: Bliebe eine liegen, wäre der Nutzer nach dem nächsten Start wieder angemeldet.
-          for (const name of [draft(), file]) {
+          // Each on its own: if one stayed behind, the user would be signed in again after the next start.
+          for (const name of [draft(), legacy(), file]) {
             try { fs.rmSync(name, { force: true }); } catch (error) { log(msg('m_tokenNotRemoved', path.basename(name), reason(error))); }
           }
         }
       } catch (error) {
-        // Der neue Stand liegt dann wenigstens daneben und gilt beim nächsten Start (siehe `load`).
+        // The new state then at least lies next to it and applies at the next start (see `load`).
         log(msg('m_tokenNotSaved', reason(error)));
       }
     }
@@ -134,7 +136,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     current = entry ? { state: STATE.IN, login: entry.login } : { state: STATE.OUT, login: null };
   }
 
-  // GitHub nimmt die Anmeldung nicht mehr an.
+  // GitHub no longer accepts the sign-in.
   function lost() {
     const login = held?.login;
     keep(null);
@@ -142,9 +144,9 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     if (login) log(msg('m_signInLost', login));
   }
 
-  // --- Anfragen an GitHub ---
+  // --- Requests to GitHub ---
 
-  // Ein Formular an github.com/login/…; GitHub antwortet mit JSON, auch bei Fehlern (`error`).
+  // A form to github.com/login/…; GitHub answers with JSON, even on errors (`error`).
   async function post(url, form, signal) {
     const limit = AbortSignal.timeout(timeout);
     const response = await fetch(url, {
@@ -153,12 +155,12 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
       signal: signal ? AbortSignal.any([signal, limit]) : limit,
     });
     let answer = null;
-    try { answer = JSON.parse(await response.text()); } catch { /* unten */ }
+    try { answer = JSON.parse(await response.text()); } catch { /* below */ }
     if (!answer || typeof answer !== 'object') throw new Error(`HTTP ${response.status}`);
     return answer;
   }
 
-  // Das Konto zum Token. Wirft mit `status`, wenn GitHub ablehnt.
+  // The account for the token. Throws with `status` if GitHub refuses.
   async function userOf(token, signal) {
     const limit = AbortSignal.timeout(timeout);
     const response = await fetch(`${API}/user`, { headers: apiHeaders(token, version), signal: signal ? AbortSignal.any([signal, limit]) : limit });
@@ -168,7 +170,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     return login;
   }
 
-  // Aus der Antwort mit dem Token die Anmeldung; null, wenn keine darin steht.
+  // The sign-in from the reply carrying the token; null if there is none in it.
   function granted(answer, login) {
     const at = (seconds) => (Number(seconds) > 0 ? now() + Number(seconds) * SECOND : null);
     return valid({ token: answer?.access_token, expiresAt: at(answer?.expires_in), refresh: answer?.refresh_token, refreshExpiresAt: at(answer?.refresh_token_expires_in), login });
@@ -179,13 +181,13 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   async function renewNow() {
     const before = held;
     if (!before?.refresh || (before.refreshExpiresAt && now() >= before.refreshExpiresAt)) {
-      // Ohne gültigen Schlüssel lässt sich nichts erneuern; ein abgelaufenes Token ist dann verloren.
+      // Without a valid key nothing can be renewed; an expired token is then lost.
       if (before && before.expiresAt && now() >= before.expiresAt) lost();
       return held?.token ?? null;
     }
     let answer;
     try { answer = await post(TOKEN_URL, { client_id: clientId, grant_type: 'refresh_token', refresh_token: before.refresh }); } catch { return null; }
-    if (held !== before) return held?.token ?? null; // inzwischen ab- oder neu angemeldet
+    if (held !== before) return held?.token ?? null; // signed out or in anew meanwhile
     if (REJECTED.includes(answer.error)) { lost(); return null; }
     const next = granted(answer, before.login);
     if (!next) return null;
@@ -193,21 +195,21 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     return next.token;
   }
 
-  // Erneuern; es läuft höchstens eines, ein zweiter Aufruf bekommt dasselbe Ergebnis.
+  // Renew; at most one runs, a second call gets the same result.
   function renewOnce() {
     renewing ??= renewNow().finally(() => { renewing = null; });
     return renewing;
   }
 
-  // Das Token für eine Anfrage, oder null ohne Anmeldung. Kurz vor Ablauf wird es erst erneuert.
+  // The token for a request, or null without sign-in. Shortly before expiry it is renewed first.
   async function token() {
     if (!held) return null;
     if (held.expiresAt && now() >= held.expiresAt - EARLY) await renewOnce();
     return held?.token ?? null;
   }
 
-  // GitHub hat `rejected` abgelehnt. Gilt schon ein anderes, ist es das; sonst wird erneuert. Ohne Schlüssel zum
-  // Erneuern ist die Anmeldung verloren.
+  // GitHub rejected `rejected`. If a different one already applies, that's it; otherwise renew. Without a key to
+  // renew with, the sign-in is lost.
   async function renew(rejected) {
     if (!held) return null;
     if (held.token !== rejected) return held.token;
@@ -215,8 +217,8 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     return renewOnce();
   }
 
-  // Das gesicherte Token einmal bei GitHub prüfen und dabei das Konto lesen. Ist GitHub nicht erreichbar, bleibt der
-  // Stand und es wird beim nächsten Mal wieder versucht.
+  // Check the saved token once at GitHub and read the account along the way. If GitHub is unreachable, the
+  // state stays and it is tried again next time.
   async function check() {
     try {
       let secret = await token();
@@ -232,23 +234,23 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
         if (held.login !== login) keep({ ...held, login });
         checked = true;
       }
-    } catch { /* nicht erreichbar: später noch einmal */ }
+    } catch { /* unreachable: try again later */ }
   }
 
-  // Für den Takt im Betrieb: den Stand nach dem Start einmal bei GitHub bestätigen.
+  // For the regular tick: confirm the state once at GitHub after the start.
   function poll() {
     if (held && !checked) checking ??= check().finally(() => { checking = null; });
     return (checking ?? Promise.resolve()).then(view);
   }
 
-  // --- Anmelden ---
+  // --- Signing in ---
 
   function end(mine, state, why = null, error = null) {
     Object.assign(mine, { state, why, error, code: null, url: null });
     if (state === FLOW.FAILED && why !== WHY.DENIED) log(msg('m_loginFailed', why === WHY.LATE ? msg('m_loginLate') : error ?? msg('m_noReason')));
   }
 
-  // Fragt, bis der Nutzer im Browser bestätigt hat, abgelehnt hat oder der Code verfallen ist.
+  // Asks until the user has confirmed in the browser, declined, or the code has expired.
   async function confirm(mine, device) {
     let interval = Math.max(Number(device.interval) || 5, 1) * SECOND;
     const deadline = now() + Math.min((Number(device.expires_in) || Infinity) * SECOND, flowTimeout);
@@ -257,18 +259,18 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
       if (mine.state !== FLOW.WAITING) return;
       if (now() >= deadline) { end(mine, FLOW.FAILED, WHY.LATE); return; }
       let answer;
-      try { answer = await post(TOKEN_URL, { client_id: clientId, device_code: device.device_code, grant_type: DEVICE_GRANT }, mine.controller.signal); } catch { continue; } // kurz nicht erreichbar: weiter fragen
+      try { answer = await post(TOKEN_URL, { client_id: clientId, device_code: device.device_code, grant_type: DEVICE_GRANT }, mine.controller.signal); } catch { continue; } // briefly unreachable: keep asking
       if (mine.state !== FLOW.WAITING) return;
       if (answer.error === 'authorization_pending') continue;
       if (answer.error === 'slow_down') { interval = Number(answer.interval) > 0 ? Number(answer.interval) * SECOND : interval + SLOW_DOWN; continue; }
       if (answer.error === 'expired_token') { end(mine, FLOW.FAILED, WHY.LATE); return; }
       if (answer.error === 'access_denied') { end(mine, FLOW.FAILED, WHY.DENIED); return; }
       if (answer.error) { end(mine, FLOW.FAILED, WHY.GITHUB, String(answer.error_description ?? answer.error).slice(0, 300)); return; }
-      // Bestätigt: Ab jetzt gibt es nichts mehr abzubrechen (siehe `cancel`).
+      // Confirmed: from now on there is nothing left to cancel (see `cancel`).
       mine.settled = true;
       const entry = granted(answer, null);
       if (!entry) { end(mine, FLOW.FAILED, WHY.GITHUB); return; }
-      // Das Token ist erteilt; ein kurzer Aussetzer beim Erfragen des Kontos soll es nicht verwerfen.
+      // The token is granted; a brief hiccup while asking for the account should not discard it.
       let login;
       for (let tries = 1; !login; tries += 1) {
         try { login = await userOf(entry.token, mine.controller.signal); } catch (error) {
@@ -301,7 +303,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     await confirm(mine, device);
   }
 
-  // Antwortet, sobald der Code da ist oder der Ablauf endete.
+  // Answers as soon as the code is there or the flow ended.
   async function login() {
     if (closed) throw new Fault('m_closing');
     if (running()) throw new Fault('m_loginRunning');
@@ -315,7 +317,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     return view();
   }
 
-  // Bricht den laufenden Ablauf ab. Hat der Nutzer schon bestätigt, gilt das: Dann wird nur noch zu Ende angemeldet.
+  // Cancels the running flow. If the user has already confirmed, that holds: then the sign-in is just finished.
   async function cancel() {
     if (!running()) return;
     const mine = flow;
@@ -326,7 +328,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     await mine.ended;
   }
 
-  // Vergisst das Token auf diesem Rechner (siehe oben).
+  // Forgets the token on this machine (see above).
   async function logout() {
     if (closed) throw new Fault('m_closing');
     if (running()) throw new Fault('m_finishLogin');
@@ -338,15 +340,15 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     log(msg('m_loggedOut', login ?? '?'));
   }
 
-  // Die App endet: einen wartenden Ablauf beenden und keinen neuen mehr beginnen.
-  // Auch ein schon bestätigter Ablauf endet: Das Programm soll nicht auf das Erfragen des Kontos warten.
+  // The app is ending: end a waiting flow and begin no new one.
+  // An already confirmed flow ends too: the program should not wait for the account to be asked for.
   function close() {
     closed = true;
     if (flow?.settled && running()) flow.controller.abort();
     return cancel();
   }
 
-  // Das angemeldete Konto, oder null.
+  // The signed-in account, or null.
   const signedIn = () => (current.state === STATE.IN ? current.login : null);
 
   function view() {

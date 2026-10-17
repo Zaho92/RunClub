@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { BLOCKS, blockOf } = require('../src/blocks');
 
-test('blockOf nennt den ersten Grund, aus dem ein Pool gesperrt ist, sonst null', () => {
+test('blockOf names the first reason a pool is blocked for, otherwise null', () => {
   assert.equal(blockOf({ paused: true }), null);
   assert.equal(blockOf(undefined), null);
   assert.equal(blockOf({ [BLOCKS.forks]: true }), 'forks');

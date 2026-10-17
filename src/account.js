@@ -1,35 +1,36 @@
-// Das GitHub-Konto: die Anmeldung (über die GitHub-App, siehe auth.js) und das Minuten-Kontingent von GitHub Actions
-// (siehe minutes.js). Beide laufen im selben Takt, die Anmeldung zuerst: Das Kontingent braucht ihren Stand.
+// The GitHub account: the sign-in (through the GitHub App, see auth.js) and the GitHub Actions minutes quota
+// (see minutes.js). Both run on the same beat, the sign-in first: the quota needs its state.
 
 const { createMinutes } = require('./minutes');
+const { msg } = require('./messages');
 
-//   auth                    die Anmeldung (siehe auth.js); sie entsteht vorher, weil der Zugang zu GitHub ihr Token braucht
-//   github                  Zugang zu GitHub (siehe github.js): `get`, `mayPoll(key)`
+//   auth                    the sign-in (see auth.js); it is created beforehand because access to GitHub needs its token
+//   github                  access to GitHub (see github.js): `get`, `mayPoll(key)`
 //   log(text, repo, kind), logError(repo, what), stopping()
-//   makeMinutes             wie `createMinutes`; in Tests steuerbar
+//   makeMinutes             like `createMinutes`; controllable in tests
 function createAccount({ auth, github, log, logError, stopping, makeMinutes = createMinutes }) {
-  // Ein Fehler beim Lesen des Kontingents steht einmal im Protokoll (siehe minutes.js).
+  // An error reading the quota is logged once (see minutes.js).
   const minutes = makeMinutes({ github, log: (text) => log(text, null, 'error') });
 
-  // Wann wieder gelesen wird, entscheidet minutes.js; `atOnce` liest sofort. Ist das Anfragelimit knapp, höchstens im
-  // Abstand, den github.js dafür vorsieht; ist es aufgebraucht, gar nicht.
+  // When it is read again is decided by minutes.js; `atOnce` reads right away. If the rate limit is tight, at most at the
+  // interval github.js provides for it; if it is used up, not at all.
   function watchMinutes(atOnce = false) {
     const login = auth.signedIn();
-    if (!login || stopping() || !github.mayPoll('GitHub-Minuten')) return Promise.resolve();
+    if (!login || stopping() || !github.mayPoll('GitHub minutes')) return Promise.resolve();
     return atOnce ? minutes.refresh(login) : minutes.poll(login);
   }
 
-  const watch = () => auth.poll().catch(logError(null, 'Anmeldung bei GitHub')).then(() => watchMinutes());
+  const watch = () => auth.poll().catch(logError(null, msg('m_whatSignIn'))).then(() => watchMinutes());
 
   return {
     watch,
-    // Nach einem gelungenen Anmelden: das Kontingent des neuen Kontos gleich lesen.
+    // After a successful sign-in: read the new account's quota right away.
     changed: () => watchMinutes(true),
-    // Anmelden antwortet, sobald der Einmalcode im Stand steht; bestätigt wird im Browser (siehe auth.js).
+    // Signing in answers as soon as the one-time code is in the state; it is confirmed in the browser (see auth.js).
     login: () => auth.login(),
     cancel: () => auth.cancel(),
     logout: () => auth.logout(),
-    // Ein Ablauf, der noch auf die Bestätigung im Browser wartet, bliebe sonst nach dem Ende zurück.
+    // A flow still waiting for confirmation in the browser would otherwise be left behind after the end.
     close: () => auth.close().catch(() => {}),
     authView: () => auth.view(),
     minutesView: () => minutes.view(auth.signedIn()),

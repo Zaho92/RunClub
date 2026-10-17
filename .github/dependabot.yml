@@ -1,4 +1,4 @@
-# Neue Stände der festgenagelten Abbilder (linux/Dockerfile, linux/pins.Dockerfile) kommen als Pull Request.
+# New versions of the pinned images (linux/Dockerfile, linux/pins.Dockerfile) arrive as pull requests.
 version: 2
 updates:
   - package-ecosystem: docker

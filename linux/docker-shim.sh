@@ -1,16 +1,16 @@
 #!/bin/bash
-# Steht im Runner-Abbild als `docker` vor dem echten Programm.
-# Ein einfaches `docker build` geht an den Build-Dienst des Repos, der seine Layer zwischen den Jobs behält
-# (RC_BUILDER, von der Runner-Verwaltung gesetzt). Alles andere reicht es unverändert durch – auch
-# `docker buildx build`: Wer einen eigenen Builder einrichtet, etwa zum Veröffentlichen, baut ohne den
-# geteilten Cache. Ist der Build-Dienst nicht erreichbar, baut der Daemon des Jobs selbst, nur langsamer.
+# Sits in the runner image as `docker` in front of the real program.
+# A plain `docker build` goes to the repo's build service, which keeps its layers between jobs
+# (RC_BUILDER, set by the runner management). Everything else passes through unchanged – including
+# `docker buildx build`: whoever sets up their own builder, say for publishing, builds without the
+# shared cache. If the build service is unreachable, the job's own daemon builds, just slower.
 
 real=/usr/bin/docker
-# Der Socket des Build-Dienstes (SOCKET in src/caches.js).
+# The build service's socket (SOCKET in src/caches.js).
 socket=/run/rc-buildkit/buildkitd.sock
 
-# Erreichbar ist der Dienst, wenn sich der Socket öffnen lässt. curl versteht buildkit nicht, aber Code 7 heißt
-# „keine Verbindung“ (Dienst beendet, Socket verwaist) und 28 „keine Antwort“; alles andere hat ihn erreicht.
+# The service is reachable if the socket can be opened. curl does not speak buildkit, but code 7 means
+# "no connection" (service stopped, socket orphaned) and 28 "no answer"; anything else reached it.
 reachable() {
   [ -S "$socket" ] || return 1
   curl -s --max-time 3 --unix-socket "$socket" http://buildkit/ -o /dev/null

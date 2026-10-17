@@ -1,4 +1,4 @@
-# Überall LF: Die Skripte in linux/ laufen im Container und vertragen kein CRLF.
+# LF everywhere: the scripts in linux/ run in the container and cannot cope with CRLF.
 * text=auto eol=lf
 *.png binary
 *.ico binary

@@ -1,18 +1,18 @@
-// GitHub über seine REST-Schnittstelle (https://api.github.com), mit dem Token der Anmeldung (siehe auth.js) und
-// sparsam mit dem Anfragelimit des Kontos (5.000 je Stunde).
+// GitHub through its REST API (https://api.github.com), with the sign-in's token (see auth.js) and
+// sparing with the account's request limit (5,000 per hour).
 //
-// Lesen     Jede Abfrage (`get`) merkt sich Antwort und Kennung (ETag) und fragt beim nächsten Mal bedingt. Hat sich
-//           nichts geändert, antwortet GitHub mit 304; das zählt nicht gegen das Limit.
-// Limit     Der Stand kommt aus den Kopfzeilen jeder Antwort und aus `rate_limit` (zählt ebenfalls nicht). Das Limit
-//           gilt für das ganze Konto: Auch andere Werkzeuge mit derselben Anmeldung (etwa `gh` im Terminal) verbrauchen daraus.
-// Pause     Bittet GitHub um Ruhe (403/429 mit `retry-after`, das zweite Limit), wird bis dahin nicht gelesen.
-// Zustand   ok | tight (weniger als 15 % frei: seltener abfragen) | out (nur noch die Reserve: nicht mehr lesen,
-//           der Rest bleibt für das Anmelden neuer Runner) | unknown (kein Stand, oder das Fenster ist abgelaufen
-//           und der neue Stand noch nicht da).
-// Token     Kommt bei jeder Anfrage frisch von der Anmeldung (`token()`). Lehnt GitHub es ab (401), lässt die Anfrage
-//           es einmal erneuern (`renew`) und versucht es noch einmal.
-// Fehler    Eine Antwort mit Fehler wirft einen GitHubError mit `status`; Aufrufer unterscheiden nach ihm, nicht nach
-//           dem Text. Der Text ist der von GitHub, mit dem Status dahinter.
+// Reading   Every query (`get`) remembers answer and tag (ETag) and asks conditionally next time. If nothing
+//           changed, GitHub answers 304; that doesn't count against the limit.
+// Limit     The state comes from the headers of every answer and from `rate_limit` (doesn't count either). The limit
+//           applies to the whole account: other tools with the same sign-in (such as `gh` in the terminal) use it up too.
+// Pause     If GitHub asks for quiet (403/429 with `retry-after`, the secondary limit), nothing is read until then.
+// State     ok | tight (less than 15 % left: poll less often) | out (only the reserve left: stop reading,
+//           the rest is kept for registering new runners) | unknown (no state, or the window has expired
+//           and the new state isn't there yet).
+// Token     Comes fresh from the sign-in on every request (`token()`). If GitHub rejects it (401), the request has
+//           it renewed once (`renew`) and tries again.
+// Errors    An answer with an error throws a GitHubError with `status`; callers tell them apart by it, not by
+//           the text. The text is GitHub's, with the status after it.
 
 const { SECOND, MINUTE, DAY } = require('./units');
 const { Fault } = require('./messages');
@@ -20,16 +20,16 @@ const { Fault } = require('./messages');
 const API = 'https://api.github.com';
 const API_VERSION = '2022-11-28';
 const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', UNKNOWN: 'unknown' };
-const TIGHT = 0.15; // Anteil, der noch frei ist
+const TIGHT = 0.15; // share that is still left
 const RESERVE = 0.02;
-const TIGHT_GAP = MINUTE; // so lange liegt bei knappem Limit zwischen zwei Abfragen derselben Sache
-const PAUSE_MAX_S = 3600; // Sekunden; länger lässt sich RunClub von einer Antwort nicht anhalten
-const WINDOW_MAX = DAY; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
-const PAGE_MAX = 100; // so viele Einträge gibt GitHub höchstens je Seite heraus (`per_page`)
-const CACHE_MAX = 500; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
-const PATH = /^[A-Za-z0-9]/; // ein Pfad unter API, kein absoluter
+const TIGHT_GAP = MINUTE; // with a tight limit, this long lies between two queries of the same thing
+const PAUSE_MAX_S = 3600; // seconds; RunClub doesn't let one answer stop it for longer
+const WINDOW_MAX = DAY; // a window end further in the future is not a state but nonsense
+const PAGE_MAX = 100; // GitHub hands out at most this many entries per page (`per_page`)
+const CACHE_MAX = 500; // remembered answers; each query of a run's jobs is one of its own
+const PATH = /^[A-Za-z0-9]/; // a path under API, not an absolute one
 
-// Eine Antwort von GitHub mit Fehler. `message` ist der Text von GitHub (ein Text von außen) mit dem Status dahinter.
+// An answer from GitHub with an error. `message` is GitHub's text (a text from outside) with the status after it.
 class GitHubError extends Error {
   constructor(status, text) {
     super(text ? `${text} (HTTP ${status})` : `HTTP ${status}`);
@@ -37,10 +37,10 @@ class GitHubError extends Error {
   }
 }
 
-// Die Kopfzeilen jeder Anfrage an API.
+// The headers of every request to API.
 const apiHeaders = (token, version) => ({ authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': API_VERSION, 'user-agent': `RunClub/${version}` });
 
-// Friert eine Antwort samt allem darin ein.
+// Freezes an answer with everything in it.
 function deepFreeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value);
@@ -49,21 +49,21 @@ function deepFreeze(value) {
   return value;
 }
 
-// Der Inhalt einer Antwort als Objekt; leer heißt null. Was kein JSON ist, ist ein Fehler.
+// The body of an answer as an object; empty means null. What isn't JSON is an error.
 function parseBody(text) {
   return String(text ?? '').trim() ? JSON.parse(text) : null;
 }
 
-//   token()                 das Token der Anmeldung, oder null, wenn niemand angemeldet ist
-//   renew(rejected)         GitHub hat `rejected` abgelehnt: ein neues Token, oder null, wenn es keins gibt
-//   fetch                   wie das von Node; in Tests steuerbar
-//   version                 steht in der Kennung (User-Agent), die GitHub verlangt
+//   token()                 the sign-in's token, or null if nobody is signed in
+//   renew(rejected)         GitHub rejected `rejected`: a new token, or null if there is none
+//   fetch                   like Node's; controllable in tests
+//   version                 goes into the identification (User-Agent) GitHub requires
 function createGitHub({ token, renew = async () => null, fetch = globalThis.fetch, timeout = MINUTE, now = Date.now, version = '0' }) {
-  const cache = new Map(); // Pfad -> { etag, data }, der zuletzt benutzte am Ende
-  const polled = new Map(); // Schlüssel -> wann zuletzt abgefragt (nur bei knappem Limit von Belang)
+  const cache = new Map(); // path -> { etag, data }, the most recently used at the end
+  const polled = new Map(); // key -> when last polled (only matters with a tight limit)
   let quota = null; // { limit, remaining, resetAt (ms) }
-  let pausedUntil = 0; // bis dahin hat GitHub um Ruhe gebeten (`retry-after`)
-  let reported = STATE.UNKNOWN; // der Zustand, den refreshQuota zuletzt gemeldet hat
+  let pausedUntil = 0; // GitHub asked for quiet until then (`retry-after`)
+  let reported = STATE.UNKNOWN; // the state refreshQuota reported last
 
   function note(limit, remaining, reset) {
     const values = [limit, remaining, reset].map(Number);
@@ -74,22 +74,22 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
   }
 
   const paused = () => now() < pausedUntil;
-  const windowOpen = () => Boolean(quota) && now() < quota.resetAt; // es gibt einen Stand, und er gilt noch
+  const windowOpen = () => Boolean(quota) && now() < quota.resetAt; // there is a state, and it still holds
   const spent = () => windowOpen() && quota.remaining <= quota.limit * RESERVE;
 
-  // Eine erbetene Pause gilt auch über das Ende des Fensters hinaus.
+  // A requested pause holds even beyond the end of the window.
   function state() {
     if (paused() || spent()) return STATE.OUT;
     if (!windowOpen()) return STATE.UNKNOWN;
     return quota.remaining < quota.limit * TIGHT ? STATE.TIGHT : STATE.OK;
   }
 
-  // Wann es weitergeht: am Ende des Fensters; wurde nur um eine Pause gebeten, an deren Ende. Ist beides der Fall,
-  // zählt das spätere.
+  // When it continues: at the end of the window; if only a pause was requested, at its end. If both apply,
+  // the later one counts.
   const endsAt = () => Math.max(paused() ? pausedUntil : 0, spent() ? quota.resetAt : 0) || quota.resetAt;
 
-  // Darf das, was `key` benennt (ein Repo), jetzt routinemäßig abgefragt werden? Bei knappem Limit nur im Abstand `gap`,
-  // bei aufgebrauchtem gar nicht.
+  // May what `key` names (a repo) be polled routinely now? With a tight limit only at intervals of `gap`,
+  // when used up not at all.
   function mayPoll(key, gap = TIGHT_GAP) {
     const current = state();
     if (current === STATE.OUT) return false;
@@ -100,7 +100,7 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
     return true;
   }
 
-  // Eine Anfrage, einmal. Liefert die Antwort von fetch; wirft nur, wenn GitHub nicht antwortet.
+  // One request, once. Returns fetch's answer; throws only if GitHub doesn't answer.
   async function once(secret, method, path, { body, etag }) {
     const headers = apiHeaders(secret, version);
     if (etag) headers['if-none-match'] = etag;
@@ -113,40 +113,40 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
     }
   }
 
-  // Eine Anfrage mit dem Token der Anmeldung; lehnt GitHub es ab, einmal mit einem erneuerten. Merkt sich Limit und
-  // Pause aus der Antwort. Liefert `{ status, headers, text }`.
+  // A request with the sign-in's token; if GitHub rejects it, once more with a renewed one. Remembers limit and
+  // pause from the answer. Returns `{ status, headers, text }`.
   async function request(method, path, options = {}) {
-    // Das Token geht nur an GitHub: Eine eigene Adresse im Pfad wäre ein Fehler des Aufrufers.
-    if (!PATH.test(String(path)) || new URL(path, `${API}/`).origin !== API) throw new TypeError(`Kein Pfad unter ${API}: ${path}`);
+    // The token goes only to GitHub: an address of its own in the path would be the caller's mistake.
+    if (!PATH.test(String(path)) || new URL(path, `${API}/`).origin !== API) throw new TypeError(`Not a path under ${API}: ${path}`);
     let secret = await token();
     if (!secret) throw new Fault('m_loginFirst');
     let response = await once(secret, method, path, options);
     if (response.status === 401) {
       const next = await renew(secret).catch(() => null);
       if (next && next !== secret) {
-        await response.text().catch(() => {}); // die abgelehnte Antwort lesen, damit ihre Verbindung frei wird
+        await response.text().catch(() => {}); // read the rejected answer so its connection is freed
         secret = next;
         response = await once(secret, method, path, options);
       }
     }
     const headers = response.headers;
     if ((headers.get('x-ratelimit-resource') ?? 'core') === 'core') note(headers.get('x-ratelimit-limit'), headers.get('x-ratelimit-remaining'), headers.get('x-ratelimit-reset'));
-    // Das zweite Limit von GitHub (zu viel in kurzer Zeit): Die Antwort nennt, wie lange zu warten ist.
+    // GitHub's secondary limit (too much in a short time): the answer says how long to wait.
     const retry = Number(headers.get('retry-after'));
     if ((response.status === 403 || response.status === 429) && retry > 0) pausedUntil = now() + Math.min(retry, PAUSE_MAX_S) * SECOND;
     return { status: response.status, headers, text: await response.text() };
   }
 
-  // Wirft für eine Antwort mit Fehler; GitHub nennt den Grund in `message`.
+  // Throws for an answer with an error; GitHub names the reason in `message`.
   function check({ status, text }) {
     if (status >= 200 && status < 300) return;
     let said = '';
-    try { said = String(JSON.parse(text)?.message ?? ''); } catch { /* kein JSON: dann nur der Status */ }
+    try { said = String(JSON.parse(text)?.message ?? ''); } catch { /* not JSON: then only the status */ }
     throw new GitHubError(status, said.slice(0, 300));
   }
 
-  // Lesen. Die Antwort ist eingefroren, weil dieselbe bei 304 an den nächsten geht. Bei aufgebrauchtem Limit oder
-  // erbetener Pause wird nicht gefragt.
+  // Reading. The answer is frozen because the same one goes to the next caller on 304. With a used-up limit or
+  // a requested pause it doesn't ask.
   async function get(path) {
     if (state() === STATE.OUT) throw new Fault(paused() ? 'm_githubPause' : 'm_quotaSpent', { time: new Date(endsAt()).toISOString() });
     const known = cache.get(path);
@@ -167,25 +167,25 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
     return data;
   }
 
-  // Schreiben (POST, PATCH, PUT, DELETE), optional mit einem Objekt als Inhalt. Geht immer durch, auch bei
-  // aufgebrauchtem Limit: Die Reserve ist für das Anmelden neuer Runner da.
+  // Writing (POST, PATCH, PUT, DELETE), optionally with an object as body. Always goes through, even with a
+  // used-up limit: the reserve is there for registering new runners.
   async function send(method, path, body) {
     const response = await request(method, path, { body });
     check(response);
     return parseBody(response.text);
   }
 
-  // `tightAt`: der verbrauchte Anteil, ab dem es knapp ist; die Oberfläche setzt dort ihre Marke.
+  // `tightAt`: the used share from which it is tight; the interface puts its mark there.
   const view = () => (!windowOpen() ? null : { limit: quota.limit, remaining: quota.remaining, resetAt: new Date(endsAt()).toISOString(), state: state(), tightAt: 1 - TIGHT });
 
-  // Den Stand ausdrücklich holen; nötig, solange sonst nichts abgefragt wird. Liefert den Stand, wenn der Zustand
-  // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before`; `resetAt` ist dann das Ende der Pause, wenn sie länger gilt),
-  // sonst null.
+  // Fetch the state explicitly; needed as long as nothing else is polled. Returns the state if it has
+  // flipped since the last call (with the previous one as `before`; `resetAt` is then the end of the pause if it lasts longer),
+  // otherwise null.
   async function refreshQuota() {
     try {
       const response = await request('GET', 'rate_limit');
       if (response.status === 200) { const core = JSON.parse(response.text).resources.core; note(core.limit, core.remaining, core.reset); }
-    } catch { /* nicht angemeldet oder nicht erreichbar: Dann bleibt der letzte Stand */ }
+    } catch { /* not signed in or unreachable: then the last state stays */ }
     const current = state();
     if (!windowOpen() || current === reported) return null;
     const before = reported;
@@ -196,8 +196,8 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
   return { get, send, refreshQuota, mayPoll, quota: view };
 }
 
-// Einen Runner bei GitHub abmelden. 404 heißt: schon weg (etwa von selbst nach seinem Job) und ist kein Fehler.
-// `github` wie createGitHub.
+// Remove a runner from GitHub. 404 means: already gone (e.g. by itself after its job) and is not an error.
+// `github` as from createGitHub.
 async function unregisterRunner(github, repo, runnerId) {
   try { await github.send('DELETE', `repos/${repo}/actions/runners/${runnerId}`); } catch (error) {
     if (error.status !== 404) throw error;

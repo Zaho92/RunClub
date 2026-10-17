@@ -6,25 +6,25 @@ const { DAY } = require('../src/units');
 const { createEngine } = require('../src/engine');
 const { turn, settle, rendered } = require('./support');
 
-const REPO = 'wer/App';
+const REPO = 'owner/App';
 const SEED = 'rc-seed-app';
 const LOADER = `${SEED}-loader`;
 const MARK = 'runclub.runner=test';
-const GONE = 'Error response from daemon: manifest for weg:1 not found: manifest unknown: manifest unknown';
+const GONE = 'Error response from daemon: manifest for gone:1 not found: manifest unknown: manifest unknown';
 const BUSY = 'toomanyrequests: You have reached your unauthenticated pull rate limit.';
 
 const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
 
-// Ein Aufruf von Docker in Kurzform: im Lade-Daemon nur, was dort geschieht.
+// A Docker call in short form: in the loader daemon only what happens there.
 function brief(args) {
   if (args[0] === 'run') return args.includes('--name') ? `run ${args[args.indexOf('--name') + 1]}` : 'run prepare';
   if (args[0] === 'exec') return `exec ${args.slice(args.indexOf('docker') + 1).filter((arg) => !['-q', '-f', '--format', 'ok', '{{.Repository}}:{{.Tag}}', '-H', 'unix:///sock/docker.sock'].includes(arg)).join(' ')}`;
   return args.join(' ');
 }
 
-// Docker und der Rest nachgestellt. `calls` hält die Aufrufe an Docker in ihrer Reihenfolge,
-// `answer(name, args, options)` kann einem Aufruf ein Ergebnis geben (sonst gelingt er ohne Ausgabe).
-// Zeit vergeht ohne Warten: `sleep` gibt nur einmal an alles andere ab und merkt sich die Dauer.
+// Docker and the rest faked. `calls` holds the calls to Docker in their order,
+// `answer(name, args, options)` can give a call a result (otherwise it succeeds without output).
+// Time passes without waiting: `sleep` only yields once to everything else and records the duration.
 function world() {
   const w = {
     calls: [], details: [], logs: [], slept: [], saved: 0, stopping: false, answer: () => undefined,
@@ -32,7 +32,7 @@ function world() {
     state: { learned: {}, rejected: {} },
     pool: { repo: REPO, seeded: new Set() },
   };
-  // Docker über engine.js, wie im Betrieb; nachgestellt ist nur `run`.
+  // Docker through engine.js, as in operation; only `run` is faked.
   const run = async (command, args, options = {}) => {
     const name = brief(args);
     w.calls.push(name);
@@ -53,66 +53,66 @@ function world() {
   return w;
 }
 
-test('gewünscht sind die festen Abbilder und die gelernten, die jüngsten zuerst', () => {
+test('wanted are the fixed images and the learned ones, the most recent first', () => {
   const w = world();
-  w.settings.preload = ['fest:1', 'beides:1'];
-  w.state.learned[REPO] = { 'alt:1': daysAgo(3), 'neu:1': daysAgo(1), 'beides:1': daysAgo(2), 'vergessen:1': daysAgo(LEARNED_DAYS + 1) };
-  assert.deepEqual(w.seed.wantedImages(REPO), ['fest:1', 'beides:1', 'neu:1', 'alt:1']);
-  assert.deepEqual(w.seed.wantedImages('wer/Anderes'), []);
+  w.settings.preload = ['fixed:1', 'both:1'];
+  w.state.learned[REPO] = { 'old:1': daysAgo(3), 'new:1': daysAgo(1), 'both:1': daysAgo(2), 'forgotten:1': daysAgo(LEARNED_DAYS + 1) };
+  assert.deepEqual(w.seed.wantedImages(REPO), ['fixed:1', 'both:1', 'new:1', 'old:1']);
+  assert.deepEqual(w.seed.wantedImages('owner/Other'), []);
 });
 
-test('mehr als die Höchstzahl kommt nicht in die Vorlage; die ältesten bleiben draußen', () => {
+test('more than the maximum does not go into the template; the oldest stay out', () => {
   const w = world();
-  w.state.learned[REPO] = Object.fromEntries(Array.from({ length: LEARNED_MAX + 3 }, (_, index) => [`bild${index}:1`, daysAgo(index / 100)]));
+  w.state.learned[REPO] = Object.fromEntries(Array.from({ length: LEARNED_MAX + 3 }, (_, index) => [`image${index}:1`, daysAgo(index / 100)]));
   const wanted = w.seed.wantedImages(REPO);
   assert.equal(wanted.length, LEARNED_MAX);
-  assert.equal(wanted[0], 'bild0:1');
-  assert.equal(wanted.includes(`bild${LEARNED_MAX}:1`), false);
+  assert.equal(wanted[0], 'image0:1');
+  assert.equal(wanted.includes(`image${LEARNED_MAX}:1`), false);
 });
 
-test('kopiert wird gleichzeitig, aufgefrischt nur allein', async () => {
+test('copying runs at the same time, refreshing only alone', async () => {
   const w = world();
   const order = [];
   const gates = [];
-  const work = (name) => () => new Promise((resolve) => { order.push(`${name} beginnt`); gates.push(() => { order.push(`${name} endet`); resolve(name); }); });
-  const first = w.seed.withSeed(REPO, false, work('Kopie 1'));
-  const second = w.seed.withSeed(REPO, false, work('Kopie 2'));
-  const refresh = w.seed.withSeed(REPO, true, work('Auffrischen'));
-  const other = w.seed.withSeed('wer/Anderes', true, work('fremdes Repo'));
+  const work = (name) => () => new Promise((resolve) => { order.push(`${name} begins`); gates.push(() => { order.push(`${name} ends`); resolve(name); }); });
+  const first = w.seed.withSeed(REPO, false, work('Copy 1'));
+  const second = w.seed.withSeed(REPO, false, work('Copy 2'));
+  const refresh = w.seed.withSeed(REPO, true, work('Refresh'));
+  const other = w.seed.withSeed('owner/Other', true, work('other repo'));
   await settle();
-  assert.deepEqual(order, ['Kopie 1 beginnt', 'Kopie 2 beginnt', 'fremdes Repo beginnt']);
+  assert.deepEqual(order, ['Copy 1 begins', 'Copy 2 begins', 'other repo begins']);
 
   gates[0]();
   await settle();
-  assert.equal(order.includes('Auffrischen beginnt'), false); // die zweite Kopie läuft noch
+  assert.equal(order.includes('Refresh begins'), false); // the second copy is still running
   gates[1]();
   await settle();
-  assert.equal(order.at(-1), 'Auffrischen beginnt');
+  assert.equal(order.at(-1), 'Refresh begins');
 
-  // Solange aufgefrischt wird, wartet auch eine neue Kopie.
-  const third = w.seed.withSeed(REPO, false, work('Kopie 3'));
+  // While refreshing, a new copy waits as well.
+  const third = w.seed.withSeed(REPO, false, work('Copy 3'));
   await settle();
-  assert.equal(order.includes('Kopie 3 beginnt'), false);
+  assert.equal(order.includes('Copy 3 begins'), false);
   gates[3]();
   await settle();
-  assert.equal(order.at(-1), 'Kopie 3 beginnt');
+  assert.equal(order.at(-1), 'Copy 3 begins');
   gates[4]();
   gates[2]();
-  assert.deepEqual(await Promise.all([first, second, refresh, third, other]), ['Kopie 1', 'Kopie 2', 'Auffrischen', 'Kopie 3', 'fremdes Repo']);
+  assert.deepEqual(await Promise.all([first, second, refresh, third, other]), ['Copy 1', 'Copy 2', 'Refresh', 'Copy 3', 'other repo']);
   assert.ok(w.slept.every((ms) => ms === 500));
 });
 
-test('scheitert die Arbeit an der Vorlage, ist sie danach wieder frei', async () => {
+test('if work on the template fails, it is free again afterwards', async () => {
   const w = world();
-  await assert.rejects(w.seed.withSeed(REPO, true, async () => { throw new Error('kaputt'); }), /kaputt/);
-  await assert.rejects(w.seed.withSeed(REPO, false, async () => { throw new Error('auch kaputt'); }), /auch kaputt/);
-  assert.equal(await w.seed.withSeed(REPO, true, async () => 'frei'), 'frei');
+  await assert.rejects(w.seed.withSeed(REPO, true, async () => { throw new Error('broken'); }), /broken/);
+  await assert.rejects(w.seed.withSeed(REPO, false, async () => { throw new Error('also broken'); }), /also broken/);
+  assert.equal(await w.seed.withSeed(REPO, true, async () => 'free'), 'free');
   assert.deepEqual(w.slept, []);
 });
 
-test('ohne gewünschte Abbilder verschwindet die Vorlage', async () => {
+test('without wanted images the template goes away', async () => {
   const w = world();
-  w.pool.seeded = new Set(['alt:1']);
+  w.pool.seeded = new Set(['old:1']);
   await w.seed.refreshSeed(REPO);
   assert.deepEqual(w.calls, [`rm -f -v ${LOADER}`, `volume rm -f ${SEED}`]);
   assert.deepEqual([...w.pool.seeded], []);
@@ -120,146 +120,146 @@ test('ohne gewünschte Abbilder verschwindet die Vorlage', async () => {
   assert.equal(w.saved, 0);
 });
 
-test('auffrischen lädt das Gewünschte, entfernt das Überholte und merkt sich, was in der Vorlage liegt', async () => {
+test('refreshing pulls what is wanted, removes what is outdated and records what is in the template', async () => {
   const w = world();
-  w.settings.preload = ['fest:1'];
-  w.state.learned[REPO] = { 'neu:1': daysAgo(1), 'vergessen:1': daysAgo(LEARNED_DAYS + 1) };
-  w.state.rejected[REPO] = { 'lange-her:1': daysAgo(LEARNED_DAYS + 1), 'neulich:1': daysAgo(1) };
-  w.answer = (name) => (name === 'exec image ls' ? { stdout: 'fest:1\nneu:1\nvergessen:1\n<none>:<none>\n' } : undefined);
+  w.settings.preload = ['fixed:1'];
+  w.state.learned[REPO] = { 'new:1': daysAgo(1), 'forgotten:1': daysAgo(LEARNED_DAYS + 1) };
+  w.state.rejected[REPO] = { 'long-ago:1': daysAgo(LEARNED_DAYS + 1), 'recent:1': daysAgo(1) };
+  w.answer = (name) => (name === 'exec image ls' ? { stdout: 'fixed:1\nnew:1\nforgotten:1\n<none>:<none>\n' } : undefined);
   await w.seed.refreshSeed(REPO);
   assert.deepEqual(w.calls, [
     `rm -f -v ${LOADER}`, `volume create ${SEED}`, 'run prepare', `run ${LOADER}`, 'exec info',
-    'exec pull fest:1', 'exec pull neu:1', 'exec image ls', 'exec rmi vergessen:1', 'exec image prune',
+    'exec pull fixed:1', 'exec pull new:1', 'exec image ls', 'exec rmi forgotten:1', 'exec image prune',
     `stop ${LOADER}`, `rm -v ${LOADER}`,
   ]);
   const loader = w.details.find((call) => call.name === `run ${LOADER}`).args;
-  // Ohne Rechte wie der Daemon eines Paars; eine Vorlage aus der Zeit mit Rechten wird vorher einmal geleert.
+  // Without privileges like the daemon of a pair; a template from the time with privileges is cleared once first.
   assert.deepEqual(loader, ['run', '-d', '--label', MARK, '--name', LOADER, ...DAEMON_FLAGS, '-v', `${SEED}:${DATA_ROOT}`, 'dind:test', ...DAEMON_COMMAND]);
   assert.deepEqual(w.details.find((call) => call.name === 'run prepare').args, ['run', '--rm', '-v', `${SEED}:/d`, '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c',
     '[ "$(stat -c %u /d)" = 1001 ] || { find /d -mindepth 1 -delete; chown 1001:1001 /d; }']);
   assert.equal(loader.includes('--privileged'), false);
-  assert.equal(w.details.find((call) => call.name === 'exec pull fest:1').options.timeout, 1234);
-  assert.deepEqual([...w.pool.seeded], ['fest:1', 'neu:1']);
-  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['neu:1']);
-  assert.deepEqual(Object.keys(w.state.rejected[REPO]), ['neulich:1']);
+  assert.equal(w.details.find((call) => call.name === 'exec pull fixed:1').options.timeout, 1234);
+  assert.deepEqual([...w.pool.seeded], ['fixed:1', 'new:1']);
+  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['new:1']);
+  assert.deepEqual(Object.keys(w.state.rejected[REPO]), ['recent:1']);
   assert.equal(w.saved, 1);
-  assert.deepEqual(w.logs, [['Frische die Vorlage auf (2 Abbilder) …', REPO]]);
+  assert.deepEqual(w.logs, [['Refreshing the template (2 images) …', REPO]]);
 });
 
-test('eine Störung beim Laden lässt in der Vorlage, was schon dort liegt, und am Gelernten alles', async () => {
+test('a disruption while pulling leaves in the template what is already there, and all of what was learned', async () => {
   const w = world();
-  w.state.learned[REPO] = { 'da:1': daysAgo(1), 'fehlt:1': daysAgo(2) };
+  w.state.learned[REPO] = { 'here:1': daysAgo(1), 'missing:1': daysAgo(2) };
   w.answer = (name) => {
     if (name.startsWith('exec pull')) return { code: 1, stderr: BUSY };
-    if (name === 'exec image ls') return { stdout: 'da:1\n' };
+    if (name === 'exec image ls') return { stdout: 'here:1\n' };
     return undefined;
   };
   await w.seed.refreshSeed(REPO);
-  assert.deepEqual([...w.pool.seeded], ['da:1']);
+  assert.deepEqual([...w.pool.seeded], ['here:1']);
   assert.equal(w.calls.some((name) => name.startsWith('exec rmi')), false);
-  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['da:1', 'fehlt:1']);
+  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['here:1', 'missing:1']);
   assert.deepEqual(w.state.rejected, {});
-  assert.deepEqual(w.logs.slice(1), [[`da:1 kommt nicht in die Vorlage – ${BUSY}`, REPO, 'error'], [`fehlt:1 kommt nicht in die Vorlage – ${BUSY}`, REPO, 'error']]);
+  assert.deepEqual(w.logs.slice(1), [[`here:1 does not go into the template – ${BUSY}`, REPO, 'error'], [`missing:1 does not go into the template – ${BUSY}`, REPO, 'error']]);
 });
 
-test('was es bei der Registry nicht gibt, wird abgelehnt, vergessen und aus der Vorlage entfernt', async () => {
+test('what the registry does not have is rejected, forgotten and removed from the template', async () => {
   const w = world();
-  w.state.learned[REPO] = { 'weg:1': daysAgo(1), 'gut:1': daysAgo(2) };
+  w.state.learned[REPO] = { 'gone:1': daysAgo(1), 'good:1': daysAgo(2) };
   w.answer = (name) => {
-    if (name === 'exec pull weg:1') return { code: 1, stderr: GONE };
-    if (name === 'exec image ls') return { stdout: 'weg:1\ngut:1\n' };
+    if (name === 'exec pull gone:1') return { code: 1, stderr: GONE };
+    if (name === 'exec image ls') return { stdout: 'gone:1\ngood:1\n' };
     return undefined;
   };
   await w.seed.refreshSeed(REPO);
-  assert.deepEqual([...w.pool.seeded], ['gut:1']);
-  assert.ok(w.calls.includes('exec rmi weg:1'));
-  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['gut:1']);
-  assert.deepEqual(Object.keys(w.state.rejected[REPO]), ['weg:1']);
+  assert.deepEqual([...w.pool.seeded], ['good:1']);
+  assert.ok(w.calls.includes('exec rmi gone:1'));
+  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['good:1']);
+  assert.deepEqual(Object.keys(w.state.rejected[REPO]), ['gone:1']);
   assert.equal(w.saved, 1);
 });
 
-test('endet RunClub, während der Lade-Daemon startet, bricht das Auffrischen still ab', async () => {
+test('if RunClub ends while the loader daemon starts, the refresh stops quietly', async () => {
   const w = world();
-  w.pool.seeded = new Set(['alt:1']);
-  w.state.learned[REPO] = { 'neu:1': daysAgo(1) };
+  w.pool.seeded = new Set(['old:1']);
+  w.state.learned[REPO] = { 'new:1': daysAgo(1) };
   w.answer = (name) => { if (name === 'exec info') { w.stopping = true; return { code: 1 }; } return undefined; };
   await w.seed.refreshSeed(REPO);
   assert.equal(w.calls.filter((name) => name === 'exec info').length, 1);
   assert.equal(w.calls.at(-1), `rm -f -v ${LOADER}`);
   assert.deepEqual(w.logs.filter((entry) => entry[2] === 'error'), []);
-  assert.deepEqual([...w.pool.seeded], ['alt:1']);
+  assert.deepEqual([...w.pool.seeded], ['old:1']);
   assert.equal(w.saved, 0);
 });
 
-test('wird der Lade-Daemon nicht bereit, bleibt alles, wie es ist', async () => {
+test('if the loader daemon does not become ready, everything stays as it is', async () => {
   const w = world();
-  w.pool.seeded = new Set(['alt:1']);
-  w.state.learned[REPO] = { 'neu:1': daysAgo(1) };
+  w.pool.seeded = new Set(['old:1']);
+  w.state.learned[REPO] = { 'new:1': daysAgo(1) };
   w.answer = (name) => (name === 'exec info' ? { code: 1 } : undefined);
-  await assert.rejects(w.seed.refreshSeed(REPO), /Der Lade-Daemon wurde nicht bereit/);
+  await assert.rejects(w.seed.refreshSeed(REPO), /The loader daemon did not become ready/);
   assert.equal(w.calls.filter((name) => name === 'exec info').length, READY_TRIES);
   assert.equal(w.calls.at(-1), `rm -f -v ${LOADER}`);
   assert.equal(w.calls.some((name) => name.startsWith('exec pull')), false);
-  assert.deepEqual([...w.pool.seeded], ['alt:1']);
-  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['neu:1']);
+  assert.deepEqual([...w.pool.seeded], ['old:1']);
+  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['new:1']);
   assert.equal(w.saved, 0);
-  // Danach ist die Vorlage wieder frei.
-  assert.equal(await w.seed.withSeed(REPO, true, async () => 'frei'), 'frei');
+  // Afterwards the template is free again.
+  assert.equal(await w.seed.withSeed(REPO, true, async () => 'free'), 'free');
 });
 
-test('auffrischen für ein Repo, dessen Pool schon weg ist, scheitert nicht', async () => {
+test('refreshing for a repo whose pool is already gone does not fail', async () => {
   const w = world();
-  w.settings = { repo: 'wer/Weg', preload: ['fest:1'] };
+  w.settings = { repo: 'owner/Gone', preload: ['fixed:1'] };
   const seed = createSeed({
     docker: async (args) => { w.calls.push(brief(args)); return { code: 0, stdout: '', stderr: '' }; },
     dockerList: async () => [], log: () => {}, sleep: turn, mark: MARK, dind: 'dind:test', longTimeout: 1,
     settingsOf: () => w.settings, seedVolume: () => SEED, poolOf: () => undefined, state: w.state, saveState: () => { w.saved += 1; },
   });
-  await seed.refreshSeed('wer/Weg');
+  await seed.refreshSeed('owner/Gone');
   assert.equal(w.saved, 1);
 });
 
-test('nach einem Job wird gelernt, was er selbst geladen hat', async () => {
+test('after a job, what it pulled itself is learned', async () => {
   const w = world();
-  w.pool.seeded = new Set(['kopiert:1', 'bekannt:1']);
-  w.state.learned[REPO] = { 'kopiert:1': daysAgo(5), 'bekannt:1': daysAgo(5) };
-  w.state.rejected[REPO] = { 'abgelehnt:1': daysAgo(1), 'lange-abgelehnt:1': daysAgo(LEARNED_DAYS + 1) };
-  w.answer = (name) => (name === 'exec image ls' ? { stdout: 'kopiert:1\nbekannt:1\nabgelehnt:1\nlange-abgelehnt:1\n<none>:<none>\nGross:1\nbekannt:1\n\n' } : undefined);
-  const before = w.state.learned[REPO]['kopiert:1'];
-  await w.seed.learnImages(w.pool, { base: 'rc-app-1', copied: new Set(['kopiert:1']) });
+  w.pool.seeded = new Set(['copied:1', 'known:1']);
+  w.state.learned[REPO] = { 'copied:1': daysAgo(5), 'known:1': daysAgo(5) };
+  w.state.rejected[REPO] = { 'rejected:1': daysAgo(1), 'long-rejected:1': daysAgo(LEARNED_DAYS + 1) };
+  w.answer = (name) => (name === 'exec image ls' ? { stdout: 'copied:1\nknown:1\nrejected:1\nlong-rejected:1\n<none>:<none>\nLarge:1\nknown:1\n\n' } : undefined);
+  const before = w.state.learned[REPO]['copied:1'];
+  await w.seed.learnImages(w.pool, { base: 'rc-app-1', copied: new Set(['copied:1']) });
   assert.deepEqual(w.details[0].args, ['exec', 'rc-app-1-dind', 'docker', '-H', 'unix:///sock/docker.sock', 'image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
-  // Was aus der Vorlage kam, behält sein Datum; was der Job selbst lud, bekommt ein neues.
-  assert.equal(w.state.learned[REPO]['kopiert:1'], before);
-  assert.ok(w.state.learned[REPO]['bekannt:1'] > before);
-  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['kopiert:1', 'bekannt:1', 'lange-abgelehnt:1']);
+  // What came from the template keeps its date; what the job pulled itself gets a new one.
+  assert.equal(w.state.learned[REPO]['copied:1'], before);
+  assert.ok(w.state.learned[REPO]['known:1'] > before);
+  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['copied:1', 'known:1', 'long-rejected:1']);
   assert.equal(w.saved, 1);
-  // `lange-abgelehnt:1` liegt nicht in der Vorlage: Sie wird aufgefrischt.
+  // `long-rejected:1` is not in the template: it is refreshed.
   await settle();
-  assert.ok(w.calls.includes('exec pull lange-abgelehnt:1'));
+  assert.ok(w.calls.includes('exec pull long-rejected:1'));
 });
 
-test('liegt alles Geladene schon in der Vorlage, wird sie nicht aufgefrischt', async () => {
+test('if everything pulled is already in the template, it is not refreshed', async () => {
   const w = world();
-  w.pool.seeded = new Set(['bekannt:1']);
-  w.answer = (name) => (name === 'exec image ls' ? { stdout: 'bekannt:1\n' } : undefined);
+  w.pool.seeded = new Set(['known:1']);
+  w.answer = (name) => (name === 'exec image ls' ? { stdout: 'known:1\n' } : undefined);
   await w.seed.learnImages(w.pool, { base: 'rc-app-1', copied: new Set() });
   await settle();
   assert.deepEqual(w.calls, ['exec image ls']);
-  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['bekannt:1']);
+  assert.deepEqual(Object.keys(w.state.learned[REPO]), ['known:1']);
 });
 
-test('antwortet der Docker-Daemon des Jobs nicht, wird nichts gelernt', async () => {
+test('if the job’s Docker daemon does not answer, nothing is learned', async () => {
   const w = world();
-  w.answer = () => ({ code: 1, stdout: 'neu:1\n' });
+  w.answer = () => ({ code: 1, stdout: 'new:1\n' });
   await w.seed.learnImages(w.pool, { base: 'rc-app-1' });
   assert.deepEqual(w.state.learned, {});
   assert.equal(w.saved, 0);
 });
 
-test('zwei Jobs mit Neuem kurz nacheinander frischen die Vorlage nur einmal auf; ein Fehler dabei steht im Protokoll', async () => {
+test('two jobs with something new in quick succession refresh the template only once; an error doing so is in the log', async () => {
   const w = world();
   w.answer = (name) => {
-    if (name === 'exec image ls') return { stdout: 'neu:1\n' };
+    if (name === 'exec image ls') return { stdout: 'new:1\n' };
     if (name === 'exec info') return { code: 1 };
     return undefined;
   };
@@ -268,23 +268,23 @@ test('zwei Jobs mit Neuem kurz nacheinander frischen die Vorlage nur einmal auf;
   await settle();
   for (let turns = 0; turns < 200; turns += 1) await turn();
   assert.equal(w.calls.filter((name) => name === `run ${LOADER}`).length, 1);
-  assert.deepEqual(w.logs.at(-1), ['Vorlage – Der Lade-Daemon wurde nicht bereit; die Vorlage bleibt unverändert.', REPO, 'error']);
-  // Danach ist der Weg für das nächste Auffrischen wieder frei.
+  assert.deepEqual(w.logs.at(-1), ['Template – The loader daemon did not become ready; the template stays as it is.', REPO, 'error']);
+  // Afterwards the way is clear again for the next refresh.
   await w.seed.learnImages(w.pool, { base: 'rc-app-3' });
   await settle();
   assert.equal(w.calls.filter((name) => name === `run ${LOADER}`).length, 2);
 });
 
-test('vergessen löscht Gelerntes und Vorlage, sobald nicht mehr kopiert wird; was sich nicht löschen lässt, wirft', async () => {
+test('forgetting deletes what was learned and the template once no copy runs; what cannot be deleted throws', async () => {
   const w = world();
   w.state.learned[REPO] = { 'node:22': daysAgo(1) };
-  w.state.rejected[REPO] = { 'eigen:1': daysAgo(1) };
+  w.state.rejected[REPO] = { 'own:1': daysAgo(1) };
   w.pool.seeded = new Set(['node:22']);
   let copying = null;
   const copy = w.seed.withSeed(REPO, false, () => new Promise((resolve) => { copying = resolve; }));
   const forgotten = w.seed.forget(REPO);
   await turn();
-  assert.deepEqual(w.calls, []); // die Kopie läuft noch
+  assert.deepEqual(w.calls, []); // the copy is still running
   copying();
   await copy;
   await forgotten;
@@ -293,10 +293,10 @@ test('vergessen löscht Gelerntes und Vorlage, sobald nicht mehr kopiert wird; w
   assert.equal(w.saved, 1);
 
   w.answer = () => ({ code: 1, stderr: 'Error response from daemon: volume is in use\n' });
-  await assert.rejects(w.seed.forget(REPO), { message: 'Die Vorlage ließ sich nicht löschen – Error response from daemon: volume is in use' });
+  await assert.rejects(w.seed.forget(REPO), { message: 'Could not delete the template – Error response from daemon: volume is in use' });
 });
 
-test('die Vorlage eines Pools, der entfernt wird, wird nicht mehr aufgefrischt', async () => {
+test('the template of a pool that is being removed is no longer refreshed', async () => {
   const w = world();
   w.state.learned[REPO] = { 'node:22': daysAgo(1) };
   w.pool.removed = true;

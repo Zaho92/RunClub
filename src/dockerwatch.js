@@ -1,11 +1,11 @@
-// Die Docker-Überwachung: Docker kann später starten als RunClub, zwischendurch ausfallen oder neu starten.
-// `watchLoop` bereitet Docker vor, sobald es antwortet (`prepareDocker`: Grenzen der VM lesen, die eigenen Abbilder
-// von Runner und Docker-Daemon bauen, das Abbild des Build-Dienstes laden, Reste abräumen), prüft es danach regelmäßig
-// und gibt es erst nach mehreren ausbleibenden Antworten verloren. Dazu das tägliche Neubauen der eigenen Abbilder
-// (`refreshImage`, wegen des Runners) und das Abräumen von Resten (`removeLeftovers` beim Start und Beenden,
-// `removeOrphans` nach einer Unterbrechung, `removeRegistrations` bei GitHub).
+// The Docker watch: Docker may start later than RunClub, drop out in between or restart.
+// `watchLoop` prepares Docker as soon as it answers (`prepareDocker`: read the VM's limits, build our own images
+// of runner and Docker daemon, pull the build service's image, clear leftovers), then checks it regularly
+// and gives it up only after several missing answers. Plus the daily rebuild of our own images
+// (`refreshImage`, because of the runner) and clearing leftovers (`removeLeftovers` at start and shutdown,
+// `removeOrphans` after an interruption, `removeRegistrations` at GitHub).
 //
-// Wo Docker läuft, steht in engine.js; von dort kommen `docker`, `dockerList` und die Meldung `unreachableText`.
+// Where Docker runs is in engine.js; `docker`, `dockerList` and the message `unreachableText` come from there.
 
 const { lastLine } = require('./run');
 const { SECOND } = require('./units');
@@ -15,29 +15,29 @@ const { PROBE_TIMEOUT } = require('./dind');
 const { runnerPrefix } = require('./names');
 const { msg, Fault, render, reason } = require('./messages');
 
-const MISSES = 3; // so oft hintereinander muss Docker schweigen, bevor es als weg gilt
-const READY_PAUSE = 30 * SECOND; // Abstand der Prüfungen, solange Docker antwortet
-const WAIT_PAUSE = 15 * SECOND; // … und solange es noch nicht vorbereitet ist
-const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
+const MISSES = 3; // Docker must stay silent this many times in a row before it counts as gone
+const READY_PAUSE = 30 * SECOND; // interval between checks while Docker answers
+const WAIT_PAUSE = 15 * SECOND; // … and while it isn't prepared yet
+const MISS_PAUSE = 5 * SECOND; // after a missing answer
 
-//   docker(args, options), dockerList(args)   aus engine.js
-//   github                  Zugang zu GitHub (siehe github.js)
+//   docker(args, options), dockerList(args)   from engine.js
+//   github                  access to GitHub (see github.js)
 //   log(text, repo, kind), sleep(ms)
-//   host, mark              Name des Rechners (Anfang der Runner-Namen) und Kennzeichen der eigenen Container
-//   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze (siehe caches.js)
-//   builds                  die selbst gebauten Abbilder: [{ image, dir, args, what }] (Name, Ordner mit Dockerfile,
-//                           weitere Argumente für `docker build`, Bezeichnung für Meldungen als Schlüssel); das erste ist das Runner-Abbild
-//   requiredImages          Abbilder, die geladen sein müssen (heute nur der Build-Dienst)
-//   longTimeout             Zeitgrenze für Bauen und Laden
-//   unreachable             die Meldung, wenn Docker nicht antwortet (aus engine.js)
-//   exposure()              Warnung, wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise, aus engine.js)
-//   buildService(repo), buildNetwork(repo)   Namen des Build-Dienstes und seines Netzes (siehe names.js)
-//   livePairs               Name des Paars -> Repo (aus slots.js)
-//   repos(), pools()        die Repos mit Pool laut Einstellung, die stehenden Pools
-//   preparePool(pool)       Caches und Vorlage eines Pools bereitstellen
+//   host, mark              the machine's name (start of the runner names) and label of our own containers
+//   serviceMark             label of the build services and their networks (see caches.js)
+//   builds                  the self-built images: [{ image, dir, args, what }] (name, folder with Dockerfile,
+//                           more arguments for `docker build`, label for messages as a key); the first is the runner image
+//   requiredImages          images that must be pulled (today only the build service)
+//   longTimeout             time limit for building and pulling
+//   unreachable             the message when Docker doesn't answer (from engine.js)
+//   exposure()              warning if the daemon is reachable without protection, otherwise null (promise, from engine.js)
+//   buildService(repo), buildNetwork(repo)   names of the build service and its network (see names.js)
+//   livePairs               name of the pair -> repo (from slots.js)
+//   repos(), pools()        the repos with a pool per settings, the standing pools
+//   preparePool(pool)       provide a pool's caches and template
 //   stopping()
-//   onReady()               Docker ist (wieder) vorbereitet: die Messungen starten
-//   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
+//   onReady()               Docker is prepared (again): start the measurements
+//   onAlive()               a regular check got an answer while Docker is ready
 function createDockerWatch({
   docker, dockerList, github, log, sleep,
   host, mark, serviceMark, builds, requiredImages, longTimeout, unreachable, exposure = async () => null,
@@ -51,8 +51,8 @@ function createDockerWatch({
   let dockerError = null;
   let leftoversRemoved = false;
 
-  // Die eigenen Abbilder bauen. Scheitert das (kein Netz) und liegt ein früheres vor, arbeiten die Runner damit weiter;
-  // nur ganz ohne Abbild geht es nicht.
+  // Build our own images. If that fails (no network) and an earlier one exists, the runners keep working with it;
+  // only without any image at all it doesn't work.
   async function buildImages() {
     for (const { image, dir, args = [], what } of builds) {
       const build = await docker(['build', '--pull', '-q', ...args, '-t', image, dir], { timeout: longTimeout });
@@ -63,8 +63,8 @@ function createDockerWatch({
     }
   }
 
-  // Bei langer Laufzeit veraltet der Runner im Abbild, und GitHub weist zu alte Runner ab: täglich neu bauen. Neue
-  // Paare starten von selbst mit dem neuen Abbild; laufende Jobs berührt das nicht.
+  // Over a long uptime the runner in the image gets outdated, and GitHub rejects runners that are too old: rebuild daily.
+  // New pairs start with the new image on their own; running jobs are not affected.
   async function refreshImage() {
     if (stopping() || !dockerReady) return;
     log(msg('m_imagesDaily'));
@@ -79,19 +79,19 @@ function createDockerWatch({
     log(msg('m_imagesBuild'));
     await buildImages();
     for (const name of requiredImages) await docker(['pull', '-q', name], { timeout: longTimeout });
-    // Reste gibt es nur vom vorigen Programmlauf. Meldet sich Docker später zurück, räumen die Plätze ihre Paare
-    // selbst ab; alles Gekennzeichnete zu entfernen, träfe dann auch Paare, auf denen gerade ein Job läuft.
+    // Leftovers exist only from the previous program run. If Docker comes back later, the slots clear their pairs
+    // themselves; removing everything labelled would then also hit pairs on which a job is running.
     if (!leftoversRemoved) { await removeLeftovers(); leftoversRemoved = true; } else await removeOrphans();
   }
 
-  // Ein Netz samt allem, was noch darin hängt (etwa der Build-Dienst).
+  // A network along with everything still attached to it (such as the build service).
   async function removeNetwork(network) {
     for (const member of await dockerList(['network', 'inspect', network, '--format', '{{range .Containers}}{{println .Name}}{{end}}'])) await docker(['network', 'disconnect', '-f', network, member]);
     await docker(['network', 'rm', network]);
   }
 
-  // Nach einer Unterbrechung von Docker: War Docker beim Abräumen eines Paars nicht erreichbar, sind dessen Container,
-  // Volumes und Netz liegen geblieben. Entfernt wird nur, was zu keinem stehenden Paar mehr gehört.
+  // After a Docker interruption: if Docker was unreachable while clearing a pair, its containers,
+  // volumes and network were left behind. Only what no longer belongs to a standing pair is removed.
   async function removeOrphans() {
     const live = new Set(livePairs.keys());
     const containers = orphaned(await dockerList(['ps', '-a', '--filter', `label=${mark}`, '--format', '{{.Names}}']), live);
@@ -102,11 +102,11 @@ function createDockerWatch({
     if (containers.length || volumes.length) log(msg('m_orphansRemoved', containers.length, volumes.length));
   }
 
-  // Reste eines früheren Laufs: Paare, ihre Volumes und Netze, Build-Dienste (sie enden mit dem Programm; was noch
-  // steht, gehört zu einem Absturz oder einem Pool, den es nicht mehr gibt), bei GitHub angemeldete Runner. Build-Dienst
-  // und Netz eines Repos werden dazu beim Namen entfernt: Ältere Versionen haben sie ohne Kennzeichen angelegt.
-  // `step(name, count)` meldet beim Beenden, wie weit es ist (siehe shutdown.js): `cleanup` vor Docker, `signoff` mit
-  // der Zahl der Repos vor GitHub, `signedOff` nach jedem Repo.
+  // Leftovers of an earlier run: pairs, their volumes and networks, build services (they end with the program; what is
+  // still standing belongs to a crash or to a pool that no longer exists), runners registered at GitHub. A repo's build
+  // service and network are also removed by name: older versions created them without a label.
+  // `step(name, count)` reports during shutdown how far it got (see shutdown.js): `cleanup` before Docker, `signoff` with
+  // the number of repos before GitHub, `signedOff` after each repo.
   async function removeLeftovers(step = () => {}) {
     step('cleanup');
     for (const repo of repos()) {
@@ -125,13 +125,13 @@ function createDockerWatch({
     for (const repo of repos()) { await removeRegistrations(repo); step('signedOff'); }
   }
 
-  // Runner dieses Rechners bei GitHub abmelden, die keinen Job mehr haben. `keep()`: Namen, die zu stehenden Paaren
-  // gehören und bleiben; erst nach der Antwort von GitHub gefragt, damit ein Platz, der sich währenddessen anmeldet,
-  // dazugehört. Mit `offline` nur solche, die keine Verbindung mehr haben: Im Betrieb trifft das die Runner, deren
-  // Paar mitten im Job endete (beim Beenden, nach einem Absturz) und die GitHub erst später freigibt.
+  // Remove this machine's runners from GitHub that no longer have a job. `keep()`: names that belong to standing pairs
+  // and stay; asked only after GitHub's answer, so that a slot registering meanwhile is
+  // included. With `offline` only those that have no connection any more: in operation that hits the runners whose
+  // pair ended mid-job (on shutdown, after a crash) and which GitHub releases only later.
   async function removeRegistrations(repo, { keep = () => new Set(), offline = false } = {}) {
     try {
-      const runners = (await github.get(`repos/${repo}/actions/runners?per_page=${PAGE_MAX}`)).runners; // mehr hat ein Repo mit Pool nicht
+      const runners = (await github.get(`repos/${repo}/actions/runners?per_page=${PAGE_MAX}`)).runners; // a repo with a pool doesn't have more
       const kept = keep();
       const stale = runners.filter((runner) => runner.name.startsWith(runnerPrefix(host)) && !runner.busy && !kept.has(runner.name) && (!offline || runner.status === 'offline'));
       for (const runner of stale) await unregisterRunner(github, repo, runner.id);
@@ -139,13 +139,13 @@ function createDockerWatch({
     } catch (error) { log(msg('m_withReason', msg('m_whatOldRunners'), reason(error)), repo, 'error'); }
   }
 
-  // Geprüft wird, sobald Docker (wieder) vorbereitet ist: Der Schalter in Docker Desktop kann inzwischen umgelegt sein.
+  // Checked as soon as Docker is prepared (again): the switch in Docker Desktop may have been flipped meanwhile.
   async function warnIfExposed() {
     const warning = await exposure();
     if (warning) log(warning, null, 'error');
   }
 
-  // Docker kann später starten als dieses Programm, oder zwischendurch neu starten.
+  // Docker may start later than this program, or restart in between.
   async function watchLoop() {
     let misses = 0;
     while (!stopping()) {
@@ -164,8 +164,8 @@ function createDockerWatch({
           dockerError = reason(error);
         }
       } else if ((await docker(['info', '--format', 'ok'], { timeout: PROBE_TIMEOUT })).code !== 0) {
-        // Eine einzelne ausbleibende Antwort (volle VM, kurzer Hänger) heißt nicht, dass Docker weg ist:
-        // Erst nach mehreren in Folge warten die Plätze und alles wird neu vorbereitet.
+        // A single missing answer (full VM, brief hang) doesn't mean Docker is gone:
+        // only after several in a row do the slots wait and everything is prepared again.
         misses += 1;
         if (misses >= MISSES) {
           dockerReady = false;
@@ -178,7 +178,7 @@ function createDockerWatch({
     }
   }
 
-  // `watch` ist die Schleife (`watchLoop`); sie endet erst, wenn RunClub endet.
+  // `watch` is the loop (`watchLoop`); it ends only when RunClub ends.
   return {
     watch: watchLoop, prepareDocker, refreshImage, removeOrphans, removeLeftovers, removeRegistrations,
     ready: () => dockerReady, error: () => dockerError, cpus: () => dockerCpus, memory: () => dockerMemory,

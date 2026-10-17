@@ -1,37 +1,37 @@
-// Startet ein Programm und sammelt, was es schreibt. Wirft nie: Auch ein fehlendes Programm oder eine
-// überschrittene Zeitgrenze enden mit einem Ergebnis (`code` -1).
+// Starts a program and collects what it writes. Never throws: a missing program or an exceeded
+// time limit also end with a result (`code` -1).
 //
-//   input     wird dem Programm auf die Standardeingabe gegeben
-//   env       zusätzliche Umgebungsvariablen
-//   onLine    bekommt jede Zeile der Standardausgabe, sobald sie da ist; `stdout` bleibt dann leer
-//   onErrLine bekommt jede Zeile der Fehlerausgabe, sobald sie da ist, am Ende auch eine ohne Zeilenende;
-//             `stderr` wird trotzdem gesammelt
-//   timeout   Millisekunden, nach denen das Programm beendet wird; 0 heißt ohne Grenze
-//   signal    ein AbortSignal, das das Programm von außen beendet; das Ergebnis trägt dann `aborted: true`
+//   input     is given to the program on standard input
+//   env       additional environment variables
+//   onLine    gets every line of standard output as soon as it is there; `stdout` then stays empty
+//   onErrLine gets every line of error output as soon as it is there, at the end also one without a line ending;
+//             `stderr` is still collected
+//   timeout   milliseconds after which the program is ended; 0 means no limit
+//   signal    an AbortSignal that ends the program from outside; the result then carries `aborted: true`
 //
-// Ein Programm ohne Pfad (`docker`, `wsl`) wird unter Windows selbst über PATH gesucht (siehe `locate`).
+// A program without a path (`docker`, `wsl`) is looked up in PATH by this module itself on Windows (see `locate`).
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { SECOND } = require('./units');
 
-// Ein Job kann beliebig viel schreiben. Behalten wird nur, was gebraucht wird: das Ende der Fehlerausgabe und
-// eine angefangene Zeile bis zu einer vernünftigen Länge.
+// A job can write any amount. Only what is needed is kept: the end of the error output and
+// an unfinished line up to a reasonable length.
 const KEEP = 64 * 1024;
 const LINE_MAX = 1024 * 1024;
-const GRACE = 5 * SECOND; // so lange darf ein beendetes Programm seine Ausgabe noch offen halten
-// Steuerzeichen, mit denen Programme ihre Ausgabe im Terminal färben oder neu zeichnen.
+const GRACE = 5 * SECOND; // how long an ended program may still keep its output open
+// Control sequences programs use to colour or redraw their output in the terminal.
 const ESCAPES = /\u001b\[[0-9;?]*[A-Za-z]/g;
 
-// Wo das Programm liegt. Windows sucht einen Namen ohne Pfad zuerst im Arbeitsverzeichnis und erst dann in PATH: Ein
-// dort abgelegtes `docker.exe` liefe sonst an seiner Stelle, mit Zugriff auf ganz Docker. Deshalb wird der Name hier nur über die
-// Ordner aus PATH aufgelöst, und nur über solche mit Laufwerk oder Rechnernamen: Alles andere hinge wieder am
-// Arbeitsverzeichnis. Ein Eintrag, dessen Anführungszeichen nicht aufgehen (ein Ordner mit Semikolon im Namen), wird
-// übergangen. Liefert den Pfad, den Namen unverändert (er trägt schon einen Pfad, oder es ist kein Windows) oder
-// null, wenn es das Programm in PATH nicht gibt.
-const EXTENSIONS = ['.exe', '.com']; // was sich ohne Kommandozeile starten lässt
-const ROOTED = /^(?:[A-Za-z]:[\\/]|\\\\)/; // mit Laufwerk (C:\…) oder Rechnernamen (\\server\…)
+// Where the program is. Windows looks for a name without a path in the working directory first and only then in PATH: a
+// `docker.exe` placed there would otherwise run in its place, with access to all of Docker. So the name is only resolved here
+// through the folders from PATH, and only through those with a drive or machine name: anything else would again depend on the
+// working directory. An entry whose quotes do not match (a folder with a semicolon in its name) is
+// skipped. Returns the path, the name unchanged (it already carries a path, or this is not Windows) or
+// null if the program is not in PATH.
+const EXTENSIONS = ['.exe', '.com']; // what can be started without a command shell
+const ROOTED = /^(?:[A-Za-z]:[\\/]|\\\\)/; // with a drive (C:\…) or machine name (\\server\…)
 function locate(command, { platform = process.platform, env = process.env, exists = fs.existsSync } = {}) {
   if (platform !== 'win32' || /[\\/]/.test(command)) return command;
   const names = EXTENSIONS.includes(path.win32.extname(command).toLowerCase()) ? [command] : EXTENSIONS.map((extension) => command + extension);
@@ -47,7 +47,7 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
     let child;
     try {
       const program = locate(command);
-      // Dieselbe Meldung, mit der auch der Start eines fehlenden Programms scheitert.
+      // The same message that starting a missing program fails with.
       if (!program) { resolve({ code: -1, stdout: '', stderr: `spawn ${command} ENOENT`, timedOut: false }); return; }
       child = spawn(program, args, { windowsHide: true, env: env ? { ...process.env, ...env } : process.env });
     } catch (error) { resolve({ code: -1, stdout: '', stderr: String(error.message), timedOut: false }); return; }
@@ -58,16 +58,16 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
     let timedOut = false;
     let aborted = false;
     let grace = null;
-    const late = () => ({ code: -1, stdout, stderr: `keine Antwort nach ${Math.round(timeout / SECOND)} s`, timedOut: true });
-    const stopped = () => ({ code: -1, stdout, stderr: 'abgebrochen', timedOut: false, aborted: true });
+    const late = () => ({ code: -1, stdout, stderr: `no answer after ${Math.round(timeout / SECOND)} s`, timedOut: true });
+    const stopped = () => ({ code: -1, stdout, stderr: 'cancelled', timedOut: false, aborted: true });
     const done = (result) => { clearTimeout(timer); clearTimeout(grace); signal?.removeEventListener('abort', abort); resolve(result); };
-    // Nach der Zeitgrenze oder dem Abbruch von außen wird das Programm beendet. Hält ein Kind von ihm die Ausgabe
-    // offen, kommt `close` nie: dann endet das Warten nach einer Nachfrist von selbst.
+    // After the time limit or a cancel from outside the program is ended. If a child of it keeps the output
+    // open, `close` never comes: then the wait ends by itself after a grace period.
     const stop = (result) => { child.kill(); grace = setTimeout(() => done(result()), GRACE); };
     const timer = timeout > 0 ? setTimeout(() => { if (aborted) return; timedOut = true; stop(late); }, timeout) : null;
     function abort() { if (aborted || timedOut) return; aborted = true; stop(stopped); }
-    // Ein Fehler beim Auswerten einer Zeile darf das Programm nicht mitreißen.
-    const emit = (handler, line) => { try { handler(line); } catch { /* die Zeile wird übergangen */ } };
+    // An error while handling a line must not take the program down with it.
+    const emit = (handler, line) => { try { handler(line); } catch { /* the line is skipped */ } };
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
@@ -86,7 +86,7 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
       while ((end = pendingErr.indexOf('\n')) >= 0) { emit(onErrLine, pendingErr.slice(0, end).trim()); pendingErr = pendingErr.slice(end + 1); }
       if (pendingErr.length > LINE_MAX) pendingErr = '';
     });
-    child.stdin.on('error', () => { /* das Programm hat seine Eingabe schon geschlossen */ });
+    child.stdin.on('error', () => { /* the program has already closed its input */ });
     child.on('error', (error) => done({ code: -1, stdout, stderr: String(error.message), timedOut }));
     child.on('close', (code) => {
       if (onErrLine && pendingErr.trim()) emit(onErrLine, pendingErr.trim());
@@ -97,7 +97,7 @@ function run(command, args, { input, env, onLine, onErrLine, signal, timeout = 0
   });
 }
 
-// Die letzte Zeile dessen, was ein Programm als Fehler schreibt; der Hinweis auf `--help` zählt nicht.
+// The last line of what a program writes as an error; the hint at `--help` does not count.
 const lastLine = (text) => String(text ?? '').trim().split('\n').map((line) => line.trim()).filter((line) => line && !/^Run '.*--help' for more information/.test(line)).pop() ?? '';
 
 module.exports = { run, locate, lastLine, ESCAPES };

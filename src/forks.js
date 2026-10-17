@@ -1,18 +1,18 @@
-// Ob Pull Requests aus Forks auf den eigenen Runnern Code ausführen könnten. In einem privaten Repo auf einem
-// Benutzerkonto kann nur forken, wer ohnehin Schreibrecht hat. In einer Organisation dürfen auch Mitglieder mit
-// Leserecht forken; laufen dort Workflows aus Fork-PRs, käme ihr Code auf diesen Rechner. Auch die Freigabepflicht
-// („require approval“) genügt nicht: Ein Klick auf „Approve“ ohne Blick in den Code reicht dann.
+// Whether pull requests from forks could run code on your own runners. In a private repo on a user account
+// only someone who has write access anyway can fork. In an organization members with read access may fork too;
+// if workflows from fork PRs run there, their code would reach this machine. Requiring approval
+// (“require approval”) is not enough either: a click on “Approve” without a look at the code is then enough.
 //
-// `allow_forking` des Repos zählt bewusst nicht: Ob vorhandene Forks verschwinden, wenn das Forken abgeschaltet wird,
-// ist nicht belegt; maßgeblich ist, ob GitHub ihre Workflows starten würde. Lässt sich das bei einem Org-Repo nicht
-// lesen, gilt das Repo als gefährdet.
+// The repo's `allow_forking` deliberately does not count: whether existing forks disappear when forking is turned off
+// is not established; what matters is whether GitHub would start their workflows. If that cannot be read for an org
+// repo, the repo counts as exposed.
 
 const { msg, reason } = require('./messages');
 
 const settingPath = (repo) => `repos/${repo}/actions/permissions/fork-pr-workflows-private-repos`;
 
-// `info` ist die Antwort auf `repos/{repo}`. Liefert { exposed, unknown, reason }; `reason` (eine Meldung) steht nur bei `exposed`,
-// `unknown`, wenn sich die Einstellung nicht lesen ließ.
+// `info` is the answer to `repos/{repo}`. Returns { exposed, unknown, reason }; `reason` (a message) is only set with
+// `exposed`, `unknown` if the setting could not be read.
 async function forkExposure(github, repo, info) {
   if (info?.owner?.type !== 'Organization') return { exposed: false };
   let setting;

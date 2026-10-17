@@ -1,17 +1,17 @@
-// Wer den lokalen Dienst benutzen darf.
+// Who may use the local service.
 //
-// Der Dienst lauscht auf 127.0.0.1, ist unter Docker Desktop aber auch aus den Containern der Jobs erreichbar
-// (host.docker.internal). Deshalb genügt die Adresse nicht: Seite und Daten bekommt nur, wer den Schlüssel dieses
-// Programmlaufs kennt. Das Fenster der App öffnet die Einstiegsadresse mit dem Schlüssel und erhält dafür ein
-// Cookie; ein Job kennt den Schlüssel nicht.
+// The service listens on 127.0.0.1, but under Docker Desktop it can also be reached from the jobs' containers
+// (host.docker.internal). So the address is not enough: page and data are only given to whoever knows the key of this
+// program run. The app window opens the entry address with the key and gets a cookie for it; a job does not know
+// the key.
 
 const crypto = require('node:crypto');
 
 const COOKIE = 'rc';
 
-// Die Seite lädt nichts von außen und lässt sich nicht in fremde Seiten einbetten. Skripte laufen nur mit der
-// Kennung dieser einen Antwort (`nonce`): Gelänge einmal ein Name aus GitHub unmaskiert ins HTML, würde er
-// trotzdem nicht ausgeführt. Stile dürfen inline stehen, weil die Seite ihre Maße als `style`-Attribute setzt.
+// The page loads nothing from outside and cannot be embedded in other pages. Scripts only run with the
+// id of this one response (`nonce`): if a name from GitHub ever got into the HTML unescaped, it would
+// still not be executed. Styles may be inline because the page sets its sizes as `style` attributes.
 const pageHeaders = (nonce) => ({
   'content-security-policy': `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
   'x-frame-options': 'DENY',
@@ -20,7 +20,7 @@ const pageHeaders = (nonce) => ({
 });
 const newNonce = () => crypto.randomBytes(16).toString('base64');
 
-// Vergleicht zwei Geheimnisse, ohne dass die Dauer verrät, wie weit sie übereinstimmen.
+// Compares two secrets without the duration revealing how far they match.
 function same(a, b) {
   const left = Buffer.from(String(a ?? ''));
   const right = Buffer.from(String(b ?? ''));
@@ -39,14 +39,14 @@ function createAccess({ port, key = crypto.randomBytes(24).toString('hex') }) {
   const hosts = [`localhost:${port}`, `127.0.0.1:${port}`];
   return {
     key,
-    // Diese Adresse tauscht den Schlüssel gegen das Cookie und führt zur Seite. Sie nennt die Adresse, auf der der Dienst
-    // lauscht: `localhost` könnte auch über IPv6 (`::1`) gehen, wo ein anderes Programm den Schlüssel annähme.
+    // This address trades the key for the cookie and leads to the page. It names the address the service listens on:
+    // `localhost` could also go over IPv6 (`::1`), where another program would accept the key.
     entry: `http://127.0.0.1:${port}/?key=${key}`,
     cookie: `${COOKIE}=${key}; HttpOnly; SameSite=Strict; Path=/`,
-    // Nur der eigene Rechner unter seinem eigenen Namen: hält umgeleitete Namen fremder Seiten draußen.
+    // Only this machine under its own name: keeps out rebound names of other sites.
     hostAllowed: (headers) => hosts.includes(headers.host ?? ''),
     allowed: (headers) => same(cookieOf(headers.cookie), key),
-    // Ist das die Einstiegsadresse mit dem richtigen Schlüssel? `null`, wenn die Adresse keine Einstiegsadresse ist.
+    // Is this the entry address with the right key? `null` if the address is not an entry address.
     entering(url) {
       const match = String(url ?? '').match(/^\/\?key=([^&#]*)$/);
       return match ? same(match[1], key) : null;

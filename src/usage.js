@@ -1,17 +1,17 @@
-// Messung: Auslastung von Windows und der Docker-VM, der Verbrauch jedes Containers und daraus jedes Jobs.
+// Measuring: load of Windows and the Docker VM, the consumption of each container and from that of each job.
 //
-//   Container   `docker stats` läuft fortlaufend und meldet je Container CPU und Arbeitsspeicher. Eigene Container
-//               (Name beginnt mit `rc-`) und fremde in derselben VM werden getrennt gezählt.
-//   Docker-VM   Was die VM wirklich belegt, liest ein zweiter Dauerlauf in der VM selbst (siehe vmmemory.js); die Summe
-//               der Container lässt Kernel und Daemon aus. Das geht nur, wenn der Daemon in einer WSL-Distro läuft
-//               (siehe engine.js). Gibt es die Distro nicht, endet der Aufruf ohne Messwert: Dann bleibt es still bei
-//               der Summe der Container, bis Docker neu vorbereitet wird. Neu gestartet wird nur, wenn Docker gerade
-//               geantwortet hat (`onDockerReady`, `onDockerAlive` aus dockerwatch.js): Der Aufruf würde eine angehaltene Distro
-//               sonst selbst hochfahren.
-//   Je Job      Jeder Messtakt gibt den Verbrauch von Runner und Daemon eines arbeitenden Platzes an dessen Messung
-//               (`slot.meter`, siehe metrics.js); jeder dritte Takt wird ein Punkt im Verlauf.
+//   Containers  `docker stats` runs continuously and reports CPU and memory per container. Our own containers
+//               (name begins with `rc-`) and others in the same VM are counted separately.
+//   Docker VM   What the VM really uses is read by a second long-running process in the VM itself (see vmmemory.js);
+//               the sum of the containers leaves out kernel and daemon. This only works if the daemon runs in a WSL
+//               distro (see engine.js). If the distro does not exist, the call ends without a value: then it quietly
+//               stays with the sum of the containers until Docker is prepared anew. It is only restarted when Docker
+//               has just answered (`onDockerReady`, `onDockerAlive` from dockerwatch.js): otherwise the call would boot a stopped distro
+//               itself.
+//   Per job     Each measuring beat passes the consumption of runner and daemon of a working slot to its meter
+//               (`slot.meter`, see metrics.js); every third beat becomes a point in the history.
 //
-// CPU steht in Kernen, Arbeitsspeicher in Bytes.
+// CPU is in cores, memory in bytes.
 
 const os = require('node:os');
 const { ESCAPES } = require('./run');
@@ -19,16 +19,16 @@ const { SECOND, MINUTE, MB, GB } = require('./units');
 const { createVmMemory, COMMAND: VM_COMMAND } = require('./vmmemory');
 const { msg } = require('./messages');
 
-const SAMPLE_EVERY = 3; // jeder dritte Messtakt wird ein Punkt im Verlauf
-const STATS_MAX_AGE = 15 * SECOND; // ein beendeter Container meldet sich nicht ab: So lange gilt sein letzter Wert
-const STATS_RESTART = 5 * SECOND; // Pause, bevor ein beendetes `docker stats` neu startet
-const VM_FEED_MAX = 60 * MINUTE; // der Messprozess in der VM endet stündlich: Bliebe er stumm hängen, käme sonst nie wieder ein Wert
+const SAMPLE_EVERY = 3; // every third measuring beat becomes a point in the history
+const STATS_MAX_AGE = 15 * SECOND; // a stopped container does not sign off: its last value applies for this long
+const STATS_RESTART = 5 * SECOND; // pause before an ended `docker stats` restarts
+const VM_FEED_MAX = 60 * MINUTE; // the measuring process in the VM ends hourly: if it hung silently, no value would ever come again
 const UNITS = { B: 1, kB: 1e3, KiB: 1024, MB: 1e6, MiB: MB, GB: 1e9, GiB: GB };
 
-const gb = (bytes) => Math.round(bytes / GB * 10) / 10; // für Meldungen
+const gb = (bytes) => Math.round(bytes / GB * 10) / 10; // for messages
 
-// Eine Zeile von `docker stats --format '{{json .}}'`: `{ name, cpu, memory }` oder `null` (Kopfzeile, unvollständig).
-// Steuerzeichen, mit denen `docker stats` neu zeichnet, werden übergangen.
+// A line of `docker stats --format '{{json .}}'`: `{ name, cpu, memory }` or `null` (header, incomplete).
+// Control characters with which `docker stats` redraws are skipped.
 function parseStatsLine(raw) {
   const line = String(raw).replace(ESCAPES, '').trim();
   if (!line.startsWith('{')) return null;
@@ -39,28 +39,28 @@ function parseStatsLine(raw) {
   } catch { return null; }
 }
 
-//   docker(args, options), inVm(script, options)   aus engine.js
-//   metrics                 `sample(point)` (siehe metrics.js)
-//   pools()                 die stehenden Pools; ihre arbeitenden Plätze tragen `meter` und `base`
+//   docker(args, options), inVm(script, options)   from engine.js
+//   metrics                 `sample(point)` (see metrics.js)
+//   pools()                 the existing pools; their working slots carry `meter` and `base`
 //   log(text, repo, kind), stopping()
-//   timer (wie `setTimeout`), now (Uhr in ms), cpus (wie `os.cpus`), memoryUsed() (belegter Arbeitsspeicher von Windows)
+//   timer (like `setTimeout`), now (clock in ms), cpus (like `os.cpus`), memoryUsed() (memory used by Windows)
 function createUsage({
   docker, inVm, metrics, pools, log, stopping,
   timer = setTimeout, now = Date.now, cpus = () => os.cpus(), memoryUsed = () => os.totalmem() - os.freemem(),
 }) {
-  const own = new Map(); // eigene Container: Name -> { cpu, memory, at }
-  const others = new Map(); // fremde Container in derselben Docker-VM
-  // `vmMemory` und `otherMemory` sind die Summen der eigenen und der fremden Container; `vmUsed` ist die Belegung der
-  // Docker-VM im Ganzen: gemessen in der VM, solange der Messwert frisch ist, sonst die beiden Summen.
+  const own = new Map(); // own containers: name -> { cpu, memory, at }
+  const others = new Map(); // other containers in the same Docker VM
+  // `vmMemory` and `otherMemory` are the sums of our own and the other containers; `vmUsed` is the memory use of the
+  // Docker VM as a whole: measured in the VM as long as the value is fresh, otherwise the two sums.
   const usage = { hostCpu: 0, vmCpu: 0, vmMemory: 0, vmUsed: 0, otherCpu: 0, otherMemory: 0 };
   let hostTicks = null;
   let round = 0;
 
-  let statsFeed = false; // es läuft höchstens einer
+  let statsFeed = false; // at most one runs
   function startStatsFeed() {
     if (statsFeed) return;
     statsFeed = true;
-    // `docker stats` schreibt fortlaufend, deshalb ohne Zeitgrenze.
+    // `docker stats` writes continuously, hence without a time limit.
     docker(['stats', '--format', '{{json .}}'], {
       timeout: 0,
       onLine: (raw) => {
@@ -82,8 +82,8 @@ function createUsage({
       else log(sample ? msg('m_vmFree', gb(sample.available)) : msg('m_vmUnmeasured'));
     },
   });
-  let vmFeed = false; // es läuft höchstens einer
-  let vmFeedMissing = false; // der letzte Versuch brachte keinen Messwert
+  let vmFeed = false; // at most one runs
+  let vmFeedMissing = false; // the last attempt brought no value
   function startVmFeed() {
     if (vmFeed || vmFeedMissing || stopping()) return;
     vmFeed = true;
@@ -92,7 +92,7 @@ function createUsage({
       .then(() => { vmFeed = false; vmFeedMissing = !seen; vmProbe.drop(); });
   }
 
-  // Docker ist (wieder) vorbereitet: beide Messungen starten, auch die in der VM, wenn sie zuletzt ohne Wert blieb.
+  // Docker is prepared (again): start both measurements, also the one in the VM if it last stayed without a value.
   function onDockerReady() {
     startStatsFeed();
     vmFeedMissing = false;
@@ -100,13 +100,13 @@ function createUsage({
   }
 
   function measure() {
-    // Windows: Anteil der Zeit, in der die Kerne nicht im Leerlauf waren.
+    // Windows: share of the time in which the cores were not idle.
     const cores = cpus();
     const ticks = cores.reduce((sum, cpu) => ({ idle: sum.idle + cpu.times.idle, total: sum.total + cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.irq + cpu.times.idle }), { idle: 0, total: 0 });
     if (hostTicks && ticks.total > hostTicks.total) usage.hostCpu = (1 - (ticks.idle - hostTicks.idle) / (ticks.total - hostTicks.total)) * cores.length;
     hostTicks = ticks;
 
-    // Docker-VM: die eigenen Container und, was sonst darin läuft.
+    // Docker VM: our own containers and whatever else runs in it.
     const time = now();
     for (const stats of [own, others]) {
       for (const [name, entry] of stats) if (time - entry.at > STATS_MAX_AGE) stats.delete(name);
@@ -122,13 +122,13 @@ function createUsage({
     if (round % SAMPLE_EVERY === 0) metrics.sample({ hostCpu: usage.hostCpu, hostMemory: memoryUsed(), vmCpu: usage.vmCpu + usage.otherCpu, vmMemory: usage.vmUsed });
   }
 
-  // `{ free }`, wenn die Docker-VM kaum noch Arbeitsspeicher frei hat, sonst null.
+  // `{ free }` when the Docker VM has hardly any memory free, otherwise null.
   const vmTight = () => { const sample = vmProbe.tight() ? vmProbe.current() : null; return sample ? { free: sample.available } : null; };
 
   return {
     onDockerReady, onDockerAlive: startVmFeed, measure, vmTight,
     view: () => usage,
-    statsOf: (name) => own.get(name), // Verbrauch eines eigenen Containers oder undefined
+    statsOf: (name) => own.get(name), // consumption of an own container or undefined
     forget: (name) => own.delete(name),
   };
 }

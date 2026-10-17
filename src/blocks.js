@@ -1,14 +1,14 @@
-// Warum ein Pool gesperrt sein kann: Fremder Code liefe sonst auf diesem Rechner. Ein gesperrter Pool pausiert, und
-// fortsetzen oder die Jobs auf die eigenen Runner leiten geht erst, wenn eine Prüfung den Grund weggefallen findet
-// (siehe remote.js, actions.js). Die Markierung steht in den Einstellungen des Pools und überdauert einen Neustart.
+// Why a pool can be blocked: otherwise foreign code would run on this machine. A blocked pool pauses, and resuming
+// it or routing the jobs to your own runners only works once a check finds the reason gone
+// (see remote.js, actions.js). The mark is kept in the pool's settings and survives a restart.
 //
-//   public         das Repo ist öffentlich geworden
-//   forks          in einem Repo einer Organisation dürfen Workflows aus Pull Requests von Forks laufen (siehe forks.js)
-//   forksUnknown   ob sie es dürfen, ließ sich nicht lesen; der Ausweg ist ein anderer (abwarten statt abschalten)
+//   public         the repo has become public
+//   forks          in an organization's repo, workflows from fork pull requests may run (see forks.js)
+//   forksUnknown   whether they may could not be read; the way out is different (wait instead of turning it off)
 
 const BLOCKS = { public: 'pausedPublic', forks: 'pausedForks', forksUnknown: 'pausedForksUnknown' };
 
-// Der erste Grund, aus dem der Pool gesperrt ist, oder null. `own`: die Einstellungen des Pools.
+// The first reason the pool is blocked for, or null. `own`: the pool's settings.
 const blockOf = (own) => Object.keys(BLOCKS).find((kind) => own?.[BLOCKS[kind]]) ?? null;
 
 module.exports = { BLOCKS, blockOf };

@@ -1,10 +1,10 @@
-// Läufe eines Repos als Pipeline: alle Jobs eines Laufs, ihre Abhängigkeiten, ihre übliche Dauer und daraus die Restzeit.
+// Runs of a repo as a pipeline: all jobs of a run, their dependencies, their usual duration and from that the time left.
 //
-// Abhängigkeiten  stehen als `needs:` in der Workflow-Datei des Laufs; sie wird einmal je Commit gelesen.
-//                 Daraus ergeben sich auch die Jobs, die GitHub erst später anlegt.
-// Übliche Dauer   Median der letzten erfolgreichen Durchläufe desselben Jobs (history.json im Datenordner).
-// Restzeit        Die offenen Jobs aller laufenden Läufe werden in der Reihenfolge ihrer Abhängigkeiten auf die
-//                 Plätze des Pools verteilt. Das bleibt eine Schätzung.
+// Dependencies    are the `needs:` in the run's workflow file; it is read once per commit.
+//                 They also yield the jobs GitHub only creates later.
+// Usual duration  median of the last successful runs of the same job (history.json in the data folder).
+// Time left       The open jobs of all running runs are spread over the pool's slots in the order of their
+//                 dependencies. It remains an estimate.
 
 const path = require('node:path');
 const { median } = require('./numbers');
@@ -12,29 +12,29 @@ const { readJson, writeJson } = require('./store');
 const { SECOND } = require('./units');
 const { PAGE_MAX } = require('./github');
 
-const KEEP = 10; // gemerkte Dauern je Job
-const LEARN_PER_ROUND = 5; // abgeschlossene Läufe, die je Abfrage nachgelernt werden
+const KEEP = 10; // durations remembered per job
+const LEARN_PER_ROUND = 5; // completed runs learned per query
 const SEEN_MAX = 300;
-const WAITS_KEEP = 50; // gemerkte Wartezeiten je Repo
-const WORKFLOWS_MAX = 40; // gemerkte Workflow-Dateien
-const TURNAROUND_S = 8; // Wechsel eines Platzes zum nächsten Job
-const FALLBACK_S = 60; // übliche Dauer eines Jobs, solange das Repo noch keinen gelernt hat
-const FINISHED_ROUNDS = 6; // so viele Abfragen lang bleibt ein eben beendeter Lauf zum Bestätigen der Ergebnisse da
+const WAITS_KEEP = 50; // wait times remembered per repo
+const WORKFLOWS_MAX = 40; // workflow files remembered
+const TURNAROUND_S = 8; // a slot switching to the next job
+const FALLBACK_S = 60; // usual duration of a job while the repo has not learned any yet
+const FINISHED_ROUNDS = 6; // for this many queries a run that just finished stays around to confirm the results
 
-// Sekunden bleiben ganze Zahlen.
+// Seconds stay whole numbers.
 const roundedMedian = (values) => { const middle = median(values); return middle === null ? null : Math.round(middle); };
 const seconds = (from, to) => Math.max(0, Math.round((new Date(to) - new Date(from)) / SECOND));
 const unquote = (text) => text.trim().replace(/\s+#.*$/, '').replace(/^(['"])(.*)\1$/, '$2');
 
-// Liest aus einer Workflow-Datei je Job seinen angezeigten Namen und seine Abhängigkeiten.
-// Kein vollständiges YAML: Es genügt der Block `jobs:` mit `name:` und `needs:` in den üblichen Schreibweisen.
-// `uses: true` bekommt ein Job, der einen anderen Workflow aufruft.
+// Reads from a workflow file, per job, its displayed name and its dependencies.
+// Not full YAML: the `jobs:` block with `name:` and `needs:` in the usual notations is enough.
+// A job that calls another workflow gets `uses: true`.
 function parseWorkflow(text) {
   const jobs = [];
   let inJobs = false;
-  let indent = null; // Einrückung der Job-Schlüssel
+  let indent = null; // indentation of the job keys
   let job = null;
-  let needsIndent = null; // gesetzt, solange eine Liste unter `needs:` läuft
+  let needsIndent = null; // set while a list under `needs:` is running
   for (const raw of String(text).replace(/\r/g, '').split('\n')) {
     if (!raw.trim() || raw.trim().startsWith('#')) continue;
     const depth = raw.length - raw.trimStart().length;
@@ -56,7 +56,7 @@ function parseWorkflow(text) {
       needsIndent = null;
     }
     job.depth ??= depth;
-    if (depth !== job.depth) continue; // tiefer als die Eigenschaften des Jobs (Schritte, Matrix …)
+    if (depth !== job.depth) continue; // deeper than the job's properties (steps, matrix …)
     const name = line.match(/^name\s*:\s*(.+)$/);
     if (name) { job.name = unquote(name[1]); continue; }
     if (/^uses\s*:/.test(line)) { job.uses = true; continue; }
@@ -70,23 +70,23 @@ function parseWorkflow(text) {
   return jobs.map(({ id, name, needs, uses }) => ({ id, name, needs, ...(uses && { uses }) }));
 }
 
-// Unter welchen Namen ein Job der Datei bei GitHub läuft. Der Name aus der Datei steht immer vollständig am Anfang,
-// danach ist nur erlaubt, was GitHub selbst anhängt – „Test“ trifft deshalb nicht „Tests bauen“:
-//   Ausdruck im Namen   `Test ${{ matrix.os }}` → „Test ubuntu-latest“: Der Ausdruck steht für beliebigen Text, auch
-//                       für keinen („Test“). Das Leerzeichen daneben bleibt Pflicht, sobald er etwas ergibt.
-//   Matrix              „Name (Wert, Wert)“
-//   Aufruf (`uses:`)    „Name / innerer Job“, mit Matrix „Name (Wert) / innerer Job“. Nur für solche Jobs, denn
-//                       sonst träfe „Build“ einen fremden Job, der „Build / Docker“ heißt. Aus demselben Grund trifft
-//                       `Test ${{ matrix.os }}` keinen fremden „Test / Docker“.
+// Under which names a job of the file runs at GitHub. The name from the file always stands in full at the start,
+// after it only what GitHub appends itself is allowed – so 'Test' does not match 'Tests nightly':
+//   expression in name  `Test ${{ matrix.os }}` -> 'Test ubuntu-latest': the expression stands for any text, also
+//                       for none ('Test'). The space next to it stays mandatory as soon as it yields something.
+//   matrix              'Name (value, value)'
+//   call (`uses:`)      'Name / inner job', with matrix 'Name (value) / inner job'. Only for such jobs, because
+//                       otherwise 'Build' would match a foreign job called 'Build / Docker'. For the same reason
+//                       `Test ${{ matrix.os }}` does not match a foreign 'Test / Docker'.
 const EXPRESSION = /\$\{\{.*?\}\}/g;
-const EXPRESSIONS_MAX = 3; // mehr Ausdrücke in einem Jobnamen werden nicht mehr als Muster gelesen
-const CALL = ' / '; // so trennt GitHub den aufrufenden vom aufgerufenen Job
+const EXPRESSIONS_MAX = 3; // with more expressions a job name is no longer read as a pattern
+const CALL = ' / '; // how GitHub separates the calling from the called job
 function matcherOf(defined) {
-  // Jeder Ausdruck steht für beliebigen Text. Mehrere davon machen das Prüfen eines langen Jobnamens beliebig teuer;
-  // Ausdrücke direkt hintereinander zählen deshalb als einer, und mit mehr als EXPRESSIONS_MAX gilt nur der genaue Name.
+  // Every expression stands for any text. Several of them make checking a long job name arbitrarily expensive;
+  // expressions right after each other therefore count as one, and with more than EXPRESSIONS_MAX only the exact name counts.
   const parts = defined.name.split(EXPRESSION).filter((part, index, all) => part || index === 0 || index === all.length - 1);
   const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Ein Ausdruck samt den Leerzeichen, die ihn vom festen Text trennen: Ergibt er nichts, fallen sie mit ihm weg.
+  // An expression together with the spaces separating it from the fixed text: if it yields nothing, they go with it.
   const expression = (before, after) => {
     const left = /\s$/.test(before);
     const right = /^\s/.test(after);
@@ -100,19 +100,19 @@ function matcherOf(defined) {
     return index < parts.length - 1 ? fixed + expression(part, parts[index + 1]) : fixed;
   }).join('');
   const pattern = new RegExp(defined.uses ? `^${name}( \\(.*\\))?${CALL}` : `^${name}( \\(.*)?$`);
-  const called = !defined.uses && !defined.name.includes(CALL); // ein „ / “ im Namen gehört dann zu einem fremden Aufruf
+  const called = !defined.uses && !defined.name.includes(CALL); // a ' / ' in the name then belongs to a foreign call
   return { test: (job) => pattern.test(job) && !(called && job.includes(CALL)) };
 }
 
-// Wie ein angekündigter Job heißt, solange GitHub seinen Namen noch nicht ausgewertet hat: „Test …“.
+// What an announced job is called while GitHub has not evaluated its name yet: 'Test …'.
 const announced = (defined) => defined.name.replace(EXPRESSION, '…');
 
-// Ordnet Jobs nach ihren Abhängigkeiten in Stufen: 0 hat keine, sonst eine mehr als die tiefste Abhängigkeit.
+// Sorts jobs into stages by their dependencies: 0 has none, otherwise one more than the deepest dependency.
 function stagesOf(jobs) {
   const byName = new Map(jobs.map((job) => [job.name, job]));
   const depth = (job, seen = new Set()) => {
     if (job.stage !== undefined) return job.stage;
-    if (seen.has(job.name)) return 0; // Kreis: gibt es in gültigen Workflows nicht
+    if (seen.has(job.name)) return 0; // cycle: does not exist in valid workflows
     seen.add(job.name);
     const parents = job.needs.map((name) => byName.get(name)).filter(Boolean);
     job.stage = parents.length ? 1 + Math.max(...parents.map((parent) => depth(parent, seen))) : 0;
@@ -123,21 +123,21 @@ function stagesOf(jobs) {
 
 function createPipelines({ github, dataDir }) {
   const file = path.join(dataDir, 'history.json');
-  const read = readJson(file, {}).data; // eine beschädigte Datei bleibt als Kopie liegen
+  const read = readJson(file, {}).data; // a damaged file is kept as a copy
   const history = read && typeof read === 'object' && !Array.isArray(read) ? read : {};
-  const save = () => { try { writeJson(file, history, { compact: true }); } catch { /* Gelerntes ist Beiwerk */ } };
+  const save = () => { try { writeJson(file, history, { compact: true }); } catch { /* what was learned is an extra */ } };
   const memoryOf = (repo) => (history[repo] ??= { durations: {}, jobsOf: {}, seen: [] });
-  const active = new Map(); // Repo -> laufende Läufe mit ihren Jobs
-  const latest = new Map(); // Repo -> { id, updatedAt, pipeline } des jüngsten abgeschlossenen Laufs
-  const finished = new Map(); // Repo -> [{ rounds, pipeline }] der Läufe, die seit kurzem abgeschlossen sind
-  const workflows = new Map(); // "Repo@Commit:Pfad" -> Jobs der Workflow-Datei oder null
+  const active = new Map(); // repo -> running runs with their jobs
+  const latest = new Map(); // repo -> { id, updatedAt, pipeline } of the latest completed run
+  const finished = new Map(); // repo -> [{ rounds, pipeline }] of the runs completed recently
+  const workflows = new Map(); // "repo@commit:path" -> jobs of the workflow file or null
 
   const key = (workflow, job) => `${workflow} / ${job}`;
   const estimate = (repo, workflow, job) => roundedMedian(memoryOf(repo).durations[key(workflow, job)] ?? []);
-  // Ein angekündigter Job läuft bei GitHub oft unter anderem Namen (Ausdruck, Matrix): dann zählen alle gelernten Jobs
-  // desselben Workflows, die zu ihm passen.
+  // An announced job often runs at GitHub under a different name (expression, matrix): then all learned jobs of
+  // the same workflow that match it count.
   function estimateOf(repo, workflow, defined, matcher) {
-    // Ein Aufruf (`uses:`) läuft als mehrere Jobs, oft nacheinander: Die Dauer eines davon wäre zu kurz geschätzt.
+    // A call (`uses:`) runs as several jobs, often one after another: the duration of one of them would be too short.
     if (defined.uses) return estimate(repo, workflow, defined.name);
     const prefix = key(workflow, '');
     const durations = Object.entries(memoryOf(repo).durations)
@@ -156,9 +156,9 @@ function createPipelines({ github, dataDir }) {
         const content = await github.get(`repos/${repo}/contents/${run.path}?ref=${run.head_sha}`);
         jobs = parseWorkflow(Buffer.from(content.content, 'base64').toString('utf8'));
       } catch (error) {
-        // Dynamischer Lauf ohne Datei oder kein Zugriff (GitHub antwortet mit 4xx): dann ohne Abhängigkeiten. 403 und
-        // 429 können auch nur „zu viele Anfragen“ heißen und zählen deshalb nicht dazu.
-        // Alles andere (kein Netz, Anfragelimit) ist vorübergehend und wird beim nächsten Mal neu versucht.
+        // Dynamic run without a file or no access (GitHub replies with 4xx): then without dependencies. 403 and
+        // 429 can also just mean "too many requests" and therefore don't count.
+        // Everything else (no network, rate limit) is temporary and is tried again next time.
         if (!(error.status >= 400 && error.status < 500) || error.status === 403 || error.status === 429) return null;
       }
       workflows.set(id, jobs);
@@ -175,18 +175,18 @@ function createPipelines({ github, dataDir }) {
       list.push(seconds(job.started_at, job.completed_at));
       if (list.length > KEEP) list.shift();
     }
-    // Wartezeit: vom Anlegen des Jobs bis ein eigener Runner ihn nimmt.
+    // Wait time: from creation of the job until one of our own runners takes it.
     const waits = (memory.waits ??= []);
     for (const job of good) if ((job.labels ?? []).includes('self-hosted') && job.created_at) waits.push(seconds(job.created_at, job.started_at));
     if (waits.length > WAITS_KEEP) waits.splice(0, waits.length - WAITS_KEEP);
-    // Welche Jobs zu einem Workflow gehören – Ersatz, wenn sich die Workflow-Datei nicht lesen lässt.
-    // Der Name des Workflows kommt von außen: als eigene Eigenschaft ablegen, auch wenn er __proto__ heißt.
+    // Which jobs belong to a workflow – a substitute when the workflow file cannot be read.
+    // The workflow's name comes from outside: store it as an own property, even if it is called __proto__.
     if (run.conclusion === 'success') Object.defineProperty(memory.jobsOf, String(run.name), { value: good.map((job) => job.name), enumerable: true, writable: true, configurable: true });
     memory.seen.push(run.id);
     if (memory.seen.length > SEEN_MAX) memory.seen.splice(0, memory.seen.length - SEEN_MAX);
   }
 
-  // Ein Lauf mit seinen Jobs, wie GitHub sie kennt, ergänzt um Abhängigkeiten und noch nicht angelegte Jobs.
+  // A run with its jobs as GitHub knows them, plus dependencies and jobs not created yet.
   async function build(repo, run) {
     const memory = memoryOf(repo);
     const definition = await workflowOf(repo, run);
@@ -203,15 +203,15 @@ function createPipelines({ github, dataDir }) {
     const present = new Map(jobs.map((job) => [job.name, job]));
     const pending = (name, guess = estimate(repo, run.name, name)) => ({ id: null, name, status: 'pending', conclusion: null, runner: null, own: true, startedAt: null, completedAt: null, url: run.html_url, estimate: guess, needs: [], step: null });
     if (definition) {
-      // Ein Job der Datei kann als mehrere Jobs laufen (Matrix, Aufruf) und dort anders heißen: siehe matcherOf.
-      // Jeder echte Job gehört zu höchstens einem Job der Datei: zu dem, der genau so heißt, sonst zu dem mit dem
-      // längsten festen Text – ein Name nur aus einem Ausdruck passt auf alles und bekommt, was übrig bleibt.
+      // A job of the file can run as several jobs (matrix, call) and be named differently there: see matcherOf.
+      // Every real job belongs to at most one job of the file: to the one with exactly that name, otherwise to the one
+      // with the longest fixed text – a name made only of an expression matches everything and gets what is left.
       const matchers = new Map(definition.map((defined) => [defined, matcherOf(defined)]));
       const fixed = (defined) => defined.name.replace(EXPRESSION, '').length;
       const vague = (defined) => Number(defined.name !== defined.name.replace(EXPRESSION, ''));
       const found = new Map(definition.map((defined) => [defined, []]));
       for (const job of jobs) {
-        // Der genaue Name geht vor; sonst ein Job ohne Ausdruck vor einem mit, dann der mit dem längsten festen Text.
+        // The exact name comes first; otherwise a job without an expression before one with, then the longest fixed text.
         const owner = definition.find((defined) => defined.name === job.name) ?? definition.filter((defined) => matchers.get(defined).test(job.name)).sort((a, b) => vague(a) - vague(b) || fixed(b) - fixed(a))[0];
         if (owner) found.get(owner).push(job);
       }
@@ -237,10 +237,10 @@ function createPipelines({ github, dataDir }) {
     };
   }
 
-  // `runs`: die jüngsten Läufe des Repos, wie GitHub sie liefert (neueste zuerst).
+  // `runs`: the repo's latest runs as GitHub returns them (newest first).
   async function refresh(repo, runs) {
     const memory = memoryOf(repo);
-    // Läufe von Dependabot heißen jedes Mal anders und wiederholen sich nicht.
+    // Dependabot runs have a different name every time and do not repeat.
     const unseen = runs.filter((run) => run.status === 'completed' && run.event !== 'dynamic' && !memory.seen.includes(run.id)).reverse().slice(0, LEARN_PER_ROUND);
     for (const run of unseen) await learn(repo, run);
     if (unseen.length) save();
@@ -250,9 +250,9 @@ function createPipelines({ github, dataDir }) {
     for (const run of runs.filter((r) => r.status !== 'completed').reverse()) list.push(await build(repo, run));
     active.set(repo, list);
 
-    // Ein Lauf, der seit der letzten Abfrage fertig wurde, wird einmal abschließend gelesen. Er muss nicht der jüngste
-    // abgeschlossene sein (ein früher gestarteter endet nach einem späteren); sein letzter Job wäre sonst nie bestätigt.
-    // Er bleibt einige Abfragen lang da: Der Platz verbucht einen Job erst, wenn der Runner-Container geendet hat.
+    // A run that finished since the last query is read one final time. It need not be the latest completed one
+    // (one started earlier ends after a later one); its last job would otherwise never be confirmed.
+    // It stays around for a few queries: the slot books a job only once the runner container has ended.
     const recent = (finished.get(repo) ?? []).map((entry) => ({ ...entry, rounds: entry.rounds - 1 })).filter((entry) => entry.rounds > 0);
     for (const run of runs.filter((r) => r.status === 'completed' && before.has(r.id))) recent.push({ rounds: FINISHED_ROUNDS, pipeline: await build(repo, run) });
     finished.set(repo, recent);
@@ -266,12 +266,12 @@ function createPipelines({ github, dataDir }) {
     return list;
   }
 
-  // Die laufenden Läufe mit Restzeit; `slots`: Plätze des Pools, die Jobs annehmen.
+  // The running runs with time left; `slots`: slots of the pool that accept jobs.
   function view(repo, slots, now = Date.now()) {
     const fallback = roundedMedian(Object.values(memoryOf(repo).durations).map(roundedMedian).filter((value) => value != null)) ?? FALLBACK_S;
     const list = (active.get(repo) ?? []).map((pipeline) => ({ ...pipeline, rough: false, jobs: pipeline.jobs.map((job) => ({ ...job })) }));
     const usual = (pipeline, job) => { if (job.estimate == null) pipeline.rough = true; return job.estimate ?? fallback; };
-    const free = []; // je Platz: Sekunden ab jetzt, bis er frei wird
+    const free = []; // per slot: seconds from now until it is free
 
     for (const pipeline of list) {
       for (const job of pipeline.jobs) {
@@ -286,7 +286,7 @@ function createPipelines({ github, dataDir }) {
     while (free.length < slots) free.push(0);
     for (const pipeline of list) {
       const byName = new Map(pipeline.jobs.map((job) => [job.name, job]));
-      // Stufe für Stufe; innerhalb einer Stufe erst, was schon auf einen Runner wartet.
+      // Stage by stage; within a stage first what is already waiting for a runner.
       const waiting = pipeline.jobs.filter((job) => job.finishIn === undefined).sort((a, b) => a.stage - b.stage || (a.status === 'pending') - (b.status === 'pending'));
       for (const job of waiting) {
         const length = usual(pipeline, job);
@@ -309,19 +309,19 @@ function createPipelines({ github, dataDir }) {
     });
   }
 
-  // Was die Oberfläche von einem Job braucht.
+  // What the interface needs from a job.
   const present = ({ finishIn, elapsed, ...job }, finishAt) => ({ ...job, finishAt, duration: job.status === 'completed' && job.startedAt && job.completedAt ? seconds(job.startedAt, job.completedAt) : null });
 
-  // Der jüngste abgeschlossene Lauf – für die Ansicht, wenn gerade nichts läuft.
+  // The latest completed run – for the view when nothing is running.
   function lastOf(repo) {
     const pipeline = latest.get(repo)?.pipeline;
     return pipeline ? { ...pipeline, finishAt: null, jobs: pipeline.jobs.map((job) => present(job, null)) } : null;
   }
 
-  // Die Läufe, die seit kurzem abgeschlossen sind, mit ihren Jobs wie GitHub sie zuletzt meldete.
+  // The runs completed recently, with their jobs as GitHub last reported them.
   const finishedOf = (repo) => (finished.get(repo) ?? []).map((entry) => entry.pipeline);
 
-  // Wie lange Jobs zuletzt auf einen eigenen Runner gewartet haben (Sekunden).
+  // How long jobs recently waited for one of our own runners (seconds).
   function waitOf(repo) {
     const waits = memoryOf(repo).waits ?? [];
     return waits.length ? { usual: roundedMedian(waits), longest: Math.max(...waits), jobs: waits.length } : null;

@@ -2,9 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createAccess, pageHeaders, newNonce } = require('../src/access');
 
-const access = createAccess({ port: 8770, key: 'geheim' });
+const access = createAccess({ port: 8770, key: 'secret' });
 
-test('nur der eigene Rechner unter seinem eigenen Namen', () => {
+test('only this machine under its own name', () => {
   assert.equal(access.hostAllowed({ host: 'localhost:8770' }), true);
   assert.equal(access.hostAllowed({ host: '127.0.0.1:8770' }), true);
   assert.equal(access.hostAllowed({ host: 'host.docker.internal:8770' }), false);
@@ -12,40 +12,40 @@ test('nur der eigene Rechner unter seinem eigenen Namen', () => {
   assert.equal(access.hostAllowed({}), false);
 });
 
-test('ohne das Cookie mit dem Schlüssel gibt es keinen Zugriff', () => {
+test('without the cookie with the key there is no access', () => {
   assert.equal(access.allowed({}), false);
-  assert.equal(access.allowed({ cookie: 'rc=falsch' }), false);
+  assert.equal(access.allowed({ cookie: 'rc=wrong' }), false);
   assert.equal(access.allowed({ cookie: 'rc=' }), false);
-  assert.equal(access.allowed({ cookie: 'anderes=geheim' }), false);
-  assert.equal(access.allowed({ cookie: 'rc=geheim' }), true);
-  assert.equal(access.allowed({ cookie: 'a=1; rc=geheim; b=2' }), true);
+  assert.equal(access.allowed({ cookie: 'other=secret' }), false);
+  assert.equal(access.allowed({ cookie: 'rc=secret' }), true);
+  assert.equal(access.allowed({ cookie: 'a=1; rc=secret; b=2' }), true);
 });
 
-test('die Einstiegsadresse tauscht den Schlüssel gegen das Cookie', () => {
-  assert.equal(access.entry, 'http://127.0.0.1:8770/?key=geheim');
-  assert.equal(access.entering('/?key=geheim'), true);
-  assert.equal(access.entering('/?key=falsch'), false);
+test('the entry address trades the key for the cookie', () => {
+  assert.equal(access.entry, 'http://127.0.0.1:8770/?key=secret');
+  assert.equal(access.entering('/?key=secret'), true);
+  assert.equal(access.entering('/?key=wrong'), false);
   assert.equal(access.entering('/?key='), false);
   assert.equal(access.entering('/'), null);
-  assert.equal(access.entering('/api/status?key=geheim'), null);
-  assert.match(access.cookie, /^rc=geheim; HttpOnly; SameSite=Strict/);
+  assert.equal(access.entering('/api/status?key=secret'), null);
+  assert.match(access.cookie, /^rc=secret; HttpOnly; SameSite=Strict/);
 });
 
-test('jeder Programmlauf hat seinen eigenen Schlüssel', () => {
+test('every program run has its own key', () => {
   const first = createAccess({ port: 1 });
   const second = createAccess({ port: 1 });
   assert.equal(first.key.length, 48);
   assert.notEqual(first.key, second.key);
 });
 
-test('die Seite lässt sich nicht einbetten und lädt nichts von außen', () => {
+test('the page cannot be embedded and loads nothing from outside', () => {
   const headers = pageHeaders('abc123');
   assert.match(headers['content-security-policy'], /frame-ancestors 'none'/);
   assert.match(headers['content-security-policy'], /default-src 'self'/);
   assert.equal(headers['x-frame-options'], 'DENY');
 });
 
-test('Skripte laufen nur mit der Kennung der einen Antwort', () => {
+test('scripts only run with the id of the one response', () => {
   const policy = pageHeaders('abc123')['content-security-policy'];
   assert.match(policy, /script-src 'self' 'nonce-abc123';/);
   assert.doesNotMatch(policy.match(/script-src[^;]*/)[0], /unsafe-inline/);

@@ -1,198 +1,200 @@
-// Meldungen des Backends: ein Schlüssel mit Werten statt eines fertigen Satzes, damit die Oberfläche sie in ihrer
-// Sprache zeigt. Ihre Tabellen in ui.html führen dieselben Schlüssel (`m_…`), deutsch und englisch; ein Test prüft
-// das. Hier steht der deutsche Satz dazu: für die Protokolldatei, die Konsole und `error.message`.
+// Backend messages: a key with values instead of a finished sentence, so the interface shows them in its own
+// language. Its tables in ui.html carry the same keys (`m_…`), in German and English; a test checks that. The English
+// sentence lives here as well: for the log file, the console and `error.message`.
 //
-// Eine Meldung ist `{ key, args }`. Ein Wert in `args` ist
-//   Text oder Zahl    eingesetzt, wie er ist (Zahlen in der Schreibweise der Sprache). Texte von außen (Docker,
-//                     GitHub, Jobnamen) bleiben Text: Sie lassen sich nicht übersetzen.
-//   Meldung           selbst übersetzt, etwa ein Wort wie „pausiert“ oder ein Grund
-//   Liste             ihre Werte, mit Komma verbunden
-//   { time }          eine Uhrzeit (ISO), als Stunde und Minute
-// `{0}`, `{1}` … im Satz stehen für die Werte der Reihe nach.
+// A message is `{ key, args }`. A value in `args` is
+//   text or number    inserted as it is (numbers written the way the language writes them). Texts from outside
+//                     (Docker, GitHub, job names) stay text: they cannot be translated.
+//   message           translated itself, such as a word like “paused” or a reason
+//   list              its values, joined with commas
+//   { time }          a time of day (ISO), as hour and minute
+// `{0}`, `{1}` … in the sentence stand for the values in order.
 
-const DE = {
-  // Allgemein
+const EN = {
+  // General
   m_withReason: '{0} – {1}',
-  m_exitCode: 'Code {0}',
-  m_on: 'an', m_off: 'aus', m_active: 'aktiv', m_paused: 'pausiert',
+  m_exitCode: 'code {0}',
+  m_on: 'on', m_off: 'off', m_active: 'active', m_paused: 'paused',
 
-  // Jobs (siehe slots.js)
-  m_jobRun: 'Job „{0}“ läuft auf {1}',
-  m_jobEnd: 'Job „{0}“ – {1}',
-  m_resDone: 'fertig', m_resFail: 'Fehler', m_resCancel: 'abgebrochen',
-  m_jobNoResult: 'Job „{0}“ endete ohne Ergebnis ({1})',
-  m_runnerNoJob: 'Runner endete ohne Job ({0})',
-  m_runnerTimeout: 'nach {0} h beendet',
-  m_reattach: 'Die Verbindung zu {0} riss ab; es wird weiter mitgelesen',
-  m_unregisterFailed: 'Runner ließ sich bei GitHub nicht abmelden',
-  m_netFailed: 'Netz lässt sich nicht anlegen: {0}',
-  m_volumesFailed: 'Volumes ließen sich nicht vorbereiten: {0}',
-  m_daemonFailed: 'Docker-Daemon startet nicht: {0}',
-  m_daemonNotReady: 'Docker-Daemon wurde nicht bereit{0}',
+  // Jobs (see slots.js)
+  m_jobRun: 'Job “{0}” is running on {1}',
+  m_jobEnd: 'Job “{0}” – {1}',
+  m_resDone: 'done', m_resFail: 'failed', m_resCancel: 'cancelled',
+  m_jobNoResult: 'Job “{0}” ended without a result ({1})',
+  m_runnerNoJob: 'Runner ended without a job ({0})',
+  m_runnerTimeout: 'stopped after {0} h',
+  m_reattach: 'Lost the connection to {0}; still following its output',
+  m_unregisterFailed: 'Could not remove the runner from GitHub',
+  m_netFailed: 'Could not create the network: {0}',
+  m_volumesFailed: 'Could not prepare the volumes: {0}',
+  m_daemonFailed: 'Docker daemon does not start: {0}',
+  m_daemonNotReady: 'Docker daemon did not become ready{0}',
   m_whyNotReady: ' – {0}',
-  m_whyNotReadySeccomp: ' – {0} (womöglich verbietet das Seccomp-Profil linux/seccomp.json einen Aufruf, den diese Docker-Version braucht)',
-  m_whatSlot: 'Platz',
-  m_whatPairPrep: 'Vorbereitung eines Paars',
-  m_whatReserve: 'Abbau der Reserve',
-  m_whatPrep: 'Vorbereitung',
+  m_whyNotReadySeccomp: ' – {0} (the seccomp profile linux/seccomp.json may block a call this Docker version needs)',
+  m_whatSlot: 'Slot',
+  m_whatPairPrep: 'Preparing a pair',
+  m_whatReserve: 'Clearing the reserve',
+  m_whatPrep: 'Preparation',
 
-  // Pools (siehe actions.js)
-  m_noPool: 'Diesen Pool gibt es nicht.',
-  m_dockerNotReady: 'Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.',
-  m_repoName: 'Das Repo wird als besitzer/name angegeben.',
-  m_noAdmin: 'Für dieses Repo fehlen dir die Verwaltungsrechte; ohne sie lässt sich kein Runner anmelden.',
-  m_publicRefused: 'Das Repo ist öffentlich. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.',
-  m_forksRefused: '{0}. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust. {1}',
-  m_poolRemoving: 'Dieser Pool wird gerade entfernt. Bitte warten, bis das abgeschlossen ist.',
-  m_poolExists: 'Für dieses Repo gibt es schon einen Pool.',
-  m_nameClash: 'Ein Pool für {0} belegt denselben Namen für Caches und Build-Dienst. Zwei Repos mit gleichem Namen lassen sich nicht zugleich bedienen.',
-  m_poolAdded: 'Pool angelegt',
-  m_poolSet: '{0}, {1}, Cache {2}',
-  m_slotsOne: '{0} Platz', m_slotsMany: '{0} Plätze',
-  m_poolRetiring: 'Pool wird entfernt',
-  m_poolRemoved: 'Pool und seine Caches sind entfernt',
-  m_poolRemovedPartly: 'Pool entfernt, aber nicht alles: {0}',
-  m_unknownCache: 'Unbekannter Cache.',
-  m_clearing: 'Leere {0} …',
-  m_cachePackages: 'den Paket-Cache', m_cacheBuild: 'die Build-Layer', m_cacheImages: 'die gelernten Abbilder', m_cacheAll: 'alle Caches',
-  m_cleared: 'Geleert; der nächste Lauf füllt wieder auf',
-  m_routedOn: '{0} gesetzt – die Jobs laufen auf den eigenen Runnern',
-  m_routedOff: '{0} entfernt – die Jobs gehen wieder an GitHubs Runner',
-  m_routingKept: '{0} bleibt, wie es ist',
-  m_variableUnused: 'Die Workflows lesen {0} nicht – die Jobs gehen weiter an GitHubs Runner',
-  m_variableUnreadable: '{0} ließ sich nicht lesen',
-  m_runRerun: 'Lauf {0} erneut gestartet',
-  m_runRerunFailed: 'Lauf {0} erneut gestartet (nur die gescheiterten Jobs)',
-  m_jobRerun: 'Job {0} erneut gestartet',
-  m_noRun: 'Diesen Lauf gibt es nicht.',
-  m_noJob: 'Diesen Job gibt es nicht.',
+  // Pools (see actions.js)
+  m_noPool: 'There is no such pool.',
+  m_dockerNotReady: 'Docker is not ready yet; the limits of the Docker VM are still unknown.',
+  m_repoName: 'Give the repo as owner/name.',
+  m_noAdmin: 'You lack admin rights for this repo; without them no runner can be registered.',
+  m_publicRefused: 'The repo is public. Only code you trust may run on your own runners, so pools are only for private repos.',
+  m_forksRefused: '{0}. Only code you trust may run on your own runners. {1}',
+  m_poolRemoving: 'This pool is being removed. Please wait until that is done.',
+  m_poolExists: 'This repo already has a pool.',
+  m_nameClash: 'A pool for {0} uses the same name for caches and build service. Two repos with the same name cannot be served at once.',
+  m_poolAdded: 'Pool created',
+  m_poolSet: '{0}, {1}, cache {2}',
+  m_slotsOne: '{0} slot', m_slotsMany: '{0} slots',
+  m_poolRetiring: 'Removing pool',
+  m_poolRemoved: 'Pool and its caches are removed',
+  m_poolRemovedPartly: 'Pool removed, but not everything: {0}',
+  m_unknownCache: 'Unknown cache.',
+  m_clearing: 'Clearing {0} …',
+  m_cachePackages: 'the package cache', m_cacheBuild: 'the build layers', m_cacheImages: 'the learned images', m_cacheAll: 'all caches',
+  m_cleared: 'Cleared; the next run fills it again',
+  m_routedOn: '{0} set – jobs run on your own runners',
+  m_routedOff: '{0} removed – jobs go back to GitHub’s runners',
+  m_routingKept: '{0} stays as it is',
+  m_variableUnused: 'The workflows do not read {0} – jobs keep going to GitHub’s runners',
+  m_variableUnreadable: 'Could not read {0}',
+  m_runRerun: 'Run {0} restarted',
+  m_runRerunFailed: 'Run {0} restarted (failed jobs only)',
+  m_jobRerun: 'Job {0} restarted',
+  m_noRun: 'There is no such run.',
+  m_noJob: 'There is no such job.',
 
-  // Sperren (siehe actions.js, blocks.js, forks.js)
-  m_forksHow: 'Abschalten unter Settings → Actions → General → „Fork pull request workflows in private repositories“ („Run workflows from fork pull requests“ aus); die Organisation kann das vorgeben.',
-  m_forksUnreadable: 'Ob Workflows aus Forks laufen dürfen, ließ sich nicht lesen ({0})',
-  m_forksAllowed: 'In den Einstellungen des Repos dürfen Workflows aus Pull Requests von Forks laufen',
-  m_publicPaused: 'Das Repo ist öffentlich geworden. Damit keine fremden Pull Requests auf diesem Rechner laufen, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner.',
-  m_publicLocked: 'Das Repo ist öffentlich. Der Pool lässt sich erst wieder nutzen, wenn es privat ist.',
-  m_publicCleared: 'Das Repo ist wieder privat',
-  m_forksPaused: '{0}. Damit kein Code aus Forks auf diesem Rechner läuft, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner. {1}',
-  m_forksLocked: 'Pull Requests aus Forks könnten auf diesem Rechner Code ausführen. {0}',
-  m_forksCleared: 'Workflows aus Forks laufen in diesem Repo nicht mehr',
-  m_forksUnknownPaused: '{0}. Damit kein Code aus Forks auf diesem Rechner läuft, ist der Pool pausiert und die Jobs gehen wieder an GitHubs Runner. Die nächste Prüfung versucht es wieder.',
-  m_forksUnknownLocked: 'Ob in diesem Repo Workflows aus Forks laufen dürfen, ließ sich nicht prüfen. Die nächste Prüfung versucht es wieder.',
-  m_forksUnknownCleared: 'Ob Workflows aus Forks laufen dürfen, ließ sich wieder lesen',
-  m_unblockStill: '{0}; der Pool bleibt gesperrt: {1}',
-  m_unblockFree: '{0}; der Pool lässt sich fortsetzen.',
-  m_checkBack: 'Die Prüfung ist wieder gelungen; der Pool nimmt wieder Jobs an.',
-  m_unchecked: 'Ob das Repo privat ist und keine Workflows aus Forks zulässt, ließ sich nicht prüfen. Bis das gelingt, nimmt der Pool keine Jobs an.',
-  m_whatVisibility: 'Sichtbarkeit des Repos',
+  // Blocks (see actions.js, blocks.js, forks.js)
+  m_forksHow: 'Turn it off under Settings → Actions → General → “Fork pull request workflows in private repositories” (“Run workflows from fork pull requests” off); the organization may enforce it.',
+  m_forksUnreadable: 'Could not read whether workflows from forks may run ({0})',
+  m_forksAllowed: 'The repo settings let workflows from fork pull requests run',
+  m_publicPaused: 'The repo has become public. So that no pull requests from strangers run on this machine, the pool is paused and jobs go back to GitHub’s runners.',
+  m_publicLocked: 'The repo is public. The pool can only be used again once it is private.',
+  m_publicCleared: 'The repo is private again',
+  m_forksPaused: '{0}. So that no code from forks runs on this machine, the pool is paused and jobs go back to GitHub’s runners. {1}',
+  m_forksLocked: 'Pull requests from forks could run code on this machine. {0}',
+  m_forksCleared: 'Workflows from forks no longer run in this repo',
+  m_forksUnknownPaused: '{0}. So that no code from forks runs on this machine, the pool is paused and jobs go back to GitHub’s runners. The next check tries again.',
+  m_forksUnknownLocked: 'Could not check whether workflows from forks may run in this repo. The next check tries again.',
+  m_forksUnknownCleared: 'Whether workflows from forks may run could be read again',
+  m_unblockStill: '{0}; the pool stays blocked: {1}',
+  m_unblockFree: '{0}; the pool can be resumed.',
+  m_checkBack: 'The check worked again; the pool accepts jobs again.',
+  m_unchecked: 'Could not check whether the repo is private and refuses workflows from forks. Until that works, the pool accepts no jobs.',
+  m_whatVisibility: 'Repo visibility',
 
-  // Limits (siehe actions.js, limits.js)
-  m_limits: 'Runner {0} und {1} Kerne, Docker {2} und {3} Kerne',
-  m_limitsInherit: 'Wieder die Limits für alle ({0})',
-  m_limitsOwn: 'Eigene Limits – {0}',
-  m_limitsShared: 'Limits je Job: {0}',
-  m_limitsNumbers: 'Limits werden als Zahlen angegeben.',
-  m_noSuggestion: 'Für einen Vorschlag fehlen noch Messwerte.',
-  m_planApplied: 'Limits aus den Messwerten übernommen: Standard Runner {0}, Docker {1}',
-  m_planAppliedOwn: 'Limits aus den Messwerten übernommen: Standard Runner {0}, Docker {1}; eigene Limits für {2}',
-  m_rebuilding: 'Baue die freien Runner mit den neuen Limits auf',
+  // Limits (see actions.js, limits.js)
+  m_limits: 'runner {0} and {1} cores, Docker {2} and {3} cores',
+  m_limitsInherit: 'Back to the limits for all ({0})',
+  m_limitsOwn: 'Own limits – {0}',
+  m_limitsShared: 'Limits per job: {0}',
+  m_limitsNumbers: 'Limits are given as numbers.',
+  m_noSuggestion: 'There are not enough measurements for a suggestion yet.',
+  m_planApplied: 'Limits taken from the measurements: default runner {0}, Docker {1}',
+  m_planAppliedOwn: 'Limits taken from the measurements: default runner {0}, Docker {1}; own limits for {2}',
+  m_rebuilding: 'Rebuilding the idle runners with the new limits',
 
-  // GitHub (siehe github.js, remote.js, minutes.js)
-  m_githubPause: 'GitHub bittet um eine Pause; weiter um {0}.',
-  m_githubSilent: 'GitHub antwortet nicht.',
-  m_githubUnreachable: 'GitHub ist nicht erreichbar ({0}).',
-  m_quotaSpent: 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um {0}.',
-  m_quotaPaused: 'GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis {0} wird nicht mehr abgefragt.',
-  m_quotaOut: 'GitHub-Anfragen sind aufgebraucht ({0} von {1} frei). Bis {2} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.',
-  m_quotaTight: 'GitHub-Anfragen werden knapp ({0} von {1} frei). Bis {2} wird seltener abgefragt.',
-  m_quotaFree: 'GitHub-Anfragen sind wieder frei; es wird wieder im gewohnten Takt abgefragt.',
-  m_whatQuota: 'Anfragelimit',
-  m_billingMonth: 'GitHub lieferte die Abrechnung für {0}/{1} statt für {2}/{3}.',
-  m_minutesUnreadable: 'Das Minuten-Kontingent von GitHub ließ sich nicht lesen',
+  // GitHub (see github.js, remote.js, minutes.js)
+  m_githubPause: 'GitHub asks for a pause; continuing at {0}.',
+  m_githubSilent: 'GitHub does not respond.',
+  m_githubUnreachable: 'GitHub cannot be reached ({0}).',
+  m_quotaSpent: 'The GitHub rate limit is used up; continuing at {0}.',
+  m_quotaPaused: 'GitHub asks for a pause (too many requests in a short time). No polling until {0}.',
+  m_quotaOut: 'GitHub requests are used up ({0} of {1} left). No polling until {2}; the rest is kept for registering new runners.',
+  m_quotaTight: 'GitHub requests are getting tight ({0} of {1} left). Polling less often until {2}.',
+  m_quotaFree: 'GitHub requests are available again; polling at the usual pace.',
+  m_whatQuota: 'Rate limit',
+  m_billingMonth: 'GitHub returned the billing for {0}/{1} instead of {2}/{3}.',
+  m_minutesUnreadable: 'Could not read the GitHub minutes quota',
 
-  // Docker (siehe dockerwatch.js, engine.js, caches.js, seed.js, usage.js)
-  m_dockerUnreachableDesktop: 'Docker ist nicht erreichbar – läuft Docker Desktop?',
-  m_dockerUnreachable: 'Docker ist nicht erreichbar – läuft der Daemon?',
-  m_dockerUnreachableHost: 'Docker ist nicht erreichbar – läuft der Daemon unter {0}?',
-  m_dockerUnreachableDistro: 'Docker ist nicht erreichbar – läuft der Daemon in der WSL-Distro {0}?',
-  m_dockerUnreachableBoth: 'Docker ist nicht erreichbar – läuft der Daemon unter {0} in der WSL-Distro {1}?',
-  m_exposedTcp: 'RUNCLUB_DOCKER_HOST zeigt auf {0} ohne TLS (RUNCLUB_DOCKER_CERTS fehlt). Jeder Job, der diesen Port erreicht, steuert damit ganz Docker.',
-  m_exposedDesktop: 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.',
-  m_dockerGone: 'Docker antwortet nicht mehr – die Linux-Runner warten.',
-  // Was dem Rechner fehlt (siehe setup.js)
-  m_desktopNotFound: 'Docker Desktop ist nicht installiert.',
-  m_desktopStarting: 'Starte Docker Desktop …',
-  m_desktopStartFailed: 'Docker Desktop ließ sich nicht starten: {0}',
-  m_imageRunner: 'Das Runner-Abbild',
-  m_imageDaemon: 'Das Abbild des Docker-Daemons',
-  m_buildFailed: '{0} ließ sich nicht bauen: {1}',
-  m_rebuildFailed: '{0} ließ sich nicht neu bauen ({1}); die Runner nutzen das vorhandene.',
-  m_imagesDaily: 'Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …',
-  m_imagesBuild: 'Baue die Abbilder von Runner (mit dem neuesten Runner von GitHub) und Docker-Daemon …',
-  m_whatImages: 'Abbilder von Runner und Docker-Daemon',
-  m_orphansRemoved: 'Reste nach der Unterbrechung entfernt: {0} Container, {1} Volumes',
-  m_staleRunners: '{0} verwaiste Runner bei GitHub abgemeldet',
-  m_whatOldRunners: 'Abmelden alter Runner',
-  m_serviceRetry: 'Versuche erneut, den Build-Dienst anzulegen',
-  m_serviceRenew: 'Lege den Build-Dienst mit den neuen Limits an',
-  m_serviceNetFailed: 'Netz für den Build-Dienst lässt sich nicht anlegen – {0}',
-  m_serviceFailed: 'Build-Dienst startet nicht – {0}',
-  m_serviceUnreadable: 'Build-Dienst: Zustand nach dem Start nicht lesbar – {0}',
-  m_serviceEnded: 'Build-Dienst endet gleich nach dem Start{0}',
-  m_cachesNotRemoved: 'Caches ließen sich nicht löschen – {0}',
-  m_seedRefresh: 'Frische die Vorlage auf ({0} Abbilder) …',
-  m_loaderNotReady: 'Der Lade-Daemon wurde nicht bereit{0}; die Vorlage bleibt unverändert.',
-  m_seedPullFailed: '{0} kommt nicht in die Vorlage – {1}',
-  m_seedNotRemoved: 'Die Vorlage ließ sich nicht löschen – {0}',
-  m_vmTight: 'Die Docker-VM hat nur noch {0} GB von {1} GB Arbeitsspeicher frei.',
-  m_vmFree: 'Die Docker-VM hat wieder {0} GB Arbeitsspeicher frei.',
-  m_vmUnmeasured: 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.',
+  // Docker (see dockerwatch.js, engine.js, caches.js, seed.js, usage.js)
+  m_dockerUnreachableDesktop: 'Docker is not reachable – is Docker Desktop running?',
+  m_dockerUnreachable: 'Docker is not reachable – is the daemon running?',
+  m_dockerUnreachableHost: 'Docker is not reachable – is the daemon running at {0}?',
+  m_dockerUnreachableDistro: 'Docker is not reachable – is the daemon running in the WSL distro {0}?',
+  m_dockerUnreachableBoth: 'Docker is not reachable – is the daemon running at {0} in the WSL distro {1}?',
+  m_exposedTcp: 'RUNCLUB_DOCKER_HOST points to {0} without TLS (RUNCLUB_DOCKER_CERTS is missing). Any job that reaches this port controls all of Docker.',
+  m_exposedDesktop: 'Docker exposes its daemon unprotected on tcp://localhost:2375. Any job reaches it through host.docker.internal and controls all of Docker. Turn off “Expose daemon on tcp://localhost:2375 without TLS” in Docker Desktop under Settings → General.',
+  m_dockerGone: 'Docker no longer responds – the Linux runners are waiting.',
+  // What the machine lacks (see setup.js)
+  m_desktopNotFound: 'Docker Desktop is not installed.',
+  m_desktopStarting: 'Starting Docker Desktop …',
+  m_desktopStartFailed: 'Docker Desktop could not be started: {0}',
+  m_imageRunner: 'The runner image',
+  m_imageDaemon: 'The Docker daemon image',
+  m_buildFailed: '{0} could not be built: {1}',
+  m_rebuildFailed: '{0} could not be rebuilt ({1}); the runners use the existing one.',
+  m_imagesDaily: 'Rebuilding the runner and Docker daemon images (daily refresh) …',
+  m_imagesBuild: 'Building the runner image (with GitHub’s latest runner) and the Docker daemon image …',
+  m_whatImages: 'Runner and Docker daemon images',
+  m_whatTemplate: 'Template',
+  m_orphansRemoved: 'Removed leftovers after the interruption: {0} containers, {1} volumes',
+  m_staleRunners: 'Removed {0} orphaned runners from GitHub',
+  m_whatOldRunners: 'Removing old runners',
+  m_serviceRetry: 'Trying again to create the build service',
+  m_serviceRenew: 'Creating the build service with the new limits',
+  m_serviceNetFailed: 'Could not create the network for the build service – {0}',
+  m_serviceFailed: 'Build service does not start – {0}',
+  m_serviceUnreadable: 'Build service: state after start not readable – {0}',
+  m_serviceEnded: 'Build service stops right after starting{0}',
+  m_cachesNotRemoved: 'Could not delete the caches – {0}',
+  m_seedRefresh: 'Refreshing the template ({0} images) …',
+  m_loaderNotReady: 'The loader daemon did not become ready{0}; the template stays as it is.',
+  m_seedPullFailed: '{0} does not go into the template – {1}',
+  m_seedNotRemoved: 'Could not delete the template – {0}',
+  m_vmTight: 'The Docker VM has only {0} GB of {1} GB memory free.',
+  m_vmFree: 'The Docker VM has {0} GB memory free again.',
+  m_vmUnmeasured: 'The Docker VM’s memory can no longer be measured; the warning is dropped.',
 
-  // Anmeldung bei GitHub (siehe auth.js)
-  m_closing: 'RunClub wird gerade beendet.',
-  m_loginRunning: 'Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.',
-  m_alreadyIn: 'Du bist schon als {0} angemeldet.',
-  m_loginFirst: 'Erst bei GitHub anmelden.',
-  m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
-  m_notIn: 'Du bist nicht bei GitHub angemeldet.',
-  m_loggedIn: 'Bei GitHub angemeldet als {0}.',
-  m_loggedOut: 'Bei GitHub abgemeldet ({0}).',
-  m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.',
-  m_githubNoAccount: 'GitHub nennt kein Konto zur Anmeldung.',
-  m_tokenNotSaved: 'Die Anmeldung ließ sich nicht sichern ({0}); sie gilt bis zum Ende dieses Programms.',
-  m_tokenNotRemoved: '{0} ließ sich nicht löschen ({1}); nach einem Neustart gilt die Anmeldung wieder. Die Datei liegt verschlüsselt im Datenordner.',
-  m_loginFailed: 'Anmeldung bei GitHub gescheitert: {0}',
-  m_loginLate: 'der Code wurde nicht rechtzeitig bestätigt',
-  m_noReason: 'GitHub nannte keinen Grund',
+  // Signing in to GitHub (see auth.js)
+  m_closing: 'RunClub is shutting down.',
+  m_loginRunning: 'A sign-in is already running. Finish or cancel it first.',
+  m_alreadyIn: 'You are already signed in as {0}.',
+  m_loginFirst: 'Sign in to GitHub first.',
+  m_finishLogin: 'Finish or cancel the running sign-in first.',
+  m_notIn: 'You are not signed in to GitHub.',
+  m_loggedIn: 'Signed in to GitHub as {0}.',
+  m_loggedOut: 'Signed out of GitHub ({0}).',
+  m_signInLost: 'GitHub no longer accepts the sign-in of {0}; please sign in again.',
+  m_githubNoAccount: 'GitHub names no account for the sign-in.',
+  m_tokenNotSaved: 'The sign-in could not be saved ({0}); it lasts until this program ends.',
+  m_tokenNotRemoved: '{0} could not be deleted ({1}); after a restart the sign-in applies again. The file is stored encrypted in the data folder.',
+  m_loginFailed: 'Signing in to GitHub failed: {0}',
+  m_loginLate: 'the code was not confirmed in time',
+  m_noReason: 'GitHub gave no reason',
+  m_whatSignIn: 'Signing in to GitHub',
 
-  // Programm (siehe backend.js, lifecycle.js, settings.js, server.js, main.js)
-  m_listening: 'Runner-Anzeige: {0}',
-  m_stopping: 'Beende die Runner …',
-  m_stopped: 'Beendet.',
-  m_keyNotSaved: 'Der Schlüssel ließ sich nicht ablegen – {0}',
-  m_settingsBroken: '{0} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter {1}.',
-  m_bodyIncomplete: 'Der Aufruf kam nicht vollständig an.',
-  m_bodyTooLarge: 'Der Aufruf ist zu groß.',
-  m_bodyNotJson: 'Der Aufruf ist kein gültiges JSON-Objekt.',
-  m_noAccess: 'Kein Zugriff. RunClub über das Symbol im Infobereich öffnen.',
-  m_wrongHost: 'falscher Host',
-  m_unknownCall: 'unbekannt',
-  m_pageStale: 'Die Seite ist veraltet – bitte neu laden.',
-  m_noUpdate: 'Es ist kein Update geladen.',
-  m_updateBusy: 'Gerade arbeitet ein Runner ({0}). Das Update lässt sich einspielen, sobald keiner mehr arbeitet.',
-  m_updating: 'RunClub wird beendet und auf {0} aktualisiert.',
+  // Program (see backend.js, lifecycle.js, settings.js, server.js, main.js)
+  m_listening: 'Runner display: {0}',
+  m_stopping: 'Stopping the runners …',
+  m_stopped: 'Stopped.',
+  m_keyNotSaved: 'Could not save the key – {0}',
+  m_settingsBroken: 'Could not read {0}; it is created anew. The old file is at {1}.',
+  m_bodyIncomplete: 'The request did not arrive completely.',
+  m_bodyTooLarge: 'The request is too large.',
+  m_bodyNotJson: 'The request is not a valid JSON object.',
+  m_noAccess: 'No access. Open RunClub from its icon in the notification area.',
+  m_wrongHost: 'wrong host',
+  m_unknownCall: 'unknown',
+  m_pageStale: 'The page is out of date – please reload.',
+  m_noUpdate: 'No update has been downloaded.',
+  m_updateBusy: 'A runner is working ({0}). The update can be installed once none is.',
+  m_updating: 'RunClub is shutting down and updating to {0}.',
 
-  // Updates (siehe updater.js)
-  m_updateReady: 'RunClub {0} ist geladen und kann eingespielt werden.',
-  m_updateUnreachable: 'GitHub ist nicht erreichbar: {0}',
-  m_updatePrivate: 'GitHub gibt {0} nicht heraus ({1}).',
-  m_updateHttp: 'GitHub antwortet mit {0} auf {1}.',
-  m_updateRedirects: 'Zu viele Weiterleitungen beim Laden des Updates.',
-  m_updateBroken: 'Der Installer für {0} ist beschädigt (Prüfsumme stimmt nicht).',
-  m_updateNoYml: 'Zu {0} fehlt die Angabe des Installers (latest.yml).',
-  m_updateYmlIncomplete: 'Die Angabe des Installers zu {0} ist unvollständig.',
-  m_updateNoInstaller: 'Zu {0} fehlt der Installer {1}.',
-  m_unknownChannel: 'Unbekannter Kanal: {0}',
+  // Updates (see updater.js)
+  m_updateReady: 'RunClub {0} is downloaded and ready to install.',
+  m_updateUnreachable: 'GitHub is not reachable: {0}',
+  m_updatePrivate: 'GitHub does not hand out {0} ({1}).',
+  m_updateHttp: 'GitHub answers {0} for {1}.',
+  m_updateRedirects: 'Too many redirects while downloading the update.',
+  m_updateBroken: 'The installer for {0} is damaged (checksum does not match).',
+  m_updateNoYml: 'The installer details (latest.yml) are missing for {0}.',
+  m_updateYmlIncomplete: 'The installer details for {0} are incomplete.',
+  m_updateNoInstaller: 'The installer {1} is missing for {0}.',
+  m_unknownChannel: 'Unknown channel: {0}',
 };
 
 const KEY = /^m_\w{1,40}$/;
@@ -200,22 +202,22 @@ const KEY = /^m_\w{1,40}$/;
 const msg = (key, ...args) => ({ key, args });
 const isMsg = (value) => Boolean(value) && typeof value === 'object' && typeof value.key === 'string' && Array.isArray(value.args);
 
-// Ein Wert als deutscher Text.
+// A value as English text.
 function value(item) {
   if (isMsg(item)) return render(item);
   if (Array.isArray(item)) return item.map(value).join(', ');
-  if (typeof item === 'number') return item.toLocaleString('de-DE', { maximumFractionDigits: 1 });
-  if (item && typeof item === 'object' && 'time' in item) return new Date(item.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (typeof item === 'number') return item.toLocaleString('en-GB', { maximumFractionDigits: 1 });
+  if (item && typeof item === 'object' && 'time' in item) return new Date(item.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return String(item ?? '');
 }
 
-// Die Meldung als deutscher Satz; ein Text bleibt, wie er ist. Ein unbekannter Schlüssel steht selbst da.
+// The message as an English sentence; a text stays as it is. An unknown key stands for itself.
 function render(message) {
   if (!isMsg(message)) return value(message);
-  return (DE[message.key] ?? message.key).replace(/\{(\d)\}/g, (_, at) => value(message.args[at]));
+  return (EN[message.key] ?? message.key).replace(/\{(\d)\}/g, (_, at) => value(message.args[at]));
 }
 
-// Ein Fehler, der seine Meldung als Schlüssel trägt (`error.msg`); `message` ist der deutsche Satz.
+// An error that carries its message as a key (`error.msg`); `message` is the English sentence.
 class Fault extends Error {
   constructor(key, ...args) {
     const message = msg(key, ...args);
@@ -223,17 +225,17 @@ class Fault extends Error {
     this.msg = message;
   }
 
-  // Ein Fehler aus einer fertigen Meldung; aus einem Text ein gewöhnlicher.
+  // An error from a finished message; from a text, an ordinary one.
   static of(message) {
     return isMsg(message) ? new Fault(message.key, ...message.args) : new Error(String(message));
   }
 }
 
-// Was ein Fehler meldet: seine Meldung, sonst sein Text (etwa von Node oder einem Programm).
+// What an error reports: its message, otherwise its text (from Node or a program, say).
 const reason = (error) => error?.msg ?? String(error?.message ?? error);
 
-// Eine Meldung, die von außen kam (aus der Datei des Protokolls), in sichere Form: nur bekannte Formen, Texte durch
-// `clean`, nicht beliebig tief. null, wenn sie keine ist.
+// A message that came from outside (from the log file), made safe: only known shapes, texts through `clean`, not
+// arbitrarily deep. null if it is none.
 function sanitize(message, clean, depth = 0) {
   if (!isMsg(message) || !KEY.test(message.key) || depth > 3) return null;
   const item = (entry) => {
@@ -246,4 +248,4 @@ function sanitize(message, clean, depth = 0) {
   return { key: message.key, args: message.args.slice(0, 10).map(item) };
 }
 
-module.exports = { DE, msg, isMsg, render, Fault, reason, sanitize };
+module.exports = { EN, msg, isMsg, render, Fault, reason, sanitize };

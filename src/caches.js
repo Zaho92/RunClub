@@ -1,18 +1,18 @@
-// Was zwischen den Jobs eines Repos bleibt und nicht Vorlage ist (siehe Kopf von backend.js): der Paket-Cache als
-// Volume und der Build-Dienst mit seinem Volume, seinem Socket und seinem Netz. `prepareCaches` stellt beides bereit
-// oder baut es ab, wenn das Repo keinen Cache will; `renewService` legt den Build-Dienst neu an, wenn er alte Limits
-// trägt oder nicht zustande kam. `removeCaches` leert, `removeService` beendet den Build-Dienst. `measureSizes` misst,
-// wie groß Paket-Cache, Vorlage und Build-Layer sind.
+// What stays between the jobs of a repo and is not the template (see the head of backend.js): the package cache as a
+// volume and the build service with its volume, its socket and its network. `prepareCaches` sets both up or removes
+// them if the repo wants no cache; `renewService` creates the build service anew if it carries old limits or did not
+// come about. `removeCaches` clears, `removeService` stops the build service. `measureSizes` measures how large the
+// package cache, template and build layers are.
 //
-// Der Build-Dienst läuft ohne Rechte (`moby/buildkit:…-rootless`) und ist nur über einen Unix-Socket in einem
-// eigenen Volume zu erreichen, das die Paare nur lesend einhängen (siehe `provision` in slots.js). Er hängt in keinem
-// Netz der Paare: Über ihn erreicht kein Paar ein anderes. Sein eigenes Netz braucht er nur für den Weg ins Internet.
+// The build service runs without privileges (`moby/buildkit:…-rootless`) and can only be reached through a Unix socket
+// in its own volume, which the pairs mount read-only (see `provision` in slots.js). It is in no network of the pairs:
+// no pair reaches another through it. It needs its own network only for the way to the internet.
 //
-// Der Build-Dienst trägt die Limits des Docker-Daemons, als Etikett am Container und am Pool:
-//   pool.serviceBuilt     Kennung der Limits (`limits.dockerKey`), mit denen er läuft
-//   pool.serviceFailed    er kam zuletzt nicht zustande
-//   pool.serviceFailures  Fehlschläge in Folge; pool.serviceRetryAt  frühester Zeitpunkt des nächsten Versuchs
-//   pool.renewingService  er wird gerade erneuert;  pool.measuring  die Volumes werden gerade gemessen
+// The build service carries the limits of the Docker daemon, as a label on the container and on the pool:
+//   pool.serviceBuilt     key of the limits (`limits.dockerKey`) it runs with
+//   pool.serviceFailed    it did not come about last time
+//   pool.serviceFailures  failures in a row; pool.serviceRetryAt  earliest time of the next attempt
+//   pool.renewingService  it is being renewed right now;  pool.measuring  the volumes are being measured right now
 
 const { lastLine } = require('./run');
 const { msg, Fault } = require('./messages');
@@ -23,23 +23,23 @@ const { busy } = require('./states');
 const { RUNNER_USER, SECURITY_FLAGS, asRoot, whyNotReady } = require('./dind');
 
 const VOLUME_PREFIX = 'rc-';
-const SOCKET_DIR = '/run/rc-buildkit'; // Ordner des Sockets, im Build-Dienst wie in den Paaren
-const SOCKET = `${SOCKET_DIR}/buildkitd.sock`; // derselbe Pfad steht in linux/docker-shim.sh
-const SERVICE_USER = 1000; // unter diesem Benutzer läuft der Build-Dienst; die Paare kommen über seine Gruppe an den Socket
-const RETRY_MAX = 30 * MINUTE; // längster Abstand zwischen zwei Versuchen, den Build-Dienst anzulegen
+const SOCKET_DIR = '/run/rc-buildkit'; // folder of the socket, in the build service as in the pairs
+const SOCKET = `${SOCKET_DIR}/buildkitd.sock`; // the same path is in linux/docker-shim.sh
+const SERVICE_USER = 1000; // the build service runs as this user; the pairs reach the socket through its group
+const RETRY_MAX = 30 * MINUTE; // longest gap between two attempts to create the build service
 const LIMITS_LABEL = 'runclub.limits';
-const PIDS_MAX = 8192; // Grenze für Prozesse je Container: Eine Fork-Bomb legte sonst die ganze Docker-VM lahm
-const SERVICE_SETTLE = 3 * SECOND; // so lange nach dem Start wird gewartet, ob der Build-Dienst gleich wieder endet
+const PIDS_MAX = 8192; // limit on processes per container: otherwise a fork bomb would cripple the whole Docker VM
+const SERVICE_SETTLE = 3 * SECOND; // how long after the start to wait whether the build service ends right away
 
-//   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
-//   dockerList(args)        dasselbe, liefert die Zeilen der Ausgabe
+//   docker(args, options)   like `run('docker', …)`: returns `{ code, stdout, stderr }` and never throws
+//   dockerList(args)        the same, returns the lines of the output
 //   log(text, repo, kind), sleep(ms)
-//   dind, buildkit          Abbild des Docker-Daemons (hier nur als Werkzeug für die Volumes, siehe dind.js) und des
-//                           Build-Diensts
-//   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze; was es trägt, räumt der nächste Start ab
-//   settingsOf(repo), limitsOf(repo), poolOf(repo) (der Pool oder undefined)
+//   dind, buildkit          image of the Docker daemon (here only as a tool for the volumes, see dind.js) and of the
+//                           build service
+//   serviceMark             mark of the build services and their networks; whatever carries it, the next start removes
+//   settingsOf(repo), limitsOf(repo), poolOf(repo) (the pool or undefined)
 //   cacheVolume(repo), seedVolume(repo), buildVolume(repo), buildSocket(repo), buildService(repo), buildNetwork(repo)
-//                           die Namen je Repo
+//                           the names per repo
 //   stopping(), dockerReady()
 function createCaches({
   docker, dockerList, log, sleep,
@@ -50,8 +50,8 @@ function createCaches({
 }) {
   const serviceKey = (repo) => limitRules.dockerKey(limitsOf(repo));
 
-  // Legt den Build-Dienst mit den geltenden Limits neu an, sobald im Pool nichts gebaut wird. Die Paare erreichen den
-  // neuen Dienst über denselben Socket und bleiben, wie sie sind.
+  // Creates the build service anew with the current limits as soon as nothing is being built in the pool. The pairs
+  // reach the new service through the same socket and stay as they are.
   async function renewService(pool) {
     const retry = Boolean(pool.serviceFailed);
     if (!settingsOf(pool.repo)?.cache || (!retry && (!pool.serviceBuilt || pool.serviceBuilt === serviceKey(pool.repo)))) return;
@@ -65,38 +65,38 @@ function createCaches({
     } finally { pool.renewingService = false; }
   }
 
-  // Läuft der Build-Dienst schon, mit den geltenden Limits? Dann bleibt er: Ein laufender Build bräche sonst ab.
+  // Is the build service already running, with the current limits? Then it stays: a running build would break off.
   async function serviceCurrent(repo) {
     const found = await docker(['inspect', '--format', `{{.State.Running}} {{index .Config.Labels "${LIMITS_LABEL}"}}`, buildService(repo)]);
     return found.code === 0 && found.stdout.trim() === `true ${serviceKey(repo)}`;
   }
 
-  // Den Build-Dienst neu anlegen. Liefert, woran es scheiterte (eine Meldung), sonst null.
+  // Create the build service anew. Returns what it failed on (a message), otherwise null.
   async function startService(repo) {
     await docker(['rm', '-f', buildService(repo)]);
-    // Seine Volumes müssen dem Benutzer des Dienstes gehören. Build-Layer eines früheren Dienstes mit Rechten gehören
-    // root und taugen ihm nicht: Sie werden einmal geleert.
+    // Its volumes must belong to the user of the service. Build layers of an earlier privileged service belong to
+    // root and are no use to it: they are cleared once.
     await docker(['run', '--rm', '-v', `${buildVolume(repo)}:/b`, '-v', `${buildSocket(repo)}:/s`, ...asRoot(dind),
       `[ "$(stat -c %u /b)" = ${SERVICE_USER} ] || find /b -mindepth 1 -delete; chown ${SERVICE_USER}:${SERVICE_USER} /b /s`]);
     const service = await docker(['run', '-d', '--name', buildService(repo), '--label', serviceMark, '--label', `${LIMITS_LABEL}=${serviceKey(repo)}`,
       '--restart', 'no', '--network', buildNetwork(repo),
       '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory, '--pids-limit', String(PIDS_MAX),
-      // Ohne Rechte braucht buildkit eigene Namensräume, die Dockers Vorgaben verbieten, und ein eigenes /proc für die
-      // Sandbox seiner Build-Schritte (siehe docs/rootless.md von buildkit, und dind.js zum Seccomp-Profil). Mit der
-      // Sandbox sieht ein Schritt weder buildkitd noch die Schritte anderer Builds desselben Repos.
+      // Without privileges buildkit needs its own namespaces, which Docker's defaults forbid, and its own /proc for the
+      // sandbox of its build steps (see docs/rootless.md of buildkit, and dind.js on the seccomp profile). With the
+      // sandbox a step sees neither buildkitd nor the steps of other builds of the same repo.
       ...SECURITY_FLAGS,
       '-v', `${buildVolume(repo)}:/home/user/.local/share/buildkit`, '-v', `${buildSocket(repo)}:${SOCKET_DIR}`,
       buildkit, '--addr', `unix://${SOCKET}`]);
     if (service.code !== 0) return msg('m_serviceFailed', lastLine(service.stderr));
-    // Verbietet etwa das Seccomp-Profil buildkit einen Aufruf, endet er gleich nach dem Start. Das soll hier mit dem Grund
-    // ins Protokoll, nicht erst beim nächsten Build als fehlender Socket auffallen.
+    // If, say, the seccomp profile forbids buildkit a call, it ends right after the start. That should go into the log
+    // here with the reason, not only show up at the next build as a missing socket.
     await sleep(SERVICE_SETTLE);
     const state = await docker(['inspect', '--format', '{{.State.Running}}', buildService(repo)]);
     if (state.code !== 0) return msg('m_serviceUnreadable', lastLine(state.stderr));
     return state.stdout?.trim() === 'true' ? null : msg('m_serviceEnded', await whyNotReady(docker, buildService(repo)));
   }
 
-  // Paket-Cache und Build-Dienst eines Repos bereitstellen.
+  // Set up the package cache and build service of a repo.
   async function prepareCaches(repo) {
     if (!settingsOf(repo)?.cache) { await removeService(repo); return; }
     await docker(['volume', 'create', cacheVolume(repo)]);
@@ -104,29 +104,29 @@ function createCaches({
       `mkdir -p /c/nuget /c/npm && chown ${RUNNER_USER}:${RUNNER_USER} /c /c/nuget /c/npm`]);
     await docker(['volume', 'create', buildVolume(repo)]);
     await docker(['volume', 'create', buildSocket(repo)]);
-    // Eigenes Netz je Repo: Im gemeinsamen Standard-Netz könnte ein Build den Dienst eines anderen Repos ansprechen.
-    // Es bleibt stehen, solange das Repo einen Cache hat; dass es schon da ist, ist deshalb kein Fehler.
+    // Own network per repo: in the shared default network a build could address the service of another repo.
+    // It stays as long as the repo has a cache; that it already exists is therefore no error.
     const network = await createNetwork(docker, ['--label', serviceMark, buildNetwork(repo)]);
     let failure = network.code !== 0 && !alreadyExists(network.stderr) ? msg('m_serviceNetFailed', lastLine(network.stderr)) : null;
     if (!failure && !(await serviceCurrent(repo))) failure = await startService(repo);
     const pool = poolOf(repo);
     if (failure) log(failure, repo, 'error');
     if (!pool) return;
-    // Nach einem Fehlschlag versucht `renewService` es wieder, in wachsendem Abstand (höchstens eine halbe Stunde).
+    // After a failure `renewService` tries again, at growing intervals (at most half an hour).
     pool.serviceFailures = failure ? (pool.serviceFailures ?? 0) + 1 : 0;
     pool.serviceRetryAt = Date.now() + Math.min(2 ** pool.serviceFailures * MINUTE, RETRY_MAX);
     pool.serviceFailed = Boolean(failure);
     pool.serviceBuilt = failure ? null : serviceKey(repo);
   }
 
-  // Den Build-Dienst samt Netz beenden; seine Build-Layer bleiben.
+  // Stop the build service along with its network; its build layers stay.
   async function removeService(repo) {
     await docker(['rm', '-f', buildService(repo)]);
     await docker(['network', 'rm', buildNetwork(repo)]);
   }
 
-  // Paket-Cache und Build-Layer löschen, soweit verlangt. Der Pool muss dafür ruhen (`withPoolAtRest` in pools.js):
-  // Ein Volume, das noch eingehängt ist, lässt sich nicht löschen, und das ist dann ein Fehler.
+  // Delete the package cache and build layers, as far as asked. The pool must be at rest for that (`withPoolAtRest` in
+  // pools.js): a volume that is still mounted cannot be deleted, and that is then an error.
   async function removeCaches(repo, { packages = false, build = false }) {
     const volumes = [...(packages ? [cacheVolume(repo)] : []), ...(build ? [buildVolume(repo), buildSocket(repo)] : [])];
     if (build) await removeService(repo);
@@ -135,15 +135,15 @@ function createCaches({
     if (removed.code !== 0) throw new Fault('m_cachesNotRemoved', lastLine(removed.stderr));
   }
 
-  // Die Größe der Volumes eines Pools in Bytes (`pool.sizes`: { packages, images, build }); was fehlt, zählt 0.
-  // Ein Pool, der entfernt wird, wird nicht mehr gemessen: Der Messcontainer hielte seine Volumes fest.
+  // The size of a pool's volumes in bytes (`pool.sizes`: { packages, images, build }); what is missing counts 0.
+  // A pool that is being removed is no longer measured: the measuring container would hold on to its volumes.
   async function measureSizes(pool) {
     if (pool.removed || pool.measuring) return;
     pool.measuring = true;
     try { pool.sizes = await sizesOf(pool.repo); } finally { pool.measuring = false; }
   }
 
-  // Alle Volumes von Caches und Vorlage beginnen mit `rc-` (siehe names.js).
+  // All volumes of caches and template begin with `rc-` (see names.js).
   async function sizesOf(repo) {
     const existing = new Set(await dockerList(['volume', 'ls', '-q', '--filter', `name=${VOLUME_PREFIX}`]));
     const parts = [['packages', cacheVolume(repo)], ['images', seedVolume(repo)], ['build', buildVolume(repo)]].filter(([, volume]) => existing.has(volume));

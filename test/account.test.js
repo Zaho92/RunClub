@@ -4,7 +4,7 @@ const { createAccount } = require('../src/account');
 const { rendered } = require('./support');
 const { render, reason } = require('../src/messages');
 
-// Anmeldung und Kontingent nachgestellt: `login` ist das angemeldete Konto (oder null).
+// Sign-in and quota simulated: `login` is the signed-in account (or null).
 function world() {
   const w = { calls: [], logs: [], login: 'zaho', may: true, stopping: false, pollFails: null };
   w.github = { mayPoll: (key) => { w.calls.push(`mayPoll ${key}`); return w.may; } };
@@ -12,7 +12,7 @@ function world() {
     auth: {
       signedIn: () => w.login,
       poll: async () => { w.calls.push('poll'); if (w.pollFails) throw new Error(w.pollFails); },
-      view: () => ({ state: 'in' }), close: async () => { throw new Error('schon zu'); },
+      view: () => ({ state: 'in' }), close: async () => { throw new Error('already closed'); },
       login: async () => w.calls.push('login'), cancel: async () => w.calls.push('cancel'), logout: async () => w.calls.push('logout'),
     },
     github: w.github,
@@ -27,13 +27,13 @@ function world() {
   return w;
 }
 
-test('im Takt: erst die Anmeldung, dann das Kontingent', async () => {
+test('on the beat: first the sign-in, then the quota', async () => {
   const w = world();
   await w.account.watch();
-  assert.deepEqual(w.calls, ['poll', 'mayPoll GitHub-Minuten', 'minutes poll zaho']);
+  assert.deepEqual(w.calls, ['poll', 'mayPoll GitHub minutes', 'minutes poll zaho']);
 });
 
-test('ohne Anmeldung, bei aufgebrauchtem Limit und beim Beenden wird das Kontingent nicht gelesen', async () => {
+test('without a sign-in, with a used-up limit and on shutdown the quota is not read', async () => {
   for (const block of [(w) => { w.login = null; }, (w) => { w.may = false; }, (w) => { w.stopping = true; }]) {
     const w = world();
     block(w);
@@ -42,34 +42,34 @@ test('ohne Anmeldung, bei aufgebrauchtem Limit und beim Beenden wird das Konting
   }
 });
 
-test('scheitert die Anmeldung, steht das im Protokoll, und das Kontingent kommt trotzdem dran', async () => {
+test('if the sign-in fails, that is logged, and the quota still gets its turn', async () => {
   const w = world();
-  w.pollFails = 'GitHub nicht erreichbar';
+  w.pollFails = 'GitHub not reachable';
   await w.account.watch();
-  assert.deepEqual(w.logs, [['Anmeldung bei GitHub – GitHub nicht erreichbar', null, 'error']]);
+  assert.deepEqual(w.logs, [['Signing in to GitHub – GitHub not reachable', null, 'error']]);
   assert.equal(w.calls.at(-1), 'minutes poll zaho');
 });
 
-test('ein anderes Konto: das Kontingent sofort neu, nicht erst im Takt', async () => {
+test('another account: the quota anew right away, not only on the beat', async () => {
   const w = world();
   await w.account.changed();
-  assert.deepEqual(w.calls, ['mayPoll GitHub-Minuten', 'minutes refresh zaho']);
+  assert.deepEqual(w.calls, ['mayPoll GitHub minutes', 'minutes refresh zaho']);
   w.login = null;
   await w.account.changed();
-  assert.equal(w.calls.length, 2); // ohne Anmeldung wird nicht gefragt
+  assert.equal(w.calls.length, 2); // without a sign-in nothing is asked
 });
 
-test('Meldungen: das Kontingent als Fehler, über denselben Zugang zu GitHub; Schließen wirft nie', async () => {
+test('messages: the quota as an error, through the same access to GitHub; closing never throws', async () => {
   const w = world();
   assert.equal(w.minutesOptions.github, w.github);
-  w.minutesOptions.log('Kontingent unlesbar');
-  assert.deepEqual(w.logs, [['Kontingent unlesbar', null, 'error']]);
+  w.minutesOptions.log('quota unreadable');
+  assert.deepEqual(w.logs, [['quota unreadable', null, 'error']]);
   await w.account.close();
   assert.deepEqual(w.account.minutesView(), { login: 'zaho' });
   assert.deepEqual(w.account.authView(), { state: 'in' });
 });
 
-test('Anmelden, Abbrechen und Abmelden gehen an die Anmeldung', async () => {
+test('signing in, cancelling and signing out go to the sign-in', async () => {
   const w = world();
   await w.account.login();
   await w.account.cancel();

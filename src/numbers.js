@@ -1,6 +1,6 @@
-// Kleine Rechenhilfen, die mehrere Module brauchen.
+// Small arithmetic helpers several modules need.
 
-// Der Median, `null` ohne Werte. Bei gerader Anzahl die Mitte der beiden mittleren Werte, ungerundet.
+// The median, `null` without values. With an even count, the middle of the two middle values, unrounded.
 function median(values) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);

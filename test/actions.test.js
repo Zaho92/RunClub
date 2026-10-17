@@ -11,17 +11,17 @@ const { errorLog } = require('../src/journal');
 const { GitHubError } = require('../src/github');
 const { turn, until, rendered } = require('./support');
 
-const REPO = 'wer/App';
+const REPO = 'owner/App';
 
-// Alles um die Aufrufe herum nachgestellt; die Einstellungen sind echt (in einem leeren Ordner). `calls` hält in
-// Kurzform, was die Aufrufe auslösen.
+// Everything around the calls faked; the settings are real (in an empty folder). `calls` holds in
+// short form what the calls trigger.
 function world({ pools: repos = [REPO] } = {}) {
   const w = { calls: [], logs: [], timers: [], ready: true, info: {}, answers: {}, routingState: { uses: 'variable', here: false, error: null }, plan: null, stale: 1 };
   w.settings = createSettings({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-actions-')), log: () => {} });
   w.pools = new Map();
   for (const repo of repos) {
     w.settings.addPool(repo, 2);
-    w.pools.set(repo, { repo, slots: [{ name: 'frei' }], reserve: [], removed: false });
+    w.pools.set(repo, { repo, slots: [{ name: 'idle' }], reserve: [], removed: false });
   }
   const call = (name) => async (...args) => { w.calls.push([name, ...args.filter((arg) => typeof arg !== 'object' && typeof arg !== 'function')].join(' ')); };
   const runners = {
@@ -57,66 +57,66 @@ function world({ pools: repos = [REPO] } = {}) {
   return w;
 }
 
-test('pool/add prüft Namen, Verwaltungsrecht, Doppel, Namenskonflikt und Sichtbarkeit, bevor etwas angelegt wird', async () => {
-  const w = world({ pools: ['wer/Tool'] });
+test('pool/add checks name, admin right, duplicate, name clash and visibility before anything is created', async () => {
+  const w = world({ pools: ['owner/Tool'] });
   const add = (repo, info) => { w.info = info; return w.actions['pool/add']({ repo, parallel: 1 }); };
-  const own = { full_name: 'wer/Neu', permissions: { admin: true }, private: true };
-  await assert.rejects(add('--help', own), { message: 'Das Repo wird als besitzer/name angegeben.' });
-  await assert.rejects(add('wer/Neu', { ...own, permissions: { admin: false } }), /Verwaltungsrechte/);
-  await assert.rejects(add('WER/tool', { ...own, full_name: 'wer/Tool' }), { message: 'Für dieses Repo gibt es schon einen Pool.' });
-  await assert.rejects(add('andere/tool', { ...own, full_name: 'andere/tool' }), { message: 'Ein Pool für wer/Tool belegt denselben Namen für Caches und Build-Dienst. Zwei Repos mit gleichem Namen lassen sich nicht zugleich bedienen.' });
-  await assert.rejects(add('wer/Neu', { ...own, private: false }), /öffentlich/);
-  w.pools.get('wer/Tool').removed = true;
-  w.settings.removePool('wer/Tool');
-  await assert.rejects(add('wer/tool', { ...own, full_name: 'wer/Tool' }), { message: 'Dieser Pool wird gerade entfernt. Bitte warten, bis das abgeschlossen ist.' });
+  const own = { full_name: 'owner/New', permissions: { admin: true }, private: true };
+  await assert.rejects(add('--help', own), { message: 'Give the repo as owner/name.' });
+  await assert.rejects(add('owner/New', { ...own, permissions: { admin: false } }), /admin rights/);
+  await assert.rejects(add('OWNER/tool', { ...own, full_name: 'owner/Tool' }), { message: 'This repo already has a pool.' });
+  await assert.rejects(add('other/tool', { ...own, full_name: 'other/tool' }), { message: 'A pool for owner/Tool uses the same name for caches and build service. Two repos with the same name cannot be served at once.' });
+  await assert.rejects(add('owner/New', { ...own, private: false }), /public/);
+  w.pools.get('owner/Tool').removed = true;
+  w.settings.removePool('owner/Tool');
+  await assert.rejects(add('owner/tool', { ...own, full_name: 'owner/Tool' }), { message: 'This pool is being removed. Please wait until that is done.' });
   assert.deepEqual(w.settings.repos(), []);
   assert.equal(w.calls.some((name) => name.startsWith('startPool')), false);
 });
 
-test('pool/add legt an, wie GitHub das Repo schreibt, startet den Pool und leitet die Jobs um, wenn die Workflows die Variable lesen', async () => {
+test('pool/add creates the repo as GitHub writes it, starts the pool and routes the jobs if the workflows read the variable', async () => {
   const w = world({ pools: [] });
-  w.info = { full_name: 'Wer/Neu', permissions: { admin: true }, private: true };
-  await w.actions['pool/add']({ repo: 'wer/neu', parallel: 99 });
-  await until(() => w.calls.includes('routing.set Wer/Neu true'));
-  assert.deepEqual(w.settings.config.pools, [{ repo: 'Wer/Neu', parallel: PARALLEL_MAX, cache: true, paused: false, preload: [] }]);
-  assert.deepEqual(w.calls.slice(0, 6), ['get repos/wer/neu', 'waiting.forget Wer/Neu', 'markChecked Wer/Neu', 'startPool Wer/Neu', 'refreshAll', 'routing.check Wer/Neu']);
-  assert.deepEqual(w.logs.map(([text]) => text), ['Pool angelegt', 'CI_RUNNER gesetzt – die Jobs laufen auf den eigenen Runnern']);
+  w.info = { full_name: 'Owner/New', permissions: { admin: true }, private: true };
+  await w.actions['pool/add']({ repo: 'owner/new', parallel: 99 });
+  await until(() => w.calls.includes('routing.set Owner/New true'));
+  assert.deepEqual(w.settings.config.pools, [{ repo: 'Owner/New', parallel: PARALLEL_MAX, cache: true, paused: false, preload: [] }]);
+  assert.deepEqual(w.calls.slice(0, 6), ['get repos/owner/new', 'waiting.forget Owner/New', 'markChecked Owner/New', 'startPool Owner/New', 'refreshAll', 'routing.check Owner/New']);
+  assert.deepEqual(w.logs.map(([text]) => text), ['Pool created', 'CI_RUNNER set – jobs run on your own runners']);
 });
 
-test('pool/set: Plätze begrenzt, Pausieren beendet freie Paare und die Reserve, ein anderer Cache wird bei Ruhe bereitgestellt', async () => {
+test('pool/set: slots capped, pausing ends idle pairs and the reserve, a changed cache is provided at rest', async () => {
   const w = world();
   await w.actions['pool/set']({ repo: REPO, parallel: '3', paused: true, cache: false });
   await turn();
   assert.deepEqual(w.settings.settingsOf(REPO), { repo: REPO, parallel: 3, cache: false, paused: true, preload: [] });
-  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`, `reconcile ${REPO}`, `atRest ${REPO}`, `prepareCaches ${REPO}`]);
-  assert.deepEqual(w.logs, [['3 Plätze, pausiert, Cache aus', REPO]]);
-  await assert.rejects(w.actions['pool/set']({ repo: 'wer/Fremd', parallel: 1 }), { message: 'Diesen Pool gibt es nicht.' });
+  assert.deepEqual(w.calls, ['abortIdle idle', `discardReserve ${REPO}`, `reconcile ${REPO}`, `atRest ${REPO}`, `prepareCaches ${REPO}`]);
+  assert.deepEqual(w.logs, [['3 slots, paused, cache off', REPO]]);
+  await assert.rejects(w.actions['pool/set']({ repo: 'owner/Unknown', parallel: 1 }), { message: 'There is no such pool.' });
 });
 
-test('ein öffentlich gewordenes Repo: weder fortsetzen noch Jobs umleiten, bis es wieder privat ist', async () => {
+test('a repo that became public: neither resume nor route jobs until it is private again', async () => {
   const w = world();
   Object.assign(w.settings.settingsOf(REPO), { paused: true, pausedPublic: true });
-  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false, parallel: 4 }), /öffentlich/);
+  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false, parallel: 4 }), /public/);
   assert.deepEqual([w.settings.settingsOf(REPO).paused, w.settings.settingsOf(REPO).parallel], [true, 2]);
-  await assert.rejects(w.actions['pool/routing']({ repo: REPO, on: true }), /öffentlich/);
-  await w.actions['pool/routing']({ repo: REPO, on: false }); // zurück an GitHub geht immer
-  for (const paused of [0, '', null]) await assert.rejects(w.actions['pool/set']({ repo: REPO, paused }), /öffentlich/); // jeder falsche Wert setzte fort
+  await assert.rejects(w.actions['pool/routing']({ repo: REPO, on: true }), /public/);
+  await w.actions['pool/routing']({ repo: REPO, on: false }); // back to GitHub always works
+  for (const paused of [0, '', null]) await assert.rejects(w.actions['pool/set']({ repo: REPO, paused }), /public/); // any falsy value would resume
   w.guard.unblock(REPO, 'public');
   assert.equal(w.settings.settingsOf(REPO).pausedPublic, undefined);
-  assert.equal(w.logs.at(-1)[0], 'Das Repo ist wieder privat; der Pool lässt sich fortsetzen.');
+  assert.equal(w.logs.at(-1)[0], 'The repo is private again; the pool can be resumed.');
   await w.actions['pool/set']({ repo: REPO, paused: false });
   assert.equal(w.settings.settingsOf(REPO).paused, false);
 });
 
-test('Fork-PRs in einem Org-Repo: Pool pausiert, laut im Protokoll; weder fortsetzen noch umleiten, bis sie abgeschaltet sind', async () => {
+test('fork PRs in an org repo: pool paused, loud in the log; neither resume nor route until they are switched off', async () => {
   const w = world();
-  await w.guard.block(REPO, 'forks', 'Workflows aus Forks dürfen laufen');
+  await w.guard.block(REPO, 'forks', 'Workflows from forks may run');
   assert.deepEqual([w.settings.settingsOf(REPO).paused, w.settings.settingsOf(REPO).pausedForks], [true, true]);
-  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`, `routing.set ${REPO} false`]);
-  assert.match(w.logs[0][0], /^Workflows aus Forks dürfen laufen. /);
+  assert.deepEqual(w.calls, ['abortIdle idle', `discardReserve ${REPO}`, `routing.set ${REPO} false`]);
+  assert.match(w.logs[0][0], /^Workflows from forks may run. /);
   assert.equal(w.logs[0][2], 'error');
-  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false }), /Forks/);
-  await assert.rejects(w.actions['pool/routing']({ repo: REPO, on: true }), /Forks/);
+  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false }), /forks/);
+  await assert.rejects(w.actions['pool/routing']({ repo: REPO, on: true }), /forks/);
   w.guard.unblock(REPO, 'forks');
   assert.equal(w.settings.settingsOf(REPO).pausedForks, undefined);
   await w.actions['pool/set']({ repo: REPO, paused: false });
@@ -127,43 +127,43 @@ test('Fork-PRs in einem Org-Repo: Pool pausiert, laut im Protokoll; weder fortse
   assert.deepEqual(w.calls, []);
 });
 
-test('fällt ein Grund weg, während der andere gilt, bleibt der Pool gesperrt, und das Protokoll sagt warum', async () => {
+test('if one reason goes away while the other applies, the pool stays blocked, and the log says why', async () => {
   const w = world();
   await w.guard.block(REPO, 'public');
-  await w.guard.block(REPO, 'forks', 'Workflows aus Forks dürfen laufen');
+  await w.guard.block(REPO, 'forks', 'Workflows from forks may run');
   w.guard.unblock(REPO, 'public');
-  assert.match(w.logs.at(-1)[0], /^Das Repo ist wieder privat; der Pool bleibt gesperrt: Pull Requests aus Forks/);
-  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false }), /Forks/);
+  assert.match(w.logs.at(-1)[0], /^The repo is private again; the pool stays blocked: Pull requests from forks/);
+  await assert.rejects(w.actions['pool/set']({ repo: REPO, paused: false }), /forks/);
   w.guard.unblock(REPO, 'forks');
-  assert.equal(w.logs.at(-1)[0], 'Workflows aus Forks laufen in diesem Repo nicht mehr; der Pool lässt sich fortsetzen.');
+  assert.equal(w.logs.at(-1)[0], 'Workflows from forks no longer run in this repo; the pool can be resumed.');
 });
 
-test('ein Pool, dessen Repo sich nicht prüfen lässt, ruht: freie Paare und Reserve gehen; entfernte bleiben unberührt', async () => {
+test('a pool whose repo cannot be checked rests: idle pairs and reserve go; removed ones stay untouched', async () => {
   const w = world();
   w.guard.restUnchecked(REPO);
-  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`]);
+  assert.deepEqual(w.calls, ['abortIdle idle', `discardReserve ${REPO}`]);
   w.calls.length = 0;
   w.pools.get(REPO).removed = true;
   w.guard.restUnchecked(REPO);
-  w.guard.restUnchecked('wer/Fremd');
+  w.guard.restUnchecked('owner/Unknown');
   assert.deepEqual(w.calls, []);
 });
 
-test('pool/add lehnt ein Org-Repo ab, in dem Fork-PRs laufen dürfen oder es sich nicht lesen lässt', async () => {
+test('pool/add refuses an org repo in which fork PRs may run or that cannot be read', async () => {
   const w = world({ pools: [] });
-  const forks = 'repos/firma/App/actions/permissions/fork-pr-workflows-private-repos';
-  w.info = { full_name: 'firma/App', private: true, permissions: { admin: true }, owner: { type: 'Organization' } };
+  const forks = 'repos/company/App/actions/permissions/fork-pr-workflows-private-repos';
+  w.info = { full_name: 'company/App', private: true, permissions: { admin: true }, owner: { type: 'Organization' } };
   w.answers[forks] = { run_workflows_from_fork_pull_requests: true, require_approval_for_fork_pr_workflows: true };
-  await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /Forks/);
+  await assert.rejects(w.actions['pool/add']({ repo: 'company/App', parallel: 1 }), /fork pull requests/);
   w.answers[forks] = () => { throw new GitHubError(403, 'Forbidden'); };
-  await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /Forbidden \(HTTP 403\)/);
+  await assert.rejects(w.actions['pool/add']({ repo: 'company/App', parallel: 1 }), /Forbidden \(HTTP 403\)/);
   assert.deepEqual(w.settings.repos(), []);
   w.answers[forks] = { run_workflows_from_fork_pull_requests: false };
-  await w.actions['pool/add']({ repo: 'firma/App', parallel: 1 });
-  assert.deepEqual(w.settings.repos(), ['firma/App']);
+  await w.actions['pool/add']({ repo: 'company/App', parallel: 1 });
+  assert.deepEqual(w.settings.repos(), ['company/App']);
 });
 
-test('pool/remove: sofort aus den Einstellungen; danach Caches, Vorlage, Variable, Anmeldungen, Gelerntes; dann ist der Name frei', async () => {
+test('pool/remove: out of the settings at once; then caches, template, variable, registrations, what was learned; then the name is free', async () => {
   const w = world();
   w.routingState = { here: true, error: null };
   const pool = w.pools.get(REPO);
@@ -172,33 +172,33 @@ test('pool/remove: sofort aus den Einstellungen; danach Caches, Vorlage, Variabl
   assert.deepEqual(w.settings.repos(), []);
   await until(() => !w.pools.has(REPO));
   assert.deepEqual(w.calls, [`atRest ${REPO}`, `removeCaches ${REPO} packages+build`, `forgetSeed ${REPO}`, `routing.check ${REPO}`, `routing.set ${REPO} false`, `routing.forget ${REPO}`, `removeRegistrations ${REPO}`, `metrics.forget ${REPO}`, `remote.forget ${REPO}`]);
-  assert.deepEqual(w.logs.map(([text]) => text), ['Pool wird entfernt', 'CI_RUNNER entfernt – die Jobs gehen wieder an GitHubs Runner', 'Pool und seine Caches sind entfernt']);
+  assert.deepEqual(w.logs.map(([text]) => text), ['Removing pool', 'CI_RUNNER removed – jobs go back to GitHub’s runners', 'Pool and its caches are removed']);
 });
 
-test('pool/remove: was sich nicht löschen ließ, steht im Protokoll; ohne Stand der Variable bleibt sie', async () => {
+test('pool/remove: what could not be deleted is in the log; if the variable cannot be read, it stays', async () => {
   const w = world();
-  w.cachesFail = 'Caches ließen sich nicht löschen – volume is in use';
+  w.cachesFail = 'Caches could not be deleted – volume is in use';
   w.routingState = { error: 'HTTP 502' };
   await w.actions['pool/remove']({ repo: REPO });
   await until(() => !w.pools.has(REPO));
   assert.deepEqual(w.logs.slice(1), [
-    ['CI_RUNNER bleibt, wie es ist – HTTP 502', REPO, 'error'],
-    ['Pool entfernt, aber nicht alles: Caches ließen sich nicht löschen – volume is in use', REPO, 'error'],
+    ['CI_RUNNER stays as it is – HTTP 502', REPO, 'error'],
+    ['Pool removed, but not everything: Caches could not be deleted – volume is in use', REPO, 'error'],
   ]);
   assert.equal(w.calls.includes(`routing.set ${REPO} false`), false);
 });
 
-test('pool/clear: nur bekannte Caches; geleert wird bei Ruhe, danach neu bereitgestellt und gemessen', async () => {
+test('pool/clear: only known caches; cleared at rest, then provided anew and measured', async () => {
   const w = world();
-  await assert.rejects(w.actions['pool/clear']({ repo: REPO, what: 'constructor' }), { message: 'Unbekannter Cache.' });
+  await assert.rejects(w.actions['pool/clear']({ repo: REPO, what: 'constructor' }), { message: 'Unknown cache.' });
   await w.actions['pool/clear']({ repo: REPO, what: 'images' });
   await until(() => w.logs.length === 2);
   assert.deepEqual(w.calls, [`atRest ${REPO}`, `removeCaches ${REPO} `, `forgetSeed ${REPO}`, `prepareCaches ${REPO}`, `refreshSeed ${REPO}`, `measureSizes ${REPO}`]);
-  assert.deepEqual(w.logs.map(([text]) => text), ['Leere die gelernten Abbilder …', 'Geleert; der nächste Lauf füllt wieder auf']);
-  // Scheitert das Löschen, steht es im Protokoll, und Caches, Build-Dienst und Vorlage stehen trotzdem wieder bereit.
+  assert.deepEqual(w.logs.map(([text]) => text), ['Clearing the learned images …', 'Cleared; the next run fills it again']);
+  // If deleting fails, it is in the log, and caches, build service and template are ready again anyway.
   w.calls.length = 0;
   w.logs.length = 0;
-  w.cachesFail = 'Caches ließen sich nicht löschen – volume is in use';
+  w.cachesFail = 'Caches could not be deleted – volume is in use';
   await w.actions['pool/clear']({ repo: REPO, what: 'build' });
   await until(() => w.logs.length === 2);
   assert.deepEqual(w.calls.slice(-3), [`prepareCaches ${REPO}`, `refreshSeed ${REPO}`, `measureSizes ${REPO}`]);
@@ -210,14 +210,14 @@ test('pool/clear: nur bekannte Caches; geleert wird bei Ruhe, danach neu bereitg
   assert.equal(w.calls[1], `removeCaches ${REPO} packages+build`);
 });
 
-test('Limits lassen sich erst setzen, wenn Docker bereit ist; danach erneuert sich die Reserve aller Pools', async () => {
+test('limits can only be set once Docker is ready; afterwards the reserve of all pools renews', async () => {
   const w = world();
   w.ready = false;
-  await assert.rejects(w.actions['limits/set']({ runnerMemory: 2 }), /Docker ist noch nicht bereit/);
-  await assert.rejects(w.actions['limits/plan'](), /Docker ist noch nicht bereit/);
+  await assert.rejects(w.actions['limits/set']({ runnerMemory: 2 }), /Docker is not ready yet/);
+  await assert.rejects(w.actions['limits/plan'](), /Docker is not ready yet/);
   w.ready = true;
-  await assert.rejects(w.actions['limits/plan'](), { message: 'Für einen Vorschlag fehlen noch Messwerte.' });
-  await assert.rejects(w.actions['limits/set']({ repo: 'wer/Fremd', runnerMemory: 2 }), { message: 'Diesen Pool gibt es nicht.' });
+  await assert.rejects(w.actions['limits/plan'](), { message: 'There are not enough measurements for a suggestion yet.' });
+  await assert.rejects(w.actions['limits/set']({ repo: 'owner/Unknown', runnerMemory: 2 }), { message: 'There is no such pool.' });
   await w.actions['limits/set']({ repo: REPO, runnerMemory: 2 });
   assert.equal(w.settings.settingsOf(REPO).limits.runnerMemory, '2g');
   await w.actions['limits/set']({ repo: REPO, inherit: true });
@@ -225,18 +225,18 @@ test('Limits lassen sich erst setzen, wenn Docker bereit ist; danach erneuert si
   assert.deepEqual(w.calls, [`renewReserve ${REPO}`, `renewReserve ${REPO}`]);
 });
 
-test('pool/rebuild baut nur Pools mit veralteten Paaren neu auf, keine, die gerade entfernt werden', async () => {
-  const w = world({ pools: [REPO, 'wer/Zwei'] });
-  w.pools.get('wer/Zwei').removed = true;
+test('pool/rebuild only rebuilds pools with outdated pairs, none that are being removed', async () => {
+  const w = world({ pools: [REPO, 'owner/Two'] });
+  w.pools.get('owner/Two').removed = true;
   await w.actions['pool/rebuild']({});
   assert.deepEqual(w.calls, [`rebuildIdle ${REPO}`]);
   w.stale = 0;
   await w.actions['pool/rebuild']({ repo: REPO });
   assert.equal(w.calls.length, 1);
-  await assert.rejects(w.actions['pool/rebuild']({ repo: 'wer/Fremd' }), { message: 'Diesen Pool gibt es nicht.' });
+  await assert.rejects(w.actions['pool/rebuild']({ repo: 'owner/Unknown' }), { message: 'There is no such pool.' });
 });
 
-test('beenden antwortet erst und beendet dann', async () => {
+test('shutdown replies first and then shuts down', async () => {
   const w = world();
   await w.actions.shutdown();
   assert.deepEqual(w.calls, []);
@@ -244,11 +244,11 @@ test('beenden antwortet erst und beendet dann', async () => {
   assert.deepEqual(w.calls, ['shutdown']);
 });
 
-test('ein öffentlich gewordenes Repo: Pool pausiert, freie Paare und Reserve weg, Variable entfernt, laut im Protokoll', async () => {
+test('a repo that became public: pool paused, idle pairs and reserve gone, variable removed, loud in the log', async () => {
   const w = world();
   await w.guard.block(REPO, 'public');
   assert.deepEqual([w.settings.settingsOf(REPO).paused, w.settings.settingsOf(REPO).pausedPublic], [true, true]);
-  assert.deepEqual(w.calls, ['abortIdle frei', `discardReserve ${REPO}`, `routing.set ${REPO} false`]);
+  assert.deepEqual(w.calls, ['abortIdle idle', `discardReserve ${REPO}`, `routing.set ${REPO} false`]);
   assert.equal(w.logs[0][2], 'error');
   w.calls.length = 0;
   w.pools.get(REPO).removed = true;

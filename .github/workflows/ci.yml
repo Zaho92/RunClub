@@ -14,13 +14,13 @@ concurrency:
 
 jobs:
   tests:
-    name: Syntax und Tests
-    # Eigene Runner, wenn die Repo-Variable CI_RUNNER gesetzt ist (siehe README), sonst die von GitHub.
+    name: Syntax and tests
+    # Our own runners if the repo variable CI_RUNNER is set (see README), otherwise GitHub's.
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Ohne `npm ci`: Syntaxprüfung und Tests brauchen nur Node, nicht Electron.
+      # Without `npm ci`: syntax check and tests only need Node, not Electron.
       - name: Syntax
         run: node scripts/check.js
       - name: Tests

@@ -1,10 +1,10 @@
-// Der Stand beim Beenden von RunClub, wie die Oberfläche ihn zeigt (`shutdown` in /api/status): je Projekt, wie viele
-// Runner schon abgebaut sind und ob dort gerade ein Job abgebrochen wird, danach die Stufen Aufräumen (Build-Dienste,
-// Netze, Volumes) und Abmelden (bei GitHub). Am Ende wird die Dauer jeder Stufe im Datenordner abgelegt; das nächste
-// Beenden schätzt damit, wann es fertig ist.
+// The state while RunClub shuts down, as the interface shows it (`shutdown` in /api/status): per project, how many
+// runners are already dismantled and whether a job is being cancelled there right now, then the stages cleanup (build services,
+// networks, volumes) and sign-off (at GitHub). At the end the duration of each stage is stored in the data folder; the next
+// shutdown uses it to estimate when it will be done.
 //
-// Gefüttert wird der Stand aus lifecycle.js (`begin`, `finish`) und dockerwatch.js (`step` beim Abräumen der Reste).
-// Was je Projekt noch steht, fragt `view` bei jedem Aufruf neu ab; abgebaut ist ein Projekt, sobald dort nichts mehr steht.
+// The state is fed from lifecycle.js (`begin`, `finish`) and dockerwatch.js (`step` while clearing the leftovers).
+// What is still standing per project, `view` asks anew on every call; a project is dismantled once nothing stands there anymore.
 
 const path = require('node:path');
 const { readJson, writeJson } = require('./store');
@@ -13,14 +13,14 @@ const { SECOND } = require('./units');
 const FILE = 'shutdown.json';
 const STAGES = ['dismantle', 'cleanup', 'signoff'];
 
-// Die gespeicherte Dauer taugt nur, wenn jede Stufe eine Zahl hat.
+// The stored duration is only usable if every stage has a number.
 const durationsFrom = (data) => (data && STAGES.every((stage) => Number.isFinite(data[stage]) && data[stage] >= 0) ? data : null);
 const iso = (ms) => (ms == null ? null : new Date(ms).toISOString());
 
 //   dataDir
-//   repos()                 die Repos mit Pool
-//   remaining(repo)         was dort noch steht: `{ pairs, job }` (siehe `remaining` in pools.js), ohne Pool null
-//   wait                    so lange wartet der Abbau höchstens auf Paare, die gerade entstehen (ms)
+//   repos()                 the repos with a pool
+//   remaining(repo)         what is still standing there: `{ pairs, job }` (see `remaining` in pools.js), null without a pool
+//   wait                    at most this long the dismantling waits for pairs that are just being created (ms)
 //   now()
 function createShutdown({ dataDir, repos, remaining, wait, now = Date.now }) {
   const file = path.join(dataDir, FILE);
@@ -36,13 +36,13 @@ function createShutdown({ dataDir, repos, remaining, wait, now = Date.now }) {
     };
   }
 
-  // Ein Projekt ist abgebaut, sobald dort nichts mehr steht; spätestens mit dem Ende der Stufe, denn was dann noch
-  // steht, räumt das Aufräumen ab.
+  // A project is dismantled once nothing stands there anymore; at the latest when the stage ends, since what is still
+  // standing then is cleared by the cleanup.
   function settle(at) {
     for (const project of state.projects) {
       if (project.endedAt) continue;
       const left = remaining(project.repo);
-      project.total = Math.max(project.total, left?.pairs ?? 0); // ein Paar, das eben erst entstand
+      project.total = Math.max(project.total, left?.pairs ?? 0); // a pair that was only just created
       if (!left?.pairs || state.stages.dismantle.endedAt) project.endedAt = at;
     }
   }
@@ -53,8 +53,8 @@ function createShutdown({ dataDir, repos, remaining, wait, now = Date.now }) {
     state.stages[stage].startedAt ??= at;
   }
 
-  // Aus dockerwatch.js: `cleanup` vor den Build-Diensten, `signoff` mit der Zahl der Repos vor dem Abmelden bei GitHub,
-  // `signedOff` nach jedem Repo.
+  // From dockerwatch.js: `cleanup` before the build services, `signoff` with the number of repos before signing off at GitHub,
+  // `signedOff` after each repo.
   function step(name, count) {
     if (!state) return;
     const at = now();
@@ -64,7 +64,7 @@ function createShutdown({ dataDir, repos, remaining, wait, now = Date.now }) {
     if (name === 'signoff') state.stages.signoff.total = count ?? 0;
   }
 
-  // Die Dauer der Stufen ablegen. Scheitert das, schätzt das nächste Beenden eben nicht: Beenden geht vor.
+  // Store the duration of the stages. If that fails, the next shutdown simply does not estimate: shutting down comes first.
   function finish() {
     if (!state) return;
     const at = now();
@@ -72,11 +72,11 @@ function createShutdown({ dataDir, repos, remaining, wait, now = Date.now }) {
     state.stages.signoff.endedAt ??= at;
     settle(at);
     const durations = Object.fromEntries(STAGES.map((stage) => [stage, state.stages[stage].endedAt - state.stages[stage].startedAt]));
-    try { writeJson(file, durations); } catch { /* siehe oben */ }
+    try { writeJson(file, durations); } catch { /* see above */ }
   }
 
-  // Wie lange es nach der Dauer des letzten Beendens noch dauern dürfte: Was eine laufende Stufe schon gebraucht hat,
-  // geht von ihrer Schätzung ab, aber nicht unter null; die wartenden zählen ganz.
+  // How long it should still take going by the duration of the last shutdown: what a running stage has already taken
+  // comes off its estimate, but not below zero; the waiting ones count fully.
   function left(at) {
     const { last, stages } = state;
     return STAGES.reduce((sum, stage) => {
@@ -95,9 +95,9 @@ function createShutdown({ dataDir, repos, remaining, wait, now = Date.now }) {
     };
   }
 
-  // null, solange RunClub nicht endet. `finishAt`: das geschätzte Ende; null ohne gespeicherte Dauer und wenn die
-  // Schätzung schon überschritten ist (dann `over`). `last`: wie lange das letzte Beenden dauerte, `wait` wie oben
-  // (beides Sekunden).
+  // null as long as RunClub is not shutting down. `finishAt`: the estimated end; null without a stored duration and when the
+  // estimate is already exceeded (then `over`). `last`: how long the last shutdown took, `wait` as above
+  // (both in seconds).
   function view() {
     if (!state) return null;
     const at = now();

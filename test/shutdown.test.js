@@ -5,50 +5,50 @@ const os = require('node:os');
 const path = require('node:path');
 const { createShutdown, FILE } = require('../src/shutdown');
 
-// Zwei Projekte mit Pool; `left` hält, was dort noch steht, die Uhr steht, bis der Test sie stellt.
+// Two projects with a pool; `left` holds what is still standing there, the clock stands still until the test sets it.
 function world(t, saved) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-shutdown-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   if (saved !== undefined) fs.writeFileSync(path.join(dir, FILE), typeof saved === 'string' ? saved : JSON.stringify(saved));
-  const w = { dir, at: 1_000_000, left: { 'wer/App': { pairs: 3, job: 'Integrationstests' }, 'wer/Zwei': { pairs: 2, job: null } } };
+  const w = { dir, at: 1_000_000, left: { 'who/App': { pairs: 3, job: 'Integration tests' }, 'who/Two': { pairs: 2, job: null } } };
   w.shutdown = createShutdown({ dataDir: dir, repos: () => Object.keys(w.left), remaining: (repo) => w.left[repo] ?? null, wait: 30_000, now: () => w.at });
   return w;
 }
 const iso = (ms) => new Date(ms).toISOString();
 
-test('ohne Beenden gibt es keinen Stand', (t) => {
+test('without a shutdown there is no state', (t) => {
   assert.equal(world(t).shutdown.view(), null);
 });
 
-test('der Abbau zählt je Projekt, was schon weg ist, und nennt den Job, der abgebrochen wird', (t) => {
+test('the dismantling counts per project what is already gone, and names the job being cancelled', (t) => {
   const w = world(t);
   w.shutdown.begin();
   w.at += 4000;
-  w.left['wer/Zwei'] = { pairs: 0, job: null };
-  w.left['wer/App'] = { pairs: 2, job: 'Integrationstests' };
+  w.left['who/Two'] = { pairs: 0, job: null };
+  w.left['who/App'] = { pairs: 2, job: 'Integration tests' };
   let view = w.shutdown.view();
   assert.equal(view.startedAt, iso(1_000_000));
   assert.deepEqual(view.projects, [
-    { repo: 'wer/App', total: 3, removed: 1, job: 'Integrationstests', endedAt: null },
-    { repo: 'wer/Zwei', total: 2, removed: 2, job: null, endedAt: iso(1_004_000) },
+    { repo: 'who/App', total: 3, removed: 1, job: 'Integration tests', endedAt: null },
+    { repo: 'who/Two', total: 2, removed: 2, job: null, endedAt: iso(1_004_000) },
   ]);
   assert.equal(view.cleanup.state, 'wait');
   assert.equal(view.signoff.state, 'wait');
-  assert.equal(view.signoff.total, 2); // vor dem Abmelden: je Projekt eines
-  // Ohne gespeicherte Dauer keine Schätzung.
+  assert.equal(view.signoff.total, 2); // before signing off: one per project
+  // Without a stored duration no estimate.
   assert.equal(view.finishAt, null);
   assert.equal(view.last, null);
   assert.equal(view.over, false);
   assert.equal(view.wait, 30);
   assert.equal(view.cleanup.estimate, null);
 
-  // Ein Projekt, das schon fertig war, bleibt es, auch wenn es nicht mehr gefragt wird.
+  // A project that was already done stays so, even if it is no longer asked.
   w.at += 1000;
   view = w.shutdown.view();
   assert.equal(view.projects[1].endedAt, iso(1_004_000));
 });
 
-test('das Aufräumen beendet den Abbau; was dann noch steht, gilt als abgebaut', (t) => {
+test('the cleanup ends the dismantling; what is still standing then counts as dismantled', (t) => {
   const w = world(t);
   w.shutdown.begin();
   w.at += 30000;
@@ -58,7 +58,7 @@ test('das Aufräumen beendet den Abbau; was dann noch steht, gilt als abgebaut',
   assert.deepEqual(view.cleanup, { state: 'run', startedAt: iso(1_030_000), endedAt: null, estimate: null });
 });
 
-test('das Abmelden zählt die Projekte; am Ende wird die Dauer jeder Stufe abgelegt', (t) => {
+test('the sign-off counts the projects; at the end the duration of each stage is stored', (t) => {
   const w = world(t);
   w.shutdown.begin();
   w.at += 8000;
@@ -77,7 +77,7 @@ test('das Abmelden zählt die Projekte; am Ende wird die Dauer jeder Stufe abgel
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(w.dir, FILE), 'utf8')), { dismantle: 8000, cleanup: 2000, signoff: 1000 });
 });
 
-test('mit der Dauer des letzten Beendens: Restzeit, Schätzung je Stufe und die Dauer insgesamt', (t) => {
+test('with the duration of the last shutdown: time left, estimate per stage and the total duration', (t) => {
   const w = world(t, { dismantle: 8000, cleanup: 2000, signoff: 1000 });
   w.shutdown.begin();
   w.at += 3000;
@@ -87,11 +87,11 @@ test('mit der Dauer des letzten Beendens: Restzeit, Schätzung je Stufe und die 
   assert.equal(view.cleanup.estimate, 2);
   assert.equal(view.signoff.estimate, 1);
 
-  // Dauert der Abbau länger als beim letzten Mal, zählen nur noch die wartenden Stufen, …
+  // If the dismantling takes longer than last time, only the waiting stages still count, …
   w.at += 20000;
   view = w.shutdown.view();
   assert.equal(view.finishAt, iso(w.at + 3000));
-  // … und ist auch das überschritten, gibt es keine Restzeit mehr, sondern den Hinweis darauf.
+  // … and if that is exceeded as well, there is no time left anymore, but a note saying so.
   assert.equal(view.over, false);
   w.shutdown.step('cleanup');
   w.shutdown.step('signoff', 2);
@@ -100,15 +100,15 @@ test('mit der Dauer des letzten Beendens: Restzeit, Schätzung je Stufe und die 
   assert.deepEqual([view.finishAt, view.over], [null, true]);
 });
 
-test('eine kaputte oder unvollständige Datei heißt: keine Schätzung', (t) => {
-  for (const saved of ['{kaputt', { dismantle: 8000, cleanup: 2000 }, { dismantle: -1, cleanup: 2000, signoff: 1000 }]) {
+test('a broken or incomplete file means: no estimate', (t) => {
+  for (const saved of ['{broken', { dismantle: 8000, cleanup: 2000 }, { dismantle: -1, cleanup: 2000, signoff: 1000 }]) {
     const w = world(t, saved);
     w.shutdown.begin();
     assert.equal(w.shutdown.view().finishAt, null);
   }
 });
 
-test('ein zweites begin ändert nichts; step und finish ohne Beenden auch nicht', (t) => {
+test('a second begin changes nothing; neither do step and finish without a shutdown', (t) => {
   const w = world(t);
   w.shutdown.step('cleanup');
   w.shutdown.finish();
@@ -119,9 +119,9 @@ test('ein zweites begin ändert nichts; step und finish ohne Beenden auch nicht'
   assert.equal(w.shutdown.view().startedAt, iso(1_000_000));
 });
 
-test('ein Paar, das nach dem Beginn noch entsteht, zählt mit', (t) => {
+test('a pair still created after the beginning counts too', (t) => {
   const w = world(t);
   w.shutdown.begin();
-  w.left['wer/Zwei'] = { pairs: 3, job: null };
-  assert.deepEqual(w.shutdown.view().projects[1], { repo: 'wer/Zwei', total: 3, removed: 0, job: null, endedAt: null });
+  w.left['who/Two'] = { pairs: 3, job: null };
+  assert.deepEqual(w.shutdown.view().projects[1], { repo: 'who/Two', total: 3, removed: 0, job: null, endedAt: null });
 });

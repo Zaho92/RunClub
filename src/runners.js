@@ -1,10 +1,10 @@
-// Die eigenen Linux-Runner, verdrahtet: Vorlage (seed.js), Plätze (slots.js), Caches und Build-Dienst (caches.js) und
-// die Pools mit ihrer Reserve (pools.js). Plätze und Reserve brauchen einander; keine der beiden Dateien lädt die
-// andere, die Verbindung entsteht hier. Die Plätze erfahren erst beim Gebrauch, was die Pools beisteuern.
+// Your own Linux runners, wired up: template (seed.js), slots (slots.js), caches and build service (caches.js) and
+// the pools with their reserve (pools.js). Slots and reserve need each other; neither of the two files loads the
+// other, the connection is made here. The slots only learn on use what the pools contribute.
 //
-// Liefert die Map der Pools (`pools`, Repo -> Pool), die Module als `seed`, `slots` und `caches`, die Funktionen
-// aus pools.js unter ihrem eigenen Namen und drei für die Takte und das Abmelden von Windows: `tick` (Reserve
-// nachfüllen, Build-Dienst erneuern), `measureAll` (Volumes messen) und `releaseIdle` (freie Runner bei GitHub abmelden).
+// Returns the map of pools (`pools`, repo -> pool), the modules as `seed`, `slots` and `caches`, the functions
+// from pools.js under their own names and three for the beats and the Windows sign-out: `tick` (refill the reserve,
+// renew the build service), `measureAll` (measure volumes) and `releaseIdle` (remove idle runners from GitHub).
 
 const crypto = require('node:crypto');
 const { createSeed } = require('./seed');
@@ -14,24 +14,24 @@ const { createPools } = require('./pools');
 const { unregisterRunner } = require('./github');
 const { errorLog } = require('./journal');
 
-//   docker(args, options), dockerList(args)   aus engine.js
-//   github                  Zugang zu GitHub (siehe github.js)
-//   log(text, repo, kind, about), sleep(ms), timer (wie `setTimeout`), newId() (Kennung eines neuen Paars)
-//   host                    Name des Rechners (Anfang der Runner-Namen)
-//   names                   Kennzeichen und Namen je Repo (siehe names.js)
-//   image, dind, buildkit   die Abbilder von Runner, Docker-Daemon und Build-Dienst
-//   longTimeout             Zeitgrenze für Kopieren und Laden
-//   settings                `settingsOf`, `limitsOf`, `state`, `saveState` (siehe settings.js)
-//   metrics                 `meter()`, `recordJob(repo, record)` (siehe metrics.js)
-//   stopping(), dockerReady(), vetted(repo)   vetted: siehe pools.js
-//   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen (siehe remote.js)
-//   forgetStats(name)       die Messwerte eines Containers verwerfen (siehe usage.js)
+//   docker(args, options), dockerList(args)   from engine.js
+//   github                  access to GitHub (see github.js)
+//   log(text, repo, kind, about), sleep(ms), timer (like `setTimeout`), newId() (id of a new pair)
+//   host                    name of the machine (start of the runner names)
+//   names                   mark and names per repo (see names.js)
+//   image, dind, buildkit   the images of runner, Docker daemon and build service
+//   longTimeout             time limit for copying and loading
+//   settings                `settingsOf`, `limitsOf`, `state`, `saveState` (see settings.js)
+//   metrics                 `meter()`, `recordJob(repo, record)` (see metrics.js)
+//   stopping(), dockerReady(), vetted(repo)   vetted: see pools.js
+//   refreshRepo(repo)       fetch the repo's state from GitHub anew (see remote.js)
+//   forgetStats(name)       discard a container's measurements (see usage.js)
 function createRunners({
   docker, dockerList, github, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, names, image, dind, buildkit, longTimeout,
   settings, metrics, stopping, dockerReady, vetted, refreshRepo, forgetStats,
 }) {
-  const pools = new Map(); // Repo -> Pool (siehe pools.js)
+  const pools = new Map(); // repo -> pool (see pools.js)
   const { settingsOf, limitsOf } = settings;
   const poolOf = (repo) => pools.get(repo);
 
@@ -42,7 +42,7 @@ function createRunners({
     state: settings.state, saveState: settings.saveState, stopping,
   });
 
-  let reserve = null; // die Funktionen aus pools.js; sie entstehen erst nach den Plätzen, die sie brauchen
+  let reserve = null; // the functions from pools.js; they are only created after the slots they need
   const slots = createSlots({
     docker, github, log, sleep, timer, newId,
     host, mark: names.mark, image, dind, longTimeout, metrics,
@@ -71,7 +71,7 @@ function createRunners({
 
   const logError = errorLog(log);
 
-  // Im Minutentakt: die Reserve nachfüllen und einen Build-Dienst mit alten Limits erneuern.
+  // Every minute: refill the reserve and renew a build service with old limits.
   function tick() {
     for (const pool of pools.values()) {
       reserve.replenish(pool);
@@ -79,14 +79,14 @@ function createRunners({
     }
   }
 
-  // Die Volumes aller Pools messen; ein ruhender Pool misst selbst, wenn seine Arbeit fertig ist.
+  // Measure the volumes of all pools; a resting pool measures by itself when its work is done.
   function measureAll() {
     if (!dockerReady()) return;
     for (const pool of pools.values()) if (!pool.hold) caches.measureSizes(pool);
   }
 
-  // Beim Abmelden von Windows: die freien Runner bei GitHub abmelden, alle zugleich. Fehler zählen nicht; was bleibt,
-  // meldet der nächste Start ab.
+  // On Windows sign-out: remove the idle runners from GitHub, all at once. Errors do not count; whatever is left
+  // the next start removes.
   const releaseIdle = () => Promise.all(idleRegistrations(pools.values()).map(({ repo, runnerId }) => unregisterRunner(github, repo, runnerId).catch(() => {})));
 
   return { pools, seed, slots, caches, ...reserve, tick, measureAll, releaseIdle };

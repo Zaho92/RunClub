@@ -1,5 +1,5 @@
-// Zustände eines Platzes (siehe slots.js). Die Werte sind Schlüssel; die Oberfläche zeigt sie als Wort in ihrer
-// Sprache (`st_<Zustand>` in ui.html). Ein Platz, der ausläuft, behält seinen Zustand und trägt dazu `retiring`.
+// States of a slot (see slots.js). The values are keys; the interface shows them as a word in its own
+// language (`st_<state>` in ui.html). A slot that is retiring keeps its state and also carries `retiring`.
 const SLOT = Object.freeze({
   STARTING: 'starting',
   READY: 'ready',
@@ -12,8 +12,8 @@ const SLOT = Object.freeze({
   OFF: 'off',
 });
 
-// Ein Platz mit Job oder einer, der gerade abräumt: Er wird nicht unterbrochen, und solange er so ist, wird im Pool
-// nichts an Caches und Build-Dienst geändert.
+// A slot with a job or one that is cleaning up: it is not interrupted, and as long as it is, nothing about the pool's
+// caches and build service is changed.
 const busy = (slot) => slot.state === SLOT.WORKING || slot.state === SLOT.CLEANING;
 
 module.exports = { SLOT, busy };

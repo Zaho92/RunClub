@@ -1,12 +1,12 @@
-# Der Docker-Daemon eines Paars, ohne Rechte: `docker:dind-rootless` (Version und Digest in linux/pins.Dockerfile),
-# aber als Benutzer 1001 wie `runner` im Runner-Abbild. Dann gehören Dateien, die ein Job-Container in den
-# Arbeitsordner schreibt, dem Runner, und root in einem Job-Container ist außerhalb nur dieser Benutzer.
-# Gebaut wird beim Start der Runner-Verwaltung (siehe src/dockerwatch.js), mit dem festgenagelten Abbild als BASE.
+# The Docker daemon of a pair, without privileges: `docker:dind-rootless` (version and digest in linux/pins.Dockerfile),
+# but as user 1001 like `runner` in the runner image. Then files a job container writes into the work folder
+# belong to the runner, and root in a job container is only this user outside of it.
+# Built when the runner management starts (see src/dockerwatch.js), with the pinned image as BASE.
 
 ARG BASE
 FROM ${BASE}
 
-# 1001 ist RUNNER_USER, /sock der Ordner von PAIR_SOCKET (beide in src/dind.js); ändert sich dort etwas, dann auch hier.
+# 1001 is RUNNER_USER, /sock the folder of PAIR_SOCKET (both in src/dind.js); if something changes there, change it here too.
 USER root
 RUN sed -i 's/^rootless:x:1000:1000:/rootless:x:1001:1001:/' /etc/passwd \
  && sed -i 's/^rootless:x:1000:/rootless:x:1001:/' /etc/group \
@@ -14,7 +14,7 @@ RUN sed -i 's/^rootless:x:1000:1000:/rootless:x:1001:1001:/' /etc/passwd \
  && mkdir -p /run/user/1001 /sock \
  && chown 1001:1001 /run/user/1001 /sock
 
-# Nur der Socket, kein TCP-Port mit eigenen Zertifikaten.
+# Only the socket, no TCP port with its own certificates.
 ENV XDG_RUNTIME_DIR=/run/user/1001 \
     DOCKER_TLS_CERTDIR=
 USER rootless

@@ -2,7 +2,7 @@ node_modules/
 data/
 dist/
 
-# Impeccable (Design-Skill): wird mit `npx impeccable install` eingerichtet, nicht eingecheckt
+# Impeccable (design skill): set up with `npx impeccable install`, not checked in
 .claude/settings.local.json
 .claude/skills/impeccable/
 .claude/agents/impeccable-*
