@@ -94,7 +94,7 @@ or “Quit RunClub” in the settings; the runners end as well.
 | `src/shutdown.js` | The state while RunClub shuts down: runners dismantled per project, job being cancelled, the stages cleanup and sign-off; stored durations for estimating the next shutdown |
 | `src/updater.js` | Updating from the GitHub releases: channel Stable/Beta, download in the background, check against the SHA-512 in `latest.yml`/`beta.yml`, report a ready update; installed only on click (`src/main.js`) |
 | `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/states.js`, `src/units.js`, `src/numbers.js` | Program calls with a time limit and abort from outside (on Windows the program is only looked up in PATH), files in the data folder, rules for learned images, names of the runner pairs, states of a slot, units for time and memory, median |
-| `src/ui.html` | Interface: project bar, network map per run, load, usage, settings (German and English) |
+| `src/ui.html` | Interface: project rail, network map per run, load, usage, settings (German and English) |
 | `src/fonts/` | Font Overpass (OFL), shipped with the app so that it works without internet |
 | `linux/` | Image of the runners (`Dockerfile`, with `docker-shim.sh`), image of the Docker daemon without privileges (`dind/Dockerfile`) and the pinned images of daemon and build service (`pins.Dockerfile`, only read, not built), the seccomp profile of the daemons (`seccomp.json`, generated) |
 | `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds and publishes a release on this machine (`npm run release`), `seccomp.js` writes `linux/seccomp.json` |

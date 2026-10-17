@@ -9,7 +9,7 @@ related_targets: []
 
 Mode: Operate. Audience and task: see PRODUCT.md (a quick glance on the side, closely following a run).
 
-Scope: the whole app in one window – project bar, project view, “All projects”, “Usage”, “Settings”.
+Scope: the whole app in one window – project rail, project view, “All projects”, “Usage”, “Settings”.
 Set by the user: Midnight Transit with pills; one line color; state as color plus symbol; curved lines;
 light type, no pure white; load history as curves; compact and detail mode as an option, in compact mode
 a pill extends downward on hover over what lies below, without moving anything; German and English switchable; dark only.
@@ -27,10 +27,10 @@ symbol; brightness follows urgency (running brightest, waiting darkest). Overpas
 STORY: The user sees on the left which project is running or red; on the right, how far the run is and how much longer;
 below, whether the machine carries the load – not as a momentary value but as a history.
 
-FIRST VIEWPORT: On the left the project bar (232 px). On the right at the very top, sticky while scrolling, the band with three history curves
+FIRST VIEWPORT: On the left the project rail (232 px). On the right at the very top, sticky while scrolling, the band with three history curves
 (Docker VM memory, Docker VM CPU, Windows memory) and the slots rolling within it. Below, for each running run, the title,
 below it repo, workflow and branch, far right the remaining time large and light, then the network map across the full width, stages
-from left to right; after the last plan the legend, then the quiet projects as rows.
+from left to right; after the last network map the legend, then the quiet projects as rows.
 
 FORM: Transit network map (Midnight Transit), chosen and refined by the user after two dice rounds; seed key ead5eeac.
 Signature motion: the hovered pill extends downward over what lies below without moving anything; its lines stand out.

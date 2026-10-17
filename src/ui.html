@@ -1691,7 +1691,7 @@ async function copyText(text, done, failed) {
 }
 async function fetchLogFile() {
   const response = await fetch('/api/log/file');
-  if (!response.ok) throw new Error('keine Datei');
+  if (!response.ok) throw new Error('no file');
   return response.text();
 }
 const copyLog = () => copyText(fetchLogFile, (text) => t('logCopied', text.split('\n').filter(Boolean).length), t('logCopyFailed'));
