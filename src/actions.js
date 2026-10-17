@@ -28,11 +28,12 @@ const FORKS_HOW = msg('m_forksHow');
 //   runners                 siehe runners.js
 //   remote, routing, waiting, metrics, account   siehe die gleichnamigen Module
 //   dockerWatch             `ready()`, `removeRegistrations(repo)` (siehe dockerwatch.js)
+//   setup                   `launch()`: Docker Desktop starten (siehe setup.js)
 //   limitRange(), limitPlan()   siehe status.js
 //   log(text, repo, kind), logError(repo, what)
 //   shutdown()              RunClub beenden
 //   timer                   wie `setTimeout`; in Tests steuerbar
-function createActions({ gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, limitRange, limitPlan, log, logError, shutdown, timer = setTimeout }) {
+function createActions({ gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown, timer = setTimeout }) {
   const { config, saveConfig, settingsOf, limitsOf } = settings;
   const { pools } = runners;
 
@@ -255,6 +256,8 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
     async 'auth/scope'({ scope }) { await account.grant(scope === undefined ? undefined : String(scope)); },
     async 'auth/cancel'() { await account.cancel(); },
     async 'auth/logout'() { await account.logout(); },
+    // Docker Desktop starten, wenn es installiert ist und nicht läuft (siehe setup.js).
+    async 'docker/start'() { setup.launch(); },
     async shutdown() { timer(shutdown, SHUTDOWN_DELAY); },
   };
 

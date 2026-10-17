@@ -373,7 +373,7 @@ Erklärungen stehen nicht als Textwand in der Fläche, sondern hinter einem klei
 - **Symbol:** ein Knopf (18 px, Trefferfläche größer) mit dem gezeichneten „i“ im Kreis (16er-Raster, Strich 1,7), in `muted`, überfahren und bei Fokus `ink`. Er steht direkt hinter einem Titel: der Überschrift einer Haltestelle oder Ansicht, dem Titel einer Zeile, einer Beschriftung über einer Kennzahl. Eine Zeile ohne Titel trägt ihn am Ende ihres Satzes. Je Titel höchstens eins.
 - **Info-Fläche:** wie der Tooltip `raised` mit Rahmen 1 px `track` und Radius 6 px, aber mehrzeilig: höchstens 44ch breit, Innenabstand 10 px 14 px, 13 px in `text` mit Zeilenhöhe 1,45; Code darin in `ink`. Mehrere Absätze stehen mit 7 px Abstand, der zustandsabhängige zuerst, das Allgemeine danach. Sie hängt am Symbol (nicht am Mauszeiger), steht darunter und nur ohne Platz darunter darüber, und bleibt seitlich im Fenster.
 - **Bedienung:** Überfahren und Tastaturfokus öffnen sie; der Zeiger kann vom Symbol auf die Fläche wandern, um zu lesen oder zu markieren (Verlassen schließt erst nach 180 ms, damit der Spalt dazwischen nicht schließt). Verlassen, Fokuswechsel und Escape schließen sie. Ein Klick hält sie fest, ein zweiter Klick oder ein Klick daneben schließt sie. Der Knopf steht neben der Überschrift, nicht in ihr, damit sie ihren Namen behält. Vorleseprogramme hören den Bezug als Namen des Knopfs („Mehr zu …“) und die Erklärung, die verborgen im Knopf steht, als seine Beschreibung.
-- **Wo:** Einstellungen: „Angemeldet als …“, die Störungen der Anmeldung, die Zeile eines freiwilligen Rechts, der Einmalcode beim Ergänzen, die Haltestellen Projekte, Limits je Job und Protokoll, „Darstellung“, der Weg der Jobs ohne `CI_RUNNER`, „Limit großzügig“, die Vorschläge, der Satz unter dem Speicherbalken, die Version, der Update-Kanal und das bereite Update. Verbrauch: die Haltestellen „Die letzten 24 Stunden“, „GitHub-Anfragen“ und „GitHub-Minuten“, die Beschriftung der Speicherspitzen. Ohne Projekte: die Überschrift des ersten Schritts.
+- **Wo:** Einstellungen: „Angemeldet als …“, die Störungen der Anmeldung, die Zeile eines freiwilligen Rechts, der Einmalcode beim Ergänzen, die Haltestellen Projekte, Limits je Job und Protokoll, „Darstellung“, der Weg der Jobs ohne `CI_RUNNER`, „Limit großzügig“, die Vorschläge, der Satz unter dem Speicherbalken, die Version, der Update-Kanal und das bereite Update. Docker einrichten: die Überschrift und jede Zeile. Verbrauch: die Haltestellen „Die letzten 24 Stunden“, „GitHub-Anfragen“ und „GitHub-Minuten“, die Beschriftung der Speicherspitzen. Ohne Projekte: die Überschrift des ersten Schritts.
 
 ### Haltestelle
 Die Gliederung der Einstellungen. Hinter der Überschrift kann ein Info-Element stehen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
@@ -413,9 +413,26 @@ Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, recht
   oder ein Pflichtrecht, nennt die Überschrift das, und die Zeile dazu steht ohne ihren Titel (das Info dann am Ende
   ihres Satzes) direkt darunter, beim
   Pflichtrecht gefolgt von der Zeile des Kontos; rot sind dort die Zeile in der Leiste und ein gescheiterter Ablauf.
+  Fehlt dem Rechner etwas für Docker, folgt darunter der Abschnitt „Docker einrichten“.
   Die Zeilen des ersten Schritts tragen keine Haarlinie. „Alle Projekte“ trägt in der Leiste keine zweite Zeile,
   solange es kein Projekt gibt.
 
+
+### Docker einrichten
+Was dem Rechner für Docker fehlt, solange Docker nicht antwortet: WSL, Docker Desktop (nicht installiert, nicht
+gestartet) oder seine Engine (Docker Desktop läuft, antwortet aber nach drei Minuten noch nicht). Je Stück eine Zeile
+wie bei der Anmeldung: Titel mit Info-Element, darunter ein Satz, was zu tun ist, rechts der Ausweg. WSL: der Befehl
+`wsl --install` in Mono im Satz und „Befehl kopieren“ (Symbol mit Wort). Nicht installiert:
+„Anleitung öffnen“, ein Link zur Anleitung von Docker, der im Browser aufgeht. Nicht gestartet: „Docker Desktop starten“. Engine: „Docker
+Desktop öffnen“ (holt sein Fenster nach vorn). Im Info: wozu es gebraucht wird, wie es von selbst startet, was hilft.
+- **Ohne Projekte** steht der Abschnitt unter dem Schritt der Ansicht („Zuerst bei GitHub anmelden“ oder „Noch kein
+  Projekt“), weil eine Ansicht eine Überschrift hat und der Schritt davon nicht aufgehalten wird: „Docker einrichten“
+  als Title (`h2`) mit Info-Element, ein Satz in `muted`, die Zeilen ohne Haarlinie wie im ersten Schritt der Anmeldung.
+  Das ist der Anfang und keine Störung: Titel in `ink`, Sätze in `muted`.
+- **In der Übersicht** stehen die Zeilen unter den Warn-Tags und ersetzen den Tag zu Docker: Titel in `fail-text`, Satz in
+  `text`, weil die Runner warten und es einen Ausweg gibt. Höchstens 860 px breit wie die Zeilen der Einstellungen,
+  damit Störung und Ausweg zusammen gelesen werden.
+Ist alles da, verschwindet der Abschnitt von selbst; RunClub prüft alle 15 Sekunden.
 
 ### Projektzeile
 Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 8 px. Im Kopf stehen Pfeil, Name, die Summe der Caches in `muted` und rechts die Zahl der Plätze mit eins weniger und eins mehr. Ein Klick auf den Kopf klappt die Zeile nach unten auf (dieselbe Bewegung wie die Pill: `grid-template-rows` 0fr → 1fr in 280 ms, der Pfeil dreht sich); es ist immer nur eine offen. Aufgeklappt, durch eine Haarlinie abgesetzt: wohin die Jobs gehen, die Limits des Projekts (Segmentschalter „Wie alle“ oder „Eigene“; mit eigenen Werten dieselben vier Regler wie im Abschnitt Limits), die Caches als Zeilen mit Größe und Symbol zum Leeren, darunter die Schaltflächen. Ein Projekt mit eigenen Limits trägt im Kopf das Tag „eigene Limits“. Passen die Limits nicht zum gemessenen Bedarf, steht das ebenfalls als Tag im Kopf und als Satz bei den Limits: „Limit erreicht“ und „Limit knapp“ (über 85 %) als Warnung in Rot, „Limit großzügig“ (mehr als das Doppelte des Bedarfs) gedämpft; warum großzügig weniger schützt, steht im Info am Satz. Der Vorschlag aus den Messwerten steht als ein Satz in `text`, woraus er entsteht, im Info dahinter. Lesen die Workflows `CI_RUNNER` nicht, sagt ein roter Satz das mit dem Ausdruck für `runs-on`; was der Ausdruck tut, steht im Info. Überfahren hebt eine geschlossene Zeile eine Stufe.
@@ -438,7 +455,7 @@ Wenige Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px), meist z
 Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 px 12 px, Platzhalter `muted`, Schreibmarke `chart`.
 
 ### Tag
-Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört, nicht bei GitHub angemeldet, GitHub-Limit erreicht, ein Projekt gesperrt; dann auch „gesperrt“ im Kopf der Projektkarte) Schrift `fail-text`, Rahmen `fail-edge`.
+Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört; fehlt dem Rechner etwas für Docker, stehen statt des Tags die Zeilen aus „Docker einrichten“, nicht bei GitHub angemeldet, GitHub-Limit erreicht, ein Projekt gesperrt; dann auch „gesperrt“ im Kopf der Projektkarte) Schrift `fail-text`, Rahmen `fail-edge`.
 
 ### Tabellen und Zeilen
 In „Verbrauch“ steht je Job eine Zeile; kommt derselbe Jobname in einem Projekt in zwei Workflows vor, steht der Workflow in `muted` hinter dem Namen.

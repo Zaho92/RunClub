@@ -49,6 +49,7 @@ const { createUsage } = require('./usage');
 const { createRemote, WAITING_INTERVAL } = require('./remote');
 const { createRunners } = require('./runners');
 const { createDockerWatch } = require('./dockerwatch');
+const { createSetup } = require('./setup');
 const { createAccount } = require('./account');
 const { createStatus } = require('./status');
 const { createActions } = require('./actions');
@@ -66,6 +67,7 @@ const EVERY = {
   github: 20 * SECOND, githubActive: 8 * SECOND, account: MINUTE, quota: MINUTE, waiting: WAITING_INTERVAL,
   image: DAY, measure: 2 * SECOND, reserve: MINUTE, sizes: 5 * MINUTE,
   housekeeping: 10 * MINUTE, // Sichtbarkeit der Repos prüfen, verwaiste Runner abmelden
+  setup: 15 * SECOND, // solange Docker nicht antwortet: was dem Rechner fehlt
 };
 
 //   port, dataDir           Port des lokalen Dienstes und Datenordner (sonst RUNCLUB_PORT und RUNCLUB_DATA)
@@ -156,6 +158,7 @@ function start({
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
     stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,
   });
+  const setup = createSetup({ run, docker, ready: dockerWatch.ready, desktop: engine.desktop, log }); // was dem Rechner für Docker fehlt
 
   // --- Konto, Oberfläche, Aufrufe ---
   const account = createAccount({
@@ -164,12 +167,12 @@ function start({
   });
   const uiFile = path.join(__dirname, 'ui.html');
   const { status, limitRange, limitPlan } = createStatus({
-    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch,
+    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, setup,
     buildService: names.buildService, logStamp, uiFile, shutdown: progress.view, extra: appStatus,
   });
 
   actionsApi = createActions({
-    gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, limitRange, limitPlan, log, logError, shutdown,
+    gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown,
   });
 
   // --- Lokaler Dienst ---
@@ -189,6 +192,7 @@ function start({
 
   // --- Takte ---
   every(EVERY.account, account.watch);
+  every(EVERY.setup, setup.check);
   every(EVERY.quota, remote.watchQuota);
   every(EVERY.waiting, remote.scanWaiting);
   everyAfter(EVERY.image, () => dockerWatch.refreshImage().catch(logError(null, msg('m_whatImages'))));

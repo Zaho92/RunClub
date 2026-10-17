@@ -118,6 +118,10 @@ const DE = {
   m_exposedTcp: 'RUNCLUB_DOCKER_HOST zeigt auf {0} ohne TLS (RUNCLUB_DOCKER_CERTS fehlt). Jeder Job, der diesen Port erreicht, steuert damit ganz Docker.',
   m_exposedDesktop: 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.',
   m_dockerGone: 'Docker antwortet nicht mehr – die Linux-Runner warten.',
+  // Was dem Rechner fehlt (siehe setup.js)
+  m_desktopNotFound: 'Docker Desktop ist nicht installiert.',
+  m_desktopStarting: 'Starte Docker Desktop …',
+  m_desktopStartFailed: 'Docker Desktop ließ sich nicht starten: {0}',
   m_imageRunner: 'Das Runner-Abbild',
   m_imageDaemon: 'Das Abbild des Docker-Daemons',
   m_buildFailed: '{0} ließ sich nicht bauen: {1}',

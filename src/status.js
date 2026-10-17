@@ -30,12 +30,13 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 //   remote                  `view(repo)`, `vetted(repo)` (siehe remote.js)
 //   pipelines, metrics, usage, routing, waiting, account, githubApi   siehe die gleichnamigen Module
 //   dockerWatch             `ready()`, `error()`, `cpus()`, `memory()` (siehe dockerwatch.js)
+//   setup                   `view()`: was dem Rechner für Docker fehlt (siehe setup.js)
 //   buildService(repo)      Name des Build-Dienstes (siehe names.js)
 //   logStamp()              Kennung des Protokolls; ändert sie sich, holt die Oberfläche es neu
 //   uiFile                  die Datei der Seite; ändert sie sich, lädt die Seite sich neu
 //   shutdown()              der Stand beim Beenden, sonst null (siehe shutdown.js)
 //   extra()                 Angaben, die die App beisteuert (siehe `hooks.status` in backend.js)
-function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, buildService, logStamp, uiFile, shutdown = () => null, extra = () => ({}) }) {
+function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, setup = { view: () => null }, buildService, logStamp, uiFile, shutdown = () => null, extra = () => ({}) }) {
   const { config, limitsOf } = settings;
 
   const limitRange = () => limitRules.bounds({ dockerMemory: dockerWatch.memory(), dockerCpus: dockerWatch.cpus() });
@@ -97,7 +98,8 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
       at: new Date().toISOString(),
       machine: {
         cores: os.cpus().length, memoryTotal: os.totalmem(), memoryFree: os.freemem(), dockerCpus: dockerWatch.cpus(), dockerMemory: dockerWatch.memory(),
-        docker: { ready: dockerWatch.ready(), error: dockerWatch.ready() ? null : dockerWatch.error() }, // ohne Fehler und nicht bereit: Docker startet noch
+        // Ohne Fehler und nicht bereit: Docker startet noch. `setup`: was dem Rechner fehlt, { missing, app } oder null (siehe setup.js).
+        docker: { ready: dockerWatch.ready(), error: dockerWatch.ready() ? null : dockerWatch.error(), setup: dockerWatch.ready() ? null : setup.view() },
         usage: usage.view(), vmTight: usage.vmTight(), // { free }, wenn die Docker-VM kaum noch Arbeitsspeicher frei hat, sonst null
         limits: config.limits, series: metrics.series(),
         limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },

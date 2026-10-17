@@ -6,7 +6,7 @@ zeigt seine Oberfläche in einem Fenster.
 
 ## Voraussetzungen
 
-- Docker Desktop, gestartet
+- Docker Desktop mit WSL, gestartet (fehlt eins davon, sagt die App, was zu tun ist, und startet Docker Desktop auf Klick)
 - GitHub CLI (`gh`), installiert; das Konto braucht Verwaltungsrecht auf den Repos
 - Node.js nur zum Entwickeln (siehe unten); der Installer bringt alles mit
 
@@ -61,6 +61,7 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/usage.js` | Messung: `docker stats`, Belegung der VM, Auslastung von Windows, Verbrauch je Job |
 | `src/status.js`, `src/actions.js`, `src/server.js` | Was die Oberfläche sieht, was sie auslösen kann, und der lokale Dienst dafür |
 | `src/engine.js` | Wo Docker läuft (heute Docker Desktop): Aufrufe der CLI, Endpunkt, WSL-Distro für die Messung der VM |
+| `src/setup.js` | Was dem Rechner für Docker fehlt, solange es nicht antwortet: WSL, Docker Desktop installiert, gestartet, seine Engine; Docker Desktop starten |
 | `src/dockerwatch.js` | Die Docker-Überwachung: vorbereiten, sobald Docker antwortet, regelmäßig prüfen, die beiden eigenen Abbilder (Runner und Docker-Daemon) bauen, Reste abräumen |
 | `src/dind.js` | Der Docker-Daemon in einem Container (Daemon eines Paars, Lade-Daemon der Vorlage): Abbild, Benutzer, Socket, Optionen für den Betrieb ohne Rechte, Warten, bis er antwortet; dasselbe Abbild als Werkzeug für Volumes |
 | `src/slots.js` | Lebenslauf eines Platzes: ein Paar aufbauen, den Runner anmelden, einen Job bedienen, abräumen, im Leerlauf abbrechen |

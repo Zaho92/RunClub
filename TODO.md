@@ -48,7 +48,12 @@ Schritte, in dieser Reihenfolge:
       Satz für Datei und `error.message`), Protokoll, Fehlerantworten und Zustände der Plätze (`st_…`) übersetzt die
       Oberfläche; ein Test hält Backend und Tabellen gleich. Dazu folgen Oberfläche und Menü im Infobereich ohne
       eigene Wahl der Sprache des Systems. Die Protokolldatei `runclub.log` bleibt deutsch.
-   2. Prüfung beim ersten Start: Docker Desktop installiert und gestartet, WSL.
+   2. Prüfung beim ersten Start – erledigt 17.10.2026: `src/setup.js` prüft, solange Docker nicht antwortet, alle
+      15 s, ob WSL fehlt (`wsl --status`), Docker Desktop nicht installiert ist, nicht läuft (`tasklist`) oder läuft,
+      ohne dass seine Engine nach 3 Minuten antwortet. Die Oberfläche zeigt je Stück eine Zeile mit Ausweg (Befehl
+      `wsl --install` kopieren, Anleitung von Docker öffnen, „Docker Desktop starten“ über `POST /api/docker/start`):
+      ohne Projekte als erster Schritt „Docker einrichten“, sonst in der Übersicht statt des Warn-Tags zu Docker. Mit
+      eigenem Endpunkt (`RUNCLUB_DOCKER_HOST`, `DOCKER_HOST`, `DOCKER_CONTEXT`) wird nichts geprüft.
    3. Eigene **GitHub-App** „RunClub“ statt der Anmeldung von `gh`, und **`gh` fällt als Voraussetzung ganz weg**
       (entschieden vom Nutzer am 16.10.2026). Warum GitHub-App statt OAuth-App: Eine OAuth-App braucht `repo`, also
       Vollzugriff auf alle privaten Repos; eine GitHub-App bekommt nur die nötigen Rechte (Administration für

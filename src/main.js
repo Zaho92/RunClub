@@ -22,6 +22,8 @@ const GROUND = '#0c1838';
 const RAIL = '#091230';
 const TEXT = '#c9d2ea';
 const NARROW = 760;
+// Was das Fenster im Browser öffnet: GitHub und die Anleitung, Docker Desktop zu installieren (siehe setup.js).
+const EXTERNAL = ['https://github.com/', 'https://docs.docker.com/desktop/'];
 const TOOLTIP_INTERVAL = 5 * SECOND; // so oft wird der Hinweis am Symbol im Infobereich aufgefrischt
 const UPDATE_FIRST = MINUTE; // nach dem Start, wenn die Runner stehen
 const UPDATE_INTERVAL = 6 * HOUR;
@@ -103,7 +105,7 @@ function showWindow() {
   window.webContents.on('will-navigate', (event, target) => { if (!target.startsWith(home)) event.preventDefault(); });
   // Der Dienst im selben Prozess kann einen Moment später lauschen als das Fenster lädt.
   window.webContents.on('did-fail-load', () => setTimeout(() => { if (window) window.loadURL(url); }, 500));
-  window.webContents.setWindowOpenHandler(({ url: target }) => { if (target.startsWith('https://github.com/')) shell.openExternal(target); return { action: 'deny' }; });
+  window.webContents.setWindowOpenHandler(({ url: target }) => { if (EXTERNAL.some((prefix) => target.startsWith(prefix))) shell.openExternal(target); return { action: 'deny' }; });
   // Im schmalen Fenster trägt der Streifen die Farbe der Leiste; die Knöpfe folgen ihm.
   const matchBar = () => {
     if (!window) return;

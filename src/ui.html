@@ -308,6 +308,11 @@
   .arow > div:first-child { flex: 1; min-width: 0; }
   .arow b { font-weight: 400; color: var(--ink); }
   .arow.bare { padding: 0; border-bottom: 0; }
+  .setup { max-width: 860px; }
+  .setup .arow:last-child { border-bottom: 0; }
+  .setup.first { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+  .setup.first h2 { display: inline; margin-bottom: 2px; }
+  .setup.first h2 + .info { vertical-align: 0; }
   .arow .fault { margin-bottom: 6px; }
   .flow { display: flex; flex-direction: column; gap: 10px; }
   /* Anmeldung bei GitHub: der Einmalcode als Kennzahl, mit einem Klick als Ganzes markiert. */
@@ -435,6 +440,12 @@ const TEXT = {
     authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authEnterScope: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige als {0} das Recht {1}. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authSilent: 'gh hat keinen Einmalcode ausgegeben.', authNoReason: 'gh hat keinen Grund genannt.',
     authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
     authFirstTitle: 'Zuerst bei GitHub anmelden', authFirstText: 'Einmal nötig, damit RunClub Runner in deinen Repos anmelden und ihre Läufe lesen kann.',
+    setupTitle: 'Docker einrichten', setupText: 'Die Linux-Runner brauchen Docker auf diesem Rechner.', setupInfo: 'RunClub prüft das von selbst, solange Docker nicht antwortet, und merkt, wenn alles da ist. Dann verschwindet dieser Abschnitt.',
+    su_wsl: 'WSL fehlt', su_wslMore: 'In einem Terminal als Administrator {0} ausführen, danach Windows neu starten.', su_wslInfo: 'Docker Desktop lässt die Container in einer Linux-VM laufen, die das Windows-Subsystem für Linux (WSL) bereitstellt.', su_wslCopy: 'Befehl kopieren',
+    su_install: 'Docker Desktop fehlt', su_installMore: 'Docker Desktop installieren und einmal starten.', su_installLink: 'Anleitung öffnen', su_installInfo: 'Für den eigenen Gebrauch, kleine Firmen, Ausbildung und nicht kommerzielle Open-Source-Projekte ist Docker Desktop kostenlos; größere Firmen brauchen ein Abo von Docker.',
+    su_start: 'Docker Desktop ist nicht gestartet', su_startMore: 'Starten; RunClub merkt von selbst, wenn es bereit ist.', su_startBtn: 'Docker Desktop starten', su_startInfo: 'Damit es nach jedem Anmelden bei Windows von selbst läuft: in Docker Desktop unter Settings → General „Start Docker Desktop when you sign in to your computer“ einschalten.',
+    su_engine: 'Docker-Engine antwortet nicht', su_engineMore: 'Docker Desktop läuft, die Engine nicht; woran es liegt, zeigt sein Fenster.', su_engineBtn: 'Docker Desktop öffnen', su_engineInfo: 'Oft hilft dort Troubleshoot → Restart. Nach dem Start braucht Docker Desktop meist ein bis zwei Minuten; RunClub meldet es erst nach drei Minuten.',
+    cmdCopied: 'Der Befehl liegt in der Zwischenablage.', cmdCopyFailed: 'Der Befehl ließ sich nicht kopieren.',
     starting: 'Verbinde mit RunClub …', firstTitle: 'Noch kein Projekt', firstText: 'Wähl ein Repo, für das RunClub Runner bereitstellen soll.', noAnswer: 'RunClub antwortet nicht.', stale: 'Das hat nicht geklappt.',
     endTitle: 'RunClub wird beendet', endText: 'Runner, Build-Dienste und ihre Daten werden abgebaut, damit bei GitHub und in Docker nichts liegen bleibt. Das Fenster schließt sich danach von selbst.', endLeft: 'noch etwa', endSoFar: 'bisher', endOver: 'länger als geschätzt, bisher',
     endRemoved: '{0} von {1} Runnern abgebaut', endRemovedAll: '{0} Runner abgebaut', endRemovedOne: '1 Runner abgebaut', endNone: 'keine Runner', endQuote: ['„', '“'], endAborting: 'Abbruch',
@@ -510,6 +521,7 @@ const TEXT = {
     m_exposedTcp: 'RUNCLUB_DOCKER_HOST zeigt auf {0} ohne TLS (RUNCLUB_DOCKER_CERTS fehlt). Jeder Job, der diesen Port erreicht, steuert damit ganz Docker.',
     m_exposedDesktop: 'Docker gibt seinen Daemon ohne Schutz auf tcp://localhost:2375 frei. Jeder Job erreicht ihn über host.docker.internal und steuert damit ganz Docker. In Docker Desktop unter Settings → General „Expose daemon on tcp://localhost:2375 without TLS“ ausschalten.',
     m_dockerGone: 'Docker antwortet nicht mehr – die Linux-Runner warten.', m_imageRunner: 'Das Runner-Abbild',
+    m_desktopNotFound: 'Docker Desktop ist nicht installiert.', m_desktopStarting: 'Starte Docker Desktop …', m_desktopStartFailed: 'Docker Desktop ließ sich nicht starten: {0}',
     m_imageDaemon: 'Das Abbild des Docker-Daemons', m_buildFailed: '{0} ließ sich nicht bauen: {1}',
     m_rebuildFailed: '{0} ließ sich nicht neu bauen ({1}); die Runner nutzen das vorhandene.',
     m_imagesDaily: 'Baue die Abbilder von Runner und Docker-Daemon neu (tägliche Auffrischung) …',
@@ -622,6 +634,12 @@ const TEXT = {
     authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authEnterScope: 'Open GitHub in the browser, enter this code there and confirm the {1} permission as {0}. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authSilent: 'gh did not print a one-time code.', authNoReason: 'gh gave no reason.',
     authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
     authFirstTitle: 'First, sign in to GitHub', authFirstText: 'Needed once so RunClub can register runners in your repos and read their runs.',
+    setupTitle: 'Set up Docker', setupText: 'Linux runners need Docker on this machine.', setupInfo: 'RunClub checks this on its own while Docker does not respond and notices when everything is there. Then this section disappears.',
+    su_wsl: 'WSL is missing', su_wslMore: 'Run {0} in a terminal as administrator, then restart Windows.', su_wslInfo: 'Docker Desktop runs the containers in a Linux VM provided by the Windows Subsystem for Linux (WSL).', su_wslCopy: 'Copy command',
+    su_install: 'Docker Desktop is missing', su_installMore: 'Install Docker Desktop and start it once.', su_installLink: 'Open install guide', su_installInfo: 'Docker Desktop is free for personal use, small businesses, education and non-commercial open source projects; larger companies need a Docker subscription.',
+    su_start: 'Docker Desktop is not running', su_startMore: 'Start it; RunClub notices on its own when it is ready.', su_startBtn: 'Start Docker Desktop', su_startInfo: 'To have it run by itself after every Windows sign-in: in Docker Desktop, turn on “Start Docker Desktop when you sign in to your computer” under Settings → General.',
+    su_engine: 'Docker engine is not responding', su_engineMore: 'Docker Desktop is running, its engine is not; its window shows why.', su_engineBtn: 'Open Docker Desktop', su_engineInfo: 'Troubleshoot → Restart there often helps. After starting, Docker Desktop usually needs one to two minutes; RunClub only reports it after three minutes.',
+    cmdCopied: 'The command is on the clipboard.', cmdCopyFailed: 'The command could not be copied.',
     starting: 'Connecting to RunClub …', firstTitle: 'No project yet', firstText: 'Pick a repo RunClub should provide runners for.', noAnswer: 'RunClub is not responding.', stale: 'That did not work.',
     endTitle: 'RunClub is shutting down', endText: 'Runners, build services and their data are being removed so nothing is left behind on GitHub or in Docker. The window closes by itself afterwards.', endLeft: 'time left', endSoFar: 'so far', endOver: 'longer than estimated, so far',
     endRemoved: '{0} of {1} runners removed', endRemovedAll: '{0} runners removed', endRemovedOne: '1 runner removed', endNone: 'no runners', endQuote: ['“', '”'], endAborting: 'Cancelling',
@@ -692,6 +710,7 @@ const TEXT = {
     m_exposedTcp: 'RUNCLUB_DOCKER_HOST points to {0} without TLS (RUNCLUB_DOCKER_CERTS is missing). Any job that reaches this port controls all of Docker.',
     m_exposedDesktop: 'Docker exposes its daemon unprotected on tcp://localhost:2375. Any job reaches it through host.docker.internal and controls all of Docker. Turn off “Expose daemon on tcp://localhost:2375 without TLS” in Docker Desktop under Settings → General.',
     m_dockerGone: 'Docker no longer responds – the Linux runners are waiting.', m_imageRunner: 'The runner image',
+    m_desktopNotFound: 'Docker Desktop is not installed.', m_desktopStarting: 'Starting Docker Desktop …', m_desktopStartFailed: 'Docker Desktop could not be started: {0}',
     m_imageDaemon: 'The Docker daemon image', m_buildFailed: '{0} could not be built: {1}',
     m_rebuildFailed: '{0} could not be rebuilt ({1}); the runners use the existing one.',
     m_imagesDaily: 'Rebuilding the runner and Docker daemon images (daily refresh) …',
@@ -926,6 +945,25 @@ function renderRail() {
     '<div class="railfoot">' + item('usage', t('usage'), !usage ? '' : usage.out ? '<span class="c-fail">' + esc(usage.text) + '</span>' : esc(usage.text), '', true, Boolean(usage?.out)) + item('settings', t('settings'), signIn ? (authStart() ? esc(signIn) : '<span class="c-fail">' + esc(signIn) + '</span>') : trouble ? '<span class="c-fail">' + trouble.text + ': ' + trouble.repos.map((repo) => esc(shortRepo(repo))).join(', ') + '</span>' : '', '', true, Boolean((signIn && !authStart()) || trouble)) + '</div>');
 }
 
+// --- Docker auf diesem Rechner ---
+
+// Was dem Rechner für Docker fehlt (siehe setup.js), je Stück eine Zeile wie bei der Anmeldung: Titel mit Info, was zu
+// tun ist, rechts der Ausweg. Ohne Projekte ist das der Anfang und nicht rot, und die Zeilen tragen wie dort keine
+// Haarlinie; fällt Docker später aus, ist es eine Störung mit Ausweg. Der Link führt zur Anleitung von Docker (main.js öffnet ihn im Browser).
+const DOCKER_INSTALL = 'https://docs.docker.com/desktop/setup/install/windows-install/';
+const setupMissing = () => data.machine.docker.setup?.missing ?? [];
+function setupRows(first) {
+  const row = (key, hint, control) => '<div class="arow' + (first ? ' bare' : '') + '"><div><b' + (first ? '' : ' class="c-fail"') + '>' + esc(t('su_' + key)) + '</b>' + info(t('su_' + key), t('su_' + key + 'Info')) +
+    '<div class="note' + (first ? '' : ' strong') + '">' + hint + '</div></div>' + control + '</div>';
+  const controls = {
+    wsl: () => '<button class="btn" data-copy="wsl --install" data-copied="cmd">' + glyph('copy') + t('su_wslCopy') + '</button>',
+    install: () => '<a class="btn" href="' + DOCKER_INSTALL + '" target="_blank" rel="noopener">' + t('su_installLink') + '</a>',
+    start: () => '<button class="btn" data-do="docker/start">' + t('su_startBtn') + '</button>',
+    engine: () => '<button class="btn" data-do="docker/start">' + t('su_engineBtn') + '</button>',
+  };
+  return setupMissing().filter((key) => controls[key]).map((key) => row(key, key === 'wsl' ? t('su_wslMore', '<code>wsl --install</code>') : t('su_' + key + 'More'), controls[key]())).join('');
+}
+
 // --- Netzplan ---
 
 function columnsOf(pipeline) {
@@ -1143,7 +1181,7 @@ const minutesTrouble = () => { const { tight, out } = minutesState(); return tig
 const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
 // Eine Schiene: gefüllt bis `share` (0 bis 1), rot bei `alarm`, mit der gepunkteten Marke bei `mark`.
 const fillBar = (share, alarm, mark) => '<i' + (alarm ? ' class="alarm"' : '') + ' style="--v:' + (Math.min(1, Math.max(0, share || 0)) * 100).toFixed(1) + '%;--mark:' + (mark * 100).toFixed(1) + '%"></i>';
-const warnings = (entries) => [data.machine.docker.ready ? '' : t('docker', data.machine.docker.error ? said(data.machine.docker.error) : t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', said(e.error))), ...entries.filter((e) => e.pool?.blocked).map((e) => t('blockedWarn', shortRepo(e.repo)))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
+const warnings = (entries) => [data.machine.docker.ready || setupMissing().length ? '' : t('docker', data.machine.docker.error ? said(data.machine.docker.error) : t('dockerStarting')), authTrouble() ?? '', quotaTrouble()?.out ? t('quotaOutTag', hourMinute(data.quota.resetAt)) : '', ...entries.filter((e) => e.error).map((e) => t('github', said(e.error))), ...entries.filter((e) => e.pool?.blocked).map((e) => t('blockedWarn', shortRepo(e.repo)))].filter(Boolean).map((text) => '<span class="tag c-fail">' + esc(text) + '</span>').join(' ');
 
 // Überschrift einer Ansicht mit einem Satz darunter; `cls` färbt den Satz, `more` ist ein Info-Element am Titel.
 const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
@@ -1183,7 +1221,9 @@ function projectBlocks(entry, withRepo) {
 function renderOverview(entries, single) {
   const main = document.getElementById('main');
   if (main.dataset.shape !== 'overview') { main.dataset.shape = 'overview'; main.dataset.html = ''; main.innerHTML = '<div class="stack"><div class="band"><div id="charts" style="display:contents"></div><div id="seats"></div></div><div id="warn"></div><div id="runs" class="stack" style="gap:34px"></div></div>'; }
-  put(document.getElementById('warn'), warnings(entries));
+  // Fehlt dem Rechner etwas für Docker, steht unter den Warn-Tags, wie es sich beheben lässt; die Zeilen ersetzen
+  // dann den Tag zu Docker.
+  put(document.getElementById('warn'), warnings(entries) + (setupMissing().length ? '<div class="setup">' + setupRows(false) + '</div>' : ''));
   const busy = entries.filter((entry) => entry.pipelines.length);
   const idleHead = viewHead(t('all'), t('idleAll'));
   const blocks = single ? projectBlocks(entries[0]) + legend() : (busy.length ? busy.map((entry) => projectBlocks(entry, true)).join('') + legend() : idleHead) + '<div>' + unservedRows() + quietRows(entries.filter((entry) => !entry.pipelines.length)) + '</div>';
@@ -1554,9 +1594,11 @@ function renderEmpty() {
   // Ohne Anmeldung lässt sich kein Projekt anlegen: Dann ist sie der erste Schritt.
   // Fehlt `gh` oder ein Recht, sagt die Überschrift das, und der Satz dazu steht in der Zeile darunter.
   const trouble = authTrouble();
-  if (trouble) { put(main, '<div class="stack empty">' + (data.auth.state === 'out' ? viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) : viewHead(esc(trouble), '')) + authBody(true) + '</div>'); return; }
+  // Fehlt dem Rechner etwas für Docker, steht das als eigener Abschnitt unter dem Schritt; es hält ihn nicht auf.
+  const setup = setupMissing().length ? '<div class="setup first"><div><h2>' + t('setupTitle') + '</h2>' + info(t('setupTitle'), t('setupInfo')) + '<div class="note">' + t('setupText') + '</div></div>' + setupRows(true) + '</div>' : '';
+  if (trouble) { put(main, '<div class="stack empty">' + (data.auth.state === 'out' ? viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) : viewHead(esc(trouble), '')) + authBody(true) + setup + '</div>'); return; }
   put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText'), '', info(t('firstTitle'), t('projectsInfo'))) + '<div class="row">' +
-    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div></div>');
+    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
 }
 
 // --- Beenden ---
@@ -1698,7 +1740,7 @@ document.addEventListener('click', async (event) => {
   if (logPick) { logRepo = logPick.dataset.logRepo; render(); return; }
   if (event.target.closest('[data-log-copy]')) { copyLog(); return; }
   const copy = event.target.closest('[data-copy]');
-  if (copy) { copyText(copy.dataset.copy, () => t('codeCopied'), t('codeCopyFailed')); return; }
+  if (copy) { const what = copy.dataset.copied ?? 'code'; copyText(copy.dataset.copy, () => t(what + 'Copied'), t(what + 'CopyFailed')); return; }
   const el = event.target.closest('button[data-do]');
   if (!el || el.getAttribute('aria-disabled') === 'true') return;
   const { do: action, confirm: question, ...body } = el.dataset;

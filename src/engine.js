@@ -47,6 +47,7 @@ function engineFrom(env = process.env) {
 //                           ohne Distro ein Ergebnis ohne Ausgabe (`code` -1). Nie Daten von außen hineinschreiben.
 //   unreachable             die Meldung, wenn Docker nicht antwortet (siehe messages.js)
 //   exposure()              eine Warnung (Meldung), wenn der Daemon ohne Schutz erreichbar ist, sonst null (Promise)
+//   desktop                 es ist Docker Desktop (kein eigener Endpunkt, die Distro von Docker Desktop)
 // `get` wie `http.get`; in Tests steuerbar.
 function createEngine({ run, timeout, host = null, certs = null, distro = host ? null : DESKTOP_DISTRO, get = http.get }) {
   const desktop = !host && distro === DESKTOP_DISTRO;
@@ -76,7 +77,7 @@ function createEngine({ run, timeout, host = null, certs = null, distro = host ?
     if (desktop && await desktopExposed()) return msg('m_exposedDesktop');
     return null;
   }
-  return { docker, dockerList, inVm, unreachable, exposure };
+  return { docker, dockerList, inVm, unreachable, exposure, desktop };
 }
 
 module.exports = { engineFrom, createEngine, DESKTOP_DISTRO, EXPOSED_PING };
