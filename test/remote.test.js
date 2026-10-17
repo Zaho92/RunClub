@@ -1,30 +1,32 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createRemote, RERUN_SETTLE, WAITING_INTERVAL, REPO_LIST_MAX_AGE, CHECK_STALE, CHECK_RETRY } = require('../src/remote');
-const { STATE: QUOTA } = require('../src/github');
+const { STATE: QUOTA, GitHubError } = require('../src/github');
 const { BLOCKS } = require('../src/blocks');
 const { turn, rendered } = require('./support');
 const { render, reason } = require('../src/messages');
 
 const REPO = 'wer/App';
 
-// GitHub und der Rest nachgestellt. `answers[pfad]` liefert die Antwort auf `gh api <pfad>` (eine Funktion darf
-// werfen oder ein Promise liefern); `calls` hält die Pfade in ihrer Reihenfolge.
+// GitHub und der Rest nachgestellt. `answers[pfad]` liefert die Antwort auf `get(pfad)` (eine Funktion darf
+// werfen oder ein Promise liefern); `calls` hält die gelesenen Pfade und die geschriebenen als `send <Methode> <pfad>`
+// in ihrer Reihenfolge.
 function world() {
   const w = {
     calls: [], logs: [], timers: [], guarded: [], time: 1000000, checked: [], scanned: null, stopping: false, may: () => true,
     settings: { [REPO]: { repo: REPO } }, pools: { [REPO]: { slots: [] } }, quota: null,
     answers: {}, pipelines: [], confirmed: [],
   };
-  const gh = async (args) => {
-    const at = args.at(-1);
-    w.calls.push(args.length > 2 ? `${args[2]} ${at}` : at);
-    const answer = w.answers[at];
-    return typeof answer === 'function' ? answer() : answer;
+  const answer = (path) => {
+    const found = w.answers[path];
+    return typeof found === 'function' ? found() : found;
   };
   w.remote = createRemote({
-    gh,
-    githubApi: { mayPoll: (...args) => w.may(...args), refreshQuota: async () => w.quota },
+    github: {
+      get: async (path) => { w.calls.push(path); return answer(path); },
+      send: async (method, path) => { w.calls.push(`send ${method} ${path}`); return answer(path); },
+      mayPoll: (...args) => w.may(...args), refreshQuota: async () => w.quota,
+    },
     pipelines: { refresh: async () => w.pipelines, lastOf: () => w.last ?? null, finishedOf: () => w.finished ?? [] },
     confirmResults: (repo, done) => w.confirmed.push([repo, done]),
     routing: { check: async (repo) => { w.checked.push(repo); } },
@@ -83,14 +85,19 @@ test('scheitert die Abfrage, bleiben Jobs und Läufe stehen und der Fehler kommt
   w.answers[`repos/${REPO}/actions/runs?per_page=20`] = { workflow_runs: [RUN] };
   w.pipelines = [PIPELINE];
   await w.remote.refreshRepo(REPO);
-  w.answers[`repos/${REPO}/actions/runs?per_page=20`] = () => { throw new Error('HTTP 502'); };
+  w.answers[`repos/${REPO}/actions/runs?per_page=20`] = () => { throw new GitHubError(502, 'Bad Gateway'); };
   await w.remote.refreshRepo(REPO);
-  assert.equal(w.remote.view(REPO).error, 'HTTP 502');
+  assert.equal(w.remote.view(REPO).error, 'Bad Gateway (HTTP 502)');
   assert.equal(w.remote.view(REPO).jobs.length, 1);
   const fresh = world();
   fresh.answers[`repos/${REPO}/actions/runs?per_page=20`] = () => { throw new Error('kein Netz'); };
   await fresh.remote.refreshRepo(REPO);
-  assert.deepEqual(fresh.remote.view(REPO), { jobs: [], runs: [], error: 'kein Netz' });
+  assert.deepEqual(fresh.remote.view(REPO), { jobs: [], runs: [], error: 'kein Netz', notFound: false });
+  // 404: GitHub kennt das Repo nicht, oder die GitHub-App ist dort nicht installiert.
+  fresh.answers[`repos/${REPO}/actions/runs?per_page=20`] = () => { throw new GitHubError(404, 'Not Found'); };
+  await fresh.remote.refreshRepo(REPO);
+  assert.equal(fresh.remote.view(REPO).notFound, true);
+  assert.equal(w.remote.view(REPO).notFound, false);
 });
 
 test('läuft schon eine Abfrage, folgt genau eine weitere; bei knappem Limit keine', async () => {
@@ -211,13 +218,13 @@ test('ein Org-Repo, in dem Fork-PRs laufen dürfen, sperrt den Pool; nicht lesba
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.guarded.map(([what, kind]) => [what, kind]), [['block', 'forks']]);
   assert.match(render(w.guarded[0][2]), /Forks/);
-  w.answers[forks] = () => { throw new Error('HTTP 403'); }; // nicht lesbar: „erlaubt“ bleibt der Grund
+  w.answers[forks] = () => { throw new GitHubError(403, 'Forbidden'); }; // nicht lesbar: „erlaubt“ bleibt der Grund
   await w.remote.watchVisibility(REPO);
   assert.equal(w.guarded.length, 1);
   w.answers[forks] = { run_workflows_from_fork_pull_requests: false };
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.guarded.at(-1), ['unblock', 'forks']);
-  w.answers[forks] = () => { throw new Error('HTTP 502'); }; // ohne bekannte Gefahr: eigener Grund
+  w.answers[forks] = () => { throw new GitHubError(502, 'Bad Gateway'); }; // ohne bekannte Gefahr: eigener Grund
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.guarded.at(-1).slice(0, 2), ['block', 'forksUnknown']);
   w.answers[forks] = { run_workflows_from_fork_pull_requests: true }; // jetzt gelesen und erlaubt: Grund wechselt
@@ -241,11 +248,11 @@ test('wird ein Repo wieder privat, während Fork-PRs erlaubt sind, wird erst ges
 
 test('ein Pool gilt erst nach einer gelungenen Prüfung als geprüft und nur CHECK_STALE lang; scheitert sie, ruht er und es wird bald erneut geprüft', async () => {
   const w = world();
-  const fail = (message) => { w.answers[`repos/${REPO}`] = () => { throw new Error(message); }; };
+  const fail = (error) => { w.answers[`repos/${REPO}`] = () => { throw error; }; };
   const succeed = () => { w.answers[`repos/${REPO}`] = { private: true }; };
   const retries = () => w.timers.filter(({ ms }) => ms === CHECK_RETRY);
   assert.equal(w.remote.vetted(REPO), false); // beim Start: noch keine Prüfung
-  fail('kein Netz');
+  fail(new Error('kein Netz'));
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.guarded, [['rest', REPO]]);
   assert.deepEqual(w.logs.map(([text, , kind]) => [text.slice(0, 22), kind]), [['Sichtbarkeit des Repos', 'error'], ['Ob das Repo privat ist', 'error']]);
@@ -260,11 +267,11 @@ test('ein Pool gilt erst nach einer gelungenen Prüfung als geprüft und nur CHE
   const expiry = w.timers.find(({ ms }) => ms === CHECK_STALE);
   assert.ok(expiry);
   // Später scheitert sie: Es wird gleich wieder versucht, der Pool arbeitet weiter, solange die letzte frisch ist.
-  fail('HTTP 502');
+  fail(new GitHubError(502, 'Bad Gateway'));
   w.time += CHECK_STALE - 1;
   await w.remote.watchVisibility(REPO);
   assert.deepEqual([w.remote.vetted(REPO), w.guarded.length, retries().length], [true, 1, 1]);
-  assert.equal(w.logs.at(-1)[0], 'Sichtbarkeit des Repos – HTTP 502');
+  assert.equal(w.logs.at(-1)[0], 'Sichtbarkeit des Repos – Bad Gateway (HTTP 502)');
   // Läuft sie ab, ruht der Pool sofort, ohne auf den nächsten Versuch zu warten.
   w.time += 1;
   expiry.work();
@@ -284,7 +291,7 @@ test('ein Pool gilt erst nach einer gelungenen Prüfung als geprüft und nur CHE
 test('erneut starten: nur für Repos mit Pool und mit einer Kennung aus Ziffern; danach wird das Repo neu abgefragt', async () => {
   const w = world();
   await w.remote.rerun(REPO, 77, 'runs/77/rerun', 'gibt es nicht');
-  assert.deepEqual(w.calls, [`POST repos/${REPO}/actions/runs/77/rerun`]);
+  assert.deepEqual(w.calls, [`send POST repos/${REPO}/actions/runs/77/rerun`]);
   assert.deepEqual(w.timers.map((entry) => entry.ms), [RERUN_SETTLE]);
   await assert.rejects(w.remote.rerun('wer/Fremd', 1, 'runs/1/rerun', 'gibt es nicht'), { message: 'gibt es nicht' });
   await assert.rejects(w.remote.rerun(REPO, '1/../../x', 'runs/1/rerun', 'gibt es nicht'), { message: 'gibt es nicht' });

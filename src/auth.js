@@ -1,268 +1,333 @@
-// Die Anmeldung bei GitHub. Es ist die von `gh`: dieselbe, die auch das Terminal nutzt. RunClub liest ihren Stand und
-// führt Anmelden, Ergänzen eines Rechts und Abmelden, indem es `gh auth …` startet.
+// Die Anmeldung bei GitHub über die GitHub-App „RunClub“ (Device Flow): RunClub holt einen Einmalcode, der Nutzer gibt
+// ihn auf github.com ein und bestätigt, RunClub bekommt ein Token für sein Konto. Was RunClub damit darf, legen die
+// Rechte der App fest und die Repos, auf denen sie installiert ist (siehe README).
 //
-// Stand     unknown (noch nicht gelesen) | missing (`gh` ist nicht installiert) | out (nicht angemeldet, oder die
-//           Anmeldung gilt nicht mehr) | in (angemeldet; dann mit Konto und Rechten).
-// Ablauf    Anmelden und Ergänzen laufen über den Browser: `gh` schreibt einen Einmalcode und eine Adresse auf die
-//           Fehlerausgabe und wartet, bis dort bestätigt ist. Höchstens einer zugleich, mit Zeitgrenze.
-//           starting (der Code ist noch nicht da) | waiting (wartet auf die Bestätigung, mit Code und Adresse) |
-//           done | failed | cancelled. Ein beendeter Ablauf bleibt stehen, bis der nächste beginnt. Ein gescheiterter
-//           nennt den Grund als Kennung (`why`), damit die Oberfläche ihn in ihrer Sprache sagt: late (nicht rechtzeitig
-//           bestätigt) | silent (`gh` gab keinen Code aus) | gh (`gh` meldete einen Fehler). Was `gh` dazu zuletzt
-//           schrieb, steht wörtlich in `error`; schrieb es nichts, ist `error` null.
-// Zugleich  Anmelden, Ergänzen und Abmelden schließen einander aus. Nach `close` (die App endet) beginnt nichts mehr.
-// Protokoll Hinein kommt nur, dass an- oder abgemeldet wurde und als wer. Der Einmalcode und alles, was `gh`
-//           schreibt, bleiben draußen; die Meldung eines gescheiterten Ablaufs steht nur im Stand.
+// Stand     unknown (noch nicht gelesen) | out (nicht angemeldet, oder GitHub nimmt die Anmeldung nicht mehr an) |
+//           in (angemeldet; dann mit Konto).
+// Ablauf    starting (der Code ist noch nicht da) | waiting (wartet auf die Bestätigung, mit Code und Adresse) |
+//           done | failed | cancelled. Höchstens einer zugleich. Ein beendeter Ablauf bleibt stehen, bis der nächste
+//           beginnt. Ein gescheiterter nennt den Grund als Kennung (`why`), damit die Oberfläche ihn in ihrer Sprache
+//           sagt: late (nicht rechtzeitig bestätigt) | denied (im Browser abgelehnt) | github (GitHub meldete einen
+//           Fehler oder war nicht erreichbar; was es dazu sagte, steht wörtlich in `error`, sonst ist `error` null).
+// Token     Gilt acht Stunden und wird 5 Minuten vor Ablauf erneuert, ebenso, wenn GitHub es ablehnt. Jeder
+//           Erneuerungsschlüssel gilt nur einmal: Der neue wird erst gesichert, dann benutzt, und es erneuert nur
+//           einer zugleich. Nimmt GitHub den Schlüssel nicht mehr an (widerrufen, ein halbes Jahr unbenutzt), ist der
+//           Nutzer abgemeldet.
+// Ablage    Verschlüsselt über `secrets` (main.js liefert Electrons safeStorage, unter Windows DPAPI) in `github.token`
+//           im Datenordner. Ohne `secrets` (das Backend allein) nur im Speicher: Nach einem Neustart ist neu anzumelden.
+// Abmelden  Vergisst das Token auf diesem Rechner. Bei GitHub widerrufen ließe es sich nur mit dem Geheimnis der App,
+//           und das hat RunClub nicht; die Oberfläche nennt dafür die Seite bei GitHub (`revoke`).
+// Protokoll Hinein kommt nur, dass an- oder abgemeldet wurde und als wer. Code und Token bleiben draußen.
 
-const { lastLine, ESCAPES } = require('./run');
+const fs = require('node:fs');
 const { SECOND, MINUTE } = require('./units');
-const { GH_ENV } = require('./github');
-const { SCOPE: MINUTES_SCOPE } = require('./minutes');
+const { API } = require('./github');
 const { msg, Fault } = require('./messages');
 
-const HOST = 'github.com';
-const STATE = { UNKNOWN: 'unknown', MISSING: 'missing', OUT: 'out', IN: 'in' };
-const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
-const WHY = { LATE: 'late', SILENT: 'silent', GH: 'gh' };
-// Ohne sie kann RunClub nicht arbeiten. `repo` genügt für alles, was es mit den Runnern tut: Runner an- und abmelden,
-// Läufe lesen und erneut starten, die Variable CI_RUNNER setzen. `gh` ergänzt von sich aus `read:org` und `gist`,
-// und die Oberfläche sagt das dazu.
-const REQUIRED = ['repo'];
-// Freiwillige Rechte mit ihrem Zweck; den Satz dazu bildet die Oberfläche. `minutes`: das Minuten-Kontingent zeigen.
-// Freiwillig heißt: Fehlt eines, ist das keine Störung. Das Anmelden in der App verlangt sie trotzdem gleich mit
-// (Entscheidung des Nutzers, 14.10.2026: ein Schritt statt Anmelden und danach Ergänzen); ergänzt werden müssen sie
-// nur nach einer Anmeldung im Terminal, die sie nicht verlangt hat.
-const OPTIONAL = [{ scope: MINUTES_SCOPE, purpose: 'minutes' }];
-const FLOW_TIMEOUT = 15 * MINUTE; // so lange gilt auch der Einmalcode bei GitHub
-const START_WAIT = 20 * SECOND; // kommt bis dahin kein Code, gilt der Ablauf als gescheitert
-const RECHECK = 10 * MINUTE; // so oft wird ein guter Stand im laufenden Betrieb nachgelesen
-// Wo der Einmalcode einzugeben ist. Die Adresse steht fest und wird nicht aus der Ausgabe von `gh` gelesen: Die
-// Oberfläche macht daraus einen Link, und auf github.com liegen auch Seiten Dritter.
+// Die GitHub-App „RunClub“ (https://github.com/settings/apps/runclub-runners). Die Client-ID ist kein Geheimnis.
+const CLIENT_ID = 'Iv23liMHlB06HEzY8bPM';
+const APP_SLUG = 'runclub-runners';
+// Wo die App für ein weiteres Konto oder eine Organisation installiert wird, und wo der Nutzer ihre Freigabe widerruft.
+const INSTALL_URL = `https://github.com/apps/${APP_SLUG}/installations/new`;
+const REVOKE_URL = 'https://github.com/settings/apps/authorizations';
+// Wo der Einmalcode einzugeben ist. Die Adresse steht fest und wird nicht aus der Antwort gelesen: Die Oberfläche macht
+// daraus einen Link.
 const DEVICE_URL = 'https://github.com/login/device';
-const CODE = /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/;
-const LOGIN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/; // nichts, was `gh` als Option lesen könnte
-// So begründet `gh` ein Token, das GitHub ablehnt. Bewusst eng: „401“, „invalid“ oder „expired“ allein stehen auch in
-// Störungen (ein Port, eine Kennung, ein abgelaufenes Zertifikat, HTML statt JSON).
-const INVALID = /\bHTTP 401\b|bad credentials/i;
-const INVALID_TEXT = /token in .* is (invalid|no longer valid)/i; // dasselbe in der Ausgabe für Menschen
+const CODE_URL = 'https://github.com/login/device/code';
+const TOKEN_URL = 'https://github.com/login/oauth/access_token';
+const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
+const FILE = 'github.token';
 
-const signedOut = () => ({ state: STATE.OUT, login: null, scopes: null });
-// Ein Token ohne lesbare Rechte (etwa ein fein abgestuftes) hat `scopes: null`: Dann gilt nichts als fehlend.
-const scopeList = (text) => { const scopes = String(text ?? '').split(',').map((scope) => scope.trim().replace(/^'|'$/g, '')).filter(Boolean); return scopes.length ? scopes : null; };
+const STATE = { UNKNOWN: 'unknown', OUT: 'out', IN: 'in' };
+const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
+const WHY = { LATE: 'late', DENIED: 'denied', GITHUB: 'github' };
+const FLOW_TIMEOUT = 15 * MINUTE; // so lange gilt der Einmalcode bei GitHub; nennt GitHub weniger, gilt das
+const EARLY = 5 * MINUTE; // so lange vor Ablauf wird das Token erneuert
+const SLOW_DOWN = 5 * SECOND; // so viel länger wird gewartet, wenn GitHub um langsameres Fragen bittet
+const USER_CODE = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/; // so sieht ein Konto bei GitHub aus
+const SECRET = /^[\w.-]{10,512}$/; // ein Token oder Schlüssel, wie GitHub sie ausgibt; nichts für eine Kopfzeile Gefährliches
 
-// Liest, was `gh auth status --json hosts` schreibt. Null heißt: Daraus lässt sich nichts schließen (GitHub war nicht
-// erreichbar, oder die Ausgabe ist keine); dann bleibt der letzte Stand.
-function parseHosts(stdout) {
-  let hosts;
-  try { hosts = JSON.parse(stdout)?.hosts; } catch { return null; }
-  if (!hosts || typeof hosts !== 'object') return null;
-  const entries = Array.isArray(hosts[HOST]) ? hosts[HOST] : [];
-  const entry = entries.find((found) => found?.active) ?? entries[0];
-  if (!entry) return signedOut();
-  if (entry.state === 'timeout') return null;
-  // Abgemeldet heißt nur: GitHub hat das Token abgelehnt. Jeder andere Fehler (kein Netz, Anfragelimit, Störung bei
-  // GitHub) sagt nichts über die Anmeldung; dann bleibt der letzte Stand.
-  if (entry.state !== 'success') return INVALID.test(String(entry.error ?? '')) ? signedOut() : null;
-  return { state: STATE.IN, login: String(entry.login ?? '') || null, scopes: scopeList(entry.scopes) };
+// Wartet `ms`, oder bis `signal` abbricht.
+function pause(ms, signal) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+    signal?.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+  });
 }
 
-// Dasselbe aus der Ausgabe für Menschen, für ein `gh`, das `--json` noch nicht kennt. Auch hier meldet nur ein
-// abgelehntes Token ab: „Failed to log in“ allein schreibt `gh` bei jeder Störung.
-function parseText(text) {
-  const login = String(text ?? '').match(/Logged in to github\.com (?:account|as) (\S+)/);
-  if (!login) return /not logged in/i.test(text) || (/Failed to log in/i.test(text) && INVALID_TEXT.test(text)) ? signedOut() : null;
-  return { state: STATE.IN, login: login[1], scopes: scopeList(String(text).match(/Token scopes: (.*)/)?.[1]) };
-}
+// Was ein Fehler beim Fragen sagt, als Text von außen.
+const said = (error) => String(error?.cause?.code ?? error?.message ?? error ?? '').slice(0, 300) || null;
 
-// `run` wie in run.js. `log(text)` schreibt ins Protokoll. `onAccount()` läuft, sobald mit einem anderen Token
-// gearbeitet wird und der neue Stand gelesen ist: nach jedem gelungenen Ablauf und nach einem Abmelden, wenn `gh`
-// danach von selbst ein weiteres Konto nutzt.
-function createAuth({ run, log = () => {}, onAccount = () => {}, now = Date.now, timeout = MINUTE, flowTimeout = FLOW_TIMEOUT, startWait = START_WAIT }) {
-  let current = { state: STATE.UNKNOWN, login: null, scopes: null };
-  let readAt = -Infinity; // wann der Stand zuletzt gelesen wurde
-  let reading = null; // das laufende Lesen; es läuft höchstens eines
+//   file, secrets           wo das Token liegt und wie es ver- und entschlüsselt wird ({ encrypt(buffer), decrypt(buffer) });
+//                           ohne beides nur im Speicher
+//   log(text)               schreibt ins Protokoll
+//   onAccount()             ein anderes Token gilt (nach einem gelungenen Anmelden): Anfragelimit und Repos neu lesen
+//   fetch, now, wait        wie die von Node und `pause`; in Tests steuerbar
+function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch = globalThis.fetch, log = () => {}, onAccount = () => {}, now = Date.now, timeout = MINUTE, flowTimeout = FLOW_TIMEOUT, wait = pause, version = '0' }) {
+  let held = null; // { token, expiresAt, refresh, refreshExpiresAt, login } oder null
+  let current = { state: STATE.UNKNOWN, login: null }; // bis die Ablage gelesen ist
+  let checked = false; // das gesicherte Token wurde bei GitHub geprüft
+  let checking = null; // die laufende Prüfung
+  let renewing = null; // das laufende Erneuern; es läuft höchstens eines
   let flow = null; // der laufende oder der zuletzt beendete Ablauf
-  let leaving = false; // es wird gerade abgemeldet
   let closed = false; // die App endet: Es beginnt nichts mehr
 
-  // `gh` starten, ohne dass die Umgebung die Anmeldung umgeht oder mitschreibt (siehe GH_ENV in github.js).
-  const gh = (args, options) => run('gh', args, { ...options, env: GH_ENV });
   const accountChanged = () => { try { onAccount(); } catch { /* der Stand gilt trotzdem */ } };
   const running = () => flow?.state === FLOW.STARTING || flow?.state === FLOW.WAITING;
 
-  function view() {
-    const signedIn = current.state === STATE.IN;
-    const lacks = (scope) => signedIn && Boolean(current.scopes) && !current.scopes.includes(scope);
-    const known = [...REQUIRED, ...OPTIONAL.map((entry) => entry.scope)];
+  // --- Ablage ---
+
+  // Prüft, was aus der Datei oder von GitHub kommt; null, wenn es keine brauchbare Anmeldung ist.
+  function valid(entry) {
+    if (!entry || typeof entry !== 'object' || !SECRET.test(String(entry.token))) return null;
+    const time = (value) => (Number.isFinite(value) && value > 0 ? value : null);
     return {
-      state: current.state, login: current.login, scopes: current.scopes,
-      required: [...REQUIRED], // die Pflichtrechte, damit die Oberfläche sie beim Namen nennt
-      extra: (current.scopes ?? []).filter((scope) => !known.includes(scope)), // Rechte, die RunClub nicht nutzt (`gh` verlangt von sich aus mehr)
-      missing: REQUIRED.filter(lacks), // fehlende Pflichtrechte
-      optional: OPTIONAL.filter((entry) => lacks(entry.scope)).map((entry) => ({ ...entry })), // fehlende freiwillige
-      // `scopes`: die Rechte, um die es im Ablauf geht
-      flow: flow ? { kind: flow.kind, scopes: [...flow.scopes], state: flow.state, code: flow.code, url: flow.url, why: flow.why, error: flow.error } : null,
+      token: entry.token, expiresAt: time(entry.expiresAt), refresh: SECRET.test(String(entry.refresh)) ? entry.refresh : null,
+      refreshExpiresAt: time(entry.refreshExpiresAt), login: LOGIN.test(String(entry.login)) ? entry.login : null,
     };
   }
 
-  // Das Konto, wenn es angemeldet ist und ihm das Recht nicht fehlt, sonst null. Lassen sich die Rechte nicht lesen,
-  // gilt es als vorhanden: Dann zeigt erst die Abfrage, ob es reicht.
-  function loginWith(scope) {
-    return current.state === STATE.IN && !(current.scopes && !current.scopes.includes(scope)) ? current.login : null;
+  function load() {
+    if (!file || !secrets || !fs.existsSync(file)) return null;
+    try { return valid(JSON.parse(secrets.decrypt(fs.readFileSync(file)).toString('utf8'))); } catch { return null; }
   }
 
-  async function read() {
-    const json = await gh(['auth', 'status', '--active', '--hostname', HOST, '--json', 'hosts'], { timeout });
-    if (json.code === -1 && !json.timedOut && /ENOENT/.test(json.stderr)) return { state: STATE.MISSING, login: null, scopes: null };
-    if (json.code === 0) return parseHosts(json.stdout);
-    if (!/unknown flag/.test(json.stderr)) return null;
-    const plain = await gh(['auth', 'status', '--hostname', HOST], { timeout });
-    return parseText(`${plain.stdout}\n${plain.stderr}`);
+  // Erst sichern, dann gilt es: Ein neuer Erneuerungsschlüssel darf nicht verloren gehen, nachdem der alte verbraucht ist.
+  function keep(entry) {
+    if (file && secrets) {
+      try {
+        if (entry) {
+          const draft = `${file}.neu`;
+          fs.writeFileSync(draft, secrets.encrypt(Buffer.from(JSON.stringify(entry), 'utf8')));
+          fs.renameSync(draft, file);
+        } else fs.rmSync(file, { force: true });
+      } catch { /* dann gilt es nur bis zum Ende dieses Programms */ }
+    }
+    held = entry;
+    current = entry ? { state: STATE.IN, login: entry.login } : { state: STATE.OUT, login: null };
   }
 
-  // Den Stand lesen. Hat er sich geändert, ist die Meldung eines gescheiterten Ablaufs überholt.
-  function refresh() {
-    reading ??= read().catch(() => null).then((found) => { // auch ein Fehler beim Lesen gibt das nächste Lesen frei
-      reading = null;
-      readAt = now();
-      if (found && JSON.stringify(found) !== JSON.stringify(current)) {
-        current = found;
-        if (flow?.state === FLOW.FAILED) flow = null;
-      }
-      return view();
+  // GitHub nimmt die Anmeldung nicht mehr an.
+  function lost() {
+    const login = held?.login;
+    keep(null);
+    if (login) log(msg('m_signInLost', login));
+  }
+
+  // --- Anfragen an GitHub ---
+
+  // Ein Formular an github.com/login/…; GitHub antwortet mit JSON, auch bei Fehlern (`error`).
+  async function post(url, form, signal) {
+    const limit = AbortSignal.timeout(timeout);
+    const response = await fetch(url, {
+      method: 'POST', body: new URLSearchParams(form),
+      headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded', 'user-agent': `RunClub/${version}` },
+      signal: signal ? AbortSignal.any([signal, limit]) : limit,
     });
-    return reading;
-  }
-  // … und zwar sicher nach diesem Augenblick: Ein Lesen, das schon unterwegs ist, kann den alten Stand bringen.
-  const fresh = async () => { await reading; return refresh(); };
-  // Für den Takt im Betrieb: `gh auth status` fragt bei GitHub nach. Ein guter Stand wird deshalb selten nachgelesen,
-  // alles andere jedes Mal, damit eine Anmeldung im Terminal bald ankommt.
-  const poll = () => (current.state === STATE.IN && now() - readAt < RECHECK ? Promise.resolve(view()) : refresh());
-
-  // Was `gh` zuletzt als Fehler schrieb, ohne den Code und die Aufforderung; leer, wenn es nichts schrieb.
-  function said(stderr, code) {
-    const lines = String(stderr ?? '').replace(ESCAPES, '').split('\n').filter((line) => !CODE.test(line) && !/^\W*Open this URL/i.test(line));
-    const text = lastLine(lines.join('\n'));
-    return code ? text.split(code).join('…') : text;
+    let answer = null;
+    try { answer = JSON.parse(await response.text()); } catch { /* unten */ }
+    if (!answer || typeof answer !== 'object') throw new Error(`HTTP ${response.status}`);
+    return answer;
   }
 
-  // Startet `gh` mit den Argumenten und führt den Ablauf. Antwortet, sobald der Code da ist oder der Ablauf endete,
-  // spätestens nach `startWait`.
-  function begin(kind, scopes, args) {
+  // Das Konto zum Token. Wirft mit `status`, wenn GitHub ablehnt.
+  async function userOf(token) {
+    const response = await fetch(`${API}/user`, {
+      headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': `RunClub/${version}` },
+      signal: AbortSignal.timeout(timeout),
+    });
+    if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
+    const login = String((await response.json())?.login ?? '');
+    if (!LOGIN.test(login)) throw new Error('GitHub nennt kein Konto.');
+    return login;
+  }
+
+  // Aus der Antwort mit dem Token die Anmeldung; null, wenn keine darin steht.
+  function granted(answer, login) {
+    const at = (seconds) => (Number(seconds) > 0 ? now() + Number(seconds) * SECOND : null);
+    return valid({ token: answer?.access_token, expiresAt: at(answer?.expires_in), refresh: answer?.refresh_token, refreshExpiresAt: at(answer?.refresh_token_expires_in), login });
+  }
+
+  // --- Token ---
+
+  async function renewNow() {
+    const before = held;
+    if (!before?.refresh || (before.refreshExpiresAt && now() >= before.refreshExpiresAt)) {
+      // Ohne gültigen Schlüssel lässt sich nichts erneuern; ein abgelaufenes Token ist dann verloren.
+      if (before && before.expiresAt && now() >= before.expiresAt) lost();
+      return held?.token ?? null;
+    }
+    let answer;
+    try { answer = await post(TOKEN_URL, { client_id: clientId, grant_type: 'refresh_token', refresh_token: before.refresh }); } catch { return null; }
+    if (held !== before) return held?.token ?? null; // inzwischen ab- oder neu angemeldet
+    if (answer.error === 'bad_refresh_token') { lost(); return null; }
+    const next = granted(answer, before.login);
+    if (!next) return null;
+    keep(next);
+    return next.token;
+  }
+
+  // Erneuern; es läuft höchstens eines, ein zweiter Aufruf bekommt dasselbe Ergebnis.
+  function renewOnce() {
+    renewing ??= renewNow().finally(() => { renewing = null; });
+    return renewing;
+  }
+
+  // Das Token für eine Anfrage, oder null ohne Anmeldung. Kurz vor Ablauf wird es erst erneuert.
+  async function token() {
+    if (!held) return null;
+    if (held.expiresAt && now() >= held.expiresAt - EARLY) await renewOnce();
+    return held?.token ?? null;
+  }
+
+  // GitHub hat `rejected` abgelehnt. Gilt schon ein anderes, ist es das; sonst wird erneuert. Ohne Schlüssel zum
+  // Erneuern ist die Anmeldung verloren.
+  async function renew(rejected) {
+    if (!held) return null;
+    if (held.token !== rejected) return held.token;
+    if (!held.refresh) { lost(); return null; }
+    return renewOnce();
+  }
+
+  // Das gesicherte Token einmal bei GitHub prüfen und dabei das Konto lesen. Ist GitHub nicht erreichbar, bleibt der
+  // Stand und es wird beim nächsten Mal wieder versucht.
+  async function check() {
+    try {
+      let secret = await token();
+      if (!secret) return;
+      let login;
+      try { login = await userOf(secret); } catch (error) {
+        if (error.status !== 401) throw error;
+        secret = await renew(secret);
+        if (!secret) return;
+        login = await userOf(secret);
+      }
+      if (held?.token === secret) {
+        if (held.login !== login) keep({ ...held, login });
+        checked = true;
+      }
+    } catch { /* nicht erreichbar: später noch einmal */ }
+  }
+
+  // Für den Takt im Betrieb: den Stand nach dem Start einmal bei GitHub bestätigen.
+  function poll() {
+    if (held && !checked) checking ??= check().finally(() => { checking = null; });
+    return (checking ?? Promise.resolve()).then(view);
+  }
+
+  // --- Anmelden ---
+
+  function end(mine, state, why = null, error = null) {
+    Object.assign(mine, { state, why, error, code: null, url: null });
+  }
+
+  // Fragt, bis der Nutzer im Browser bestätigt hat, abgelehnt hat oder der Code verfallen ist.
+  async function confirm(mine, device) {
+    let interval = Math.max(Number(device.interval) || 5, 1) * SECOND;
+    const deadline = now() + Math.min((Number(device.expires_in) || Infinity) * SECOND, flowTimeout);
+    for (;;) {
+      await wait(interval, mine.controller.signal);
+      if (mine.state !== FLOW.WAITING) return;
+      if (now() >= deadline) { end(mine, FLOW.FAILED, WHY.LATE); return; }
+      let answer;
+      try { answer = await post(TOKEN_URL, { client_id: clientId, device_code: device.device_code, grant_type: DEVICE_GRANT }, mine.controller.signal); } catch { continue; } // kurz nicht erreichbar: weiter fragen
+      if (mine.state !== FLOW.WAITING) return;
+      if (answer.error === 'authorization_pending') continue;
+      if (answer.error === 'slow_down') { interval = Number(answer.interval) > 0 ? Number(answer.interval) * SECOND : interval + SLOW_DOWN; continue; }
+      if (answer.error === 'expired_token') { end(mine, FLOW.FAILED, WHY.LATE); return; }
+      if (answer.error === 'access_denied') { end(mine, FLOW.FAILED, WHY.DENIED); return; }
+      if (answer.error) { end(mine, FLOW.FAILED, WHY.GITHUB, String(answer.error_description ?? answer.error).slice(0, 300)); return; }
+      // Bestätigt: Ab jetzt gibt es nichts mehr abzubrechen (siehe `cancel`).
+      mine.settled = true;
+      const entry = granted(answer, null);
+      if (!entry) { end(mine, FLOW.FAILED, WHY.GITHUB); return; }
+      let login;
+      try { login = await userOf(entry.token); } catch (error) { end(mine, FLOW.FAILED, WHY.GITHUB, said(error)); return; }
+      keep({ ...entry, login });
+      checked = true;
+      end(mine, FLOW.DONE);
+      log(msg('m_loggedIn', login));
+      accountChanged();
+      return;
+    }
+  }
+
+  async function begin(mine, show) {
+    let device;
+    try { device = await post(CODE_URL, { client_id: clientId }, mine.controller.signal); } catch (error) {
+      if (mine.state === FLOW.STARTING) end(mine, FLOW.FAILED, WHY.GITHUB, said(error));
+      return;
+    }
+    if (mine.state !== FLOW.STARTING) return;
+    if (device.error || !USER_CODE.test(String(device.user_code)) || !device.device_code) {
+      end(mine, FLOW.FAILED, WHY.GITHUB, device.error ? String(device.error_description ?? device.error).slice(0, 300) : null);
+      return;
+    }
+    Object.assign(mine, { state: FLOW.WAITING, code: device.user_code, url: DEVICE_URL });
+    show();
+    await confirm(mine, device);
+  }
+
+  // Antwortet, sobald der Code da ist oder der Ablauf endete.
+  async function login() {
     if (closed) throw new Fault('m_closing');
-    if (leaving) throw new Fault('m_leaving');
     if (running()) throw new Fault('m_loginRunning');
-    const controller = new AbortController();
-    const mine = { kind, scopes, state: FLOW.STARTING, code: null, url: null, why: null, error: null, controller, ended: null, settled: false, silent: false, heard: '' };
+    if (current.state === STATE.IN) throw new Fault('m_alreadyIn', current.login);
+    const mine = { state: FLOW.STARTING, code: null, url: null, why: null, error: null, controller: new AbortController(), ended: null, settled: false };
     flow = mine;
     let show;
     const shown = new Promise((resolve) => { show = resolve; });
-    const onText = (raw) => {
-      if (mine.state !== FLOW.STARTING && mine.state !== FLOW.WAITING) return;
-      const line = String(raw).replace(ESCAPES, '');
-      const code = line.match(CODE);
-      // Was `gh` statt des Codes schreibt, erklärt später, warum keiner kam.
-      if (!code) { mine.heard = said(line) || mine.heard; return; }
-      mine.code = code[1];
-      mine.url = DEVICE_URL;
-      mine.state = FLOW.WAITING;
-      show();
-    };
-    // Die leere Zeile beantwortet die Rückfrage, mit der `gh` sonst auf die Eingabetaste wartet.
-    mine.ended = gh(args, { input: '\n', timeout: flowTimeout, signal: controller.signal, onLine: onText, onErrLine: onText }).then(async (result) => {
-      // `gh` ist zu Ende: Ab jetzt gibt es nichts mehr abzubrechen (siehe `cancel`).
-      mine.settled = true;
-      // Erst den neuen Stand lesen, dann den Ablauf beenden: sonst stünde kurz „gelungen“ neben „nicht angemeldet“.
-      await fresh().catch(() => {});
-      const code = mine.code;
-      mine.code = null;
-      mine.url = null;
-      if (mine.silent) {
-        // Das Programm wurde beendet; sein Ergebnis sagt dann nichts mehr. Es zählt, was es bis dahin schrieb.
-        Object.assign(mine, { state: FLOW.FAILED, why: WHY.SILENT, error: mine.heard || null });
-      } else if (mine.state !== FLOW.CANCELLED) {
-        mine.state = result.code === 0 ? FLOW.DONE : FLOW.FAILED;
-        if (result.code !== 0) Object.assign(mine, result.timedOut ? { why: WHY.LATE } : { why: WHY.GH, error: said(result.stderr, code) || null });
-      }
-      if (mine.state === FLOW.DONE) {
-        if (kind === 'login' && current.state === STATE.IN) log(msg('m_loggedIn', current.login));
-        accountChanged();
-      }
-      show();
-    });
-    let timer;
-    const patience = new Promise((resolve) => { timer = setTimeout(resolve, startWait); timer.unref?.(); });
-    return Promise.race([shown, patience]).then(async () => {
-      clearTimeout(timer);
-      // Ohne Code gibt es nichts zu bestätigen: Der Ablauf scheitert jetzt, statt eine Viertelstunde stumm zu warten.
-      if (mine.state === FLOW.STARTING && !mine.settled) { mine.silent = true; controller.abort(); await mine.ended; }
-      return view();
-    });
+    mine.ended = begin(mine, show).catch((error) => { if (running()) end(mine, FLOW.FAILED, WHY.GITHUB, said(error)); }).finally(show);
+    await shown;
+    return view();
   }
 
-  // Nur wer sicher nicht angemeldet ist, meldet sich an: Ein Anmelden über eine bestehende Anmeldung hinweg ersetzte
-  // deren Token, auch für das Terminal. Der Stand wird deshalb unmittelbar davor frisch gelesen (der letzte kann eine
-  // Minute alt sein, und im Terminal kann sich inzwischen jemand angemeldet haben). Das Protokoll für Git
-  // (`--git-protocol`) bleibt, wie der Nutzer es in `gh` eingestellt hat.
-  async function login() {
-    if (closed) throw new Fault('m_closing');
-    if (!running() && !leaving) await fresh();
-    if (current.state === STATE.MISSING) throw new Fault('m_ghMissing');
-    if (current.state === STATE.IN) throw new Fault('m_alreadyIn', current.login);
-    if (current.state !== STATE.OUT) throw new Fault('m_authUnknown');
-    const scopes = [...REQUIRED, ...OPTIONAL.map((entry) => entry.scope)];
-    return begin('login', scopes, ['auth', 'login', '--hostname', HOST, '--web', '-s', scopes.join(',')]);
-  }
-
-  // Ein Recht ergänzen: ohne Angabe alle fehlenden Pflichtrechte, sonst das genannte freiwillige.
-  async function grant(scope) {
-    if (current.state !== STATE.IN) throw new Fault('m_loginFirst');
-    const open = view();
-    const scopes = scope ? open.optional.filter((entry) => entry.scope === scope).map((entry) => entry.scope) : open.missing;
-    if (!scopes.length) throw new Fault(scope ? 'm_scopeNotMissing' : 'm_noScopeMissing');
-    return begin('scope', scopes, ['auth', 'refresh', '-h', HOST, '-s', scopes.join(',')]);
-  }
-
-  // Beendet das wartende `gh`. Antwortet, wenn es beendet ist. Ist `gh` schon zu Ende und wird nur noch der neue
-  // Stand gelesen, gibt es nichts mehr abzubrechen: Die Bestätigung im Browser gilt dann.
+  // Bricht den laufenden Ablauf ab. Hat der Nutzer schon bestätigt, gilt das: Dann wird nur noch zu Ende angemeldet.
   async function cancel() {
     if (!running()) return;
     const mine = flow;
-    if (mine.settled) { await mine.ended; return; }
-    mine.state = FLOW.CANCELLED;
-    mine.code = null;
-    mine.url = null;
-    mine.controller.abort();
+    if (!mine.settled) {
+      end(mine, FLOW.CANCELLED);
+      mine.controller.abort();
+    }
     await mine.ended;
   }
 
+  // Vergisst das Token auf diesem Rechner (siehe oben).
   async function logout() {
     if (closed) throw new Fault('m_closing');
-    if (leaving) throw new Fault('m_leavingAlready');
     if (running()) throw new Fault('m_finishLogin');
     if (current.state !== STATE.IN) throw new Fault('m_notIn');
     const login = current.login;
-    if (!LOGIN.test(String(login))) throw new Fault('m_loginUnknown');
-    leaving = true;
-    try {
-      const result = await gh(['auth', 'logout', '--hostname', HOST, '--user', login], { input: '\n', timeout });
-      await fresh();
-      if (result.code !== 0) throw result.timedOut ? new Fault('m_ghSilent') : said(result.stderr) ? new Error(said(result.stderr)) : new Fault('m_ghExit', result.code);
-      flow = null;
-    } finally { leaving = false; }
-    // Kennt `gh` ein weiteres Konto, nutzt es nach dem Abmelden von selbst dieses.
-    if (current.state !== STATE.IN) { log(msg('m_loggedOut', login)); return; }
-    log(msg('m_loggedOutSwitch', login, current.login));
-    accountChanged();
+    keep(null);
+    checked = false;
+    flow = null;
+    log(msg('m_loggedOut', login ?? '?'));
   }
 
-  // Die App endet: ein wartendes `gh` beenden und keinen neuen Ablauf mehr beginnen.
+  // Die App endet: einen wartenden Ablauf beenden und keinen neuen mehr beginnen.
   function close() {
     closed = true;
     return cancel();
   }
 
-  return { view, loginWith, refresh, poll, login, grant, cancel, logout, close };
+  // Das angemeldete Konto, oder null.
+  const signedIn = () => (current.state === STATE.IN ? current.login : null);
+
+  function view() {
+    return {
+      state: current.state, login: current.login,
+      flow: flow ? { state: flow.state, code: flow.code, url: flow.url, why: flow.why, error: flow.error } : null,
+      install: INSTALL_URL, revoke: REVOKE_URL,
+    };
+  }
+
+  held = load();
+  current = held ? { state: STATE.IN, login: held.login } : { state: STATE.OUT, login: null };
+
+  return { view, signedIn, poll, token, renew, login, cancel, logout, close };
 }
 
-module.exports = { createAuth, parseHosts, parseText, STATE, FLOW, WHY, REQUIRED, OPTIONAL };
+module.exports = { createAuth, STATE, FLOW, WHY, CLIENT_ID, APP_SLUG, INSTALL_URL, REVOKE_URL, FILE };

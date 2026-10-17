@@ -28,7 +28,7 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 //   settings                `config`, `limitsOf` (siehe settings.js)
 //   runners                 `pools` (Map), `reserveSize(pool)`, `staleCount(pool)` (siehe runners.js)
 //   remote                  `view(repo)`, `vetted(repo)` (siehe remote.js)
-//   pipelines, metrics, usage, routing, waiting, account, githubApi   siehe die gleichnamigen Module
+//   pipelines, metrics, usage, routing, waiting, account, github   siehe die gleichnamigen Module
 //   dockerWatch             `ready()`, `error()`, `cpus()`, `memory()` (siehe dockerwatch.js)
 //   setup                   `view()`: was dem Rechner für Docker fehlt (siehe setup.js)
 //   buildService(repo)      Name des Build-Dienstes (siehe names.js)
@@ -36,7 +36,7 @@ function runnerView({ slot, index, repo, jobs, statsOf, cpus }) {
 //   uiFile                  die Datei der Seite; ändert sie sich, lädt die Seite sich neu
 //   shutdown()              der Stand beim Beenden, sonst null (siehe shutdown.js)
 //   extra()                 Angaben, die die App beisteuert (siehe `hooks.status` in backend.js)
-function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, setup = { view: () => null }, buildService, logStamp, uiFile, shutdown = () => null, extra = () => ({}) }) {
+function createStatus({ settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, github, dockerWatch, setup = { view: () => null }, buildService, logStamp, uiFile, shutdown = () => null, extra = () => ({}) }) {
   const { config, limitsOf } = settings;
 
   const limitRange = () => limitRules.bounds({ dockerMemory: dockerWatch.memory(), dockerCpus: dockerWatch.cpus() });
@@ -84,6 +84,7 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
       repo,
       waiting: remoteState.jobs.filter((job) => job.status === 'queued').length,
       error: remoteState.error ?? null,
+      notFound: remoteState.notFound ?? false, // GitHub antwortete 404: Repo weg, oder die App fehlt auf seinem Konto
       runs: remoteState.runs,
       pipelines: pipelines.view(repo, settingsOfRepo.paused ? 0 : settingsOfRepo.parallel),
       lastRun: pipelines.lastOf(repo),
@@ -105,10 +106,10 @@ function createStatus({ settings, runners, remote, pipelines, metrics, usage, ro
         limitsView: { values: limitRules.view(config.limits), bounds: limitRange(), plan: limitPlan(), needRuns: limitRules.SUGGEST_RUNS, tightAt: limitRules.TIGHT },
       },
       repos: config.pools.map(repoView),
-      quota: githubApi.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
-      minutes: account.minutesView(), // Minuten-Kontingent von GitHub Actions in diesem Monat: { plan | null, used, included | null, paid, cost, systems: { linux, windows, macos, other }, resetAt, state, tightAt, plans }; solange es keinen Stand gibt, nur { state: 'reading' | 'failed' }; null ohne Anmeldung oder ohne das Recht dafür
+      quota: github.quota(), // Anfragelimit des GitHub-Kontos: { limit, remaining, resetAt, state, tightAt } oder null
+      minutes: account.minutesView(), // Minuten-Kontingent von GitHub Actions in diesem Monat: { plan | null, used, included | null, paid, cost, systems: { linux, windows, macos, other }, resetAt, state, tightAt, plans }; solange es keinen Stand gibt, nur { state: 'reading' | 'failed' }; null ohne Anmeldung
       unserved: waiting.list().filter((entry) => !settings.settingsOf(entry.repo)), // Repos ohne Pool, in denen nichts vorankommt: [{ repo, reason: 'runner', jobs, since, url } | { repo, reason: 'minutes', runs, since, url }]
-      auth: account.authView(), // Anmeldung bei GitHub: { state, login, scopes, required, extra, missing, optional: [{ scope, purpose }], flow: { kind, scopes, state, code, url, why, error } | null }
+      auth: account.authView(), // Anmeldung bei GitHub: { state, login, flow: { state, code, url, why, error } | null, install, revoke } (siehe auth.js)
       logStamp: logStamp(), // das Protokoll selbst holt die Oberfläche, wenn sich die Kennung ändert
       ui: uiChangedAt(), // die Seite lädt sich neu, wenn sich ihre Datei ändert
       shutdown: shutdown(), // solange RunClub endet, was noch abgebaut wird (siehe shutdown.js), sonst null

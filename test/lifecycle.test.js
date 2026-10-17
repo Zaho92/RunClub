@@ -57,14 +57,14 @@ test('startPools startet jeden Pool und protokolliert, wenn CI_RUNNER sich nicht
     // So meldet routing.js einen Fehler beim Lesen; werfen sollte es nicht, aber auch das kommt ins Protokoll.
     checkRouting: async (repo) => {
       if (repo === 'wer/Drei') throw new Error('unerwartet');
-      return { value: null, error: repo === 'wer/Zwei' ? 'gh: Forbidden (HTTP 403)' : null };
+      return { value: null, error: repo === 'wer/Zwei' ? 'Forbidden (HTTP 403)' : null };
     },
     watchVisibility: (repo) => started.push(`Sichtbarkeit ${repo}`),
   });
   await new Promise(setImmediate);
   assert.deepEqual(started, ['Pool wer/App', 'Sichtbarkeit wer/App', 'Pool wer/Zwei', 'Sichtbarkeit wer/Zwei', 'Pool wer/Drei', 'Sichtbarkeit wer/Drei']);
   assert.deepEqual(w.logs, [
-    ['CI_RUNNER ließ sich nicht lesen – gh: Forbidden (HTTP 403)', 'wer/Zwei', 'error'],
+    ['CI_RUNNER ließ sich nicht lesen – Forbidden (HTTP 403)', 'wer/Zwei', 'error'],
     ['CI_RUNNER ließ sich nicht lesen – unerwartet', 'wer/Drei', 'error'],
   ]);
 });

@@ -46,20 +46,20 @@ const neverStarted = (job) => job.conclusion === 'failure' && !(job.steps ?? [])
 // Nennen die Anmerkungen eines Jobs das Kontingent als Grund?
 const minutesNote = (annotations) => (Array.isArray(annotations) ? annotations : []).some((note) => note.annotation_level === 'failure' && NOT_STARTED.test(String(note.message)));
 
-function createWaiting({ gh, now = Date.now }) {
+function createWaiting({ github, now = Date.now }) {
   // Je Repo ein Eintrag, der älteste zuerst: { repo, reason: 'runner', jobs: [Name, …], since (ISO), url } oder
   // { repo, reason: 'minutes', runs: Anzahl, since (ISO), url }.
   let found = [];
   // "Repo/Lauf@Stand" -> am Kontingent gescheitert? Ein abgeschlossener Lauf ändert sich nur durch erneutes Starten.
   const verdicts = new Map();
 
-  const jobsOf = async (repo, run) => (await gh(['api', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=${PAGE_MAX}`])).jobs ?? [];
+  const jobsOf = async (repo, run) => (await github.get(`repos/${repo}/actions/runs/${run.id}/jobs?per_page=${PAGE_MAX}`)).jobs ?? [];
   // Wann der Lauf zuletzt begann: Ein erneut gestarteter Lauf behält sein `created_at`.
   const startOf = (run) => run.run_started_at ?? run.created_at;
 
   async function waitingIn(repo) {
     const runs = [];
-    for (const status of OPEN) runs.push(...((await gh(['api', `repos/${repo}/actions/runs?status=${status}&per_page=${RUNS_MAX}`])).workflow_runs ?? []));
+    for (const status of OPEN) runs.push(...((await github.get(`repos/${repo}/actions/runs?status=${status}&per_page=${RUNS_MAX}`)).workflow_runs ?? []));
     const jobs = [];
     for (const run of runs) {
       const waiting = (await jobsOf(repo, run)).filter(wantsOwnRunner);
@@ -74,7 +74,7 @@ function createWaiting({ gh, now = Date.now }) {
     if (!verdicts.has(key)) {
       let hit = false;
       for (const job of (await jobsOf(repo, run)).filter(neverStarted).slice(0, JOBS_MAX)) {
-        if (minutesNote(await gh(['api', `repos/${repo}/check-runs/${job.id}/annotations`]))) { hit = true; break; }
+        if (minutesNote(await github.get(`repos/${repo}/check-runs/${job.id}/annotations`))) { hit = true; break; }
       }
       verdicts.set(key, hit);
       if (verdicts.size > VERDICTS_MAX) verdicts.delete(verdicts.keys().next().value);
@@ -87,7 +87,7 @@ function createWaiting({ gh, now = Date.now }) {
   // durchläuft, sagt nichts darüber, ob dieser wieder startet.
   async function minutesIn(repo) {
     // Die Antwort ist eingefroren (siehe github.js): sortiert wird eine Kopie.
-    const runs = [...((await gh(['api', `repos/${repo}/actions/runs?status=completed&per_page=${DONE_MAX}`])).workflow_runs ?? [])]
+    const runs = [...((await github.get(`repos/${repo}/actions/runs?status=completed&per_page=${DONE_MAX}`)).workflow_runs ?? [])]
       .sort((a, b) => String(startOf(b)).localeCompare(String(startOf(a))));
     const recovered = new Set(); // Workflows, bei denen schon ein jüngerer gelungener Lauf gesehen wurde
     const failed = [];

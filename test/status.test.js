@@ -49,7 +49,7 @@ function world() {
     routing: { of: () => ({ here: true }) },
     waiting: { list: () => [{ repo: REPO, reason: 'runner' }, { repo: 'wer/ohne', reason: 'minutes' }] },
     account: { minutesView: () => null, authView: () => ({ state: 'in' }) },
-    githubApi: { quota: () => null },
+    github: { quota: () => null },
     dockerWatch: { ready: () => w.ready, error: () => w.error, cpus: () => 6, memory: () => 16 * GB },
     setup: { view: () => w.setup ?? null },
     buildService: (repo) => `rc-buildkit-${repo}`,

@@ -50,7 +50,7 @@ const RUNNER_LOG_MAX = '20m'; // Protokoll eines Runner-Containers in der Docker
 const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT', 'NET_BIND_SERVICE'];
 
 //   docker(args, options)   wie `run('docker', …)`: liefert `{ code, stdout, stderr }` und wirft nie
-//   gh(args, body)          Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
+//   github                  Zugang zu GitHub (siehe github.js)
 //   log(text, repo, kind, about), sleep(ms), timer (wie `setTimeout`), newId() (Kennung eines neuen Paars)
 //   host, mark, image, dind Name des Rechners, Kennzeichen der eigenen Container, Abbild des Runners und des Daemons
 //   longTimeout             Zeitgrenze für das Kopieren der Vorlage
@@ -61,7 +61,7 @@ const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT',
 //   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen
 //   forgetStats(name)       die Messwerte eines Containers verwerfen
 function createSlots({
-  docker, gh, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
+  docker, github, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, mark, image, dind, longTimeout, metrics,
   settingsOf, limitsOf, seedVolume, cacheVolume, buildSocket,
   stopping, dockerReady, poolResting,
@@ -80,7 +80,7 @@ function createSlots({
     if (runnerId) {
       // Was sich nicht abmelden lässt, bleibt bei GitHub als toter Eintrag stehen, bis die Docker-Überwachung es
       // abmeldet (siehe `removeRegistrations` in dockerwatch.js), und gehört deshalb ins Protokoll.
-      await unregisterRunner(gh, repo, runnerId).catch((error) => log(msg('m_withReason', msg('m_unregisterFailed'), reason(error)), repo, 'error'));
+      await unregisterRunner(github, repo, runnerId).catch((error) => log(msg('m_withReason', msg('m_unregisterFailed'), reason(error)), repo, 'error'));
     }
   }
 
@@ -168,12 +168,11 @@ function createSlots({
     // das Paar unbenutzt: Der Platz behält es (`kept`) und meldet es nach der Pause erneut an (siehe `slotLoop`).
     let jit = null;
     try {
-      jit = await gh(['api', '-X', 'POST', `repos/${pool.repo}/actions/runners/generate-jitconfig`],
-        JSON.stringify({ name: slot.name, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' }));
+      jit = await github.send('POST', `repos/${pool.repo}/actions/runners/generate-jitconfig`, { name: slot.name, runner_group_id: 1, labels: ['self-hosted', 'Linux', 'X64'], work_folder: '_work' });
     } catch (error) {
       // Meldet GitHub, dass es den Runner schon gibt (eine frühere Anmeldung kam dort an, die Antwort aber nicht),
       // hilft ein neuer Versuch mit demselben Namen nicht: Dann geht das Paar, und das nächste trägt einen neuen.
-      if (!/already exists|HTTP 409|HTTP 422/i.test(error.message)) slot.kept = pair;
+      if (!/already exists/i.test(error.message) && error.status !== 409 && error.status !== 422) slot.kept = pair;
       throw error;
     }
     slot.runnerId = jit.runner?.id ?? null;

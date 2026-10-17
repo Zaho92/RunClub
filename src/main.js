@@ -2,13 +2,12 @@
 // Die Runner verwaltet backend.js im selben Prozess; das Fenster zeigt dessen Oberfläche.
 // Das Fenster zu schließen beendet nichts – beendet wird über das Symbol im Infobereich oder „Alles beenden“.
 
-const { app, BrowserWindow, Tray, Menu, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, safeStorage } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const { SECOND, MINUTE, HOUR } = require('./units');
 const { SLOT } = require('./states');
-const { run, lastLine } = require('./run');
-const { GH_ENV } = require('./github');
+const { run } = require('./run');
 const { createUpdater } = require('./updater');
 const { msg, Fault } = require('./messages');
 const pkg = require('../package.json');
@@ -60,11 +59,11 @@ async function adoptAutostart() {
   if (result.code === 0 && /RunClub\s+REG_SZ/i.test(result.stdout)) setAutostart(true);
 }
 
-// Das Token von `gh` für die Releases, solange das Repo privat ist; ohne Anmeldung wird ohne gefragt.
-async function ghToken() {
-  const result = await run('gh', ['auth', 'token', '--hostname', 'github.com'], { env: GH_ENV, timeout: 30 * SECOND });
-  return result.code === 0 ? lastLine(result.stdout) || null : null;
-}
+// So liegt das Token der Anmeldung bei GitHub im Datenordner: verschlüsselt mit dem Schlüssel des Windows-Benutzers
+// (DPAPI). Steht das nicht zur Verfügung, gilt die Anmeldung nur bis zum Ende des Programms (siehe auth.js).
+const secrets = () => (safeStorage.isEncryptionAvailable()
+  ? { encrypt: (buffer) => safeStorage.encryptString(buffer.toString('utf8')), decrypt: (buffer) => Buffer.from(safeStorage.decryptString(buffer), 'utf8') }
+  : null);
 
 // Spielt das geladene Update ein: nur, wenn kein Runner arbeitet, denn Beenden baut alle ab. Der Installer startet
 // erst, wenn der Abbau fertig ist (hooks.onExit), und öffnet RunClub danach wieder.
@@ -178,6 +177,8 @@ app.whenReady().then(() => {
   backend = require('./backend').start({
     hooks: {
       onExit: exit,
+      secrets: secrets(),
+      version: app.getVersion(),
       status: () => ({ app: { autostart: autostart(), update: updater.view() } }),
       actions: {
         'app/autostart': async ({ on }) => setAutostart(on),
@@ -188,7 +189,7 @@ app.whenReady().then(() => {
     },
   });
   updater = createUpdater({
-    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, token: ghToken, log: (text) => backend.log(text),
+    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, token: async () => backend.githubToken(), log: (text) => backend.log(text),
   });
   adoptAutostart();
   setTimeout(() => { updater.check(); setInterval(() => updater.check(), UPDATE_INTERVAL); }, UPDATE_FIRST);

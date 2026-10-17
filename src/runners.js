@@ -15,7 +15,7 @@ const { unregisterRunner } = require('./github');
 const { errorLog } = require('./journal');
 
 //   docker(args, options), dockerList(args)   aus engine.js
-//   gh(args, body)          Aufruf der GitHub-API
+//   github                  Zugang zu GitHub (siehe github.js)
 //   log(text, repo, kind, about), sleep(ms), timer (wie `setTimeout`), newId() (Kennung eines neuen Paars)
 //   host                    Name des Rechners (Anfang der Runner-Namen)
 //   names                   Kennzeichen und Namen je Repo (siehe names.js)
@@ -27,7 +27,7 @@ const { errorLog } = require('./journal');
 //   refreshRepo(repo)       den Stand des Repos bei GitHub neu holen (siehe remote.js)
 //   forgetStats(name)       die Messwerte eines Containers verwerfen (siehe usage.js)
 function createRunners({
-  docker, dockerList, gh, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
+  docker, dockerList, github, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
   host, names, image, dind, buildkit, longTimeout,
   settings, metrics, stopping, dockerReady, vetted, refreshRepo, forgetStats,
 }) {
@@ -44,7 +44,7 @@ function createRunners({
 
   let reserve = null; // die Funktionen aus pools.js; sie entstehen erst nach den Plätzen, die sie brauchen
   const slots = createSlots({
-    docker, gh, log, sleep, timer, newId,
+    docker, github, log, sleep, timer, newId,
     host, mark: names.mark, image, dind, longTimeout, metrics,
     settingsOf, limitsOf, seedVolume: names.seedVolume, cacheVolume: names.cacheVolume, buildSocket: names.buildSocket,
     stopping, dockerReady, poolResting: (pool) => reserve.poolResting(pool),
@@ -87,7 +87,7 @@ function createRunners({
 
   // Beim Abmelden von Windows: die freien Runner bei GitHub abmelden, alle zugleich. Fehler zählen nicht; was bleibt,
   // meldet der nächste Start ab.
-  const releaseIdle = () => Promise.all(idleRegistrations(pools.values()).map(({ repo, runnerId }) => unregisterRunner(gh, repo, runnerId).catch(() => {})));
+  const releaseIdle = () => Promise.all(idleRegistrations(pools.values()).map(({ repo, runnerId }) => unregisterRunner(github, repo, runnerId).catch(() => {})));
 
   return { pools, seed, slots, caches, ...reserve, tick, measureAll, releaseIdle };
 }

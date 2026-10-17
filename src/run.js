@@ -9,7 +9,7 @@
 //   timeout   Millisekunden, nach denen das Programm beendet wird; 0 heißt ohne Grenze
 //   signal    ein AbortSignal, das das Programm von außen beendet; das Ergebnis trägt dann `aborted: true`
 //
-// Ein Programm ohne Pfad (`gh`, `docker`, `wsl`) wird unter Windows selbst über PATH gesucht (siehe `locate`).
+// Ein Programm ohne Pfad (`docker`, `wsl`) wird unter Windows selbst über PATH gesucht (siehe `locate`).
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -25,7 +25,7 @@ const GRACE = 5 * SECOND; // so lange darf ein beendetes Programm seine Ausgabe 
 const ESCAPES = /\u001b\[[0-9;?]*[A-Za-z]/g;
 
 // Wo das Programm liegt. Windows sucht einen Namen ohne Pfad zuerst im Arbeitsverzeichnis und erst dann in PATH: Ein
-// dort abgelegtes `gh.exe` bekäme sonst die Anmeldung samt Einmalcode. Deshalb wird der Name hier nur über die
+// dort abgelegtes `docker.exe` liefe sonst an seiner Stelle, mit Zugriff auf ganz Docker. Deshalb wird der Name hier nur über die
 // Ordner aus PATH aufgelöst, und nur über solche mit Laufwerk oder Rechnernamen: Alles andere hinge wieder am
 // Arbeitsverzeichnis. Ein Eintrag, dessen Anführungszeichen nicht aufgehen (ein Ordner mit Semikolon im Namen), wird
 // übergangen. Liefert den Pfad, den Namen unverändert (er trägt schon einen Pfad, oder es ist kein Windows) oder

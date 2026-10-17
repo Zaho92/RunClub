@@ -2,14 +2,14 @@
 // diesem Monat auf GitHubs eigenen Runnern verbraucht hat. Ist es aufgebraucht, starten Läufe dort nicht mehr (siehe
 // waiting.js); hier sieht man es vorher.
 //
-// Quelle    `users/<konto>/settings/billing/usage/summary` (braucht das Recht `user`) für den laufenden Monat (UTC),
+// Quelle    `users/<konto>/settings/billing/usage/summary` (braucht das Recht „Plan“ der GitHub-App) für den laufenden Monat (UTC),
 //           ausdrücklich mit Jahr und Monat erfragt. Gezählt werden nur Einträge des Produkts Actions mit der Einheit
 //           Minuten, je Betriebssystem und zusammen. `grossQuantity` ist das Verbrauchte, `netQuantity`/`netAmount`,
 //           was über das Enthaltene hinaus bezahlt wird.
 // Gewicht   Jede Minute zählt einfach, gleich auf welchem Betriebssystem: So nennt GitHub die Zahlen, und so beschreibt
 //           es heute das Kontingent. Die früheren Faktoren (Windows 2, macOS 10) nennt die Abrechnung nicht mehr.
 // Enthalten Wie viele Minuten der Tarif enthält, sagt die Schnittstelle nicht. Die Zahl ist eine ANNAHME aus dem
-//           Tarifnamen (`user` → `plan.name`); für einen unbekannten Tarif gibt es keine. Sie trifft nicht auf die
+//           Tarifnamen (`user` → `plan.name`; fehlt er, ist der Tarif unbekannt); für einen unbekannten Tarif gibt es keine. Sie trifft nicht auf die
 //           Minute: Die eine echte Antwort (test/minutes.test.js) zeigt 2.097 verbrauchte bei angenommenen 2.000.
 // Budget    Ob bei GitHub ein Budget gesetzt ist und wie hoch, sagt die Antwort nicht. Zu sehen ist nur, ob schon
 //           etwas bezahlt wurde. Daraus folgen die Zustände; was sie über das Starten von Läufen sagen, ist ein Schluss.
@@ -22,7 +22,6 @@
 const { MINUTE } = require('./units');
 const { msg, Fault, reason } = require('./messages');
 
-const SCOPE = 'user'; // das Recht, ohne das GitHub die Abrechnung nicht herausgibt
 const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', PAID: 'paid', UNKNOWN: 'unknown', READING: 'reading', FAILED: 'failed' };
 const TIGHT_AT = 0.85; // verbrauchter Anteil, ab dem es knapp ist
 // ANNAHME: enthaltene Minuten je Monat und Tarif eines persönlichen Kontos, wie GitHub sie öffentlich nennt
@@ -85,8 +84,8 @@ function summarize(summary, plan, now = Date.now()) {
   };
 }
 
-// `gh` wie `call` in github.js. `log(text)` schreibt einen Fehler ins Protokoll.
-function createMinutes({ gh, log = () => {}, now = Date.now }) {
+// `github` wie in github.js. `log(text)` schreibt einen Fehler ins Protokoll.
+function createMinutes({ github, log = () => {}, now = Date.now }) {
   let current = null; // { login, …Stand }
   let failures = 0; // gescheiterte Abfragen in Folge für das Konto in `asked`: Gemeldet wird nur die erste
   let asked = null; // { login, nextAt }: für wen zuletzt gefragt wurde und wann die nächste Abfrage fällig ist
@@ -98,10 +97,10 @@ function createMinutes({ gh, log = () => {}, now = Date.now }) {
     if (asked?.login !== login) failures = 0; // ein anderes Konto beginnt von vorn: Sein erster Fehler steht im Protokoll
     try {
       const wanted = monthOf(now());
-      const summary = await gh(['api', `users/${encodeURIComponent(login)}/settings/billing/usage/summary?year=${wanted.year}&month=${wanted.month}`]);
+      const summary = await github.get(`users/${encodeURIComponent(login)}/settings/billing/usage/summary?year=${wanted.year}&month=${wanted.month}`);
       const got = periodOf(summary);
       if (got && (got.year !== wanted.year || got.month !== wanted.month)) throw new Fault('m_billingMonth', String(got.month), String(got.year), String(wanted.month), String(wanted.year));
-      const plan = (await gh(['api', 'user']))?.plan?.name;
+      const plan = (await github.get('user'))?.plan?.name;
       current = { login, ...summarize(summary, plan, now()) };
       failures = 0;
     } catch (error) {
@@ -138,4 +137,4 @@ function createMinutes({ gh, log = () => {}, now = Date.now }) {
   return { refresh, poll, view };
 }
 
-module.exports = { createMinutes, summarize, STATE, SCOPE, TIGHT_AT, INCLUDED, FRESH, RETRY };
+module.exports = { createMinutes, summarize, STATE, TIGHT_AT, INCLUDED, FRESH, RETRY };

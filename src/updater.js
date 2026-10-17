@@ -7,7 +7,7 @@
 // Prüfen    Jeder Release trägt neben dem Installer die Datei, die electron-builder schreibt (`latest.yml`, bei Betas
 //           `beta.yml`): Name des Installers und dessen SHA-512. Ein Installer, dessen Prüfsumme nicht stimmt, wird
 //           verworfen.
-// Anmeldung Solange das Repo privat ist, braucht schon das Lesen der Releases ein Token (das von `gh`, siehe main.js).
+// Anmeldung Solange das Repo privat ist, braucht schon das Lesen der Releases ein Token (das der Anmeldung in RunClub, siehe main.js).
 //           Gibt es keins, wird ohne gefragt; ein öffentliches Repo braucht keins.
 //
 // Ohne Nebenwirkungen beim Laden; `createUpdater` tut erst etwas, wenn `check` oder `setChannel` gerufen wird.

@@ -15,7 +15,7 @@ const LIMIT_DEFAULTS = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 6, docke
 // Je Pool neu, damit sich keine zwei Pools eine Liste teilen.
 const poolDefaults = () => ({ parallel: 1, cache: true, paused: false, preload: [] });
 const PARALLEL_MAX = 4;
-// So schreibt GitHub einen Repo-Namen; nichts, was `gh` oder Docker als Option lesen könnte.
+// So schreibt GitHub einen Repo-Namen; nichts, was Docker als Option lesen könnte.
 const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+$/;
 
 // Zahl der Plätze eines Pools: eine ganze Zahl von 1 bis PARALLEL_MAX, was auch immer ankommt.

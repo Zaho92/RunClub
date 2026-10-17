@@ -390,7 +390,7 @@ const TEXT = {
     minutesBudget: 'GitHub berechnet weiter bis zu deinem Budget und startet danach auf seinen Runnern keine Läufe mehr.', minutesBilled: '{0} Minuten davon werden berechnet und kosten bisher {1}.',
     minutesTight: 'Die enthaltenen Minuten sind fast verbraucht.',
     minutesOut: 'Ohne Budget startet GitHub bis zum {0} keine Läufe mehr auf seinen Runnern.', minutesOutMore: 'Hol die Projekte auf deine eigenen Runner oder setz bei GitHub ein Budget.', toProjects: 'Zu den Projekten', toLog: 'Zum Protokoll',
-    minutesNoScope: 'Mit dem Recht {0} zeigt RunClub hier deine GitHub-Minuten.', toAuth: 'In den Einstellungen ergänzen',
+    
     minutesReading: 'Die Abrechnung ist noch nicht gelesen.', minutesFailed: 'Die Abrechnung ließ sich nicht lesen; RunClub versucht es wieder. Den Grund nennt das Protokoll.',
     projects: 'Projekte', slots: 'Plätze', pause: 'Pausieren', resume: 'Fortsetzen', blockedTag: 'gesperrt',
     blocked_public: 'Das Repo ist öffentlich.', blockedWay_public: 'Fortsetzen geht wieder, sobald es privat ist.',
@@ -404,7 +404,7 @@ const TEXT = {
     uncheckedInfo: 'RunClub prüft beim Start und alle 10 Minuten, ob das Repo privat ist und keine Workflows aus Forks zulässt. Ein Pool arbeitet nur, solange die letzte gelungene Prüfung höchstens 25 Minuten alt ist; scheitert sie, versucht RunClub es jede Minute wieder.', rebuilding: 'wird umgebaut', packages: 'Pakete (NuGet, npm)', layers: 'Build-Layer', images: 'Abbilder in der Vorlage ({0})',
     clear: 'Leeren', clearAll: 'Alles leeren', cacheOff: 'Cache abschalten', cacheOn: 'Cache einschalten', remove: 'Projekt entfernen', cacheIsOff: 'Paket- und Build-Cache sind aus.',
     confirmClear: 'Der nächste Lauf von {0} lädt das wieder und ist deshalb langsamer.', confirmRemove: 'Der Pool für {0} wird mit allen Caches entfernt. Auch CI_RUNNER wird entfernt; die Jobs gehen dann an GitHubs Runner.', confirmQuit: 'Alle Runner werden abgebaut. Laufende Jobs brechen ab, wartende bleiben liegen, bis RunClub wieder läuft.',
-    add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
+    add: 'Projekt hinzufügen', addHint: 'Die Jobs des Repos brauchen runs-on: [self-hosted, Linux].', addMissing: 'Repo fehlt?', addInstall: 'RunClub für ein weiteres Konto oder eine Org installieren', notFound: 'GitHub kennt dieses Repo nicht, oder die App RunClub ist für sein Konto nicht installiert.', addPlaceholder: 'Repo suchen oder besitzer/name', addButton: 'Pool anlegen', added: 'Pool angelegt. Die Runner stehen in etwa einer Minute bereit.',
     app: 'App', version: 'RunClub {0}', updChannel: 'Update-Kanal', updStable: 'Stabil', updBeta: 'Beta', updCheck: 'Nachsehen',
     updDev: 'Im Entwicklerbetrieb aktualisiert sich RunClub nicht selbst.', updIdle: 'Sieht kurz nach dem Start nach Updates.', updChecking: 'Sieht nach Updates …',
     updCurrent: 'Aktuell, zuletzt nachgesehen um {0}.', updDownloading: 'Lädt {0} …',
@@ -431,14 +431,14 @@ const TEXT = {
     capNote: 'Runner und Docker zusammen: höchstens {0} GB je Job, damit es in die Docker-VM passt.', capOver: 'Zusammen wären das {0} GB, erlaubt sind {1} GB. Beim Loslassen gibt der größere der beiden Werte nach.',
     memRunner: 'Speicher · Runner', memDocker: 'Speicher · Docker', cpuRunner: 'Kerne · Runner', cpuDocker: 'Kerne · Docker',
     suggestText: 'Vorschlag: Runner {0} GB, Docker {1} GB, je {2} Kerne.', suggestSame: 'Die Limits entsprechen dem Vorschlag.', suggestWhy: 'Aus den Messwerten dieses Projekts: die höchste Spitze mit 50 % Luft. Die gepunktete Marke zeigt den Vorschlag am Regler.', suggestNone: 'Für einen Vorschlag fehlen noch Messwerte; er entsteht nach den ersten Läufen.', suggestApply: 'Vorschlag übernehmen',
-    authIn: 'Angemeldet als {0}', authWhat: 'RunClub nutzt die Anmeldung, um in deinen Repos Runner an- und abzumelden, Läufe zu lesen und erneut zu starten und {1} zu setzen. Das Recht dahinter ({0}) reicht weiter: Es erlaubt Lesen und Schreiben in allen deinen Repos, auch den privaten.', authExtra: 'Die Anmeldung trägt außerdem {0}; RunClub nutzt davon nichts.', authExtraOnly: 'Die Anmeldung trägt {0}; RunClub nutzt davon nichts.', authSame: 'Es ist dieselbe Anmeldung, die gh im Terminal nutzt.', authUnreadable: 'Welche Rechte diese Anmeldung hat, lässt sich nicht lesen.',
-    authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach ist auch gh im Terminal abgemeldet. Kennt gh ein weiteres Konto, arbeiten gh und RunClub mit diesem weiter; sonst kann RunClub keine neuen Runner mehr anmelden. Laufende Jobs arbeiten zu Ende. Die Freigabe bei GitHub bleibt bestehen; widerrufen lässt sie sich dort unter Settings → Applications.',
+    authIn: 'Angemeldet als {0}', authWhat: 'RunClub handelt über die GitHub-App „RunClub“ in deinem Namen, und nur in den Repos, auf denen die App installiert ist: Runner an- und abmelden, Läufe lesen und erneut starten, {0} setzen und deine Abrechnung für die GitHub-Minuten lesen. Den Code der Repos kann sie lesen, aber nicht ändern.', 
+    authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach kann RunClub keine neuen Runner mehr anmelden; laufende Jobs arbeiten zu Ende. Abgemeldet wird nur auf diesem Rechner: Die Freigabe bei GitHub bleibt bestehen, bis du sie dort widerrufst.', 
     authOut: 'Nicht bei GitHub angemeldet', authOutMore: 'Ohne Anmeldung kann RunClub keine Runner anmelden und keine Läufe lesen.',
-    authNoGh: 'gh ist nicht installiert', authNoGhMore: 'Installiere gh von {0} und starte RunClub danach neu.',
-    authScope: 'GitHub-Recht fehlt', authScopeMore: 'Der Anmeldung fehlt: {0}.', authGrant: 'Recht ergänzen',
-    authWhy_minutes: 'Freiwillig: Mit {0} zeigt „Verbrauch“ deine GitHub-Minuten.',
-    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authEnterScope: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige als {0} das Recht {1}. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authSilent: 'gh hat keinen Einmalcode ausgegeben.', authNoReason: 'gh hat keinen Grund genannt.',
-    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', authScopeFailed: 'Das Recht ließ sich nicht ergänzen: {0}',
+    
+    
+    
+    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authNoReason: 'GitHub hat keinen Grund genannt.', authDenied: 'Die Anmeldung wurde im Browser abgelehnt.', authLocal: 'Abmelden gilt nur für diesen Rechner. Die Freigabe für RunClub widerrufst du bei GitHub unter {0}.', authRevokeLink: 'Authorized GitHub Apps', 
+    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}', 
     authFirstTitle: 'Zuerst bei GitHub anmelden', authFirstText: 'Einmal nötig, damit RunClub Runner in deinen Repos anmelden und ihre Läufe lesen kann.',
     setupTitle: 'Docker einrichten', setupText: 'Die Linux-Runner brauchen Docker auf diesem Rechner.', setupInfo: 'RunClub prüft das von selbst, solange Docker nicht antwortet, und merkt, wenn alles da ist. Dann verschwindet dieser Abschnitt.',
     su_wsl: 'WSL fehlt', su_wslMore: 'In einem Terminal als Administrator {0} ausführen, danach Windows neu starten.', su_wslInfo: 'Docker Desktop lässt die Container in einer Linux-VM laufen, die das Windows-Subsystem für Linux (WSL) bereitstellt.', su_wslCopy: 'Befehl kopieren',
@@ -452,9 +452,9 @@ const TEXT = {
     endCleanup: 'Aufräumen', endCleanupWhat: 'Build-Dienste, Netze, Volumes', endSignoff: 'Abmelden', endSignoffWhat: 'bei GitHub, {0} Projekte', endSignoffOne: 'bei GitHub, 1 Projekt', endSignoffDone: 'bei GitHub, {0} von {1} Projekten',
     endHint: 'Die Schätzung stammt vom letzten Beenden ({0}). Länger dauert es nur, wenn ein Runner gerade entsteht: Auf ihn wird höchstens {1} Sekunden gewartet.', endHintFirst: 'Wie lange das Beenden dauert, weiß RunClub ab dem nächsten Mal. Auf einen Runner, der gerade entsteht, wird höchstens {0} Sekunden gewartet.',
     minutesOtherPlanHere: 'Deshalb steht hier nur das Verbrauchte, ohne Obergrenze.', infoSuggest: 'Vorschlag', infoMemory: 'Speicher',
-    infoAbout: 'Mehr zu „{0}“', scopeName: 'Recht {0}', authWhatShort: 'RunClub verwaltet damit Runner und Läufe in deinen Repos.', authUserHeld: 'Mit {0} liest RunClub außerdem die Abrechnung für die GitHub-Minuten in „Verbrauch“. Auch dieses Recht reicht weiter: Es erlaubt, dein Profil zu ändern; RunClub tut das nicht.',
-    authOutInfo: 'Wer sich hier anmeldet, ist auch in gh im Terminal angemeldet. GitHub fragt dabei nach den Rechten <code>repo</code> für Runner und Läufe und <code>user</code> für die GitHub-Minuten.', authNoGhInfo: 'RunClub spricht über die GitHub CLI (gh) mit GitHub. Ohne sie kann es keine Runner anmelden und keine Läufe lesen.', authScopeInfo: 'RunClub braucht das, um Runner anzumelden und Läufe zu lesen und erneut zu starten. Beim Ergänzen bestätigst du es im Browser mit einem Einmalcode.', authWhyInfo_minutes: 'RunClub liest damit die Abrechnung deines Kontos: wie viele Minuten du diesen Monat auf GitHubs eigenen Runnern verbraucht hast. Das Recht reicht weiter: Es erlaubt auch, dein Profil zu ändern; RunClub tut das nicht. Beim Anmelden in RunClub ist es dabei; es fehlt nur, wenn gh im Terminal ohne es angemeldet wurde.',
-    authEnterScopeInfo: 'Ist im Browser ein anderes Konto als {0} angemeldet, scheitert das Ergänzen.', projectsInfo: 'Jedes Projekt hat einen eigenen Pool. Plätze sind Jobs, die zugleich laufen können; jeder Job bekommt einen frischen Linux-Container mit eigenem Docker. Eine Reserve vorbereiteter Runner und die Caches (Pakete, Build-Layer, aus den Jobs gelernte Abbilder) fangen den Aufbau ab.', routeNoneInfo: 'Mit diesem Ausdruck nehmen die Jobs deine Runner, solange CI_RUNNER gesetzt ist, und sonst ubuntu-latest bei GitHub. CI_RUNNER setzt RunClub mit „Auf eigene Runner umschalten“.', fitGenerousInfo: 'Das schadet nicht, schützt den Rechner aber weniger: Ein Job, der aus dem Ruder läuft, darf mehr belegen, bevor er abbricht.',
+    infoAbout: 'Mehr zu „{0}“', authWhatShort: 'RunClub verwaltet damit Runner und Läufe in deinen Repos.', 
+    authOutInfo: 'GitHub fragt dabei, ob du die App RunClub für dein Konto zulässt. Sie darf nur in den Repos, auf denen sie installiert ist, Runner an- und abmelden, Läufe lesen und erneut starten und CI_RUNNER setzen, dazu deine Abrechnung für die GitHub-Minuten lesen.', 
+    projectsInfo: 'Jedes Projekt hat einen eigenen Pool. Plätze sind Jobs, die zugleich laufen können; jeder Job bekommt einen frischen Linux-Container mit eigenem Docker. Eine Reserve vorbereiteter Runner und die Caches (Pakete, Build-Layer, aus den Jobs gelernte Abbilder) fangen den Aufbau ab.', routeNoneInfo: 'Mit diesem Ausdruck nehmen die Jobs deine Runner, solange CI_RUNNER gesetzt ist, und sonst ubuntu-latest bei GitHub. CI_RUNNER setzt RunClub mit „Auf eigene Runner umschalten“.', fitGenerousInfo: 'Das schadet nicht, schützt den Rechner aber weniger: Ein Job, der aus dem Ruder läuft, darf mehr belegen, bevor er abbricht.',
     limitsInfo: 'Ein Limit begrenzt, wie viel Speicher und wie viele Kerne ein Job belegen darf, getrennt für den Runner und sein Docker. Es schützt den Rechner vor einem Job, der aus dem Ruder läuft; reicht es dem Job nicht, bricht er ab. Projekte ohne eigene Werte nehmen die Limits hier.', budgetOverInfo: 'Jobs schöpfen ihr Limit selten aus; eng wird es erst, wenn mehrere es zugleich tun. Mehr Sicherheit geben niedrigere Limits, weniger Plätze oder eine größere Docker-VM.', budgetHow: 'Der Balken zeigt je Platz ein Feld, so breit wie das Limit seines Projekts. Ein Projekt mit Cache hat dazu seinen Build-Dienst; er zählt zuerst und läuft auch, während der Pool pausiert. Gefüllt ist, was mit vollem Limit in die Docker-VM passt, gestrichelt der Rest.', logInfo: 'Die letzten Meldungen aus runclub.log, die neueste oben. Kopieren und Speichern nehmen die ganze Datei. Auf ein Projekt gefiltert bleiben die allgemeinen Fehler dabei, weil dort oft die Ursache steht.',
     dayInfo: 'Je Zeitabschnitt der höchste gemessene Wert. Wo eine Kurve abreißt, lief RunClub nicht.', quotaInfo: 'Das Limit gilt für dein ganzes GitHub-Konto; auch gh im Terminal und andere Werkzeuge zählen mit. Ab der gepunkteten Marke fragt RunClub seltener ab. Ist nur noch die Reserve übrig, fragt es gar nicht mehr, bis das Fenster wieder voll ist.', quotaTightInfo: 'Läufe und Restzeiten erscheinen so lange mit Verzögerung. Die Runner arbeiten unverändert.', quotaOutInfo: 'Laufende Jobs arbeiten weiter, die Anzeige bleibt so lange stehen. Die letzten Anfragen sind für neue Runner reserviert.',
     minutesPlan: 'Tarif {0} mit {1} Minuten im Monat.', minutesPlanUnknown: 'Für den Tarif {0} kennt RunClub die enthaltenen Minuten nicht.', minutesPlans: 'Enthaltene Minuten im Monat: {0}.', minutesEqual: 'Jede Minute zählt gleich, gleich auf welchem Betriebssystem.',
@@ -505,8 +505,8 @@ const TEXT = {
     m_limitsNumbers: 'Limits werden als Zahlen angegeben.', m_noSuggestion: 'Für einen Vorschlag fehlen noch Messwerte.',
     m_planApplied: 'Limits aus den Messwerten übernommen: Standard Runner {0}, Docker {1}',
     m_planAppliedOwn: 'Limits aus den Messwerten übernommen: Standard Runner {0}, Docker {1}; eigene Limits für {2}',
-    m_rebuilding: 'Baue die freien Runner mit den neuen Limits auf', m_githubPause: 'GitHub bittet um eine Pause; weiter um {0}.',
-    m_quotaSpent: 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um {0}.', m_ghExit: 'gh endete mit {0}',
+    m_rebuilding: 'Baue die freien Runner mit den neuen Limits auf', m_githubPause: 'GitHub bittet um eine Pause; weiter um {0}.', m_githubSilent: 'GitHub antwortet nicht.', m_githubUnreachable: 'GitHub ist nicht erreichbar ({0}).',
+    m_quotaSpent: 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um {0}.', 
     m_quotaPaused: 'GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis {0} wird nicht mehr abgefragt.',
     m_quotaOut: 'GitHub-Anfragen sind aufgebraucht ({0} von {1} frei). Bis {2} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.',
     m_quotaTight: 'GitHub-Anfragen werden knapp ({0} von {1} frei). Bis {2} wird seltener abgefragt.',
@@ -536,15 +536,14 @@ const TEXT = {
     m_seedNotRemoved: 'Die Vorlage ließ sich nicht löschen – {0}', m_vmTight: 'Die Docker-VM hat nur noch {0} GB von {1} GB Arbeitsspeicher frei.',
     m_vmFree: 'Die Docker-VM hat wieder {0} GB Arbeitsspeicher frei.',
     m_vmUnmeasured: 'Die Belegung der Docker-VM lässt sich nicht mehr messen; die Warnung entfällt.', m_closing: 'RunClub wird gerade beendet.',
-    m_leaving: 'Es wird gerade abgemeldet. Bitte warten, bis das abgeschlossen ist.',
-    m_loginRunning: 'Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.', m_ghMissing: 'Das Programm gh ist nicht installiert.',
+    m_loginRunning: 'Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.', 
     m_alreadyIn: 'Du bist schon als {0} angemeldet.',
-    m_authUnknown: 'Der Stand der Anmeldung ließ sich noch nicht lesen. Bitte gleich noch einmal versuchen.', m_loginFirst: 'Erst bei GitHub anmelden.',
-    m_scopeNotMissing: 'Dieses Recht fehlt nicht oder lässt sich hier nicht ergänzen.', m_noScopeMissing: 'Der Anmeldung fehlt kein Recht.',
-    m_leavingAlready: 'Es wird schon abgemeldet.', m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
-    m_notIn: 'Du bist nicht bei GitHub angemeldet.', m_loginUnknown: 'Das Konto lässt sich nicht bestimmen. Bitte im Terminal abmelden: gh auth logout',
-    m_ghSilent: 'gh antwortet nicht.', m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).',
-    m_loggedOutSwitch: 'Bei GitHub abgemeldet ({0}). gh nutzt jetzt das Konto {1}.', m_listening: 'Runner-Anzeige: {0}', m_stopping: 'Beende die Runner …',
+    m_loginFirst: 'Erst bei GitHub anmelden.',
+    
+    m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
+    m_notIn: 'Du bist nicht bei GitHub angemeldet.', 
+    m_loggedIn: 'Bei GitHub angemeldet als {0}.', m_loggedOut: 'Bei GitHub abgemeldet ({0}).', m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.',
+    m_listening: 'Runner-Anzeige: {0}', m_stopping: 'Beende die Runner …',
     m_stopped: 'Beendet.', m_keyNotSaved: 'Der Schlüssel ließ sich nicht ablegen – {0}',
     m_settingsBroken: '{0} ließ sich nicht lesen und wird neu angelegt. Die alte Datei liegt unter {1}.',
     m_bodyIncomplete: 'Der Aufruf kam nicht vollständig an.', m_bodyTooLarge: 'Der Aufruf ist zu groß.',
@@ -584,7 +583,7 @@ const TEXT = {
     minutesBudget: 'GitHub keeps charging up to your budget and starts no more runs on its runners after that.', minutesBilled: '{0} of these minutes are billed and cost {1} so far.',
     minutesTight: 'The included minutes are almost used up.',
     minutesOut: 'Without a budget, GitHub won’t start runs on its runners until {0}.', minutesOutMore: 'Move the projects to your own runners or set a budget on GitHub.', toProjects: 'Go to projects', toLog: 'Open log',
-    minutesNoScope: 'With the {0} permission RunClub shows your GitHub minutes here.', toAuth: 'Add in settings',
+    
     minutesReading: 'The billing data has not been read yet.', minutesFailed: 'The billing data could not be read; RunClub will try again. The log says why.',
     projects: 'Projects', slots: 'Slots', pause: 'Pause', resume: 'Resume', blockedTag: 'blocked',
     blocked_public: 'The repo is public.', blockedWay_public: 'Resuming works again once it is private.',
@@ -598,7 +597,7 @@ const TEXT = {
     uncheckedInfo: 'RunClub checks at start and every 10 minutes whether the repo is private and does not run workflows from forks. A pool only works while the last successful check is at most 25 minutes old; if checks fail, RunClub retries every minute.', rebuilding: 'rebuilding', packages: 'Packages (NuGet, npm)', layers: 'Build layers', images: 'Images in the template ({0})',
     clear: 'Clear', clearAll: 'Clear all', cacheOff: 'Turn cache off', cacheOn: 'Turn cache on', remove: 'Remove project', cacheIsOff: 'Package and build cache are off.',
     confirmClear: 'The next run of {0} downloads this again and is slower for it.', confirmRemove: 'The pool for {0} is removed with all its caches. CI_RUNNER is removed too, so jobs go to GitHub\'s runners.', confirmQuit: 'All runners are taken down. Running jobs are cut off, queued jobs wait until RunClub runs again.',
-    add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
+    add: 'Add a project', addHint: 'The repo\'s jobs need runs-on: [self-hosted, Linux].', addMissing: 'Repo missing?', addInstall: 'Install RunClub for another account or an org', notFound: 'GitHub does not know this repo, or the RunClub app is not installed for its account.', addPlaceholder: 'Search a repo or owner/name', addButton: 'Create pool', added: 'Pool created. Runners are ready in about a minute.',
     app: 'App', version: 'RunClub {0}', updChannel: 'Update channel', updStable: 'Stable', updBeta: 'Beta', updCheck: 'Check now',
     updDev: 'In development mode RunClub does not update itself.', updIdle: 'Checks for updates shortly after starting.', updChecking: 'Checking for updates …',
     updCurrent: 'Up to date, last checked at {0}.', updDownloading: 'Downloading {0} …',
@@ -625,14 +624,14 @@ const TEXT = {
     capNote: 'Runner and Docker together: at most {0} GB per job, so it fits into the Docker VM.', capOver: 'Together that would be {0} GB, allowed are {1} GB. On release, the larger of the two values gives way.',
     memRunner: 'Memory · runner', memDocker: 'Memory · Docker', cpuRunner: 'Cores · runner', cpuDocker: 'Cores · Docker',
     suggestText: 'Suggestion: runner {0} GB, Docker {1} GB, {2} cores each.', suggestSame: 'The limits match the suggestion.', suggestWhy: 'From this project’s measurements: the highest peak plus 50% headroom. The dotted mark shows the suggestion on the slider.', suggestNone: 'There are not enough measurements for a suggestion yet; it appears after the first runs.', suggestApply: 'Apply suggestion',
-    authIn: 'Signed in as {0}', authWhat: 'RunClub uses the sign-in to register and remove runners in your repos, read runs and start them again, and set {1}. The permission behind it ({0}) reaches further: it allows reading and writing in all your repos, private ones included.', authExtra: 'The sign-in also carries {0}; RunClub uses none of it.', authExtraOnly: 'The sign-in carries {0}; RunClub uses none of it.', authSame: 'It is the same sign-in gh uses in the terminal.', authUnreadable: 'The permissions of this sign-in cannot be read.',
-    authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'This signs gh in the terminal out as well. If gh knows another account, gh and RunClub carry on with that one; otherwise RunClub can no longer register new runners. Running jobs finish. The authorization on GitHub stays in place; you can revoke it there under Settings → Applications.',
+    authIn: 'Signed in as {0}', authWhat: 'RunClub acts on your behalf through the GitHub App “RunClub”, and only in the repos the app is installed on: registering and removing runners, reading runs and starting them again, setting {0}, and reading your billing for the GitHub minutes. It can read the repos’ code but not change it.', 
+    authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'RunClub can then no longer register new runners; running jobs finish. This signs out on this computer only: the authorization on GitHub stays until you revoke it there.', 
     authOut: 'Not signed in to GitHub', authOutMore: 'Without a sign-in RunClub cannot register runners or read runs.',
-    authNoGh: 'gh is not installed', authNoGhMore: 'Install gh from {0}, then restart RunClub.',
-    authScope: 'GitHub permission missing', authScopeMore: 'The sign-in lacks: {0}.', authGrant: 'Add permission',
-    authWhy_minutes: 'Optional: with {0}, “Usage” shows your GitHub minutes.',
-    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authEnterScope: 'Open GitHub in the browser, enter this code there and confirm the {1} permission as {0}. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authSilent: 'gh did not print a one-time code.', authNoReason: 'gh gave no reason.',
-    authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', authScopeFailed: 'The permission could not be added: {0}',
+    
+    
+    
+    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authNoReason: 'GitHub gave no reason.', authDenied: 'The sign-in was declined in the browser.', authLocal: 'Signing out only applies to this computer. You revoke RunClub’s authorization on GitHub under {0}.', authRevokeLink: 'Authorized GitHub Apps', 
+    authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}', 
     authFirstTitle: 'First, sign in to GitHub', authFirstText: 'Needed once so RunClub can register runners in your repos and read their runs.',
     setupTitle: 'Set up Docker', setupText: 'Linux runners need Docker on this machine.', setupInfo: 'RunClub checks this on its own while Docker does not respond and notices when everything is there. Then this section disappears.',
     su_wsl: 'WSL is missing', su_wslMore: 'Run {0} in a terminal as administrator, then restart Windows.', su_wslInfo: 'Docker Desktop runs the containers in a Linux VM provided by the Windows Subsystem for Linux (WSL).', su_wslCopy: 'Copy command',
@@ -646,9 +645,9 @@ const TEXT = {
     endCleanup: 'Clean up', endCleanupWhat: 'builders, networks, volumes', endSignoff: 'Sign off', endSignoffWhat: 'on GitHub, {0} projects', endSignoffOne: 'on GitHub, 1 project', endSignoffDone: 'on GitHub, {0} of {1} projects',
     endHint: 'The estimate comes from the last shutdown ({0}). It only takes longer if a runner is being created: RunClub waits for it at most {1} seconds.', endHintFirst: 'RunClub will know how long shutting down takes from next time on. It waits at most {0} seconds for a runner that is being created.',
     minutesOtherPlanHere: 'So only the minutes used are shown here, without an upper limit.', infoSuggest: 'Suggestion', infoMemory: 'Memory',
-    infoAbout: 'More about “{0}”', scopeName: '{0} permission', authWhatShort: 'RunClub uses it to manage runners and runs in your repos.', authUserHeld: 'With {0} RunClub also reads the billing for the GitHub minutes under “Usage”. This permission reaches further too: it allows changing your profile; RunClub does not do that.',
-    authOutInfo: 'Signing in here also signs in gh in the terminal. GitHub asks for the permissions <code>repo</code> for runners and runs and <code>user</code> for the GitHub minutes.', authNoGhInfo: 'RunClub talks to GitHub through the GitHub CLI (gh). Without it, RunClub cannot register runners or read runs.', authScopeInfo: 'RunClub needs it to register runners, read runs and start them again. To add it, you confirm in the browser with a one-time code.', authWhyInfo_minutes: 'RunClub uses it to read your account’s billing: how many minutes you have used on GitHub’s own runners this month. The permission reaches further: it also allows changing your profile; RunClub does not do that. Signing in through RunClub includes it; it is only missing if gh in the terminal was signed in without it.',
-    authEnterScopeInfo: 'If the browser is signed in to an account other than {0}, adding it fails.', projectsInfo: 'Every project has its own pool. Slots are jobs that can run at the same time; every job gets a fresh Linux container with its own Docker. A reserve of prepared runners and the caches (packages, build layers, images learned from the jobs) take the setup off the job.', routeNoneInfo: 'With this expression jobs use your runners while CI_RUNNER is set, and ubuntu-latest on GitHub otherwise. RunClub sets CI_RUNNER with “Switch to my runners”.', fitGenerousInfo: 'That does no harm, but protects the machine less: a job that runs away may use more before it is cut off.',
+    infoAbout: 'More about “{0}”', authWhatShort: 'RunClub uses it to manage runners and runs in your repos.', 
+    authOutInfo: 'GitHub asks whether you authorize the RunClub app for your account. It may only act in the repos it is installed on: register and remove runners, read runs and start them again, and set CI_RUNNER, plus read your billing for the GitHub minutes.', 
+    projectsInfo: 'Every project has its own pool. Slots are jobs that can run at the same time; every job gets a fresh Linux container with its own Docker. A reserve of prepared runners and the caches (packages, build layers, images learned from the jobs) take the setup off the job.', routeNoneInfo: 'With this expression jobs use your runners while CI_RUNNER is set, and ubuntu-latest on GitHub otherwise. RunClub sets CI_RUNNER with “Switch to my runners”.', fitGenerousInfo: 'That does no harm, but protects the machine less: a job that runs away may use more before it is cut off.',
     limitsInfo: 'A limit caps how much memory and how many cores a job may use, separately for the runner and its Docker. It protects the machine from a job that runs away; if the limit is too small for a job, the job is cut off. Projects without their own values use the limits here.', budgetOverInfo: 'Jobs rarely use their whole limit; it only gets tight when several do at once. Lower limits, fewer slots or a larger Docker VM give more safety.', budgetHow: 'The bar shows one field per slot, as wide as its project’s limit. A project with a cache adds its build service; it counts first and keeps running while the pool is paused. Filled fields fit into the Docker VM at full limit, dashed ones do not.', logInfo: 'The latest messages from runclub.log, newest first. Copy and Save take the whole file. Filtered by project, the general errors stay in, because that is often where the cause is.',
     dayInfo: 'The highest value measured in each period. Where a curve breaks off, RunClub was not running.', quotaInfo: 'The limit covers your whole GitHub account; gh in the terminal and other tools count too. Past the dotted mark RunClub polls less often. Once only the reserve is left, it stops polling until the window is full again.', quotaTightInfo: 'Runs and remaining times show up late until then. Runners keep working as usual.', quotaOutInfo: 'Running jobs carry on; the display stays frozen until then. The last requests are reserved for new runners.',
     minutesPlan: '{0} plan with {1} minutes a month.', minutesPlanUnknown: 'RunClub does not know the included minutes for the {0} plan.', minutesPlans: 'Included minutes a month: {0}.', minutesEqual: 'Every minute counts the same, whatever the operating system.',
@@ -695,8 +694,8 @@ const TEXT = {
     m_limitsNumbers: 'Limits are given as numbers.', m_noSuggestion: 'There are not enough measurements for a suggestion yet.',
     m_planApplied: 'Limits taken from the measurements: default runner {0}, Docker {1}',
     m_planAppliedOwn: 'Limits taken from the measurements: default runner {0}, Docker {1}; own limits for {2}',
-    m_rebuilding: 'Rebuilding the idle runners with the new limits', m_githubPause: 'GitHub asks for a pause; continuing at {0}.',
-    m_quotaSpent: 'The GitHub rate limit is used up; continuing at {0}.', m_ghExit: 'gh exited with {0}',
+    m_rebuilding: 'Rebuilding the idle runners with the new limits', m_githubPause: 'GitHub asks for a pause; continuing at {0}.', m_githubSilent: 'GitHub does not respond.', m_githubUnreachable: 'GitHub cannot be reached ({0}).',
+    m_quotaSpent: 'The GitHub rate limit is used up; continuing at {0}.', 
     m_quotaPaused: 'GitHub asks for a pause (too many requests in a short time). No polling until {0}.',
     m_quotaOut: 'GitHub requests are used up ({0} of {1} left). No polling until {2}; the rest is kept for registering new runners.',
     m_quotaTight: 'GitHub requests are getting tight ({0} of {1} left). Polling less often until {2}.',
@@ -725,14 +724,14 @@ const TEXT = {
     m_seedPullFailed: '{0} does not go into the template – {1}', m_seedNotRemoved: 'Could not delete the template – {0}',
     m_vmTight: 'The Docker VM has only {0} GB of {1} GB memory free.', m_vmFree: 'The Docker VM has {0} GB memory free again.',
     m_vmUnmeasured: 'The Docker VM’s memory can no longer be measured; the warning is dropped.', m_closing: 'RunClub is shutting down.',
-    m_leaving: 'Signing out is in progress. Please wait until it is done.', m_loginRunning: 'A sign-in is already running. Finish or cancel it first.',
-    m_ghMissing: 'The program gh is not installed.', m_alreadyIn: 'You are already signed in as {0}.',
-    m_authUnknown: 'The sign-in state could not be read yet. Please try again in a moment.', m_loginFirst: 'Sign in to GitHub first.',
-    m_scopeNotMissing: 'This permission is not missing or cannot be added here.', m_noScopeMissing: 'The sign-in is not missing any permission.',
-    m_leavingAlready: 'Already signing out.', m_finishLogin: 'Finish or cancel the running sign-in first.', m_notIn: 'You are not signed in to GitHub.',
-    m_loginUnknown: 'The account cannot be determined. Please sign out in a terminal: gh auth logout', m_ghSilent: 'gh does not respond.',
-    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).',
-    m_loggedOutSwitch: 'Signed out of GitHub ({0}). gh now uses the account {1}.', m_listening: 'Runner display: {0}',
+    m_loginRunning: 'A sign-in is already running. Finish or cancel it first.',
+    m_alreadyIn: 'You are already signed in as {0}.',
+    m_loginFirst: 'Sign in to GitHub first.',
+    
+    m_finishLogin: 'Finish or cancel the running sign-in first.', m_notIn: 'You are not signed in to GitHub.',
+    
+    m_loggedIn: 'Signed in to GitHub as {0}.', m_loggedOut: 'Signed out of GitHub ({0}).', m_signInLost: 'GitHub no longer accepts the sign-in of {0}; please sign in again.',
+    m_listening: 'Runner display: {0}',
     m_stopping: 'Stopping the runners …', m_stopped: 'Stopped.', m_keyNotSaved: 'Could not save the key – {0}',
     m_settingsBroken: 'Could not read {0}; it is created anew. The old file is at {1}.', m_bodyIncomplete: 'The request did not arrive completely.',
     m_bodyTooLarge: 'The request is too large.', m_bodyNotJson: 'The request is not a valid JSON object.',
@@ -868,15 +867,17 @@ function limitTrouble() {
 
 // --- Anmeldung bei GitHub ---
 
-// Was an der Anmeldung zu tun ist, als kurzer Satz für Leiste und Warn-Tag; sonst null. Nicht angemeldet, ein fehlendes
-// Pflichtrecht und ein fehlendes gh sind Störungen mit Ausweg und deshalb rot. Ein fehlendes freiwilliges Recht ist
-// keine. Die Zustandswörter kommen vom Backend (siehe STATE und FLOW in auth.js).
+// Was an der Anmeldung zu tun ist, als kurzer Satz für Leiste und Warn-Tag; sonst null. Nicht angemeldet ist eine
+// Störung mit Ausweg und deshalb rot. Die Zustandswörter kommen vom Backend (siehe STATE und FLOW in auth.js).
 function authTrouble() {
-  const a = data.auth;
-  return !a ? null : a.state === 'missing' ? t('authNoGh') : a.state === 'out' ? t('authOut') : a.state === 'in' && a.missing.length ? t('authScope') : null;
+  return data.auth?.state === 'out' ? t('authOut') : null;
 }
 // Noch kein Projekt und niemand angemeldet: Das ist der Anfang und keine Störung, also nicht rot.
 const authStart = () => data.auth?.state === 'out' && !data.repos.length;
+// Ein Link zu GitHub; nur solche öffnet das Fenster der App im Browser (siehe main.js).
+const githubLink = (url, text) => (String(url ?? '').startsWith('https://github.com/') ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(text) + '</a>' : esc(text));
+// Wo die App RunClub für ein weiteres Konto oder eine Org installiert wird.
+const installLink = () => githubLink(data.auth?.install, t('addInstall'));
 
 // Der Inhalt der Haltestelle „GitHub“: wer angemeldet ist und was RunClub darf, oder der laufende Ablauf mit dem
 // Einmalcode. `first`: als erster Schritt ohne Projekte; dort sagt schon die Überschrift, dass die Anmeldung fehlt.
@@ -885,49 +886,27 @@ function authBody(first) {
   const flow = a.flow;
   const act = (action, text, values = '') => '<button class="btn" data-do="' + action + '"' + values + '>' + esc(text) + '</button>';
   // Eine Zeile wie im Abschnitt App: Titel, Satz darunter, rechts die Schaltfläche. `alarm` färbt den Titel rot.
-  // `above`: die Meldung eines gescheiterten Ablaufs, wenn sie zu dieser Zeile gehört; sie steht in der Zeile, damit
-  // sie nicht als Nachsatz der vorigen gelesen wird. Als erster Schritt steht der Titel der Störung schon in der
-  // Überschrift der Ansicht, und die Zeilen kommen ohne Haarlinie aus.
-  // `more`: die Absätze des Info-Elements; es steht am Titel, in einer Zeile ohne Titel am Ende des Satzes.
-  const line = (title, hint, control, alarm, above = '', more = [], about = title) => {
+  // `above`: die Meldung eines gescheiterten Ablaufs; sie steht in der Zeile, damit sie nicht als Nachsatz der vorigen
+  // gelesen wird. Als erster Schritt steht der Titel der Störung schon in der Überschrift der Ansicht, und die Zeilen
+  // kommen ohne Haarlinie aus. `more`: die Absätze des Info-Elements am Titel.
+  const line = (title, hint, control, alarm, above = '', more = []) => {
     const titled = title && !(first && alarm);
-    const tip = info(about, ...more);
-    return '<div class="arow' + (first ? ' bare' : '') + '"><div>' + above + (titled ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' + tip : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + (titled ? '' : tip) + '</div></div>' + (control ?? '') + '</div>';
+    const tip = info(title, ...more);
+    return '<div class="arow' + (first ? ' bare' : '') + '"><div>' + above + (titled ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' + tip : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + '</div></div>' + (control ?? '') + '</div>';
   };
-  const codes = (scopes) => scopes.map((scope) => '<code>' + esc(scope) + '</code>').join(', ');
   if (flow?.state === 'starting') return line('', t('authStarting'), act('auth/cancel', t('cancel')));
-  // Beim Ergänzen sagt der Satz, als wer welches Recht zu bestätigen ist; was bei einem anderen Konto im Browser
-  // geschieht, steht im Info am Einmalcode. Erst der Code, dann die Seite, auf der er einzugeben ist.
-  const scoping = flow?.kind === 'scope' && a.login && flow.scopes?.length;
-  if (flow?.state === 'waiting') return '<div class="flow"><div><div class="k">' + t('authCode') + (scoping ? info(t('authCode'), t('authEnterScopeInfo', esc(a.login))) : '') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + (scoping ? t('authEnterScope', esc(a.login), codes(flow.scopes)) : t('authEnter')) + '</div>' +
-    '<div class="row"><button class="btn" data-copy="' + esc(flow.code) + '">' + glyph('copy') + t('authCopy') + '</button><a class="btn" href="' + esc(flow.url) + '" target="_blank" rel="noopener">' + t('authOpen') + '</a><span class="row push">' + act('auth/cancel', t('cancel')) + '</span></div></div>';
-  // Warum ein Ablauf scheiterte, sagt die Oberfläche in ihrer Sprache; nur was `gh` selbst meldet, steht wörtlich da.
-  const why = flow?.state !== 'failed' ? '' : [{ late: t('authLate'), silent: t('authSilent') }[flow.why], flow.error ?? (flow.why === 'gh' ? t('authNoReason') : '')].filter(Boolean).join(' ');
-  const failed = why ? '<div class="note measure c-fail fault">' + esc(t(flow.kind === 'login' ? 'authFailed' : 'authScopeFailed', why)) + '</div>' : '';
-  // Der Link führt zu GitHub: Nur solche öffnet das Fenster der App im Browser (siehe main.js).
-  if (a.state === 'missing') return line(t('authNoGh'), t('authNoGhMore', '<a href="https://github.com/cli/cli#installation" target="_blank" rel="noopener">github.com/cli/cli</a>'), '', true, '', [t('authNoGhInfo')]);
+  // Erst der Code, dann die Seite, auf der er einzugeben ist.
+  if (flow?.state === 'waiting') return '<div class="flow"><div><div class="k">' + t('authCode') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + t('authEnter') + '</div>' +
+    '<div class="row"><button class="btn" data-copy="' + esc(flow.code) + '">' + glyph('copy') + t('authCopy') + '</button>' + githubLink(flow.url, t('authOpen')).replace('<a ', '<a class="btn" ') + '<span class="row push">' + act('auth/cancel', t('cancel')) + '</span></div></div>';
+  // Warum ein Ablauf scheiterte, sagt die Oberfläche in ihrer Sprache; nur was GitHub selbst meldet, steht wörtlich da.
+  const why = flow?.state !== 'failed' ? '' : flow.why === 'late' ? t('authLate') : flow.why === 'denied' ? t('authDenied') : flow.error ?? t('authNoReason');
+  const failed = why ? '<div class="note measure c-fail fault">' + esc(t('authFailed', why)) + '</div>' : '';
   if (a.state === 'out') return first ? failed + '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true, failed, [t('authOutInfo')]);
   if (a.state !== 'in') return '<div class="note">' + t('authChecking') + '</div>';
-  // In der Zeile steht kurz, wofür RunClub die Anmeldung nutzt. Im Info: wie weit das Recht dahinter reicht, was die
-  // Anmeldung darüber hinaus trägt (`gh` verlangt von sich aus mehr) und dass es die Anmeldung von gh ist.
-  const lacking = a.missing.length > 0;
-  const minutesScope = a.optional.some((entry) => entry.purpose === 'minutes');
-  const what = !a.scopes ? [] : [lacking ? '' : t('authWhat', codes(a.required ?? []), '<code>CI_RUNNER</code>'), !lacking && !minutesScope && a.scopes.includes('user') ? t('authUserHeld', '<code>user</code>') : '', a.extra?.length ? t(lacking ? 'authExtraOnly' : 'authExtra', codes(a.extra)) : ''];
-  // Wofür ein freiwilliges Recht gebraucht würde; für einen unbekannten Zweck steht nur das Recht da.
-  const purpose = (entry) => (({ minutes: t('authWhy_minutes', codes([entry.scope])) })[entry.purpose] ?? codes([entry.scope]));
-  const purposeMore = (entry) => (({ minutes: t('authWhyInfo_minutes') })[entry.purpose] ?? '');
+  // In der Zeile steht kurz, wofür RunClub die Anmeldung nutzt; im Info, was die App darf und wo man sie widerruft.
   // Abmelden trifft Jobs und fragt deshalb nach; rot ist es nicht, weil sich wieder anmelden lässt.
-  const account = (above) => line(t('authIn', a.login ?? ''), !a.scopes ? t('authUnreadable') : lacking ? t('authSame') : t('authWhatShort'), act('auth/logout', t('authLogout'), ' data-confirm="' + esc(t('authConfirmOut')) + '"'), false, above, [...what, a.scopes && lacking ? '' : t('authSame')]);
-  // Fehlt ein Pflichtrecht, steht nur dieses zur Wahl; die freiwilligen folgen, sobald es ergänzt ist. Als erster
-  // Schritt steht der Ausweg vor dem Konto.
-  if (lacking) {
-    const fix = line(t('authScope'), t('authScopeMore', codes(a.missing)), act('auth/scope', t('authGrant')), true, failed, [t('authScopeInfo')]);
-    return first ? fix + account('') : account('') + fix;
-  }
-  // Die Meldung eines gescheiterten Ergänzens steht in der Zeile des Rechts, um das es ging; sonst beim Konto.
-  const mine = (entry) => Boolean(failed) && flow.kind === 'scope' && (flow.scopes ?? []).includes(entry.scope);
-  return account(a.optional.some(mine) ? '' : failed) +
-    a.optional.map((entry) => line('', purpose(entry), act('auth/scope', t('authGrant'), ' data-scope="' + esc(entry.scope) + '"'), false, mine(entry) ? failed : '', [purposeMore(entry)], t('scopeName', entry.scope))).join('');
+  return line(t('authIn', a.login ?? ''), t('authWhatShort'), act('auth/logout', t('authLogout'), ' data-confirm="' + esc(t('authConfirmOut')) + '"'), false, failed,
+    [t('authWhat', '<code>CI_RUNNER</code>'), t('authLocal', githubLink(a.revoke, t('authRevokeLink')))]);
 }
 
 function renderRail() {
@@ -1262,9 +1241,8 @@ function quotaStop() {
 // solange es noch keinen Stand gibt, ein Satz dazu, damit die Haltestelle nicht erst später dazukommt.
 function minutesStop() {
   const m = data.minutes;
-  const lacking = data.auth?.optional.find((entry) => entry.purpose === 'minutes');
   const only = (body) => routeStop('minutes', t('minutesTitle'), '', body);
-  if (!m) return !lacking ? '' : routeStop('minutes', t('minutesTitle'), '', '<div class="row"><span class="rt note">' + t('minutesNoScope', '<code>' + esc(lacking.scope) + '</code>') + '</span><button class="btn" data-view="settings" data-goto="auth">' + t('toAuth') + '</button></div>', [t('authWhyInfo_minutes')]);
+  if (!m) return '';
   if (m.state === 'reading') return only('<div class="note measure">' + t('minutesReading') + '</div>');
   if (m.state === 'failed') return only('<div class="row"><span class="rt note">' + t('minutesFailed') + '</span><button class="btn" data-view="settings" data-goto="log">' + t('toLog') + '</button></div>');
   const count = whole;
@@ -1460,6 +1438,8 @@ function renderSettings() {
     const noteId = 'block-' + repo.replace(/[^A-Za-z0-9_-]/g, '-');
     const guardNote = p.blocked ? '<div class="note measure strong" id="' + noteId + '"><span class="c-fail">' + esc(t('blocked_' + p.blocked)) + '</span> <span class="ink">' + esc(t('blockedWay_' + p.blocked)) + '</span>' + info(t('blockedTag'), esc(t('blockedInfo_' + p.blocked))) + '</div>'
       : !p.checked && !p.paused ? '<div class="note measure">' + esc(t('unchecked')) + info(t('checking'), esc(t('uncheckedInfo'))) + '</div>' : '';
+    // GitHub antwortet für das Repo mit 404: meist fehlt die App auf seinem Konto.
+    const missing = entry.notFound ? '<div class="note measure strong"><span class="c-fail">' + esc(t('notFound')) + '</span> ' + installLink() + '</div>' : '';
     const r = p.routing;
     const snippet = '<code>${{ fromJSON(vars.CI_RUNNER || \'"ubuntu-latest"\') }}</code>';
     const route = !r ? '' : '<div class="row"><span class="rt' + (!r.here && r.uses !== 'fixed' && !p.blocked ? ' c-fail' : '') + '">' +
@@ -1488,13 +1468,13 @@ function renderSettings() {
       '<span class="sz">' + t('cachesSum', p.sizes ? mb(p.sizes.packages + p.sizes.images + p.sizes.build) : '…') + '</span></button>' +
       '<span class="note">' + t('slots') + '</span><span class="stepper">' + button('minus', t('fewer'), { do: 'pool/set', repo, parallel: p.parallel - 1 }, { only: true, why: p.parallel <= 1 ? t('minSlots') : '' }) + '<b>' + p.parallel + '</b>' +
       button('plus', t('more'), { do: 'pool/set', repo, parallel: p.parallel + 1 }, { only: true, why: p.parallel >= 4 ? t('maxSlots') : '' }) + '</span></div>' +
-      '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + guardNote + route + limits + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
+      '<div class="pbody"><div' + (open ? '' : ' inert') + '><div class="pin">' + guardNote + missing + route + limits + '<div>' + caches + '</div>' + foot + '</div></div></div></div>';
   }).join('');
   // Vorschläge nur, wo ein Pool möglich ist (siehe `free` in listRepos).
   const free = (repoList ?? []).filter((r) => r.free);
   const add = '<div class="addrow"><span>' + t('add') + '</span><form id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false">' +
     '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + glyph('plus') + t('addButton') + '</button></form>' +
-    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(shortRepo(r.repo)) + '</button>').join('') + (free.length ? '</span>' : '') + '</div><div class="note">' + esc(t('addHint')) + '</div>';
+    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(shortRepo(r.repo)) + '</button>').join('') + (free.length ? '</span>' : '') + '</div><div class="note">' + esc(t('addHint')) + ' ' + esc(t('addMissing')) + ' ' + installLink() + '</div>';
 
   // --- Limits je Job: was alle Plätze zusammen dürfen, gemessen an der Docker-VM ---
   // Mit eingeschaltetem Cache läuft je Projekt ein Build-Dienst mit dem Docker-Limit, auch während der Pool pausiert.
@@ -1592,13 +1572,12 @@ function renderEmpty() {
   const main = document.getElementById('main');
   main.dataset.shape = 'empty';
   // Ohne Anmeldung lässt sich kein Projekt anlegen: Dann ist sie der erste Schritt.
-  // Fehlt `gh` oder ein Recht, sagt die Überschrift das, und der Satz dazu steht in der Zeile darunter.
   const trouble = authTrouble();
   // Fehlt dem Rechner etwas für Docker, steht das als eigener Abschnitt unter dem Schritt; es hält ihn nicht auf.
   const setup = setupMissing().length ? '<div class="setup first"><div><h2>' + t('setupTitle') + '</h2>' + info(t('setupTitle'), t('setupInfo')) + '<div class="note">' + t('setupText') + '</div></div>' + setupRows(true) + '</div>' : '';
-  if (trouble) { put(main, '<div class="stack empty">' + (data.auth.state === 'out' ? viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) : viewHead(esc(trouble), '')) + authBody(true) + setup + '</div>'); return; }
+  if (trouble) { put(main, '<div class="stack empty">' + viewHead(esc(t('authFirstTitle')), t('authFirstText'), '', info(t('authFirstTitle'), t('authOutInfo'))) + authBody(true) + setup + '</div>'); return; }
   put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText'), '', info(t('firstTitle'), t('projectsInfo'))) + '<div class="row">' +
-    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
+    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div><div class="note">' + esc(t('addHint')) + ' ' + esc(t('addMissing')) + ' ' + installLink() + '</div>' + setup + '</div>');
 }
 
 // --- Beenden ---

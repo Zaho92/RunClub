@@ -7,6 +7,7 @@ const { SECOND, HOUR } = require('../src/units');
 const PAUSE_STEPS = BROKEN_PAUSE / SECOND; // die Pause nach einem Fehler, in Sekundenschritten
 const { turn, until, rendered } = require('./support');
 const { render } = require('../src/messages');
+const { GitHubError } = require('../src/github');
 
 const REPO = 'wer/App';
 const BASE = 'rc-app-a1b2c3'; // `rc-<repo>-<kennung>`
@@ -37,14 +38,16 @@ function world() {
     w.details.push({ name, args, options });
     return { code: 0, stdout: '', stderr: '', ...(await w.answer(name, args, options)) };
   };
-  const gh = async (args, body) => {
-    w.calls.push(`gh ${args.slice(1).join(' ')}`);
-    if (body) w.body = JSON.parse(body);
-    if (w.ghFails) throw new Error(w.ghFails);
-    return args.at(-1).endsWith('/generate-jitconfig') ? w.jit : null;
+  const github = {
+    send: async (method, url, body) => {
+      w.calls.push(`send ${method} ${url}`);
+      if (body) w.body = body;
+      if (w.githubFails) throw w.githubFails;
+      return url.endsWith('/generate-jitconfig') ? w.jit : null;
+    },
   };
   w.slots = createSlots({
-    docker, gh,
+    docker, github,
     log: (...entry) => w.logs.push(rendered(entry)),
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     timer: (work, ms) => w.timers.push({ work, ms }),
@@ -80,8 +83,8 @@ const REMOVE = [
   `network rm ${BASE}`,
 ];
 const ALIVE = (base) => `inspect --format {{.State.Running}} ${base}-runner`; // läuft der Runner nach dem Ende des Aufrufs noch?
-const REGISTER = `gh -X POST repos/${REPO}/actions/runners/generate-jitconfig`;
-const UNREGISTER = `gh -X DELETE repos/${REPO}/actions/runners/77`;
+const REGISTER = `send POST repos/${REPO}/actions/runners/generate-jitconfig`;
+const UNREGISTER = `send DELETE repos/${REPO}/actions/runners/77`;
 
 test('ein Job von Anfang bis Ende: Aufbau, Anmeldung, Runner, Abbau', async () => {
   const w = world();
@@ -254,24 +257,27 @@ test('ohne Fehlerausgabe nennt die Meldung den Code; nach der Pause versucht der
 const BUILD = [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`];
 
 test('meldet GitHub, dass es den Runner schon gibt, wird das Paar nicht behalten: derselbe Name hülfe nicht', async () => {
-  const w = world();
-  w.ghFails = 'gh: Already exists - A runner with the name already exists. (HTTP 409)';
-  w.onSleep = () => { if (w.slept.length === 1) w.slot.retired = true; };
-  await w.slots.slotLoop(w.pool, w.slot);
+  // Erkannt am Status (409, 422) oder am Text.
+  for (const error of [new GitHubError(409, 'Already exists - A runner with the name already exists.'), new GitHubError(422, 'Validation Failed'), new Error('A runner with the name already exists.')]) {
+    const w = world();
+    w.githubFails = error;
+    w.onSleep = () => { if (w.slept.length === 1) w.slot.retired = true; };
+    await w.slots.slotLoop(w.pool, w.slot);
 
-  assert.equal(w.slot.kept ?? null, null);
-  assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]); // abgebaut gleich nach dem Fehler, nicht erst nach der Pause
-  assert.equal(w.slept.length, 1);
-  assert.equal(w.slots.livePairs.size, 0);
+    assert.equal(w.slot.kept ?? null, null);
+    assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]); // abgebaut gleich nach dem Fehler, nicht erst nach der Pause
+    assert.equal(w.slept.length, 1);
+    assert.equal(w.slots.livePairs.size, 0);
+  }
 });
 
 test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause wird dasselbe Paar erneut angemeldet', async () => {
   const w = world();
-  w.ghFails = 'gh: Forbidden (HTTP 403)';
+  w.githubFails = new GitHubError(403, 'Forbidden');
   let paused = null;
   w.onSleep = () => {
     if (w.slept.length === 1) paused = { state: w.slot.state, error: w.slot.error, base: w.slot.base, live: [...w.slots.livePairs] };
-    if (w.slept.length === PAUSE_STEPS) w.ghFails = null;
+    if (w.slept.length === PAUSE_STEPS) w.githubFails = null;
   };
   w.answer = (name, args, { onLine }) => {
     if (!isRunner(name)) return undefined;
@@ -283,8 +289,8 @@ test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause
   await w.slots.slotLoop(w.pool, w.slot);
 
   assert.deepEqual(w.calls, [...BUILD, REGISTER, REGISTER, `run ${BASE}-runner`, ALIVE(BASE), ...REMOVE]); // ein Aufbau, zwei Anmeldungen
-  assert.deepEqual(paused, { state: 'broken', error: 'gh: Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
-  assert.deepEqual(w.logs[0], ['gh: Forbidden (HTTP 403)', REPO, 'error']);
+  assert.deepEqual(paused, { state: 'broken', error: 'Forbidden (HTTP 403)', base: BASE, live: [[BASE, REPO]] });
+  assert.deepEqual(w.logs[0], ['Forbidden (HTTP 403)', REPO, 'error']);
   assert.equal(w.slept.length, PAUSE_STEPS);
   assert.deepEqual(w.replenished, [REPO]); // die Reserve gibt kein zweites Paar her
   assert.equal(w.slot.jobs, 1);
@@ -293,13 +299,13 @@ test('scheitert die Anmeldung bei GitHub, bleibt das Paar stehen; nach der Pause
 
 test('ein Paar ohne Anmeldung wird abgebaut, wenn der Platz endet, und nichts wird abgemeldet', async () => {
   const w = world();
-  w.ghFails = 'gh: Forbidden (HTTP 403)';
+  w.githubFails = new GitHubError(403, 'Forbidden');
   w.onSleep = () => { w.stopping = true; };
   await w.slots.slotLoop(w.pool, w.slot);
 
-  assert.deepEqual(w.logs, [['gh: Forbidden (HTTP 403)', REPO, 'error']]);
+  assert.deepEqual(w.logs, [['Forbidden (HTTP 403)', REPO, 'error']]);
   assert.deepEqual(w.calls, [...BUILD, REGISTER, ...REMOVE]);
-  assert.equal(w.slot.error, 'gh: Forbidden (HTTP 403)');
+  assert.equal(w.slot.error, 'Forbidden (HTTP 403)');
   assert.deepEqual(w.slept, [IDLE_PAUSE]);
   assert.equal(w.slot.state, 'off');
   assert.equal(w.slots.livePairs.size, 0);
@@ -307,7 +313,7 @@ test('ein Paar ohne Anmeldung wird abgebaut, wenn der Platz endet, und nichts wi
 
 test('ein Paar ohne Anmeldung wird abgebaut, wenn der Pool ruht oder die Limits sich geändert haben', async () => {
   const rest = world();
-  rest.ghFails = 'gh: Forbidden (HTTP 403)';
+  rest.githubFails = new GitHubError(403, 'Forbidden');
   let resting = null;
   rest.onSleep = () => {
     if (rest.slept.length === 1) { rest.resting = true; rest.settings.paused = true; }
@@ -318,7 +324,7 @@ test('ein Paar ohne Anmeldung wird abgebaut, wenn der Pool ruht oder die Limits 
   assert.deepEqual(resting, { state: 'paused', base: null });
 
   const changed = world();
-  changed.ghFails = 'gh: Forbidden (HTTP 403)';
+  changed.githubFails = new GitHubError(403, 'Forbidden');
   changed.onSleep = () => {
     if (changed.slept.length === 1) changed.limits = { ...LIMITS, dockerMemory: '6g' };
     if (changed.slept.length === PAUSE_STEPS + 1) changed.stopping = true;
@@ -374,7 +380,7 @@ test('ein Abbruch in der Pause nach einem Fehler beendet sie sofort, und der Pla
 
 test('ein Abbruch in der Pause nach gescheiterter Anmeldung baut das behaltene Paar ab', async () => {
   const w = world();
-  w.ghFails = 'gh: Forbidden (HTTP 403)';
+  w.githubFails = new GitHubError(403, 'Forbidden');
   let abort = null;
   w.onSleep = () => {
     if (w.slept.length !== 3) return;
@@ -551,13 +557,13 @@ test('teardown: ohne Paar geschieht nichts; ohne Job wird abgemeldet, nach einem
   assert.deepEqual(w.calls, REMOVE);
 
   w.calls.length = 0;
-  w.ghFails = 'gh: Not Found (HTTP 404)'; // schon weg: kein Fehler
+  w.githubFails = new GitHubError(404, 'Not Found'); // schon weg: kein Fehler
   await w.slots.teardown({ repo: REPO, base: BASE, runnerId: 77, job: null });
   assert.deepEqual(w.calls, [...REMOVE, UNREGISTER]);
   assert.deepEqual(w.logs, []);
 
   // Alles andere bleibt bei GitHub stehen und gehört ins Protokoll.
-  w.ghFails = 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.';
+  w.githubFails = new Error('Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.');
   await w.slots.teardown({ repo: REPO, base: BASE, runnerId: 77, job: null });
   assert.deepEqual(w.logs, [['Runner ließ sich bei GitHub nicht abmelden – Das Anfragelimit von GitHub ist aufgebraucht; weiter um 17:05.', REPO, 'error']]);
 });
@@ -599,7 +605,7 @@ test('wirft etwas beim Abräumen, steht das im Protokoll, und der Platz macht we
   const discard = async () => { rounds += 1; if (rounds === 1) throw new Error('Docker antwortet nicht'); w.stopping = true; };
   const { createSlots } = require('../src/slots');
   const slots = createSlots({
-    docker: async () => ({ code: 0, stdout: '', stderr: '' }), gh: async () => null,
+    docker: async () => ({ code: 0, stdout: '', stderr: '' }), github: { send: async () => null },
     log: (...entry) => w.logs.push(rendered(entry)), sleep: async (ms) => { w.slept.push(ms); await turn(); },
     host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234, metrics: {},
     settingsOf: () => w.settings, limitsOf: () => LIMITS, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',

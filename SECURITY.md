@@ -66,6 +66,23 @@ Docker daemon.
   release metadata. That protects against a damaged download, not against a forged release: whoever can create a
   release in this repository can ship an update. Installers are not code-signed yet.
 
+## Access to GitHub
+
+- **Own GitHub App.** RunClub signs in through its GitHub App “RunClub” (device flow) and acts on the user's behalf,
+  but only in repositories the app is installed on. It requests: Administration (read and write: just-in-time runner
+  registration, removing runners, the fork pull request setting), Actions (read and write: runs, jobs, re-runs),
+  Variables (read and write: `CI_RUNNER`), Checks (read), Contents (read: workflow files and RunClub's own releases),
+  Metadata (read), and for the account Plan (read: billing for the minutes quota). It cannot change code.
+- **Token storage.** The user access token expires after eight hours and is renewed with its refresh token, which
+  GitHub accepts only once; the new pair is written before it is used. Both are stored in RunClub's data folder
+  (`github.token`), encrypted with Electron's `safeStorage` (DPAPI, bound to the Windows user). Without `safeStorage`
+  (the backend alone) the token lives in memory only. The token is never written to the log, and the one-time code
+  only appears in the window.
+- **Signing out** forgets the token on this computer. Revoking it on GitHub needs the app's client secret, which
+  RunClub does not ship; the window links to GitHub's “Authorized GitHub Apps” page for that. The token is only
+  ever sent to `api.github.com` (and `github.com` for signing in); the updater drops it when a download redirects
+  elsewhere.
+
 ## Accepted on purpose
 
 - **Jobs have full outbound network access**, including your local network (router, NAS, printers) and anything

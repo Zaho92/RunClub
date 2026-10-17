@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createMinutes, summarize, STATE, TIGHT_AT, INCLUDED, FRESH, RETRY } = require('../src/minutes');
-const { deepFreeze: frozen } = require('../src/github');
+const { deepFreeze: frozen, GitHubError } = require('../src/github');
 const { render } = require('../src/messages');
 
 const NOW = new Date('2026-10-14T12:00:00Z').getTime();
@@ -112,13 +112,13 @@ test('eine Antwort ohne Einträge oder mit Unsinn ergibt null Minuten statt eine
   }
 });
 
-// `gh` nachgestellt: Zusammenfassung und Konto; `fail` lässt jede Abfrage scheitern, `hold` hält jede auf.
+// GitHub nachgestellt: Zusammenfassung und Konto; `fail` (ein Fehler) lässt jede Abfrage scheitern, `hold` hält jede auf.
 function fakeGitHub(summary, plan = 'free') {
   const github = { calls: [], fail: null, hold: null, summary };
-  github.gh = async ([, path]) => {
+  github.get = async (path) => {
     github.calls.push(path);
     await github.hold;
-    if (github.fail) throw new Error(github.fail);
+    if (github.fail) throw github.fail;
     return path === 'user' ? frozen({ login: 'wer', plan: { name: plan } }) : github.summary;
   };
   github.reads = () => github.calls.filter((path) => path !== 'user');
@@ -127,7 +127,7 @@ function fakeGitHub(summary, plan = 'free') {
 
 test('liest die Zusammenfassung des Kontos für den laufenden Monat und den Tarif und zeigt den Stand', async () => {
   const github = fakeGitHub(REAL);
-  const minutes = createMinutes({ gh: github.gh, now: () => NOW });
+  const minutes = createMinutes({ github, now: () => NOW });
   await minutes.refresh('wer');
   assert.deepEqual(github.calls, [SUMMARY, 'user']);
   assert.equal(minutes.view('wer').used, 2097);
@@ -137,7 +137,7 @@ test('liest die Zusammenfassung des Kontos für den laufenden Monat und den Tari
 
 test('der Stand gilt nur für sein Konto und nur bis zum Ende seines Monats', async () => {
   let now = NOW;
-  const minutes = createMinutes({ gh: fakeGitHub(REAL).gh, now: () => now });
+  const minutes = createMinutes({ github: fakeGitHub(REAL), now: () => now });
   await minutes.refresh('wer');
   assert.deepEqual(minutes.view('anders'), { state: STATE.READING });
   assert.equal(minutes.view(null), null);
@@ -147,8 +147,8 @@ test('der Stand gilt nur für sein Konto und nur bis zum Ende seines Monats', as
 
 test('ohne Stand sagt die Ansicht, ob noch gelesen wird oder die Abfrage gescheitert ist', async () => {
   const github = fakeGitHub(REAL);
-  github.fail = 'gh: Not Found (HTTP 404)';
-  const minutes = createMinutes({ gh: github.gh, now: () => NOW });
+  github.fail = new GitHubError(404, 'Not Found');
+  const minutes = createMinutes({ github, now: () => NOW });
   assert.equal(minutes.view(null), null);
   assert.deepEqual(minutes.view('wer'), { state: STATE.READING });
   await minutes.refresh('wer');
@@ -162,7 +162,7 @@ test('ohne Stand sagt die Ansicht, ob noch gelesen wird oder die Abfrage geschei
 test('eine Antwort für einen anderen Monat gilt nicht und steht im Protokoll', async () => {
   const logged = [];
   const github = fakeGitHub(summaryOf([item('actions_linux', 10)], { year: 2026, month: 9 }));
-  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(render(text)), now: () => NOW });
+  const minutes = createMinutes({ github, log: (text) => logged.push(render(text)), now: () => NOW });
   await minutes.refresh('wer');
   assert.deepEqual(minutes.view('wer'), { state: STATE.FAILED });
   assert.match(logged[0], /Abrechnung für 9\/2026 statt für 10\/2026/);
@@ -171,9 +171,9 @@ test('eine Antwort für einen anderen Monat gilt nicht und steht im Protokoll', 
 test('ein Fehler lässt den letzten Stand stehen und steht einmal im Protokoll, bis es wieder gelingt', async () => {
   const github = fakeGitHub(REAL);
   const logged = [];
-  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(render(text)), now: () => NOW });
+  const minutes = createMinutes({ github, log: (text) => logged.push(render(text)), now: () => NOW });
   await minutes.refresh('wer');
-  github.fail = 'gh: Not Found (HTTP 404)';
+  github.fail = new GitHubError(404, 'Not Found');
   await minutes.refresh('wer');
   await minutes.refresh('wer');
   assert.equal(logged.length, 1);
@@ -183,7 +183,7 @@ test('ein Fehler lässt den letzten Stand stehen und steht einmal im Protokoll, 
   github.summary = summaryOf([item('actions_linux', 10)]);
   await minutes.refresh('wer');
   assert.equal(minutes.view('wer').used, 10);
-  github.fail = 'kein Netz';
+  github.fail = new Error('kein Netz');
   await minutes.refresh('wer');
   assert.equal(logged.length, 2);
 });
@@ -192,8 +192,8 @@ test('ein anderes Konto beginnt von vorn: Sein erster Fehler steht im Protokoll,
   let now = NOW;
   const github = fakeGitHub(REAL);
   const logged = [];
-  github.fail = 'gh: Not Found (HTTP 404)';
-  const minutes = createMinutes({ gh: github.gh, log: (text) => logged.push(render(text)), now: () => now });
+  github.fail = new GitHubError(404, 'Not Found');
+  const minutes = createMinutes({ github, log: (text) => logged.push(render(text)), now: () => now });
   for (let round = 0; round < 4; round += 1) { await minutes.refresh('wer'); }
   assert.equal(logged.length, 1);
   await minutes.poll('anders');
@@ -206,15 +206,15 @@ test('ein anderes Konto beginnt von vorn: Sein erster Fehler steht im Protokoll,
 
 test('wirft das Protokoll, scheitert die Abfrage trotzdem nicht', async () => {
   const github = fakeGitHub(REAL);
-  github.fail = 'kein Netz';
-  const minutes = createMinutes({ gh: github.gh, log: () => { throw new Error('Platte voll'); }, now: () => NOW });
+  github.fail = new Error('kein Netz');
+  const minutes = createMinutes({ github, log: () => { throw new Error('Platte voll'); }, now: () => NOW });
   await minutes.refresh('wer');
   assert.deepEqual(minutes.view('wer'), { state: STATE.FAILED });
 });
 
 test('es läuft höchstens eine Abfrage zugleich', async () => {
   const github = fakeGitHub(REAL);
-  const minutes = createMinutes({ gh: github.gh, now: () => NOW });
+  const minutes = createMinutes({ github, now: () => NOW });
   await Promise.all([minutes.refresh('wer'), minutes.refresh('wer')]);
   assert.equal(github.calls.length, 2);
 });
@@ -223,7 +223,7 @@ test('wird während einer Abfrage nach einem anderen Konto gefragt, folgt dessen
   const github = fakeGitHub(REAL);
   let open;
   github.hold = new Promise((resolve) => { open = resolve; });
-  const minutes = createMinutes({ gh: github.gh, now: () => NOW });
+  const minutes = createMinutes({ github, now: () => NOW });
   const both = Promise.all([minutes.refresh('wer'), minutes.refresh('anders')]);
   open();
   await both;
@@ -234,7 +234,7 @@ test('wird während einer Abfrage nach einem anderen Konto gefragt, folgt dessen
 test('im Takt wird nur gelesen, wenn der Stand fehlt oder alt ist', async () => {
   let now = NOW;
   const github = fakeGitHub(REAL);
-  const minutes = createMinutes({ gh: github.gh, now: () => now });
+  const minutes = createMinutes({ github, now: () => now });
   await minutes.poll('wer');
   await minutes.poll('wer');
   assert.equal(github.reads().length, 1);
@@ -252,8 +252,8 @@ test('im Takt wird nur gelesen, wenn der Stand fehlt oder alt ist', async () => 
 test('nach einem Fehlschlag wird im Takt in wachsendem Abstand wieder gefragt', async () => {
   let now = NOW;
   const github = fakeGitHub(REAL);
-  github.fail = 'kein Netz';
-  const minutes = createMinutes({ gh: github.gh, now: () => now });
+  github.fail = new Error('kein Netz');
+  const minutes = createMinutes({ github, now: () => now });
   await minutes.poll('wer');
   const waits = [];
   for (let round = 0; round < 6; round += 1) {
@@ -268,7 +268,7 @@ test('nach einem Fehlschlag wird im Takt in wachsendem Abstand wieder gefragt', 
 test('nach dem Monatswechsel wird beim nächsten Takt gleich neu gelesen', async () => {
   let now = new Date('2026-10-31T23:59:00Z').getTime();
   const github = fakeGitHub(REAL);
-  const minutes = createMinutes({ gh: github.gh, now: () => now });
+  const minutes = createMinutes({ github, now: () => now });
   await minutes.poll('wer');
   now += 2 * RETRY;
   github.summary = summaryOf([item('actions_linux', 3)], { year: 2026, month: 11 });
@@ -279,7 +279,7 @@ test('nach dem Monatswechsel wird beim nächsten Takt gleich neu gelesen', async
 });
 
 test('was die Oberfläche bekommt, lässt sich ändern, ohne den Stand zu treffen', async () => {
-  const minutes = createMinutes({ gh: fakeGitHub(REAL).gh, now: () => NOW });
+  const minutes = createMinutes({ github: fakeGitHub(REAL), now: () => NOW });
   await minutes.refresh('wer');
   minutes.view('wer').systems.linux = 0;
   minutes.view('wer').plans.free = 1;

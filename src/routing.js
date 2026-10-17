@@ -26,17 +26,17 @@ function usage(texts) {
   return 'none';
 }
 
-function createRouting({ gh }) {
+function createRouting({ github }) {
   const known = new Map(); // Repo -> { value, here, uses, error }
 
   async function check(repo) {
     const info = { value: null, here: false, uses: null, error: null };
-    try { info.value = (await gh(['api', `repos/${repo}/actions/variables/${VARIABLE}`])).value; } catch (error) { if (!/404/.test(error.message)) info.error = reason(error); }
+    try { info.value = (await github.get(`repos/${repo}/actions/variables/${VARIABLE}`)).value; } catch (error) { if (error.status !== 404) info.error = reason(error); }
     info.here = info.value != null && pointsHere(info.value);
     try {
-      const files = (await gh(['api', `repos/${repo}/contents/.github/workflows`])).filter((file) => /\.ya?ml$/.test(file.name));
+      const files = (await github.get(`repos/${repo}/contents/.github/workflows`)).filter((file) => /\.ya?ml$/.test(file.name));
       const texts = [];
-      for (const file of files) texts.push(Buffer.from((await gh(['api', `repos/${repo}/contents/${file.path}`])).content, 'base64').toString('utf8'));
+      for (const file of files) texts.push(Buffer.from((await github.get(`repos/${repo}/contents/${file.path}`)).content, 'base64').toString('utf8'));
       info.uses = usage(texts);
     } catch { /* kein Workflow-Ordner oder kein Zugriff: unbekannt */ }
     known.set(repo, info);
@@ -50,11 +50,11 @@ function createRouting({ gh }) {
     // Ohne den Stand der Variable (GitHub nicht erreichbar, Anfragelimit) wäre alles Weitere geraten.
     if (current.error) throw Fault.of(current.error);
     if (on) {
-      const body = JSON.stringify({ name: VARIABLE, value: VALUE });
-      if (current.value == null) await gh(['api', '-X', 'POST', `repos/${repo}/actions/variables`], body);
-      else await gh(['api', '-X', 'PATCH', `repos/${repo}/actions/variables/${VARIABLE}`], body);
+      const body = { name: VARIABLE, value: VALUE };
+      if (current.value == null) await github.send('POST', `repos/${repo}/actions/variables`, body);
+      else await github.send('PATCH', `repos/${repo}/actions/variables/${VARIABLE}`, body);
     } else if (current.value != null) {
-      await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/variables/${VARIABLE}`]);
+      await github.send('DELETE', `repos/${repo}/actions/variables/${VARIABLE}`);
     }
     known.set(repo, { ...current, value: on ? VALUE : null, here: Boolean(on), error: null });
   }

@@ -99,8 +99,9 @@ const DE = {
 
   // GitHub (siehe github.js, remote.js, minutes.js)
   m_githubPause: 'GitHub bittet um eine Pause; weiter um {0}.',
+  m_githubSilent: 'GitHub antwortet nicht.',
+  m_githubUnreachable: 'GitHub ist nicht erreichbar ({0}).',
   m_quotaSpent: 'Das Anfragelimit von GitHub ist aufgebraucht; weiter um {0}.',
-  m_ghExit: 'gh endete mit {0}',
   m_quotaPaused: 'GitHub bittet um eine Pause (zu viele Anfragen in kurzer Zeit). Bis {0} wird nicht mehr abgefragt.',
   m_quotaOut: 'GitHub-Anfragen sind aufgebraucht ({0} von {1} frei). Bis {2} wird nicht mehr abgefragt; der Rest bleibt für das Anmelden neuer Runner.',
   m_quotaTight: 'GitHub-Anfragen werden knapp ({0} von {1} frei). Bis {2} wird seltener abgefragt.',
@@ -149,22 +150,14 @@ const DE = {
 
   // Anmeldung bei GitHub (siehe auth.js)
   m_closing: 'RunClub wird gerade beendet.',
-  m_leaving: 'Es wird gerade abgemeldet. Bitte warten, bis das abgeschlossen ist.',
   m_loginRunning: 'Es läuft schon eine Anmeldung. Erst diese abschließen oder abbrechen.',
-  m_ghMissing: 'Das Programm gh ist nicht installiert.',
   m_alreadyIn: 'Du bist schon als {0} angemeldet.',
-  m_authUnknown: 'Der Stand der Anmeldung ließ sich noch nicht lesen. Bitte gleich noch einmal versuchen.',
   m_loginFirst: 'Erst bei GitHub anmelden.',
-  m_scopeNotMissing: 'Dieses Recht fehlt nicht oder lässt sich hier nicht ergänzen.',
-  m_noScopeMissing: 'Der Anmeldung fehlt kein Recht.',
-  m_leavingAlready: 'Es wird schon abgemeldet.',
   m_finishLogin: 'Erst die laufende Anmeldung abschließen oder abbrechen.',
   m_notIn: 'Du bist nicht bei GitHub angemeldet.',
-  m_loginUnknown: 'Das Konto lässt sich nicht bestimmen. Bitte im Terminal abmelden: gh auth logout',
-  m_ghSilent: 'gh antwortet nicht.',
   m_loggedIn: 'Bei GitHub angemeldet als {0}.',
   m_loggedOut: 'Bei GitHub abgemeldet ({0}).',
-  m_loggedOutSwitch: 'Bei GitHub abgemeldet ({0}). gh nutzt jetzt das Konto {1}.',
+  m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.',
 
   // Programm (siehe backend.js, lifecycle.js, settings.js, server.js, main.js)
   m_listening: 'Runner-Anzeige: {0}',

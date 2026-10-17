@@ -8,6 +8,7 @@ const { createSettings, PARALLEL_MAX } = require('../src/settings');
 const limitRules = require('../src/limits');
 const { GB } = require('../src/units');
 const { errorLog } = require('../src/journal');
+const { GitHubError } = require('../src/github');
 const { turn, until, rendered } = require('./support');
 
 const REPO = 'wer/App';
@@ -37,13 +38,13 @@ function world({ pools: repos = [REPO] } = {}) {
     seed: { forget: call('forgetSeed'), refreshSeed: call('refreshSeed') },
   };
   const { actions, guard } = createActions({
-    gh: async (args) => { w.calls.push(`gh ${args.at(-1)}`); const answer = w.answers[args.at(-1)]; return answer === undefined ? w.info : typeof answer === 'function' ? answer() : answer; },
+    github: { get: async (url) => { w.calls.push(`get ${url}`); const answer = w.answers[url]; return answer === undefined ? w.info : typeof answer === 'function' ? answer() : answer; } },
     settings: w.settings, runners,
     remote: { refreshAll: call('refreshAll'), markChecked: (repo) => w.calls.push(`markChecked ${repo}`), forget: (repo) => w.calls.push(`remote.forget ${repo}`), rerun: call('rerun') },
     routing: { check: async (repo) => { w.calls.push(`routing.check ${repo}`); return w.routingState; }, set: async (repo, on) => { w.calls.push(`routing.set ${repo} ${on}`); }, forget: (repo) => w.calls.push(`routing.forget ${repo}`) },
     waiting: { forget: (repo) => w.calls.push(`waiting.forget ${repo}`) },
     metrics: { forget: (repo) => w.calls.push(`metrics.forget ${repo}`) },
-    account: { login: call('login'), grant: call('grant'), cancel: call('cancel'), logout: call('logout') },
+    account: { login: call('login'), cancel: call('cancel'), logout: call('logout') },
     dockerWatch: { ready: () => w.ready, removeRegistrations: call('removeRegistrations') },
     limitRange: () => limitRules.bounds({ dockerMemory: 16 * GB, dockerCpus: 8 }),
     limitPlan: () => w.plan,
@@ -78,7 +79,7 @@ test('pool/add legt an, wie GitHub das Repo schreibt, startet den Pool und leite
   await w.actions['pool/add']({ repo: 'wer/neu', parallel: 99 });
   await until(() => w.calls.includes('routing.set Wer/Neu true'));
   assert.deepEqual(w.settings.config.pools, [{ repo: 'Wer/Neu', parallel: PARALLEL_MAX, cache: true, paused: false, preload: [] }]);
-  assert.deepEqual(w.calls.slice(0, 6), ['gh repos/wer/neu', 'waiting.forget Wer/Neu', 'markChecked Wer/Neu', 'startPool Wer/Neu', 'refreshAll', 'routing.check Wer/Neu']);
+  assert.deepEqual(w.calls.slice(0, 6), ['get repos/wer/neu', 'waiting.forget Wer/Neu', 'markChecked Wer/Neu', 'startPool Wer/Neu', 'refreshAll', 'routing.check Wer/Neu']);
   assert.deepEqual(w.logs.map(([text]) => text), ['Pool angelegt', 'CI_RUNNER gesetzt – die Jobs laufen auf den eigenen Runnern']);
 });
 
@@ -154,8 +155,8 @@ test('pool/add lehnt ein Org-Repo ab, in dem Fork-PRs laufen dürfen oder es sic
   w.info = { full_name: 'firma/App', private: true, permissions: { admin: true }, owner: { type: 'Organization' } };
   w.answers[forks] = { run_workflows_from_fork_pull_requests: true, require_approval_for_fork_pr_workflows: true };
   await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /Forks/);
-  w.answers[forks] = () => { throw new Error('HTTP 403'); };
-  await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /HTTP 403/);
+  w.answers[forks] = () => { throw new GitHubError(403, 'Forbidden'); };
+  await assert.rejects(w.actions['pool/add']({ repo: 'firma/App', parallel: 1 }), /Forbidden \(HTTP 403\)/);
   assert.deepEqual(w.settings.repos(), []);
   w.answers[forks] = { run_workflows_from_fork_pull_requests: false };
   await w.actions['pool/add']({ repo: 'firma/App', parallel: 1 });

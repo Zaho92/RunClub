@@ -7,7 +7,7 @@ const { VARIABLE } = require('./routing');
 const { msg, reason } = require('./messages');
 
 //   log(text, repo, kind)
-//   beforeStop()            beim Beenden, nach dem Anhalten der Takte (Messung sichern, wartendes `gh` beenden)
+//   beforeStop()            beim Beenden, nach dem Anhalten der Takte (Messung sichern, wartende Anmeldung beenden)
 //   dismantle()             alle Runner abbauen (pools.js)
 //   removeLeftovers(step)   danach übrig Gebliebenes abräumen, auch Build-Dienste und ihre Netze (dockerwatch.js)
 //   releaseIdle()           die freien Runner bei GitHub abmelden (runners.js)

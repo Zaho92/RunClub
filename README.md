@@ -7,16 +7,21 @@ zeigt seine Oberfläche in einem Fenster.
 ## Voraussetzungen
 
 - Docker Desktop mit WSL, gestartet (fehlt eins davon, sagt die App, was zu tun ist, und startet Docker Desktop auf Klick)
-- GitHub CLI (`gh`), installiert; das Konto braucht Verwaltungsrecht auf den Repos
+- ein GitHub-Konto mit Verwaltungsrecht auf den Repos
 - Node.js nur zum Entwickeln (siehe unten); der Installer bringt alles mit
 
-RunClub nutzt die Anmeldung von `gh`, dieselbe wie im Terminal, und braucht dafür das Recht `repo`; mit dem
-Recht `user` zeigt es zusätzlich das Minuten-Kontingent des Kontos. Das Anmelden in der App verlangt beide in einem
-Schritt; `user` ist freiwillig in dem Sinn, dass sein Fehlen keine Störung ist. Anmelden geht in
-der App (Einstellungen → GitHub: Einmalcode, Bestätigung im Browser) oder wie bisher im Terminal
-(`gh auth login`). Dort lässt sich auch ein fehlendes Recht ergänzen und wieder abmelden; Abmelden meldet
-auch `gh` im Terminal ab. Ein Token oder ein anderer Host aus der Umgebung (`GH_TOKEN`, `GITHUB_TOKEN`, `GH_HOST`)
-gilt für RunClub nicht: Es arbeitet nur mit der Anmeldung von `gh` bei github.com.
+RunClub spricht über seine eigene GitHub-App „RunClub“ mit GitHub. Einmal anmelden (Einstellungen → GitHub:
+Einmalcode, Bestätigung im Browser), dann handelt RunClub in deinem Namen, aber nur in den Repos, auf denen die App
+installiert ist: [RunClub installieren](https://github.com/apps/runclub-runners/installations/new) für das eigene
+Konto und jede Organisation, deren Repos Runner bekommen sollen. Die App darf je Repo Runner an- und abmelden
+(Administration), Läufe lesen und erneut starten (Actions), `CI_RUNNER` setzen (Variables), Prüfergebnisse lesen
+(Checks) und Code lesen (Contents, für die Workflow-Dateien und die Releases von RunClub), dazu die Abrechnung des
+Kontos für das Minuten-Kontingent (Plan). Code ändern darf sie nicht.
+
+Das Token gilt acht Stunden und erneuert sich von selbst; es liegt mit dem Schlüssel des Windows-Benutzers
+verschlüsselt in `%APPDATA%\RunClub\data\github.token`. Abmelden vergisst es auf diesem Rechner; die Freigabe bei
+GitHub widerrufst du unter [Authorized GitHub Apps](https://github.com/settings/apps/authorizations). Das Backend allein
+(`npm run backend`) hält das Token nur im Speicher.
 
 Die Jobs eines Repos müssen auf eigene Runner zeigen: `runs-on: [self-hosted, Linux]`. Wer umschaltbar bleiben
 will, liest das Ziel aus einer Repo-Variablen:
@@ -42,7 +47,8 @@ Hintergrund und prüft sie gegen die Prüfsumme im Release. Eingespielt wird ers
 den Installer und öffnet sich danach wieder.
 
 Der Kanal steht in denselben Einstellungen: **Stabil** bekommt nur abgenommene Versionen, **Beta** auch Vorabversionen.
-Solange das Repo privat ist, liest RunClub die Releases mit der Anmeldung von `gh`.
+Solange das Repo privat ist, liest RunClub die Releases mit dem Token der Anmeldung in der App (die App braucht dafür
+Contents auf diesem Repo).
 
 Das Fenster zu schließen beendet nichts. Beendet wird über das Symbol im Infobereich (Rechtsklick → Beenden)
 oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
@@ -75,8 +81,8 @@ oder „Alles beenden“ in der Oberfläche; dabei enden auch die Runner.
 | `src/routing.js` | Repo-Variable `CI_RUNNER`: schaltet die Jobs eines Repos auf die eigenen Runner und zurück |
 | `src/access.js` | Wer den lokalen Dienst benutzen darf: Schlüssel je Programmlauf, Cookie, Kopfzeilen der Seite |
 | `src/limits.js` | Limits je Job: Grenzen aus der Docker-VM, Vorschlag aus den Messwerten, Standard und Ausreißer |
-| `src/github.js` | Aufrufe von `gh`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird, die Umgebung, mit der `gh` läuft |
-| `src/auth.js` | Anmeldung bei GitHub über `gh auth`: Stand lesen (Konto, Rechte, was fehlt), Anmelden und Ergänzen eines Rechts mit Einmalcode führen, abbrechen, abmelden |
+| `src/github.js` | REST-Schnittstelle von GitHub über `fetch`: bedingte Abfragen (ETag), Stand des Anfragelimits, wann seltener oder nicht mehr abgefragt wird, Token erneuern lassen bei 401, Fehler mit Status |
+| `src/auth.js` | Anmeldung über die GitHub-App (Device Flow): Einmalcode, Bestätigung abwarten, abbrechen, abmelden; Token erneuern und verschlüsselt ablegen |
 | `src/minutes.js` | Minuten-Kontingent von GitHub Actions: Verbrauch des Monats aus der Abrechnung des Kontos (je Betriebssystem, bezahlt), enthaltene Minuten als Annahme je Tarif, Zustand knapp, aufgebraucht oder bezahlt, wann wieder gelesen wird |
 | `src/messages.js` | Meldungen an die Oberfläche als Schlüssel mit Werten (`{ key, args }`), mit dem deutschen Satz für Datei und Fehlertext; die Oberfläche übersetzt sie mit ihren Tabellen |
 | `src/journal.js` | Protokoll: Einträge mit Zeit, Projekt, Meldung und Art; die letzten im Speicher und für den nächsten Start in `runclub.log.entries`, alle lesbar in `runclub.log` |

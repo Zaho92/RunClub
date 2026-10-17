@@ -13,13 +13,13 @@ const done = (name, duration) => job(name, { status: 'completed', conclusion: 's
 // Ein früherer Lauf (Nr. 1) liefert die üblichen Dauern, Lauf Nr. 2 ist unterwegs.
 function setup(activeJobs) {
   const jobsOf = { 1: [done('Kurz', 10), done('Lang', 100), done('Später', 50)], 2: activeJobs };
-  const gh = async (args) => ({ jobs: jobsOf[args[1].match(/runs\/(\d+)\/jobs/)[1]] });
+  const github = { get: async (url) => ({ jobs: jobsOf[url.match(/runs\/(\d+)\/jobs/)[1]] }) };
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
   const runs = [
     { id: 2, name: 'CI', status: 'in_progress', conclusion: null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', run_started_at: iso(-60) },
     { id: 1, name: 'CI', status: 'completed', conclusion: 'success', event: 'push' },
   ];
-  return { pipelines: createPipelines({ gh, dataDir }), runs, dataDir };
+  return { pipelines: createPipelines({ github, dataDir }), runs, dataDir };
 }
 const left = (finishAt) => Math.round((new Date(finishAt) - Date.now()) / 1000);
 
@@ -34,8 +34,8 @@ test('lernt die übliche Dauer und die Wartezeit aus abgeschlossenen Läufen', a
 
 test('ein früher gestarteter Lauf, der nach einem späteren endet, bleibt einige Abfragen lang zum Bestätigen da', async () => {
   const jobsOf = { 3: [done('Spät', 10)], 4: [done('Früh', 10)] };
-  const gh = async (args) => ({ jobs: jobsOf[args[1].match(/runs\/(\d+)\/jobs/)[1]] });
-  const pipelines = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  const github = { get: async (url) => ({ jobs: jobsOf[url.match(/runs\/(\d+)\/jobs/)[1]] }) };
+  const pipelines = createPipelines({ github, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
   const run = (id, status) => ({ id, name: 'CI', status, conclusion: status === 'completed' ? 'success' : null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', updated_at: status });
   // Lauf 4 ist der jüngere und schon fertig, Lauf 3 läuft noch und endet erst danach.
   await pipelines.refresh(REPO, [run(4, 'completed'), run(3, 'in_progress')]);
@@ -127,8 +127,8 @@ test('mit Workflow-Datei: Abhängigkeiten, spätere Jobs und Restzeit in der ric
     1: [done('Berührte Bereiche', 10), done('Build und Tests', 100), done('lint', 20), done('Smoke-Test', 50)],
     2: [done('Berührte Bereiche', 10), job('Build und Tests', { status: 'in_progress', conclusion: null, started_at: iso(-40), completed_at: null }), job('lint', { status: 'queued', conclusion: null, started_at: iso(-5), completed_at: null })],
   };
-  const gh = async (args) => args[1].includes('/contents/') ? { content: Buffer.from(WORKFLOW).toString('base64') } : { jobs: jobsOf[args[1].match(/runs\/(\d+)\/jobs/)[1]] };
-  const pipelines = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  const github = { get: async (url) => url.includes('/contents/') ? { content: Buffer.from(WORKFLOW).toString('base64') } : { jobs: jobsOf[url.match(/runs\/(\d+)\/jobs/)[1]] } };
+  const pipelines = createPipelines({ github, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
   const run = { name: 'CI', event: 'push', head_branch: 'main', html_url: 'https://example.invalid', path: '.github/workflows/ci.yml', head_sha: 'abc' };
   await pipelines.refresh(REPO, [{ ...run, id: 2, status: 'in_progress', conclusion: null, run_started_at: iso(-60) }, { ...run, id: 1, status: 'completed', conclusion: 'success', updated_at: 'x' }]);
   const [pipeline] = pipelines.view(REPO, 4);
@@ -172,11 +172,11 @@ const EXPR = 'Test …'; // so heißt `Test ${{ matrix.os }}`, solange GitHub de
 
 // `durations`: schon gelernte Dauern des Workflows „CI“, Jobname -> Sekunden.
 async function renamed(activeJobs, durations = {}) {
-  const gh = async (args) => args[1].includes('/contents/') ? { content: Buffer.from(RENAMED).toString('base64') } : { jobs: activeJobs };
+  const github = { get: async (url) => url.includes('/contents/') ? { content: Buffer.from(RENAMED).toString('base64') } : { jobs: activeJobs } };
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-'));
   const learned = Object.fromEntries(Object.entries(durations).map(([name, values]) => [`CI / ${name}`, values]));
   fs.writeFileSync(path.join(dataDir, 'history.json'), JSON.stringify({ [REPO]: { durations: learned, jobsOf: {}, seen: [] } }));
-  const pipelines = createPipelines({ gh, dataDir });
+  const pipelines = createPipelines({ github, dataDir });
   await pipelines.refresh(REPO, [{ id: 2, name: 'CI', status: 'in_progress', conclusion: null, event: 'push', head_branch: 'main', html_url: 'https://example.invalid', path: '.github/workflows/ci.yml', head_sha: 'abc', run_started_at: iso(-60) }]);
   const [pipeline] = pipelines.view(REPO, 4);
   return { pipeline, pending: pipeline.jobs.filter((j) => j.status === 'pending').map((j) => j.name), needs: (name) => pipeline.jobs.find((j) => j.name === name).needs };
@@ -261,8 +261,8 @@ test('viele Ausdrücke im Namen werden nicht zum teuren Muster', async () => {
 
 test('Lauf und Job tragen ihre Kennung von GitHub, damit sie sich erneut starten lassen; ein angekündigter Job hat keine', async () => {
   const { runs } = setup([]);
-  const gh = async (args) => ({ jobs: args[1].includes('runs/1/') ? [{ ...done('Kurz', 10), id: 71 }, { ...done('Lang', 100), id: 72 }] : [{ ...done('Kurz', 10), id: 115542192486 }] });
-  const withIds = createPipelines({ gh, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
+  const github = { get: async (url) => ({ jobs: url.includes('runs/1/') ? [{ ...done('Kurz', 10), id: 71 }, { ...done('Lang', 100), id: 72 }] : [{ ...done('Kurz', 10), id: 115542192486 }] }) };
+  const withIds = createPipelines({ github, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-test-')) });
   await withIds.refresh(REPO, runs);
   const [active] = withIds.view(REPO, 4);
   assert.equal(active.id, 2);

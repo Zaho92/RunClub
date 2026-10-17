@@ -121,7 +121,7 @@ function stagesOf(jobs) {
   jobs.forEach((job) => depth(job));
 }
 
-function createPipelines({ gh, dataDir }) {
+function createPipelines({ github, dataDir }) {
   const file = path.join(dataDir, 'history.json');
   const read = readJson(file, {}).data; // eine beschädigte Datei bleibt als Kopie liegen
   const history = read && typeof read === 'object' && !Array.isArray(read) ? read : {};
@@ -145,7 +145,7 @@ function createPipelines({ gh, dataDir }) {
       .flatMap(([, values]) => values);
     return estimate(repo, workflow, defined.name) ?? roundedMedian(durations);
   }
-  const jobsOfRun = async (repo, id) => (await gh(['api', `repos/${repo}/actions/runs/${id}/jobs?per_page=${PAGE_MAX}`])).jobs;
+  const jobsOfRun = async (repo, id) => (await github.get(`repos/${repo}/actions/runs/${id}/jobs?per_page=${PAGE_MAX}`)).jobs;
 
   async function workflowOf(repo, run) {
     if (!run.path || !run.head_sha) return null;
@@ -153,13 +153,13 @@ function createPipelines({ gh, dataDir }) {
     if (!workflows.has(id)) {
       let jobs = null;
       try {
-        const content = await gh(['api', `repos/${repo}/contents/${run.path}?ref=${run.head_sha}`]);
+        const content = await github.get(`repos/${repo}/contents/${run.path}?ref=${run.head_sha}`);
         jobs = parseWorkflow(Buffer.from(content.content, 'base64').toString('utf8'));
       } catch (error) {
         // Dynamischer Lauf ohne Datei oder kein Zugriff (GitHub antwortet mit 4xx): dann ohne Abhängigkeiten. 403 und
         // 429 können auch nur „zu viele Anfragen“ heißen und zählen deshalb nicht dazu.
         // Alles andere (kein Netz, Anfragelimit) ist vorübergehend und wird beim nächsten Mal neu versucht.
-        if (!/HTTP 4\d\d/.test(error.message) || /HTTP 4(03|29)/.test(error.message)) return null;
+        if (!(error.status >= 400 && error.status < 500) || error.status === 403 || error.status === 429) return null;
       }
       workflows.set(id, jobs);
       if (workflows.size > WORKFLOWS_MAX) workflows.delete(workflows.keys().next().value);

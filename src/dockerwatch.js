@@ -21,7 +21,7 @@ const WAIT_PAUSE = 15 * SECOND; // … und solange es noch nicht vorbereitet ist
 const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 
 //   docker(args, options), dockerList(args)   aus engine.js
-//   gh(args)                Aufruf der GitHub-API, liefert die Antwort als Objekt oder wirft
+//   github                  Zugang zu GitHub (siehe github.js)
 //   log(text, repo, kind), sleep(ms)
 //   host, mark              Name des Rechners (Anfang der Runner-Namen) und Kennzeichen der eigenen Container
 //   serviceMark             Kennzeichen der Build-Dienste und ihrer Netze (siehe caches.js)
@@ -39,7 +39,7 @@ const MISS_PAUSE = 5 * SECOND; // nach einer ausbleibenden Antwort
 //   onReady()               Docker ist (wieder) vorbereitet: die Messungen starten
 //   onAlive()               eine regelmäßige Prüfung hat Antwort bekommen, während Docker bereit ist
 function createDockerWatch({
-  docker, dockerList, gh, log, sleep,
+  docker, dockerList, github, log, sleep,
   host, mark, serviceMark, builds, requiredImages, longTimeout, unreachable, exposure = async () => null,
   buildService, buildNetwork,
   livePairs, repos, pools, preparePool, stopping,
@@ -131,10 +131,10 @@ function createDockerWatch({
   // Paar mitten im Job endete (beim Beenden, nach einem Absturz) und die GitHub erst später freigibt.
   async function removeRegistrations(repo, { keep = () => new Set(), offline = false } = {}) {
     try {
-      const runners = (await gh(['api', `repos/${repo}/actions/runners?per_page=${PAGE_MAX}`])).runners; // mehr hat ein Repo mit Pool nicht
+      const runners = (await github.get(`repos/${repo}/actions/runners?per_page=${PAGE_MAX}`)).runners; // mehr hat ein Repo mit Pool nicht
       const kept = keep();
       const stale = runners.filter((runner) => runner.name.startsWith(runnerPrefix(host)) && !runner.busy && !kept.has(runner.name) && (!offline || runner.status === 'offline'));
-      for (const runner of stale) await unregisterRunner(gh, repo, runner.id);
+      for (const runner of stale) await unregisterRunner(github, repo, runner.id);
       if (offline && stale.length) log(msg('m_staleRunners', stale.length), repo);
     } catch (error) { log(msg('m_withReason', msg('m_whatOldRunners'), reason(error)), repo, 'error'); }
   }

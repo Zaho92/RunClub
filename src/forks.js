@@ -13,11 +13,11 @@ const settingPath = (repo) => `repos/${repo}/actions/permissions/fork-pr-workflo
 
 // `info` ist die Antwort auf `repos/{repo}`. Liefert { exposed, unknown, reason }; `reason` (eine Meldung) steht nur bei `exposed`,
 // `unknown`, wenn sich die Einstellung nicht lesen ließ.
-async function forkExposure(gh, repo, info) {
+async function forkExposure(github, repo, info) {
   if (info?.owner?.type !== 'Organization') return { exposed: false };
   let setting;
   try {
-    setting = await gh(['api', settingPath(repo)]);
+    setting = await github.get(settingPath(repo));
   } catch (error) {
     return { exposed: true, unknown: true, reason: msg('m_forksUnreadable', reason(error)) };
   }

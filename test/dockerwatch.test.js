@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { createDockerWatch, MISSES, READY_PAUSE, WAIT_PAUSE, MISS_PAUSE } = require('../src/dockerwatch');
 const { PROBE_TIMEOUT } = require('../src/dind');
 const { createEngine } = require('../src/engine');
+const { GitHubError } = require('../src/github');
 const { rendered } = require('./support');
 
 const MARK = 'runclub.runner=test';
@@ -25,7 +26,7 @@ const BUILT = ['build --pull -q -t runner:test C:/rc/linux', 'build --pull -q --
 function world() {
   const w = {
     calls: [], logs: [], slept: [], prepared: [], ready: 0, alive: 0, stopping: false, answer: () => undefined, onSleep: () => {},
-    runners: { runners: [] }, ghFails: null, livePairs: new Map(), repos: ['wer/App'], pools: [{ repo: 'wer/App', prepared: true }],
+    runners: { runners: [] }, githubFails: null, livePairs: new Map(), repos: ['wer/App'], pools: [{ repo: 'wer/App', prepared: true }],
   };
   // Docker über engine.js, wie im Betrieb; nachgestellt ist nur `run`.
   const run = async (command, args, options = {}) => {
@@ -35,7 +36,10 @@ function world() {
   const { docker, dockerList, unreachable } = createEngine({ run, timeout: 99 });
   w.watch = createDockerWatch({
     docker, dockerList,
-    gh: async (args) => { w.calls.push(`gh ${args.join(' ')}`); if (w.ghFails) throw new Error(w.ghFails); return w.runners; },
+    github: {
+      get: async (url) => { w.calls.push(`get ${url}`); if (w.githubFails) throw w.githubFails; return w.runners; },
+      send: async (method, url) => { w.calls.push(`send ${method} ${url}`); if (w.githubFails) throw w.githubFails; return null; },
+    },
     log: (...entry) => w.logs.push(rendered(entry)),
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
     host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, builds: BUILDS, requiredImages: ['buildkit:test'], longTimeout: 1234,
@@ -63,7 +67,7 @@ const NAMED = (repo) => [`rm -f rc-buildkit-${repo}`, `network inspect rc-buildn
 const LEFTOVERS = [
   ...NAMED('app'),
   `ps -aq --filter label=${MARK}`, `ps -aq --filter label=${SERVICE_MARK}`, `volume ls -q --filter label=${MARK}`,
-  `network ls -q --filter label=${MARK}`, `network ls -q --filter label=${SERVICE_MARK}`, 'gh api repos/wer/App/actions/runners?per_page=100',
+  `network ls -q --filter label=${MARK}`, `network ls -q --filter label=${SERVICE_MARK}`, 'get repos/wer/App/actions/runners?per_page=100',
 ];
 const ORPHANS = [`ps -a --filter label=${MARK} --format {{.Names}}`, `volume ls -q --filter label=${MARK}`, `network ls --filter label=${MARK} --format {{.Name}}`];
 
@@ -127,7 +131,7 @@ test('erst nach mehreren ausbleibenden Antworten in Folge gilt Docker als weg; d
   assert.ok(w.logs.some((entry) => entry[0] === 'Docker antwortet nicht mehr – die Linux-Runner warten.'));
   // Diesmal nur, was zu keinem stehenden Paar gehört, und keine Abmeldung bei GitHub.
   assert.deepEqual(w.calls.slice(-(PREPARE.length + ORPHANS.length)), [...PREPARE, ...ORPHANS]);
-  assert.equal(w.calls.some((name) => name.startsWith('gh ')), false);
+  assert.equal(w.calls.some((name) => name.startsWith('get ') || name.startsWith('send ')), false);
   assert.deepEqual([w.ready, w.prepared], [2, ['wer/App', 'wer/App']]);
 });
 
@@ -200,8 +204,8 @@ test('Reste eines früheren Laufs: alles Gekennzeichnete samt Build-Diensten, Ne
     `network ls -q --filter label=${MARK}`, 'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}', 'network disconnect -f n1 rc-fremd', 'network rm n1',
     `network ls -q --filter label=${SERVICE_MARK}`, 'network inspect n2 --format {{range .Containers}}{{println .Name}}{{end}}', 'network rm n2',
     'Stufe signoff 2',
-    'gh api repos/wer/App/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/App/actions/runners/1', 'Stufe signedOff',
-    'gh api repos/wer/Zwei/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/Zwei/actions/runners/1', 'Stufe signedOff',
+    'get repos/wer/App/actions/runners?per_page=100', 'send DELETE repos/wer/App/actions/runners/1', 'Stufe signedOff',
+    'get repos/wer/Zwei/actions/runners?per_page=100', 'send DELETE repos/wer/Zwei/actions/runners/1', 'Stufe signedOff',
   ]);
 });
 
@@ -219,15 +223,15 @@ test('im Betrieb: nur freie Runner ohne Verbindung, die keinem stehenden Paar ge
   w.runners = { ...w.runners, get runners() { assert.equal(asked, false); return RUNNERS; } };
   await w.watch.removeRegistrations('wer/App', { keep: () => { asked = true; return new Set(['PC-linux-d4']); }, offline: true });
   assert.equal(asked, true);
-  assert.deepEqual(w.calls, ['gh api repos/wer/App/actions/runners?per_page=100', 'gh api -X DELETE repos/wer/App/actions/runners/1']);
+  assert.deepEqual(w.calls, ['get repos/wer/App/actions/runners?per_page=100', 'send DELETE repos/wer/App/actions/runners/1']);
   assert.deepEqual(w.logs, [['1 verwaiste Runner bei GitHub abgemeldet', 'wer/App']]);
 });
 
 test('scheitert das Abmelden bei GitHub, steht das beim Projekt im Protokoll, und es geht weiter', async () => {
   const w = world();
-  w.ghFails = 'HTTP 403: Must have admin rights';
+  w.githubFails = new GitHubError(403, 'Must have admin rights');
   await w.watch.removeRegistrations('wer/App');
-  assert.deepEqual(w.logs, [['Abmelden alter Runner – HTTP 403: Must have admin rights', 'wer/App', 'error']]);
+  assert.deepEqual(w.logs, [['Abmelden alter Runner – Must have admin rights (HTTP 403)', 'wer/App', 'error']]);
 });
 
 test('nach einer Unterbrechung geht nur, was zu keinem stehenden Paar gehört', async () => {

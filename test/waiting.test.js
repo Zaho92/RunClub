@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { deepFreeze: frozen } = require('../src/github');
+const { deepFreeze: frozen, GitHubError } = require('../src/github');
 const { createWaiting, candidates, wantsOwnRunner, neverStarted, minutesNote } = require('../src/waiting');
 const { DAY } = require('../src/units');
 
@@ -41,10 +41,10 @@ test('ein Job zählt nur, wenn er auf einen eigenen Linux-Runner wartet', () => 
 
 function fakeGitHub(runsOf, broken = []) {
   const calls = [];
-  const reply = async ([, path]) => {
+  const reply = async (path) => {
     calls.push(path);
     const repo = path.match(/^repos\/([^/]+\/[^/]+)\//)[1];
-    if (broken.includes(repo)) throw new Error('gh: Not Found (HTTP 404)');
+    if (broken.includes(repo)) throw new GitHubError(404, 'Not Found');
     const notes = path.match(/check-runs\/(\d+)\/annotations/);
     if (notes) return runsOf[repo].flatMap((run) => run.jobs).find((job) => String(job.id) === notes[1]).notes ?? [];
     const job = path.match(/runs\/(\d+)\/jobs/);
@@ -52,7 +52,7 @@ function fakeGitHub(runsOf, broken = []) {
     const status = path.match(/status=([a-z_]+)/)[1];
     return { workflow_runs: (runsOf[repo] ?? []).filter((run) => (run.state ?? 'queued') === status).map(({ jobs: _, state: __, ...run }) => run) };
   };
-  return { gh: async (args) => frozen(JSON.parse(JSON.stringify(await reply(args)))), calls };
+  return { get: async (path) => frozen(JSON.parse(JSON.stringify(await reply(path)))), calls };
 }
 
 const own = (name, created_at) => ({ name, status: 'queued', labels: ['self-hosted', 'Linux'], created_at });
@@ -63,7 +63,7 @@ test('findet die wartenden Jobs je Repo, das am längsten wartende zuerst', asyn
     'wer/lange': [{ id: 2, created_at: daysAgo(0), jobs: [own('Tests', '2026-10-13T09:00:00Z'), own('Paket', '2026-10-13T09:05:00Z')] }],
     'wer/nichts': [],
   });
-  const waiting = createWaiting({ gh: github.gh });
+  const waiting = createWaiting({ github });
   assert.deepEqual(await waiting.scan(['wer/neu', 'wer/lange', 'wer/nichts']), [
     { repo: 'wer/lange', reason: 'runner', jobs: ['Tests', 'Paket'], since: '2026-10-13T09:00:00Z', url: 'https://github.com/wer/lange/actions?query=is%3Aqueued' },
     { repo: 'wer/neu', reason: 'runner', jobs: ['Bauen'], since: '2026-10-13T11:50:00Z', url: 'https://github.com/wer/neu/actions?query=is%3Aqueued' },
@@ -74,19 +74,19 @@ test('findet die wartenden Jobs je Repo, das am längsten wartende zuerst', asyn
 
 test('ein unlesbares Repo wird übergangen; scheitert alles, bleibt der letzte Stand', async () => {
   const runs = { 'wer/a': [{ id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:00:00Z')] }], 'wer/b': [] };
-  const first = createWaiting({ gh: fakeGitHub(runs, ['wer/b']).gh });
+  const first = createWaiting({ github: fakeGitHub(runs, ['wer/b']) });
   assert.deepEqual((await first.scan(['wer/a', 'wer/b'])).map((entry) => entry.repo), ['wer/a']);
 
   let down = false;
   const github = fakeGitHub(runs);
-  const waiting = createWaiting({ gh: async (args) => { if (down) throw new Error('kein Netz'); return github.gh(args); } });
+  const waiting = createWaiting({ github: { get: async (path) => { if (down) throw new Error('kein Netz'); return github.get(path); } } });
   await waiting.scan(['wer/a']);
   down = true;
   assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => entry.repo), ['wer/a']);
 });
 
 test('ein Repo lässt sich aus dem Stand nehmen, sobald es einen Pool bekommt', async () => {
-  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': [{ id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:00:00Z')] }] }).gh });
+  const waiting = createWaiting({ github: fakeGitHub({ 'wer/a': [{ id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:00:00Z')] }] }) });
   await waiting.scan(['wer/a']);
   waiting.forget('wer/a');
   assert.deepEqual(waiting.list(), []);
@@ -94,13 +94,13 @@ test('ein Repo lässt sich aus dem Stand nehmen, sobald es einen Pool bekommt', 
 
 test('auch in einem laufenden Lauf kann ein späterer Job auf einen eigenen Runner warten', async () => {
   const github = fakeGitHub({ 'wer/a': [{ id: 7, state: 'in_progress', created_at: daysAgo(0), jobs: [{ name: 'Bauen', status: 'in_progress', labels: ['ubuntu-latest'] }, own('Ausliefern', '2026-10-13T11:30:00Z')] }] });
-  const waiting = createWaiting({ gh: github.gh });
+  const waiting = createWaiting({ github });
   assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => entry.jobs), [['Ausliefern']]);
   assert.ok(github.calls.includes('repos/wer/a/actions/runs?status=in_progress&per_page=5'));
 });
 
 test('ein Repo, das nicht mehr angesehen wird, fällt aus dem Stand', async () => {
-  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': [{ id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:00:00Z')] }] }).gh });
+  const waiting = createWaiting({ github: fakeGitHub({ 'wer/a': [{ id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:00:00Z')] }] }) });
   await waiting.scan(['wer/a']);
   assert.deepEqual(await waiting.scan([]), []);
 });
@@ -132,7 +132,7 @@ test('findet Läufe, die am Kontingent gescheitert sind: Anzahl, ältester Zeitp
     done(12, 'failure', '2026-10-13T11:00:00Z', [unstarted(120), unstarted(121)]),
     done(11, 'failure', '2026-10-13T08:00:00Z', [unstarted(110)]),
   ] });
-  const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
+  const waiting = createWaiting({ github, now: at(NOW) });
   assert.deepEqual(await waiting.scan(['wer/a']), [{ repo: 'wer/a', reason: 'minutes', runs: 2, since: '2026-10-13T08:00:00Z', url: 'https://github.com/wer/a/actions?query=is%3Afailure' }]);
   assert.deepEqual(github.calls.filter((path) => path.includes('annotations')), ['repos/wer/a/check-runs/120/annotations', 'repos/wer/a/check-runs/110/annotations']);
   // Der Pfad der Abfrage bleibt von Runde zu Runde gleich, sonst griffe die bedingte Abfrage nicht.
@@ -148,7 +148,7 @@ test('zählt nur, was das Kontingent als Grund nennt: kein echter Fehler, kein a
     'wer/behoben': [done(34, 'success', '2026-10-13T11:00:00Z'), done(33, 'failure', '2026-10-13T10:00:00Z', [unstarted(330)])],
     'wer/abgebrochen': [done(36, 'cancelled', '2026-10-13T11:00:00Z'), done(35, 'failure', '2026-10-13T10:00:00Z', [unstarted(350)])],
   });
-  const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
+  const waiting = createWaiting({ github, now: at(NOW) });
   assert.deepEqual((await waiting.scan(['wer/echt', 'wer/anders', 'wer/alt', 'wer/behoben', 'wer/abgebrochen'])).map((entry) => [entry.repo, entry.runs]), [['wer/abgebrochen', 1]]);
   // Ein Job mit Schritten kostet keine Abfrage der Anmerkungen; ein alter oder überholter Lauf gar keine.
   assert.deepEqual(github.calls.filter((path) => /wer\/(echt|alt|behoben)\/.*(annotations|runs\/\d+\/jobs)/.test(path)), ['repos/wer/echt/actions/runs/30/jobs?per_page=100']);
@@ -159,7 +159,7 @@ test('wartet zugleich ein Job auf einen eigenen Runner, ist das der Grund, und d
     { id: 1, created_at: daysAgo(0), jobs: [own('Bauen', '2026-10-13T11:50:00Z')] },
     done(12, 'failure', '2026-10-13T11:00:00Z', [unstarted(120)]),
   ] });
-  const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
+  const waiting = createWaiting({ github, now: at(NOW) });
   assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => entry.reason), ['runner']);
   assert.equal(github.calls.some((path) => path.includes('status=completed') || path.includes('annotations')), false);
 });
@@ -167,7 +167,7 @@ test('wartet zugleich ein Job auf einen eigenen Runner, ist das der Grund, und d
 test('ein bekannter Lauf kostet in der nächsten Runde keine Abfrage; erneut gestartet wird er neu angesehen', async () => {
   const runs = { 'wer/a': [done(12, 'failure', '2026-10-13T11:00:00Z', [unstarted(120)])] };
   const github = fakeGitHub(runs);
-  const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
+  const waiting = createWaiting({ github, now: at(NOW) });
   await waiting.scan(['wer/a']);
   github.calls.length = 0;
   assert.equal((await waiting.scan(['wer/a'])).length, 1);
@@ -181,7 +181,7 @@ test('ein bekannter Lauf kostet in der nächsten Runde keine Abfrage; erneut ges
 test('nach einem Tag fällt ein am Kontingent gescheiterter Lauf heraus', async () => {
   const github = fakeGitHub({ 'wer/a': [done(12, 'failure', '2026-10-13T11:00:00Z', [unstarted(120)])] });
   let now = NOW;
-  const waiting = createWaiting({ gh: github.gh, now: () => now });
+  const waiting = createWaiting({ github, now: () => now });
   assert.equal((await waiting.scan(['wer/a'])).length, 1);
   now += 24 * 3600000;
   assert.deepEqual(await waiting.scan(['wer/a']), []);
@@ -189,7 +189,7 @@ test('nach einem Tag fällt ein am Kontingent gescheiterter Lauf heraus', async 
 
 test('ein erneut gestarteter Lauf zählt ab seinem letzten Beginn, nicht ab dem Anlegen', async () => {
   const rerun = { ...done(21, 'failure', '2026-10-11T08:00:00Z', [unstarted(210)], '2026-10-13T11:05:00Z'), run_started_at: '2026-10-13T11:00:00Z' };
-  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': [rerun] }).gh, now: at(NOW) });
+  const waiting = createWaiting({ github: fakeGitHub({ 'wer/a': [rerun] }), now: at(NOW) });
   assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => [entry.reason, entry.since]), [['minutes', '2026-10-13T11:00:00Z']]);
 });
 
@@ -200,7 +200,7 @@ test('gezählt wird je Workflow: Ein anderer, der gelingt, verdeckt den Fehler n
     { ...done(31, 'success', '2026-10-13T10:00:00Z'), workflow_id: 1 },
     { ...done(30, 'failure', '2026-10-13T09:00:00Z', [unstarted(300)]), workflow_id: 1 }, // vor dem Erfolg: überholt
   ];
-  const waiting = createWaiting({ gh: fakeGitHub({ 'wer/a': runs }).gh, now: at(NOW) });
+  const waiting = createWaiting({ github: fakeGitHub({ 'wer/a': runs }), now: at(NOW) });
   assert.deepEqual((await waiting.scan(['wer/a'])).map((entry) => [entry.runs, entry.since]), [[1, '2026-10-13T11:00:00Z']]);
 });
 
@@ -213,7 +213,7 @@ test('auch andere Wortlaute der Abrechnung werden erkannt, ein sonstiger Grund n
 
 test('gelesen werden die Anmerkungen aller nicht gestarteten Jobs, bis eine trifft', async () => {
   const github = fakeGitHub({ 'wer/a': [done(41, 'failure', '2026-10-13T11:00:00Z', [unstarted(410, [NOTICE]), unstarted(411)])] });
-  const waiting = createWaiting({ gh: github.gh, now: at(NOW) });
+  const waiting = createWaiting({ github, now: at(NOW) });
   assert.equal((await waiting.scan(['wer/a'])).length, 1);
   assert.deepEqual(github.calls.filter((path) => path.includes('annotations')), ['repos/wer/a/check-runs/410/annotations', 'repos/wer/a/check-runs/411/annotations']);
 });

@@ -40,6 +40,7 @@ const { createSettings } = require('./settings');
 const { createNames, pinnedImages, DEFAULT_PORT, IMAGE } = require('./names');
 const { DAEMON_IMAGE } = require('./dind');
 const { createGitHub } = require('./github');
+const { createAuth, FILE: TOKEN_FILE } = require('./auth');
 const { engineFrom, createEngine } = require('./engine');
 const { createMetrics } = require('./metrics');
 const { createPipelines } = require('./pipeline');
@@ -58,7 +59,7 @@ const { createHousekeeping } = require('./housekeeping');
 const { createLifecycle } = require('./lifecycle');
 const { createShutdown } = require('./shutdown');
 
-const GH_TIMEOUT = MINUTE;
+const GITHUB_TIMEOUT = MINUTE;
 const DOCKER_TIMEOUT = 5 * MINUTE; // gewöhnliche Aufrufe; was länger dauern darf, nennt seine Grenze selbst
 const DOCKER_LONG = 30 * MINUTE; // Abbilder bauen, laden, kopieren
 const SHUTDOWN_WAIT = 30 * SECOND; // so lange wartet das Beenden auf Paare, die gerade entstehen
@@ -72,7 +73,9 @@ const EVERY = {
 
 //   port, dataDir           Port des lokalen Dienstes und Datenordner (sonst RUNCLUB_PORT und RUNCLUB_DATA)
 //   hooks                   was die App beisteuert: `actions` (weitere Aufrufe), `status()` (weitere Angaben für die
-//                           Oberfläche), `onExit()` (nach dem Beenden; ohne Angabe endet der Prozess)
+//                           Oberfläche), `onExit()` (nach dem Beenden; ohne Angabe endet der Prozess), `secrets`
+//                           ({ encrypt(buffer), decrypt(buffer) }: so liegt das Token der Anmeldung verschlüsselt im
+//                           Datenordner; ohne sie nur im Speicher, siehe auth.js), `version` (für die Kennung bei GitHub)
 function start({
   port = Number(process.env.RUNCLUB_PORT) || DEFAULT_PORT,
   // Allein gestartet liegen die Daten im Profil des Nutzers, getrennt von denen der App: Im Ordner des Repos könnten
@@ -80,7 +83,7 @@ function start({
   dataDir = process.env.RUNCLUB_DATA || path.join(process.env.APPDATA || os.homedir(), 'RunClub', 'backend'),
   hooks = {},
 } = {}) {
-  const { actions: appActions = {}, status: appStatus = () => ({}), onExit = () => process.exit(0) } = hooks;
+  const { actions: appActions = {}, status: appStatus = () => ({}), onExit = () => process.exit(0), secrets = null, version = '0' } = hooks;
   fs.mkdirSync(dataDir, { recursive: true });
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -96,7 +99,7 @@ function start({
   });
   const lifecycle = createLifecycle({
     log,
-    // Die Messung sichern, ein `gh`, das noch auf die Bestätigung im Browser wartet, nicht zurücklassen.
+    // Die Messung sichern, eine Anmeldung, die noch auf die Bestätigung im Browser wartet, nicht zurücklassen.
     beforeStop: () => { metrics.save(); account.close(); },
     dismantle: () => runners.dismantle(SHUTDOWN_WAIT),
     removeLeftovers: (step) => dockerWatch.removeLeftovers(step),
@@ -115,20 +118,25 @@ function start({
   const settings = createSettings({ dataDir, log });
   const names = createNames({ dataDir, port });
   const { dind: DIND, buildkit: BUILDKIT } = pinnedImages();
-  const githubApi = createGitHub({ run, timeout: GH_TIMEOUT }); // bedingt, wo es geht, und mit dem Stand des Anfragelimits
-  const gh = githubApi.call;
+  // Die Anmeldung bei GitHub; ihr Token gilt für alle Anfragen. Nach einem gelungenen Anmelden Anfragelimit, Repos und
+  // Minuten des neuen Kontos lesen.
+  const auth = createAuth({
+    file: path.join(dataDir, TOKEN_FILE), secrets, version, log: (text) => log(text),
+    onAccount: () => { remote.watchQuota(); remote.refreshAll(); account.changed(); },
+  });
+  const github = createGitHub({ token: auth.token, renew: auth.renew, timeout: GITHUB_TIMEOUT, version }); // bedingt, wo es geht, und mit dem Stand des Anfragelimits
   const engine = createEngine({ run, timeout: DOCKER_TIMEOUT, ...engineFrom() }); // wo Docker läuft
   const { docker, dockerList } = engine;
 
   // --- Was gemessen, gelernt und bei GitHub gelesen wird ---
   const metrics = createMetrics({ dataDir });
-  const pipelines = createPipelines({ gh, dataDir });
-  const routing = createRouting({ gh }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
-  const waiting = createWaiting({ gh }); // Repos ohne Pool, in denen nichts vorankommt
+  const pipelines = createPipelines({ github, dataDir });
+  const routing = createRouting({ github }); // wohin die Jobs eines Repos gehen (Repo-Variable CI_RUNNER)
+  const waiting = createWaiting({ github }); // Repos ohne Pool, in denen nichts vorankommt
   let runners = null; // die Pools; sie brauchen die Abfragen bei GitHub, die Abfragen ihre Pools
   let actionsApi = null; // die Aufrufe; sie brauchen fast alles, und ein öffentlich gewordenes Repo (oder eins mit Fork-PRs) braucht sie
   const remote = createRemote({
-    gh, githubApi, pipelines, routing, waiting, log, logError,
+    github, pipelines, routing, waiting, log, logError,
     repos: settings.repos, settingsOf: settings.settingsOf, poolOf: (repo) => runners.pools.get(repo), stopping: isStopping,
     guard: {
       block: (repo, kind, reason) => actionsApi.guard.block(repo, kind, reason), unblock: (repo, kind) => actionsApi.guard.unblock(repo, kind),
@@ -141,13 +149,13 @@ function start({
 
   // --- Die Runner und die Docker-Überwachung ---
   runners = createRunners({
-    docker, dockerList, gh, log, sleep,
+    docker, dockerList, github, log, sleep,
     host: os.hostname(), names, image: IMAGE, dind: DAEMON_IMAGE, buildkit: BUILDKIT, longTimeout: DOCKER_LONG,
     settings, metrics, stopping: isStopping, dockerReady: () => dockerWatch.ready(), vetted: remote.vetted,
     refreshRepo: remote.refreshRepo, forgetStats: usage.forget,
   });
   dockerWatch = createDockerWatch({
-    docker, dockerList, gh, log, sleep,
+    docker, dockerList, github, log, sleep,
     host: os.hostname(), mark: names.mark, serviceMark: names.serviceMark,
     builds: [
       { image: IMAGE, dir: path.join(__dirname, '..', 'linux'), what: 'm_imageRunner' },
@@ -161,18 +169,15 @@ function start({
   const setup = createSetup({ run, docker, ready: dockerWatch.ready, desktop: engine.desktop, log }); // was dem Rechner für Docker fehlt
 
   // --- Konto, Oberfläche, Aufrufe ---
-  const account = createAccount({
-    run, timeout: GH_TIMEOUT, gh, githubApi, log, logError, stopping: isStopping,
-    onAccount: () => { remote.watchQuota(); remote.refreshAll(); },
-  });
+  const account = createAccount({ auth, github, log, logError, stopping: isStopping });
   const uiFile = path.join(__dirname, 'ui.html');
   const { status, limitRange, limitPlan } = createStatus({
-    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, githubApi, dockerWatch, setup,
+    settings, runners, remote, pipelines, metrics, usage, routing, waiting, account, github, dockerWatch, setup,
     buildService: names.buildService, logStamp, uiFile, shutdown: progress.view, extra: appStatus,
   });
 
   actionsApi = createActions({
-    gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown,
+    github, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown,
   });
 
   // --- Lokaler Dienst ---
@@ -202,7 +207,7 @@ function start({
   everyAfter(EVERY.reserve, runners.tick);
   everyAfter(EVERY.sizes, runners.measureAll);
   everyAfter(EVERY.housekeeping, createHousekeeping({
-    pools: () => runners.pools.values(), mayPoll: githubApi.mayPoll, gap: EVERY.housekeeping,
+    pools: () => runners.pools.values(), mayPoll: github.mayPoll, gap: EVERY.housekeeping,
     watchVisibility: remote.watchVisibility, removeRegistrations: dockerWatch.removeRegistrations,
   }));
 
@@ -210,7 +215,8 @@ function start({
   dockerWatch.watch();
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, shutdown);
 
-  return { port, entry: access.entry, status, shutdown, release, log };
+  // `githubToken()`: das Token der Anmeldung, etwa für den Updater (main.js); null ohne Anmeldung.
+  return { port, entry: access.entry, status, shutdown, release, log, githubToken: auth.token };
 }
 
 if (require.main === module) start();

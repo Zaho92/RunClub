@@ -517,14 +517,16 @@ function wired() {
     if (removed && args.length === 3) w.ends.get(removed[1])?.();
     return { code: 0, stdout: '', stderr: '' };
   };
-  const gh = async (args) => {
-    w.calls.push(`gh ${args[2]}`);
-    return args.at(-1).endsWith('/generate-jitconfig') ? { runner: { id: 70 + w.ids }, encoded_jit_config: 'geheim' } : null;
+  const github = {
+    send: async (method, url) => {
+      w.calls.push(`send ${method}`);
+      return url.endsWith('/generate-jitconfig') ? { runner: { id: 70 + w.ids }, encoded_jit_config: 'geheim' } : null;
+    },
   };
   const sleep = async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); };
   const log = (...entry) => w.logs.push(rendered(entry));
   w.runners = createRunners({
-    docker, dockerList: async () => [], gh, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
+    docker, dockerList: async () => [], github, log, sleep, timer: () => {}, newId: () => String(w.ids += 1),
     host: 'PC', names: createNames({ dataDir: 'C:/Daten', port: DEFAULT_PORT }), image: 'runner:test', dind: 'dind:test', buildkit: 'buildkit:test', longTimeout: 1234,
     settings: { settingsOf: (repo) => (repo === REPO ? w.settings : undefined), limitsOf: () => w.limits, state: { learned: {}, rejected: {} }, saveState: () => {} },
     metrics: { meter: () => ({ finish: () => ({}) }), recordJob: () => {} },
@@ -591,7 +593,7 @@ test('echte Plätze: Überzählige laufen aus; der freie wird abgebrochen, der a
   assert.equal(third.state, 'off');
   assert.equal(count(w, 'rm rc-app-3-runner'), 1);
   assert.equal(count(w, 'rm rc-app-2-runner'), 0);
-  assert.equal(count(w, 'gh DELETE'), 1); // nur der freie Runner wird bei GitHub abgemeldet
+  assert.equal(count(w, 'send DELETE'), 1); // nur der freie Runner wird bei GitHub abgemeldet
 
   await settle();
   assert.equal(second.state, 'working'); // der Job läuft weiter

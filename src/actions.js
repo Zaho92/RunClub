@@ -23,7 +23,7 @@ const KEPT = msg('m_routingKept', VARIABLE);
 // Wo sich Fork-PRs abschalten lassen (siehe forks.js).
 const FORKS_HOW = msg('m_forksHow');
 
-//   gh(args)                Aufruf der GitHub-API
+//   github                  Zugang zu GitHub (siehe github.js)
 //   settings                siehe settings.js
 //   runners                 siehe runners.js
 //   remote, routing, waiting, metrics, account   siehe die gleichnamigen Module
@@ -33,7 +33,7 @@ const FORKS_HOW = msg('m_forksHow');
 //   log(text, repo, kind), logError(repo, what)
 //   shutdown()              RunClub beenden
 //   timer                   wie `setTimeout`; in Tests steuerbar
-function createActions({ gh, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown, timer = setTimeout }) {
+function createActions({ github, settings, runners, remote, routing, waiting, metrics, account, dockerWatch, setup, limitRange, limitPlan, log, logError, shutdown, timer = setTimeout }) {
   const { config, saveConfig, settingsOf, limitsOf } = settings;
   const { pools } = runners;
 
@@ -131,12 +131,12 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
   const actions = {
     async 'pool/add'({ repo, parallel }) {
       if (!REPO_NAME.test(String(repo))) throw new Fault('m_repoName');
-      const info = await gh(['api', `repos/${repo}`]);
+      const info = await github.get(`repos/${repo}`);
       if (!info.permissions?.admin) throw new Fault('m_noAdmin');
       // Fremde Pull Requests eines öffentlichen Repos würden auf diesem Rechner Code ausführen (siehe Kopf von backend.js).
       if (info.private === false) throw new Fault('m_publicRefused');
       // Ein Org-Repo, in dem Workflows aus Forks laufen dürfen, bekommt keinen Pool (siehe forks.js).
-      const forks = await forkExposure(gh, info.full_name, info);
+      const forks = await forkExposure(github, info.full_name, info);
       if (forks.exposed) throw new Fault('m_forksRefused', forks.reason, FORKS_HOW);
       // Erst hier prüfen, mit dem Namen, wie GitHub ihn schreibt, und ohne weiteres Warten bis zum Eintrag:
       // sonst entstünde bei anderer Schreibweise oder zwei Anfragen kurz nacheinander ein zweiter Pool.
@@ -250,10 +250,8 @@ function createActions({ gh, settings, runners, remote, routing, waiting, metric
         runners.rebuildIdle(pool).catch(logError(pool.repo));
       }
     },
-    // Anmelden und Ergänzen antworten, sobald der Einmalcode im Stand steht; bestätigt wird im Browser (siehe auth.js).
-    // `scope` nennt ein freiwilliges Recht; ohne Angabe werden die fehlenden Pflichtrechte ergänzt.
+    // Anmelden antwortet, sobald der Einmalcode im Stand steht; bestätigt wird im Browser (siehe auth.js).
     async 'auth/login'() { await account.login(); },
-    async 'auth/scope'({ scope }) { await account.grant(scope === undefined ? undefined : String(scope)); },
     async 'auth/cancel'() { await account.cancel(); },
     async 'auth/logout'() { await account.logout(); },
     // Docker Desktop starten, wenn es installiert ist und nicht läuft (siehe setup.js).

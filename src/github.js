@@ -1,18 +1,24 @@
-// GitHub über das Programm `gh`, sparsam mit dem Anfragelimit des Kontos (5.000 je Stunde).
+// GitHub über seine REST-Schnittstelle (https://api.github.com), mit dem Token der Anmeldung (siehe auth.js) und
+// sparsam mit dem Anfragelimit des Kontos (5.000 je Stunde).
 //
-// Lesen     Jede einfache Abfrage (`['api', pfad]`) merkt sich Antwort und Kennung (ETag) und fragt beim nächsten Mal
-//           bedingt. Hat sich nichts geändert, antwortet GitHub mit 304; das zählt nicht gegen das Limit.
+// Lesen     Jede Abfrage (`get`) merkt sich Antwort und Kennung (ETag) und fragt beim nächsten Mal bedingt. Hat sich
+//           nichts geändert, antwortet GitHub mit 304; das zählt nicht gegen das Limit.
 // Limit     Der Stand kommt aus den Kopfzeilen jeder Antwort und aus `rate_limit` (zählt ebenfalls nicht). Das Limit
 //           gilt für das ganze Konto: Auch `gh` im Terminal und andere Werkzeuge verbrauchen daraus.
 // Pause     Bittet GitHub um Ruhe (403/429 mit `retry-after`, das zweite Limit), wird bis dahin nicht gelesen.
 // Zustand   ok | tight (weniger als 15 % frei: seltener abfragen) | out (nur noch die Reserve: nicht mehr lesen,
 //           der Rest bleibt für das Anmelden neuer Runner) | unknown (kein Stand, oder das Fenster ist abgelaufen
 //           und der neue Stand noch nicht da).
+// Token     Kommt bei jeder Anfrage frisch von der Anmeldung (`token()`). Lehnt GitHub es ab (401), lässt die Anfrage
+//           es einmal erneuern (`renew`) und versucht es noch einmal.
+// Fehler    Eine Antwort mit Fehler wirft einen GitHubError mit `status`; Aufrufer unterscheiden nach ihm, nicht nach
+//           dem Text. Der Text ist der von GitHub, mit dem Status dahinter.
 
-const { lastLine } = require('./run');
 const { SECOND, MINUTE, DAY } = require('./units');
 const { Fault } = require('./messages');
 
+const API = 'https://api.github.com';
+const API_VERSION = '2022-11-28';
 const STATE = { OK: 'ok', TIGHT: 'tight', OUT: 'out', UNKNOWN: 'unknown' };
 const TIGHT = 0.15; // Anteil, der noch frei ist
 const RESERVE = 0.02;
@@ -21,12 +27,15 @@ const PAUSE_MAX_S = 3600; // Sekunden; länger lässt sich RunClub von einer Ant
 const WINDOW_MAX = DAY; // ein Fensterende weiter in der Zukunft ist kein Stand, sondern Unsinn
 const PAGE_MAX = 100; // so viele Einträge gibt GitHub höchstens je Seite heraus (`per_page`)
 const CACHE_MAX = 500; // gemerkte Antworten; jede Abfrage der Jobs eines Laufs ist eine eigene
-// RunClub arbeitet mit der Anmeldung von `gh` bei github.com (siehe auth.js). Was `gh` aus der Umgebung läse, gilt
-// deshalb nicht: ein Token, das die Anmeldung umgeht, ein anderer Host, und das Mitschreiben des Verkehrs samt Token
-// auf die Fehlerausgabe (deren letzte Zeile als Fehlermeldung in die Oberfläche geht). Ein leerer Wert zählt für `gh`
-// wie ein fehlender. Der Hinweis auf eine neue Version von `gh` stünde sonst ebenfalls als letzte Zeile da, und
-// erzwungene Farbe (GH_FORCE_TTY, CLICOLOR_FORCE) setzte Steuerzeichen in die Antworten, die hier gelesen werden.
-const GH_ENV = Object.freeze({ GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '', GH_HOST: '', GH_DEBUG: '', DEBUG: '', GH_FORCE_TTY: '', CLICOLOR_FORCE: '', GH_NO_UPDATE_NOTIFIER: '1' });
+const PATH = /^[A-Za-z0-9]/; // ein Pfad unter API, kein absoluter
+
+// Eine Antwort von GitHub mit Fehler. `message` ist der Text von GitHub (ein Text von außen) mit dem Status dahinter.
+class GitHubError extends Error {
+  constructor(status, text) {
+    super(text ? `${text} (HTTP ${status})` : `HTTP ${status}`);
+    this.status = status;
+  }
+}
 
 // Friert eine Antwort samt allem darin ein.
 function deepFreeze(value) {
@@ -37,32 +46,20 @@ function deepFreeze(value) {
   return value;
 }
 
-// Zerlegt, was `gh api -i` schreibt: Statuszeile, Kopfzeilen, Leerzeile, Inhalt. Stehen mehrere solche Blöcke
-// hintereinander (Weiterleitung), gilt der letzte.
-function parseResponse(text) {
-  let rest = String(text ?? '');
-  let found = { status: 0, headers: {}, body: rest };
-  for (;;) {
-    const head = rest.match(/^HTTP\/[\d.]+ (\d{3})[^\n]*\n([\s\S]*?)\r?\n\r?\n/);
-    if (!head) return found;
-    const headers = {};
-    for (const line of head[2].split('\n')) {
-      const at = line.indexOf(':');
-      if (at > 0) headers[line.slice(0, at).trim().toLowerCase()] = line.slice(at + 1).trim();
-    }
-    rest = rest.slice(head[0].length);
-    found = { status: Number(head[1]), headers, body: rest };
-    // Weiter geht es nur hinter einer Weiterleitung; der Inhalt einer Antwort wird nie als Block gelesen.
-    if (found.status < 300 || found.status === 304 || found.status >= 400) return found;
-  }
+// Der Inhalt einer Antwort als Objekt; leer heißt null. Was kein JSON ist, ist ein Fehler.
+function parseBody(text) {
+  return String(text ?? '').trim() ? JSON.parse(text) : null;
 }
 
-function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
+//   token()                 das Token der Anmeldung, oder null, wenn niemand angemeldet ist
+//   renew(rejected)         GitHub hat `rejected` abgelehnt: ein neues Token, oder null, wenn es keins gibt
+//   fetch                   wie das von Node; in Tests steuerbar
+//   version                 steht in der Kennung (User-Agent), die GitHub verlangt
+function createGitHub({ token, renew = async () => null, fetch = globalThis.fetch, timeout = MINUTE, now = Date.now, version = '0' }) {
   const cache = new Map(); // Pfad -> { etag, data }, der zuletzt benutzte am Ende
   const polled = new Map(); // Schlüssel -> wann zuletzt abgefragt (nur bei knappem Limit von Belang)
   let quota = null; // { limit, remaining, resetAt (ms) }
   let pausedUntil = 0; // bis dahin hat GitHub um Ruhe gebeten (`retry-after`)
-  const run = (args, input) => start('gh', args, { input, timeout, env: GH_ENV });
   let reported = STATE.UNKNOWN; // der Zustand, den refreshQuota zuletzt gemeldet hat
 
   function note(limit, remaining, reset) {
@@ -100,37 +97,75 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
     return true;
   }
 
-  async function read(path) {
+  // Eine Anfrage, einmal. Liefert die Antwort von fetch; wirft nur, wenn GitHub nicht antwortet.
+  async function once(secret, method, path, { body, etag }) {
+    const headers = { authorization: `Bearer ${secret}`, accept: 'application/vnd.github+json', 'x-github-api-version': API_VERSION, 'user-agent': `RunClub/${version}` };
+    if (etag) headers['if-none-match'] = etag;
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    try {
+      return await fetch(`${API}/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
+    } catch (error) {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') throw new Fault('m_githubSilent');
+      throw new Fault('m_githubUnreachable', String(error?.cause?.code ?? error?.message ?? error));
+    }
+  }
+
+  // Eine Anfrage mit dem Token der Anmeldung; lehnt GitHub es ab, einmal mit einem erneuerten. Merkt sich Limit und
+  // Pause aus der Antwort. Liefert `{ status, headers, text }`.
+  async function request(method, path, options = {}) {
+    // Das Token geht nur an GitHub: Eine eigene Adresse im Pfad wäre ein Fehler des Aufrufers.
+    if (!PATH.test(String(path)) || new URL(path, `${API}/`).origin !== API) throw new TypeError(`Kein Pfad unter ${API}: ${path}`);
+    let secret = await token();
+    if (!secret) throw new Fault('m_loginFirst');
+    let response = await once(secret, method, path, options);
+    if (response.status === 401) {
+      const next = await renew(secret).catch(() => null);
+      if (next && next !== secret) { secret = next; response = await once(secret, method, path, options); }
+    }
+    const headers = response.headers;
+    if ((headers.get('x-ratelimit-resource') ?? 'core') === 'core') note(headers.get('x-ratelimit-limit'), headers.get('x-ratelimit-remaining'), headers.get('x-ratelimit-reset'));
+    // Das zweite Limit von GitHub (zu viel in kurzer Zeit): Die Antwort nennt, wie lange zu warten ist.
+    const retry = Number(headers.get('retry-after'));
+    if ((response.status === 403 || response.status === 429) && retry > 0) pausedUntil = now() + Math.min(retry, PAUSE_MAX_S) * SECOND;
+    return { status: response.status, headers, text: await response.text() };
+  }
+
+  // Wirft für eine Antwort mit Fehler; GitHub nennt den Grund in `message`.
+  function check({ status, text }) {
+    if (status >= 200 && status < 300) return;
+    let said = '';
+    try { said = String(JSON.parse(text)?.message ?? ''); } catch { /* kein JSON: dann nur der Status */ }
+    throw new GitHubError(status, said.slice(0, 300));
+  }
+
+  // Lesen. Die Antwort ist eingefroren, weil dieselbe bei 304 an den nächsten geht. Bei aufgebrauchtem Limit oder
+  // erbetener Pause wird nicht gefragt.
+  async function get(path) {
     if (state() === STATE.OUT) throw new Fault(paused() ? 'm_githubPause' : 'm_quotaSpent', { time: new Date(endsAt()).toISOString() });
     const known = cache.get(path);
-    const result = await run(['api', '-i', path, ...(known ? ['-H', `If-None-Match: ${known.etag}`] : [])]);
-    const { status, headers, body } = parseResponse(result.stdout);
-    if ((headers['x-ratelimit-resource'] ?? 'core') === 'core') note(headers['x-ratelimit-limit'], headers['x-ratelimit-remaining'], headers['x-ratelimit-reset']);
-    // Das zweite Limit von GitHub (zu viel in kurzer Zeit): Die Antwort nennt, wie lange zu warten ist.
-    if ((status === 403 || status === 429) && Number(headers['retry-after']) > 0) pausedUntil = now() + Math.min(Number(headers['retry-after']), PAUSE_MAX_S) * SECOND;
-    if (status === 304 && known) {
+    const response = await request('GET', path, { etag: known?.etag });
+    if (response.status === 304 && known) {
       cache.delete(path);
       cache.set(path, known);
       return known.data;
     }
-    if (result.code !== 0) throw lastLine(result.stderr) ? new Error(lastLine(result.stderr)) : new Fault('m_ghExit', result.code);
-    const data = body.trim() ? JSON.parse(body) : null;
+    check(response);
+    const data = deepFreeze(parseBody(response.text));
     cache.delete(path);
-    if (headers.etag) {
-      cache.set(path, { etag: headers.etag, data: deepFreeze(data) });
+    const etag = response.headers.get('etag');
+    if (etag) {
+      cache.set(path, { etag, data });
       if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
     }
     return data;
   }
 
-  // Wie bisher: Argumente für `gh`, optional ein Objekt als Eingabe; liefert die Antwort als Objekt oder wirft.
-  // Eine einfache Abfrage (`['api', pfad]`) wird bedingt gelesen. Eine solche Antwort ist eingefroren, weil
-  // dieselbe bei 304 an den nächsten geht. Schreiben geht immer durch, auch bei aufgebrauchtem Limit.
-  async function call(args, input) {
-    if (input === undefined && args.length === 2 && args[0] === 'api') return read(args[1]);
-    const result = await run(input === undefined ? args : [...args, '--input', '-'], input);
-    if (result.code !== 0) throw lastLine(result.stderr) ? new Error(lastLine(result.stderr)) : new Fault('m_ghExit', result.code);
-    return result.stdout.trim() ? JSON.parse(result.stdout) : null;
+  // Schreiben (POST, PATCH, PUT, DELETE), optional mit einem Objekt als Inhalt. Geht immer durch, auch bei
+  // aufgebrauchtem Limit: Die Reserve ist für das Anmelden neuer Runner da.
+  async function send(method, path, body) {
+    const response = await request(method, path, { body });
+    check(response);
+    return parseBody(response.text);
   }
 
   // `tightAt`: der verbrauchte Anteil, ab dem es knapp ist; die Oberfläche setzt dort ihre Marke.
@@ -140,10 +175,10 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
   // seit dem letzten Aufruf gekippt ist (mit dem vorigen als `before`; `resetAt` ist dann das Ende der Pause, wenn sie länger gilt),
   // sonst null.
   async function refreshQuota() {
-    const result = await run(['api', 'rate_limit']);
-    if (result.code === 0) {
-      try { const core = JSON.parse(result.stdout).resources.core; note(core.limit, core.remaining, core.reset); } catch { /* dann bleibt der letzte Stand */ }
-    }
+    try {
+      const response = await request('GET', 'rate_limit');
+      if (response.status === 200) { const core = JSON.parse(response.text).resources.core; note(core.limit, core.remaining, core.reset); }
+    } catch { /* nicht angemeldet oder nicht erreichbar: Dann bleibt der letzte Stand */ }
     const current = state();
     if (!windowOpen() || current === reported) return null;
     const before = reported;
@@ -151,15 +186,15 @@ function createGitHub({ run: start, timeout = MINUTE, now = Date.now }) {
     return { ...view(), before, paused: paused() };
   }
 
-  return { call, refreshQuota, mayPoll, quota: view };
+  return { get, send, refreshQuota, mayPoll, quota: view };
 }
 
 // Einen Runner bei GitHub abmelden. 404 heißt: schon weg (etwa von selbst nach seinem Job) und ist kein Fehler.
-// `gh` wie `call`.
-async function unregisterRunner(gh, repo, runnerId) {
-  try { await gh(['api', '-X', 'DELETE', `repos/${repo}/actions/runners/${runnerId}`]); } catch (error) {
-    if (!/HTTP 404/.test(error.message)) throw error;
+// `github` wie createGitHub.
+async function unregisterRunner(github, repo, runnerId) {
+  try { await github.send('DELETE', `repos/${repo}/actions/runners/${runnerId}`); } catch (error) {
+    if (error.status !== 404) throw error;
   }
 }
 
-module.exports = { createGitHub, parseResponse, deepFreeze, unregisterRunner, STATE, GH_ENV, PAGE_MAX };
+module.exports = { createGitHub, GitHubError, deepFreeze, unregisterRunner, STATE, PAGE_MAX, API };

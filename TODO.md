@@ -18,7 +18,7 @@ und einem Updater, der sich aus den GitHub-Releases selbst aktualisiert. Entschi
   `main`, Betas werden von `main` getaggt; nimmt der Nutzer eine Beta ab, kommt der stabile Tag auf genau deren Commit.
 - **Updater als eigenes Modul**, nicht `electron-updater` (bleibt ohne Laufzeit-Abhängigkeiten): GitHub-Releases-API,
   Download, SHA512-Prüfung gegen `latest.yml`, NSIS-Installer still starten; solange das Repo privat ist, mit dem
-  Token der gh-Anmeldung.
+  Token der Anmeldung in der App (GitHub-App, siehe Schritt 3.3).
 - **Repo ganz englisch** (README, Doku, Kommentare, TODO, DESIGN; die Regel in `CLAUDE.md` ändert sich dann). Die
   Oberfläche bleibt zweisprachig. Erst in Schritt 3, damit nicht Code übersetzt wird, der gleich umgebaut wird.
 
@@ -66,6 +66,14 @@ Schritte, in dieser Reihenfolge:
       **Zuerst prüfen:** ob GitHub die Abrechnung (Minuten-Kontingent, `src/minutes.js`) an das Token einer GitHub-App
       herausgibt; wenn nicht, entfällt die Minuten-Anzeige. Die App bei GitHub legt der Nutzer an (Anleitung von
       Claude); dabei Zugriff auf „Plan“ nur, wenn die Abrechnung damit geht.
+      **Gebaut am 17.10.2026** (App `runclub-runners`, Client-ID in `src/auth.js`): Die Abrechnung geht mit dem Recht
+      „Plan“. `src/github.js` fragt per `fetch` bei `api.github.com` (ETag, Anfragelimit, Pause wie bisher; Fehler
+      tragen `status`, bei 401 wird das Token einmal erneuert). `src/auth.js` führt den Device Flow, erneuert das
+      Token 5 Minuten vor Ablauf (einer zugleich, der neue Schlüssel wird vor dem Gebrauch gesichert) und legt es über
+      `safeStorage` verschlüsselt ab; Abmelden vergisst es nur auf diesem Rechner (Widerrufen braucht das Geheimnis
+      der App), die Oberfläche verlinkt den Widerruf bei GitHub. Unter „Projekt hinzufügen“ und bei einem Repo, das
+      mit 404 antwortet, steht der Link zum Installieren der App. Der Updater nutzt dasselbe Token. **Offen:** echt
+      erproben (siehe „Noch nicht echt ausprobiert“).
    4. Repo ins Englische (siehe oben).
    5. README mit Bildschirmfotos.
 4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
@@ -186,23 +194,12 @@ Bewusst so gelassen:
   ein Klick aufs Symbol holt nur das Fenster), einmal über „RunClub beenden“ in den Einstellungen, und einmal, während
   ein Job läuft (Zeile „Abbruch „Name““).
 
-- **Anmeldung bei GitHub in der App** (`src/auth.js`, Aktionen `auth/…` in `src/actions.js`, Haltestelle „GitHub“ in
-  `src/ui.html`): „Recht ergänzen“ für `user` hat der Nutzer am 14.10.2026 echt benutzt (Einmalcode, Bestätigung im
-  Browser, die App bemerkt es von selbst), und die Oberfläche ist als Standbild angesehen. Ebenfalls echt benutzt am
-  14.10.2026: „Abmelden“ und danach „Bei GitHub anmelden“; beides ging durch, nur fehlte danach `user`, weil das
-  Anmelden damals nur `repo` verlangte. Seither verlangt es `repo` und `user` in einem Schritt (Wunsch des Nutzers);
-  vom Nutzer am 14.10.2026 echt geprüft: Danach fehlt kein Recht. Echt prüfen, bei ruhenden Runnern:
-  „Abbrechen“ (danach läuft kein `gh` mehr; ist `gh` über einen Zwischenstarter wie den von scoop installiert, beendet
-  das Abbrechen womöglich nur diesen), dann „Abmelden“ und „Bei GitHub anmelden“ (das Protokoll nennt nur, dass und
-  als wer; der Code steht nirgends).
-  Offen ist dabei: ob `gh auth login --web` ohne Terminal und ohne `--git-protocol` wirklich ohne weitere Rückfrage
-  durchläuft (die Option ist entfallen, damit die Einstellung des Nutzers in `gh` bleibt), was
-  `gh auth status --json hosts` ohne Anmeldung und mit abgelaufenem Token schreibt (angenommen: `{"hosts":{}}`, und
-  für ein abgelehntes Token `state: "error"` mit „HTTP 401“ oder „Bad credentials“ in `error`; nur das meldet ab,
-  jeder andere Fehler lässt den Stand stehen. Nennt `gh` ein abgelaufenes Token anders, bliebe der Stand
-  „angemeldet“, und die Abfragen der Repos zeigten ihre Fehler), ob `gh auth status` gegen das Anfragelimit zählt
-  (deshalb wird ein guter Stand nur alle zehn Minuten nachgelesen), und wie die App dasteht, solange niemand
-  angemeldet ist: Die Abfragen der Repos scheitern dann weiter im gewohnten Takt und zeigen ihre Fehler als Warn-Tags.
+- **Anmeldung über die GitHub-App** (`src/auth.js`, Aktionen `auth/…` in `src/actions.js`, Haltestelle „GitHub“ in
+  `src/ui.html`, gebaut 17.10.2026): nur mit nachgestelltem GitHub getestet und als Standbild angesehen. Echt prüfen
+  (zweite Instanz ohne Pools, siehe `CLAUDE.md`): Anmelden per Code, „Abbrechen“, Abmelden und erneut anmelden,
+  Neustart mit gesichertem Token, Erneuern nach acht Stunden (oder mit künstlich verkürzter Ablaufzeit), ob `GET /user`
+  mit dem Token der App `plan.name` liefert (sonst zeigt „Verbrauch“ den Tarif als unbekannt), und wie die App dasteht,
+  solange niemand angemeldet ist.
   Ebenfalls nur gegen ein nachgestelltes `gh` geprüft: dass `gh` mit leeren Umgebungsvariablen (`GH_TOKEN`, `GH_HOST`,
   `GH_DEBUG` und verwandte, siehe `GH_ENV` in `src/github.js`) so arbeitet, als fehlten sie.
   Bekannt und hingenommen: Wird die App hart beendet (Absturz, Task-Manager), bleibt ein wartendes `gh` bis zu einer
