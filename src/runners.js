@@ -3,7 +3,7 @@
 // other, the connection is made here. The slots only learn on use what the pools contribute.
 //
 // Returns the map of pools (`pools`, repo -> pool), the modules as `seed`, `slots` and `caches`, the functions
-// from pools.js under their own names and three for the beats and the Windows sign-out: `tick` (refill the reserve,
+// from pools.js under their own names and three for the timers and the Windows sign-out: `tick` (refill the reserve,
 // renew the build service), `measureAll` (measure volumes) and `releaseIdle` (remove idle runners from GitHub).
 
 const crypto = require('node:crypto');

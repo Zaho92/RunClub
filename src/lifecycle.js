@@ -1,4 +1,4 @@
-// Start and end of a program run: the beats (`every`, `everyAfter`), starting the pools (`startPools`), storing
+// Start and end of a program run: the timers (`every`, `everyAfter`), starting the pools (`startPools`), storing
 // the key (`saveKey`), shutting down (`shutdown`) and the quick sign-off on Windows sign-out (`release`).
 // `stopping()` tells all modules that RunClub is ending; it is needed early, the work on shutdown only late.
 
@@ -7,7 +7,7 @@ const { VARIABLE } = require('./routing');
 const { msg, reason } = require('./messages');
 
 //   log(text, repo, kind)
-//   beforeStop()            on shutdown, after the beats are stopped (save measurements, end a waiting sign-in)
+//   beforeStop()            on shutdown, after the timers are stopped (save measurements, end a waiting sign-in)
 //   dismantle()             dismantle all runners (pools.js)
 //   removeLeftovers(step)   then clear what is left over, build services and their networks too (dockerwatch.js)
 //   releaseIdle()           remove the idle runners from GitHub (runners.js)
@@ -24,7 +24,7 @@ function createLifecycle({ log, beforeStop, dismantle, removeLeftovers, releaseI
   const every = (ms, work) => { work(); timers.push(schedule.set(work, ms)); };
   const everyAfter = (ms, work) => { timers.push(schedule.set(work, ms)); }; // like `every`, but only after the first interval
 
-  // No more beats; then whatever still needs saving on shutdown.
+  // No more timers; then whatever still needs saving on shutdown.
   function stopTimers() {
     stopping = true;
     for (const timer of timers) schedule.clear(timer);

@@ -1,5 +1,5 @@
 // Runs without a pool that do not move on: repos of the account for which RunClub has no pool and in which jobs wait
-// for an own runner or runs failed because GitHub's quota is used up. Both would otherwise stay silent until someone
+// for one of our own runners or runs failed because GitHub's quota is used up. Both would otherwise stay silent until someone
 // looks. Nothing is triggered here.
 //
 // The search is frugal: only in private repos with admin rights that moved recently, and only for runs that GitHub
@@ -35,7 +35,7 @@ function candidates(repos, now = Date.now()) {
     .map((entry) => entry.repo);
 }
 
-// Does the job wait for an own Linux runner? What waits for GitHub's runners is none of RunClub's business.
+// Does the job wait for one of our own Linux runners? What waits for GitHub's runners is none of RunClub's business.
 function wantsOwnRunner(job) {
   const labels = (job.labels ?? []).map((label) => String(label).toLowerCase());
   return job.status === 'queued' && labels.includes('self-hosted') && !labels.includes('windows') && !labels.includes('macos');
@@ -101,7 +101,7 @@ function createWaiting({ github, now = Date.now }) {
     return { repo, reason: REASON.MINUTES, runs: hit.length, since: hit.map(startOf).sort()[0], url: `https://github.com/${repo}/actions?query=is%3Afailure` };
   }
 
-  // Looks at the repos in turn. If a job waits for an own runner, that is the reason, and the quota is no longer
+  // Looks at the repos in turn. If a job waits for one of our own runners, that is the reason, and the quota is no longer
   // checked. For a repo that cannot be read right now (no network, rate limit) the last state stays, but an entry
   // about the quota for at most a day; what is no longer looked at drops out.
   async function scan(repos) {

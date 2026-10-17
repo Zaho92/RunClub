@@ -10,7 +10,7 @@
 //           late (not confirmed in time) | denied (declined in the browser) | github (GitHub reported an
 //           error or was unreachable; what it said is in `error` verbatim, otherwise `error` is null).
 // Token     Valid for eight hours and renewed 5 minutes before it expires, likewise when GitHub rejects it. Each
-//           refresh key is valid only once: the new one is saved first, then used, and only one renewal runs
+//           refresh token is valid only once: the new one is saved first, then used, and only one renewal runs
 //           at a time. If GitHub no longer accepts the key (revoked, unused for half a year), the
 //           user is signed out.
 // Storage   Encrypted via `secrets` (main.js supplies Electron's safeStorage, DPAPI on Windows) in `github.token`
@@ -48,8 +48,8 @@ const SLOW_DOWN = 5 * SECOND; // how much longer to wait when GitHub asks for sl
 const USER_CODE = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/; // what an account on GitHub looks like
 const SECRET = /^[\w.-]{10,512}$/; // a token or key as GitHub issues them; nothing dangerous for a header
-// How GitHub rejects a refresh key that is no longer valid. An already used one it answers (actually
-// tried on 18.10.2026) with `incorrect_client_credentials`, not with the documented `bad_refresh_token`.
+// How GitHub rejects a refresh token that is no longer valid. An already used one it answers (actually
+// tried on 2026-10-18) with `incorrect_client_credentials`, not with the documented `bad_refresh_token`.
 const REJECTED = ['bad_refresh_token', 'incorrect_client_credentials'];
 const USER_TRIES = 3; // how often the account is asked for after confirmation before the flow fails
 const RENAME_TRIES = 5; // Windows sometimes briefly holds a file just written (virus scanner, indexer)
@@ -96,7 +96,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   }
 
   const draft = () => `${file}.new`;
-  // Up to 0.1.0-beta.4 the draft was called `.neu`; one left behind still counts and goes on signing out.
+  // Up to 0.1.0-beta.4 the draft was called `.neu`; one left behind still counts when loading and is deleted on sign-out.
   const legacy = () => `${file}.neu`;
   function read(name) {
     try { return { entry: valid(JSON.parse(secrets.decrypt(fs.readFileSync(name)).toString('utf8'))), at: fs.statSync(name).mtimeMs }; } catch { return null; }
@@ -114,7 +114,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     }
   }
 
-  // Save first, then it applies: a new refresh key must not get lost after the old one is used up.
+  // Save first, then it applies: a new refresh token must not get lost after the old one is used up.
   function keep(entry) {
     if (file && secrets) {
       try {
@@ -237,7 +237,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     } catch { /* unreachable: try again later */ }
   }
 
-  // For the regular tick: confirm the state once at GitHub after the start.
+  // For the regular timer: confirm the state once at GitHub after the start.
   function poll() {
     if (held && !checked) checking ??= check().finally(() => { checking = null; });
     return (checking ?? Promise.resolve()).then(view);

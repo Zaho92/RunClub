@@ -1,5 +1,5 @@
-// What RunClub asks GitHub: runs and jobs of the repos with a pool (for the pipeline graph and the slots), the
-// request limit, the account's repos, waiting runs in repos without a pool, the visibility of the repos with a pool and
+// What RunClub asks GitHub: runs and jobs of the repos with a pool (for the network map and the slots), the
+// rate limit, the account's repos, waiting runs in repos without a pool, the visibility of the repos with a pool and
 // whether pull requests from forks may run there. Plus re-running a run or job.
 //
 // Per repo the latest state is available (`view`): { jobs, runs, error, notFound (GitHub answered 404) }. A query that fails keeps jobs and
@@ -18,7 +18,7 @@ const RUNS_PER_REPO = 20;
 const REPO_LIST_MAX_AGE = 5 * MINUTE; // the list of the account's repos holds this long
 const EMPTY_LIST_MAX_AGE = 15 * SECOND; // … and an empty one this long: right after installing the app it should fill up
 const REPO_PAGES_MAX = 10;
-const RERUN_SETTLE = 3 * SECOND; // roughly how long GitHub takes until a re-run run shows as running again
+const RERUN_SETTLE = 3 * SECOND; // roughly how long GitHub takes until a rerun shows as running again
 const WAITING_INTERVAL = 5 * MINUTE; // how often to look for waiting runs without a pool (timer in backend.js)
 const CHECK_STALE = 25 * MINUTE; // a successful check holds this long; housekeeping checks every 10 minutes (backend.js)
 const CHECK_RETRY = MINUTE; // how soon to check again while a pool rests because the check fails
@@ -46,7 +46,7 @@ function createRemote({
   // Query one repo. If a query is already running, exactly one more follows afterwards.
   async function refreshRepo(repo) {
     if (busy.has(repo)) { again.add(repo); return; }
-    if (!github.mayPoll(repo)) return; // the request limit is tight or used up (see github.js)
+    if (!github.mayPoll(repo)) return; // the rate limit is tight or used up (see github.js)
     busy.add(repo);
     try {
       const runs = (await github.get(`repos/${repo}/actions/runs?per_page=${RUNS_PER_REPO}`)).workflow_runs;
@@ -87,7 +87,7 @@ function createRemote({
     }
   }
 
-  // Fetch the state of the request limit and write it to the log when it flips.
+  // Fetch the state of the rate limit and write it to the log when it flips.
   async function checkQuota() {
     const changed = await github.refreshQuota();
     if (!changed) return;
@@ -128,7 +128,7 @@ function createRemote({
   // Pools exist only for private repos, and in an organization's repos only as long as workflows from pull requests
   // of forks may not run there (see forks.js). If that changes later, `guard.block` blocks the pool (see
   // blocks.js); only a successful check that finds the reason gone lifts the block (`guard.unblock`).
-  // An existing block is reapplied if the pool doesn't pause anyway.
+  // An existing block is reapplied if the pool is not paused despite it.
   //
   // A pool works only as long as the last successful check is at most CHECK_STALE old (`vetted`, see
   // pools.js): at startup only after the first one. After each failure it checks again after CHECK_RETRY. When the

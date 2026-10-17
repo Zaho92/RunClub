@@ -10,8 +10,8 @@ updater that updates itself from the GitHub releases. Decided:
 
 - **License MIT.**
 - **Installer unsigned at first** (Windows warns “Unknown publisher” on install); signing can be added later.
-- **Updater:** downloads in the background, reports “Update ready”, installs on click and only while no runner is
-  working (quitting tears down all runners).
+- **Updater:** downloads in the background, reports “Update to X.Y.Z is ready”, installs on click and only while
+  no runner is working (quitting tears down all runners).
 - **QA before live as a beta channel** (decided 16.10.2026), no second instance (two instances with the same pools
   sign each other's runners off). Tags `vX.Y.Z-beta.N` create pre-releases, `vX.Y.Z` stable ones; the updater has a
   channel “Stable”/“Beta”, the user's machine runs on Beta. **No `qs` branch:** feature branches → `main`, betas are
@@ -44,9 +44,9 @@ Steps, in this order:
    profile and test it. `SECURITY.md` (English) checked against the code. Review of it see “In between, regularly”.
 3. **Understandable for strangers.** Order (decided by the user on 16.10.2026), each item a piece of its own:
    1. Backend messages as keys – done 16.10.2026: `src/messages.js` (keys `m_…` with values, German sentence for the
-      file and `error.message`), the interface translates log, error replies and slot states (`st_…`); a test keeps
-      backend and tables in sync. Along with it, the interface and the tray menu follow the system language without a
-      choice of their own. The log file `runclub.log` stays German.
+      file and `error.message` (until step 3.4)), the interface translates log, error replies and slot states
+      (`st_…`); a test keeps backend and tables in sync. Along with it, the interface and the tray menu follow the
+      system language without a choice of their own. The log file `runclub.log` stays German (until step 3.4).
    2. Check on first start – done 17.10.2026: while Docker does not respond, `src/setup.js` checks every 15 s whether
       WSL is missing (`wsl --status`), Docker Desktop is not installed, not running (`tasklist`) or running without its
       engine responding after 3 minutes. The interface shows one line per piece with a way out (copy the command
@@ -215,7 +215,7 @@ Deliberately left as is:
   figure with “only x free” in the load band. Check in operation: the curve “Docker VM · memory” is higher after the
   app restarts than before (at idle about 1.9 instead of 1.1 GB) and jumps in the history.
 - **Build service in the memory bar** (Settings → Limits): only checked in the code, not looked at. Check in the
-  picture: the build service's field stands out from the slots, the caption “2 × 8 GB + build service 4 GB” fits under
+  picture: the build service's field stands out from the slots, the caption “2 × 8 GB + build 4 GB” fits under
   narrow groups, and a paused project with a cache shows only this field.
 - **Waiting runs without a pool** (`src/waiting.js`): only tested against a simulated GitHub and looked at as a still.
   Check for real: in a private repo without a pool, start a run with `runs-on: [self-hosted, Linux]`; after five
@@ -250,7 +250,7 @@ Deliberately left as is:
   Check in the picture: the job's button sits on the right in the details without covering text or sticking out of
   the rounded area (compact and in detail mode, also on a failed pill with a long step name); the pill stays expanded
   while the pointer is on the button; the icon is distinguishable from “Rebuild runners”.
-- **Mapping in the network plan** for matrix jobs, names with an expression and called workflows: GitHub's name forms
+- **Mapping in the network map** for matrix jobs, names with an expression and called workflows: GitHub's name forms
   come from the documentation, not from a real run. The own workflows use none of it.
 - **Daily rebuild of the runner and Docker daemon images** and the start without network with an existing image: only checked in the code.
 - **Pause at GitHub's request** (403/429 with `retry-after`): only tested against a simulated GitHub.
@@ -323,7 +323,7 @@ Deliberately left as is:
 - **Daemons without privileges** (since `9686428`, app restarted on 15.10.2026 at 12:43). Seen in operation: the pairs
   run with `runclub-dind`; jobs of RunClub and what-to-wear ran through on them, including the job “docker” of
   what-to-wear (Docker in the job via the socket); the runners' registration via standard input holds with it; the
-  template's pull daemon refreshed what-to-wear's template at 12:43, without errors in the log. Open:
+  template's loader daemon refreshed what-to-wear's template at 12:43, without errors in the log. Open:
   whether an image from the template equals a freshly pulled one (suspicion from the sixth pass, unproven: `cp -a`
   from busybox may not carry over extended attributes such as `user.overlay.opaque`, so that in copied images deleted
   folders of lower layers reappear. How to check: compare an image that replaces a folder of a lower layer once from
@@ -338,8 +338,8 @@ Deliberately left as is:
     refreshes `docker volume ls -q --filter dangling=true` stayed at 4.
   - If preparing a pair's volumes fails (permissions, copy of the template), “Could not prepare the volumes: …” is in
     the log, and the pair goes instead of starting with a daemon that does not come up.
-  - When quitting while the template is being refreshed, there is no longer a red entry “pull daemon did not become
-    ready”, and the pull container goes anyway.
+  - When quitting while the template is being refreshed, there is no longer a red entry “The loader daemon did not
+    become ready”, and the pull container goes anyway.
   - If reading `CI_RUNNER` fails on start, the log says so; likewise if `access.key` cannot be written.
     `npm run backend` now stores its data under `%APPDATA%\RunClub\backend` without `RUNCLUB_DATA`.
   - Seen: a job can no longer shorten its usage: the duration runs until the end of the runner container, the name
@@ -382,12 +382,12 @@ Deliberately left as is:
   created them without a label); `startService` in `src/caches.js` clears build layers owned by root;
   `refreshSeed` in `src/seed.js` clears a template owned by root. Remove before publication, once there are no older
   installations.
-- **Demo pipeline** (`.github/workflows/demo.yml`): remove once it is no longer needed for looking at the network plan.
+- **Demo pipeline** (`.github/workflows/demo.yml`): remove once it is no longer needed for looking at the network map.
 
 ## Done (for context)
 
 Electron app with tray icon and autostart · Windows runners removed · repo selection from the GitHub account ·
-network plan per run with dependencies from `needs`, usual duration and remaining time · load history and usage per job ·
+network map per run with dependencies from `needs`, usual duration and remaining time · load history and usage per job ·
 new interface “Midnight Transit” with compact and detail mode, German and English · runs appear immediately ·
 CI_RUNNER is set when creating and removing a pool · tests and CI on the own runners ·
 first code and security review with fixes (access only with a key, timeouts, Docker dropouts) ·

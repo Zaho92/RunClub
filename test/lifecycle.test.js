@@ -6,7 +6,7 @@ const path = require('node:path');
 const { createLifecycle } = require('../src/lifecycle');
 const { rendered } = require('./support');
 
-// Everything start and end touch, simulated: `steps` keeps the order, `timers` the beats that were set.
+// Everything start and end touch, simulated: `steps` keeps the order, `timers` the timers that were set.
 function world() {
   const w = { steps: [], logs: [], timers: new Map(), next: 1 };
   w.lifecycle = createLifecycle({
@@ -22,7 +22,7 @@ function world() {
   return w;
 }
 
-test('every works at once and then on the beat, everyAfter only after the first interval', () => {
+test('every works at once and then on the timer, everyAfter only after the first interval', () => {
   const w = world();
   const ran = [];
   w.lifecycle.every(1000, () => ran.push('at once'));
@@ -31,7 +31,7 @@ test('every works at once and then on the beat, everyAfter only after the first 
   assert.deepEqual([...w.timers.values()].map((timer) => timer.ms), [1000, 2000]);
 });
 
-test('shutting down stops the beats, saves, dismantles, clears leftovers and ends, with state for the interface; a second time nothing happens', async () => {
+test('shutting down stops the timers, saves, dismantles, clears leftovers and ends, with state for the interface; a second time nothing happens', async () => {
   const w = world();
   w.lifecycle.every(1000, () => {});
   assert.equal(w.lifecycle.stopping(), false);

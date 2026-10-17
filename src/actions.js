@@ -150,7 +150,7 @@ function createActions({ github, settings, runners, remote, routing, waiting, me
       remote.markChecked(info.full_name); // just checked: visibly private, no fork PRs
       runners.startPool(info.full_name);
       remote.refreshAll();
-      // Route the repo's jobs to the own runners if its workflows read the variable.
+      // Route the repo's jobs to our own runners if its workflows read the variable.
       routing.check(info.full_name).then(async (found) => {
         if (found.uses === 'variable' && !found.here) { await routing.set(info.full_name, true); log(routedText(true), info.full_name); }
         else if (found.uses === 'none') log(msg('m_variableUnused', VARIABLE), info.full_name);

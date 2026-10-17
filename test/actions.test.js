@@ -73,7 +73,7 @@ test('pool/add checks name, admin right, duplicate, name clash and visibility be
   assert.equal(w.calls.some((name) => name.startsWith('startPool')), false);
 });
 
-test('pool/add creates the repo as GitHub writes it, starts the pool and routes the jobs if the workflows read the variable', async () => {
+test('pool/add creates the pool under the repo name as GitHub spells it, starts the pool and routes the jobs if the workflows read the variable', async () => {
   const w = world({ pools: [] });
   w.info = { full_name: 'Owner/New', permissions: { admin: true }, private: true };
   await w.actions['pool/add']({ repo: 'owner/new', parallel: 99 });

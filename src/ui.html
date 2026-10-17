@@ -45,7 +45,7 @@
   .ending .col { max-width: none; }
   .ending .pill { pointer-events: none; }
   .ending .s-wait .tm { color: var(--muted); }
-  /* On truncation only the job name is shortened, never what happens to it or its quotation marks. */
+  /* In the abort line only the job name is truncated, never what happens to it or its quotation marks. */
   .ending .abort { display: flex; min-width: 0; }
   .ending .abort > span { flex: none; }
   .ending .abort > span:first-child { margin-right: .3em; }
@@ -82,7 +82,7 @@
   .tag { display: inline-block; font-size: 12px; border: 1px solid var(--edge); border-radius: 999px; padding: 1px 10px; color: var(--muted); }
   .tag.c-fail { border-color: var(--fail-edge); }
 
-  /* Network plan */
+  /* Network map */
   .planwrap { overflow-x: auto; padding: 4px 0 72px; margin-bottom: -72px; }
   .plan { position: relative; display: flex; align-items: center; gap: clamp(40px, 6vw, 96px); width: 100%; }
   .plan > svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -456,7 +456,7 @@ const TEXT = {
     minutesPlan: 'Tarif {0} mit {1} Minuten im Monat.', minutesPlanUnknown: 'Für den Tarif {0} kennt RunClub die enthaltenen Minuten nicht.', minutesPlans: 'Enthaltene Minuten im Monat: {0}.', minutesEqual: 'Jede Minute zählt gleich, gleich auf welchem Betriebssystem.',
     minutesOtherPlan: 'Für andere Tarife steht nur das Verbrauchte da, ohne Obergrenze.', minutesTightInfo: 'Sind sie weg, startet GitHub in privaten Repos auf seinen Runnern keine Läufe mehr, solange dort kein Budget gesetzt ist.', minutesOutInfo: 'Die enthaltenen Minuten sind aufgebraucht; das betrifft private Repos auf GitHubs Runnern. Mit einem Pool („Pool anlegen“ in den Einstellungen) laufen die Jobs auf diesem Rechner und brauchen keine Minuten. Ob bei GitHub ein Budget gesetzt ist, sieht RunClub nicht.', minutesBudgetInfo: 'Das gilt für private Repos auf GitHubs Runnern. Wie hoch das Budget ist und wann es erreicht ist, sieht RunClub nicht.',
     minutesBilledInfo: 'Schon unter den enthaltenen Minuten kann GitHub etwas berechnen, etwa für größere Runner.', peakInfo: 'Gemessen am Limit dieses Projekts, getrennt für Runner und Docker. Ab der gepunkteten Marke ({0} %) gilt eine Spitze als knapp. In der Tabelle tritt der Wert hervor, der die Schiene bestimmt.',
-    // Zustände eines Platzes (src/states.js) und Meldungen des Backends (src/messages.js, dort gleichlautend; ein Test prüft beides).
+    // States of a slot (src/states.js) and backend messages (src/messages.js has the English ones as EN; a test checks both).
     st_starting: 'startet', st_ready: 'bereit', st_working: 'arbeitet', st_cleaning: 'räumt auf', st_broken: 'gestört', st_waiting: 'wartet', st_paused: 'pausiert', st_noDocker: 'wartet auf Docker', st_off: 'aus',
     m_withReason: '{0} – {1}', m_exitCode: 'Code {0}', m_on: 'an', m_off: 'aus', m_active: 'aktiv', m_paused: 'pausiert',
     m_jobRun: 'Job „{0}“ läuft auf {1}', m_jobEnd: 'Job „{0}“ – {1}', m_resDone: 'fertig', m_resFail: 'Fehler', m_resCancel: 'abgebrochen',
@@ -644,7 +644,7 @@ const TEXT = {
     minutesPlan: '{0} plan with {1} minutes a month.', minutesPlanUnknown: 'RunClub does not know the included minutes for the {0} plan.', minutesPlans: 'Included minutes a month: {0}.', minutesEqual: 'Every minute counts the same, whatever the operating system.',
     minutesOtherPlan: 'For other plans only the minutes used are shown, without an upper limit.', minutesTightInfo: 'Once they are gone, GitHub won’t start runs in private repos on its runners unless a budget is set there.', minutesOutInfo: 'The included minutes are used up; this affects private repos on GitHub’s runners. With a pool (“Create pool” in the settings) the jobs run on this machine and need no minutes. RunClub cannot see whether a budget is set on GitHub.', minutesBudgetInfo: 'This applies to private repos on GitHub’s runners. RunClub cannot see how high the budget is or when it is reached.',
     minutesBilledInfo: 'GitHub can bill some minutes even below the included ones, for example for larger runners.', peakInfo: 'Measured against this project’s limit, separately for runner and Docker. Past the dotted mark ({0}%) a peak counts as tight. In the table, the value that sets the bar stands out.',
-    // Zustände eines Platzes und Meldungen des Backends, wie oben.
+    // States of a slot and backend messages, as above; these must match EN in src/messages.js word for word.
     st_starting: 'starting', st_ready: 'ready', st_working: 'working', st_cleaning: 'cleaning up', st_broken: 'faulty', st_waiting: 'waiting', st_paused: 'paused', st_noDocker: 'waiting for Docker', st_off: 'off',
     m_withReason: '{0} – {1}', m_exitCode: 'code {0}', m_on: 'on', m_off: 'off', m_active: 'active', m_paused: 'paused',
     m_jobRun: 'Job “{0}” is running on {1}', m_jobEnd: 'Job “{0}” – {1}', m_resDone: 'done', m_resFail: 'failed', m_resCancel: 'cancelled',
@@ -705,8 +705,8 @@ const TEXT = {
     m_rebuildFailed: '{0} could not be rebuilt ({1}); the runners use the existing one.',
     m_imagesDaily: 'Rebuilding the runner and Docker daemon images (daily refresh) …',
     m_imagesBuild: 'Building the runner image (with GitHub’s latest runner) and the Docker daemon image …',
-    m_whatImages: 'Runner and Docker daemon images', m_whatTemplate: 'Template', m_orphansRemoved: 'Removed leftovers after the interruption: {0} containers, {1} volumes',
-    m_staleRunners: 'Removed {0} orphaned runners from GitHub', m_whatOldRunners: 'Removing old runners',
+    m_whatImages: 'Runner and Docker daemon images', m_whatTemplate: 'Template', m_orphansRemoved: 'Removed leftovers after the interruption: containers: {0}, volumes: {1}',
+    m_staleRunners: 'Orphaned runners removed from GitHub: {0}', m_whatOldRunners: 'Removing old runners',
     m_serviceRetry: 'Trying again to create the build service', m_serviceRenew: 'Creating the build service with the new limits',
     m_serviceNetFailed: 'Could not create the network for the build service – {0}', m_serviceFailed: 'Build service does not start – {0}',
     m_serviceUnreadable: 'Build service: state after start not readable – {0}', m_serviceEnded: 'Build service stops right after starting{0}',
@@ -772,7 +772,7 @@ const limitBytes = (text) => { const m = String(text).match(/^([\d.]+)\s*([gm])/
 const shortRepo = (repo) => repo.split('/')[1]; // the name without the owner
 const shortRunner = (name) => String(name ?? '').replace(/^.*-linux-/, 'Runner ');
 const stateText = (state) => (TEXT[lang]['st_' + state] ? t('st_' + state) : state);
-// The state of a runner including "phasing out" if the slot goes away as soon as it is free.
+// The state of a runner including "retiring" if the slot goes away as soon as it is free.
 const runnerState = (r) => stateText(r.state) + (r.retiring ? ', ' + t('retiring') : '');
 const ICONS = { run: '<path d="M6 4.5v7l6-3.5z" fill="currentColor" stroke="none"/>', done: '<path d="M4 8.5l2.8 2.8L12 5.5"/>', fail: '<path d="M5 5l6 6M11 5l-6 6"/>', cancel: '<rect x="5.2" y="5.2" width="5.6" height="5.6" rx="1" fill="currentColor" stroke="none"/>', skip: '<path d="M5 8h6"/>', wait: '<circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/>', idle: '' };
 const icon = (state) => '<span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true">' + ICONS[state] + '</svg></span>';
@@ -938,7 +938,7 @@ function setupRows(first) {
   return setupMissing().filter((key) => controls[key]).map((key) => row(key, key === 'wsl' ? t('su_wslMore', '<code>wsl --install</code>') : t('su_' + key + 'More'), controls[key]())).join('');
 }
 
-// --- Network plan ---
+// --- Network map ---
 
 function columnsOf(pipeline) {
   const jobs = pipeline.jobs;
@@ -1103,7 +1103,7 @@ function bandCharts(marks) {
     chart('hostMem', t('hostMem'), num((m.memoryTotal - m.memoryFree) / 1073741824), t('of', gb(m.memoryTotal)), src('hostMemory'), m.memoryTotal, gb, tight, marks, tight ? t('freeOnly', gb(m.memoryFree)) : '');
 }
 
-// A slot as a state symbol like in the network plan: working is running, ready is the empty ring, everything preparatory
+// A slot as a state symbol like in the network map: working is running, ready is the empty ring, everything preparatory
 // (starting, waiting, cleaning up) is waiting. Red only if the slot is faulty; a paused or switched-off one is skipped.
 const SEAT_STATE = { [SLOT.WORKING]: 'run', [SLOT.READY]: 'idle', [SLOT.BROKEN]: 'fail', [SLOT.PAUSED]: 'skip', [SLOT.OFF]: 'skip' };
 const seatState = (r) => SEAT_STATE[r.state] ?? 'wait';
@@ -1141,7 +1141,7 @@ function seats(entries) {
 
 // --- Views ---
 
-// The GitHub account's request limit if it is tight or used up; otherwise null.
+// The GitHub account's rate limit if it is tight or used up; otherwise null.
 // `out` means: RunClub no longer queries at all. Only that is a fault and red.
 // The only place that knows the backend's state words (see STATE in github.js).
 const quotaState = () => ({ tight: data.quota?.state === 'tight', out: data.quota?.state === 'out' });
@@ -1150,7 +1150,7 @@ const quotaTrouble = () => { const { tight, out } = quotaState(); return tight |
 // means: without a budget GitHub starts nothing more on its runners.
 const minutesState = () => ({ tight: data.minutes?.state === 'tight', out: data.minutes?.state === 'out' });
 const minutesTrouble = () => { const { tight, out } = minutesState(); return tight || out ? { out, text: t(out ? 'minutesOutShort' : 'minutesTightShort') } : null; };
-// What "Consumption" reports in the bar: one row, even if both apply. Used up goes before tight; on a
+// What "Usage" reports in the bar: one row, even if both apply. Used up goes before tight; on a
 // tie, requests go before minutes, because without requests the display stops too.
 const usageTrouble = () => { const found = [quotaTrouble(), minutesTrouble()].filter(Boolean); return found.find((entry) => entry.out) ?? found[0] ?? null; };
 // A rail: filled up to `share` (0 to 1), red on `alarm`, with the dotted mark at `mark`.
@@ -1161,7 +1161,7 @@ const warnings = (entries) => [data.machine.docker.ready || setupMissing().lengt
 const viewHead = (title, sub, cls, more = '') => '<div class="head"><div>' + (more ? '<div class="h1row"><h1>' + title + '</h1>' + more + '</div>' : '<h1>' + title + '</h1>') + '<div class="sub' + (cls ? ' ' + cls : '') + '">' + sub + '</div></div></div>';
 
 // Repos without a pool where nothing moves: one row each with the offer to create a pool. Either
-// jobs are waiting for an own runner (which ones is in the tooltip), or runs did not start because the minutes at
+// jobs are waiting for one of your own runners (which ones is in the tooltip), or runs did not start because the minutes at
 // GitHub are used up. That is a fault with a way out: the symbol is red, the tooltip names the way out.
 function unservedRows() {
   return (data.unserved ?? []).map((entry) => {
@@ -1230,7 +1230,7 @@ function quotaStop() {
 
 // Stop "GitHub minutes": what the account used this month on GitHub's own runners, built like
 // the GitHub requests. The limit is the plan's included minutes (table in minutes.js); without it there is only
-// the figure. The surface states the state briefly, reasons and consequences are in the info at the heading. Tight asks for nothing. Used up is red because there is a way out: own runners or a budget.
+// the figure. The surface states the state briefly, reasons and consequences are in the info at the heading. Tight asks for nothing. Used up is red because there is a way out: your own runners or a budget.
 // Whoever pays beyond what is included has a budget: that is neither tight nor red, but the header names the cost.
 // While there is no data yet, a sentence says so, so that the stop does not only appear later.
 function minutesStop() {
@@ -1583,7 +1583,7 @@ function renderEmpty() {
 // --- Quit ---
 
 // Quitting as a run: one station per project that tears down its runners, then cleanup and sign-off. The stations
-// are not jobs and not links; lines and drawing are the network plan's. There is no red here: if a
+// are not jobs and not links; lines and drawing are the network map's. There is no red here: if a
 // step fails, that goes into the log, and the teardown continues.
 function station(key, needs, state, name, time, detail, progress) {
   return '<div class="pill lined s-' + state + '" data-job="' + esc(key) + '" data-needs="' + esc(JSON.stringify(needs)) + '">' + icon(state) + '<span class="n">' + esc(name) + '</span>' + time +

@@ -4,7 +4,7 @@
 //
 //   public         the repo has become public
 //   forks          in an organization's repo, workflows from fork pull requests may run (see forks.js)
-//   forksUnknown   whether they may could not be read; the way out is different (wait instead of turning it off)
+//   forksUnknown   whether they may run could not be read; the way out is different (wait instead of turning it off)
 
 const BLOCKS = { public: 'pausedPublic', forks: 'pausedForks', forksUnknown: 'pausedForksUnknown' };
 

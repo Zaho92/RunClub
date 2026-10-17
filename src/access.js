@@ -43,7 +43,7 @@ function createAccess({ port, key = crypto.randomBytes(24).toString('hex') }) {
     // `localhost` could also go over IPv6 (`::1`), where another program would accept the key.
     entry: `http://127.0.0.1:${port}/?key=${key}`,
     cookie: `${COOKIE}=${key}; HttpOnly; SameSite=Strict; Path=/`,
-    // Only this machine under its own name: keeps out rebound names of other sites.
+    // Only this machine under its own name: keeps out other sites' host names pointed here (DNS rebinding).
     hostAllowed: (headers) => hosts.includes(headers.host ?? ''),
     allowed: (headers) => same(cookieOf(headers.cookie), key),
     // Is this the entry address with the right key? `null` if the address is not an entry address.

@@ -40,8 +40,8 @@ Every job gets a fresh, isolated Linux container with its own Docker daemon and 
 Available:
 
 - Pool per repo with an adjustable number of slots, pause, reserve, caches to clear; limits per job (memory and cores) with a suggestion from the measurements.
-- Repo selection from the GitHub account.
-- Running runs as a network plan: all jobs with their dependencies (from `needs` in the workflow file), current step, usual duration and rough remaining time.
+- Repo selection from the repos the app is installed on.
+- Running runs as a network map: all jobs with their dependencies (from `needs` in the workflow file), current step, usual duration and rough remaining time.
 - History of the load on Windows and the Docker VM, usage per job (duration, peak RAM, CPU), waiting time for a runner.
 - Start with Windows, icon in the notification area.
 
@@ -53,9 +53,9 @@ Limits:
 - Remaining time is an estimate from earlier runs.
 - Technology: plain HTML, CSS and JavaScript without a build step in an Electron window.
 
-Open:
+Decided:
 
-- Whether and under which license RunClub will be published.
+- RunClub will be published as a public repo under the MIT license (road to publication in `TODO.md`).
 
 ## Brand Commitments
 

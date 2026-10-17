@@ -1,7 +1,7 @@
 // What stays between the jobs of a repo and is not the template (see the head of backend.js): the package cache as a
 // volume and the build service with its volume, its socket and its network. `prepareCaches` sets both up or removes
-// them if the repo wants no cache; `renewService` creates the build service anew if it carries old limits or did not
-// come about. `removeCaches` clears, `removeService` stops the build service. `measureSizes` measures how large the
+// them if the repo wants no cache; `renewService` creates the build service anew if it carries old limits or failed
+// to start. `removeCaches` clears, `removeService` stops the build service. `measureSizes` measures how large the
 // package cache, template and build layers are.
 //
 // The build service runs without privileges (`moby/buildkit:…-rootless`) and can only be reached through a Unix socket
@@ -10,7 +10,7 @@
 //
 // The build service carries the limits of the Docker daemon, as a label on the container and on the pool:
 //   pool.serviceBuilt     key of the limits (`limits.dockerKey`) it runs with
-//   pool.serviceFailed    it did not come about last time
+//   pool.serviceFailed    it failed to start last time
 //   pool.serviceFailures  failures in a row; pool.serviceRetryAt  earliest time of the next attempt
 //   pool.renewingService  it is being renewed right now;  pool.measuring  the volumes are being measured right now
 

@@ -72,13 +72,13 @@ function suggest(jobs, range) {
 const effective = (shared, own) => ({ ...shared, ...(own ?? {}) });
 // Key of the Docker daemon's limits: the build service carries it too (see caches.js).
 const dockerKey = (limits) => [limits.dockerCpus, bytesOf(limits.dockerMemory)].join('/');
-// Key of a set of limits: it shows whether a pair was still built with others.
+// Key of a set of limits: it shows whether a pair was built with different limits.
 const key = (limits) => [limits.runnerCpus, bytesOf(limits.runnerMemory), dockerKey(limits)].join('/');
 
 function sameValues(a, b) { return ['runnerMemory', 'dockerMemory', 'runnerCpus', 'dockerCpus'].every((field) => a?.[field] === b?.[field]); }
 
 // A suggestion for all projects together: a default that covers the projects with similar needs, and own limits
-// only for outliers. An average is no good for this – a limit below the need breaks the job off.
+// only for outliers. An average is no good for this – a limit below the need kills the job.
 // An outlier is a project that needs clearly more memory than the median project: over one and a half times and
 // at least 1 GB more. `projects`: [{ repo, jobs }] with rows from `metrics.jobsView`.
 const OUTLIER_FACTOR = 1.5;

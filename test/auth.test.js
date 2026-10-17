@@ -293,6 +293,13 @@ test('a newer draft left behind under the legacy name `.neu` still applies at th
   assert.equal(await make().token(), 'ghu_legacy_draft');
 });
 
+test('an older draft left behind under the legacy name `.neu` does not displace the saved state', async () => {
+  const { file, make } = fake({ stored: STORED });
+  fs.writeFileSync(`${file}.neu`, secrets.encrypt(Buffer.from(JSON.stringify({ ...STORED, token: 'ghu_legacy_draft' }))));
+  fs.utimesSync(`${file}.neu`, new Date(0), new Date(0));
+  assert.equal(await make().token(), 'ghu_saved_one');
+});
+
 test('signing out also deletes a leftover draft, under the new and the legacy name', async () => {
   const { auth, file } = fake({ stored: STORED });
   for (const name of [`${file}.new`, `${file}.neu`]) fs.writeFileSync(name, secrets.encrypt(Buffer.from(JSON.stringify(STORED))));

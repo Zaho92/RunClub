@@ -12,10 +12,10 @@ test('only repos that could have a pool and moved recently are looked at', () =>
     { repo: 'owner/old', private: true, pushedAt: daysAgo(30), free: true },
     { repo: 'owner/pool', private: true, pushedAt: daysAgo(1), free: false },
     { repo: 'owner/public', private: false, pushedAt: daysAgo(1), free: false },
-    { repo: 'owner/yesterday', private: true, pushedAt: daysAgo(1), free: true },
-    { repo: 'owner/today', private: true, pushedAt: daysAgo(0), free: true },
+    { repo: 'owner/earlier', private: true, pushedAt: daysAgo(1), free: true },
+    { repo: 'owner/latest', private: true, pushedAt: daysAgo(0), free: true },
   ];
-  assert.deepEqual(candidates(repos, NOW), ['owner/today', 'owner/yesterday']);
+  assert.deepEqual(candidates(repos, NOW), ['owner/latest', 'owner/earlier']);
 });
 
 test('at most twenty repos, the most recently moved first', () => {
@@ -25,7 +25,7 @@ test('at most twenty repos, the most recently moved first', () => {
   assert.equal(picked[0], 'owner/r0');
 });
 
-test('a job only counts if it waits for an own Linux runner', () => {
+test('a job only counts if it waits for one of our own Linux runners', () => {
   assert.equal(wantsOwnRunner({ status: 'queued', labels: ['self-hosted', 'Linux'] }), true);
   assert.equal(wantsOwnRunner({ status: 'queued', labels: ['Self-Hosted'] }), true);
   assert.equal(wantsOwnRunner({ status: 'queued', labels: ['ubuntu-latest'] }), false);
@@ -92,7 +92,7 @@ test('a repo can be taken out of the state as soon as it gets a pool', async () 
   assert.deepEqual(waiting.list(), []);
 });
 
-test('even in a running run a later job can wait for an own runner', async () => {
+test('even in a running run a later job can wait for one of our own runners', async () => {
   const github = fakeGitHub({ 'owner/a': [{ id: 7, state: 'in_progress', created_at: daysAgo(0), jobs: [{ name: 'Build', status: 'in_progress', labels: ['ubuntu-latest'] }, own('Deploy', '2026-10-13T11:30:00Z')] }] });
   const waiting = createWaiting({ github });
   assert.deepEqual((await waiting.scan(['owner/a'])).map((entry) => entry.jobs), [['Deploy']]);
@@ -154,7 +154,7 @@ test('counts only what names the quota as the reason: no real error, no old run,
   assert.deepEqual(github.calls.filter((path) => /owner\/(real|old|fixed)\/.*(annotations|runs\/\d+\/jobs)/.test(path)), ['repos/owner/real/actions/runs/30/jobs?per_page=100']);
 });
 
-test('if a job waits for an own runner at the same time, that is the reason, and the quota is not queried', async () => {
+test('if a job waits for one of our own runners at the same time, that is the reason, and the quota is not queried', async () => {
   const github = fakeGitHub({ 'owner/a': [
     { id: 1, created_at: daysAgo(0), jobs: [own('Build', '2026-10-13T11:50:00Z')] },
     done(12, 'failure', '2026-10-13T11:00:00Z', [unstarted(120)]),

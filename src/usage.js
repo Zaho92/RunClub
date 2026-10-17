@@ -8,8 +8,8 @@
 //               stays with the sum of the containers until Docker is prepared anew. It is only restarted when Docker
 //               has just answered (`onDockerReady`, `onDockerAlive` from dockerwatch.js): otherwise the call would boot a stopped distro
 //               itself.
-//   Per job     Each measuring beat passes the consumption of runner and daemon of a working slot to its meter
-//               (`slot.meter`, see metrics.js); every third beat becomes a point in the history.
+//   Per job     Each measuring interval passes the consumption of runner and daemon of a working slot to its meter
+//               (`slot.meter`, see metrics.js); every third interval becomes a point in the history.
 //
 // CPU is in cores, memory in bytes.
 
@@ -19,7 +19,7 @@ const { SECOND, MINUTE, MB, GB } = require('./units');
 const { createVmMemory, COMMAND: VM_COMMAND } = require('./vmmemory');
 const { msg } = require('./messages');
 
-const SAMPLE_EVERY = 3; // every third measuring beat becomes a point in the history
+const SAMPLE_EVERY = 3; // every third measuring interval becomes a point in the history
 const STATS_MAX_AGE = 15 * SECOND; // a stopped container does not sign off: its last value applies for this long
 const STATS_RESTART = 5 * SECOND; // pause before an ended `docker stats` restarts
 const VM_FEED_MAX = 60 * MINUTE; // the measuring process in the VM ends hourly: if it hung silently, no value would ever come again
@@ -128,7 +128,7 @@ function createUsage({
   return {
     onDockerReady, onDockerAlive: startVmFeed, measure, vmTight,
     view: () => usage,
-    statsOf: (name) => own.get(name), // consumption of an own container or undefined
+    statsOf: (name) => own.get(name), // consumption of one of our own containers or undefined
     forget: (name) => own.delete(name),
   };
 }

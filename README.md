@@ -37,7 +37,7 @@ and set `CI_RUNNER` in the repo to `["self-hosted","Linux"]`.
 
 Download the installer `RunClub-Setup-X.Y.Z.exe` from the [releases](https://github.com/Zaho92/RunClub/releases) and
 run it. It is not signed, so Windows warns “Unknown publisher” (“More info” → “Run
-anyway”). RunClub ends up in `%LOCALAPPDATA%\Programs\RunClub`, with a Start menu shortcut; the data lives in
+anyway”). RunClub ends up in `%LOCALAPPDATA%\Programs\runclub`, with a Start menu shortcut; the data lives in
 `%APPDATA%\RunClub` and is kept when updating and uninstalling.
 
 ## Updating
@@ -51,8 +51,8 @@ The channel is set in the same settings: **Stable** gets only approved versions,
 As long as the repo is private, RunClub reads the releases with the token of the sign-in in the app (the app needs
 Contents on this repo for that).
 
-Closing the window ends nothing. Quit via the icon in the notification area (right-click → Quit)
-or “Quit everything” in the interface; the runners end as well.
+Closing the window ends nothing. Quit via the icon in the notification area (right-click → “Quit (stop runners)”)
+or “Quit RunClub” in the settings; the runners end as well.
 
 ## Structure
 
@@ -70,11 +70,13 @@ or “Quit everything” in the interface; the runners end as well.
 | `src/engine.js` | Where Docker runs (today Docker Desktop): CLI calls, endpoint, WSL distro for measuring the VM |
 | `src/setup.js` | What the machine lacks for Docker while it does not answer: WSL, Docker Desktop installed, started, its engine; starting Docker Desktop |
 | `src/dockerwatch.js` | The Docker watch: prepare as soon as Docker answers, check regularly, build the two own images (runner and Docker daemon), clean up leftovers |
-| `src/dind.js` | The Docker daemon in a container (daemon of a pair, loading daemon of the template): image, user, socket, options for running without privileges, waiting until it answers; the same image as a tool for volumes |
+| `src/dind.js` | The Docker daemon in a container (daemon of a pair, loader daemon of the template): image, user, socket, options for running without privileges, waiting until it answers; the same image as a tool for volumes |
 | `src/slots.js` | Life cycle of a slot: set up a pair, register the runner, serve a job, clean up, abort when idle |
 | `src/pools.js` | Create and prepare a pool, a pool's reserve (refill, renew, tear down), adjust the number of slots, bring a pool to rest |
 | `src/seed.js` | Template of a repo: learn a job's images, refresh the template, lock copying and refreshing against each other |
 | `src/housekeeping.js` | The timer of the cleanup work at GitHub: check the visibility of the repos (pause those that became public) and unregister orphaned runners, only when the rate limit allows it |
+| `src/blocks.js` | Why a pool can be blocked (repo became public, fork PRs may run in an org repo, or that cannot be read): the reason kept in the pool's settings, the first one that applies |
+| `src/forks.js` | Whether workflows from fork pull requests could run code on your own runners: in an org repo, read the setting at GitHub; if it cannot be read, the repo counts as exposed |
 | `src/caches.js` | Provide a repo's package cache and build service (without privileges, reachable through a socket), recreate them with new limits or after a failure, clear them, measure the volumes |
 | `src/pipeline.js` | Runs with their jobs, dependencies from the workflow file (`needs`), usual duration, remaining time |
 | `src/metrics.js` | History of the load on Windows and the Docker VM, usage per job |
@@ -89,11 +91,13 @@ or “Quit everything” in the interface; the runners end as well.
 | `src/journal.js` | Log: entries with time, project, message and kind; the latest in memory and for the next start in `runclub.log.entries`, all readable in `runclub.log` (in English from 0.1.0-beta.5 on) |
 | `src/subnets.js` | Networks of the pairs and build services: a random /28 each from a separate range instead of from Docker's scarce pool |
 | `src/waiting.js` | Runs without a pool that make no progress: repos of the account in which jobs wait for a self-hosted runner or runs failed on GitHub's used-up quota |
+| `src/shutdown.js` | The state while RunClub shuts down: runners dismantled per project, job being cancelled, the stages cleanup and sign-off; stored durations for estimating the next shutdown |
+| `src/updater.js` | Updating from the GitHub releases: channel Stable/Beta, download in the background, check against the SHA-512 in `latest.yml`/`beta.yml`, report a ready update; installed only on click (`src/main.js`) |
 | `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/states.js`, `src/units.js`, `src/numbers.js` | Program calls with a time limit and abort from outside (on Windows the program is only looked up in PATH), files in the data folder, rules for learned images, names of the runner pairs, states of a slot, units for time and memory, median |
-| `src/ui.html` | Interface: project bar, network plan per run, load, usage, settings (German and English) |
+| `src/ui.html` | Interface: project bar, network map per run, load, usage, settings (German and English) |
 | `src/fonts/` | Font Overpass (OFL), shipped with the app so that it works without internet |
-| `linux/` | Image of the runners (`Dockerfile`, with `docker-shim.sh`), image of the Docker daemon without privileges (`dind/Dockerfile`) and the pinned images of daemon and build service (`pins.Dockerfile`, only read, not built) |
-| `scripts/make-icon.js` | draws the icon into `build/` (`npm run icon`) |
+| `linux/` | Image of the runners (`Dockerfile`, with `docker-shim.sh`), image of the Docker daemon without privileges (`dind/Dockerfile`) and the pinned images of daemon and build service (`pins.Dockerfile`, only read, not built), the seccomp profile of the daemons (`seccomp.json`, generated) |
+| `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds and publishes a release on this machine (`npm run release`), `seccomp.js` writes `linux/seccomp.json` |
 
 Settings, learned data and the log live under `%APPDATA%\RunClub\data`.
 `npm run backend` starts only the service, without a window (data then under `%APPDATA%\RunClub\backend`, separate from the app's); the address to open is then printed in the console.
@@ -145,9 +149,9 @@ Next to the installed app, a development instance runs only with its own data fo
 (`RUNCLUB_DATA` to an empty folder, `RUNCLUB_PORT` to another port, `npm run backend`); see `CLAUDE.md`
 for why two instances must never serve the same repos. Build the installer locally: `npm run dist` (ends up in `dist/`).
 
-### Release: QS → Live
+### Release: QA → Live
 
-There is no separate QS branch. QS is the Beta channel.
+There is no separate `qs` branch. QA is the Beta channel.
 
 1. Development happens on feature branches; when done, it goes to `main`.
 2. A beta is created with a tag on `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`. The workflow

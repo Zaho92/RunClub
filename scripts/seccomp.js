@@ -1,9 +1,9 @@
 // Writes linux/seccomp.json: Docker's default profile, extended by what the daemons without privileges need (the daemon
-// of a pair, the template's loading daemon, the build service; see src/dind.js). Rootlesskit and buildkit create their own
+// of a pair, the template's loader daemon, the build service; see src/dind.js). Rootlesskit and buildkit create their own
 // namespaces, mount file systems inside them and change the root; the default profile allows that only with
 // CAP_SYS_ADMIN, and the daemons don't get it.
 //
-// Determined on 16.10.2026 with Docker 29.6.1 (profile from moby/profiles v0.2.3): each addition left out on its own, then
+// Determined on 2026-10-16 with Docker 29.6.1 (profile from moby/profiles v0.2.3): each addition left out on its own, then
 // the daemon's start failed (clone, unshare, setns, mount) or a job container, a build or a published
 // port did (umount2, pivot_root, keyctl, sethostname). runc needs `keyctl` only to give each container its own
 // session keyring (KEYCTL_JOIN_SESSION_KEYRING, then KEYCTL_DESCRIBE and KEYCTL_SETPERM); only these three

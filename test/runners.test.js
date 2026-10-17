@@ -25,7 +25,7 @@ function world() {
   return w;
 }
 
-test('the minute beat refills the reserve', async () => {
+test('the minute timer refills the reserve', async () => {
   const w = world();
   w.runners.tick();
   assert.equal(w.pool.reserve.length, 1);
@@ -33,7 +33,7 @@ test('the minute beat refills the reserve', async () => {
   assert.ok(w.calls.includes('network create'));
 });
 
-test('the minute beat renews a build service with old limits', async () => {
+test('the minute timer renews a build service with old limits', async () => {
   const w = world();
   w.settings.cache = true;
   w.pool.serviceBuilt = 'old limits';

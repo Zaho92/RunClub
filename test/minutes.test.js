@@ -14,7 +14,7 @@ const SUMMARY = 'users/someone/settings/billing/usage/summary?year=2026&month=10
 const item = (sku, gross, net = 0, price = 0.006) => ({ product: 'Actions', sku, grossQuantity: gross, discountQuantity: gross - net, netQuantity: net, grossAmount: gross * price, discountAmount: (gross - net) * price, netAmount: net * price, pricePerUnit: price, unitType: 'minutes' });
 const summaryOf = (items, period = { year: 2026, month: 10 }) => frozen({ timePeriod: period, user: 'someone', usageItems: items });
 
-// This is how GitHub answered on 14 Oct 2026 for an account on the Free plan whose runs no longer started. The
+// This is how GitHub answered on 2026-10-14 for an account on the Free plan whose runs no longer started. The
 // entries are taken word for word; account and month around them are made up.
 const REAL = summaryOf([
   { product: 'Actions', sku: 'actions_linux', grossQuantity: 2047.0, discountQuantity: 2047.0, netQuantity: 0.0, grossAmount: 12.282, discountAmount: 12.282, netAmount: 0.0, pricePerUnit: 0.006, unitType: 'minutes' },
@@ -231,7 +231,7 @@ test('if another account is asked for during a request, its request follows afte
   assert.equal(minutes.view('other').used, 2097);
 });
 
-test('the beat only reads when the figures are missing or old', async () => {
+test('the timer only reads when the figures are missing or old', async () => {
   let now = NOW;
   const github = fakeGitHub(REAL);
   const minutes = createMinutes({ github, now: () => now });
@@ -249,7 +249,7 @@ test('the beat only reads when the figures are missing or old', async () => {
   assert.equal(github.reads().length, 3);
 });
 
-test('after a failure the beat asks again at growing intervals', async () => {
+test('after a failure the timer asks again at growing intervals', async () => {
   let now = NOW;
   const github = fakeGitHub(REAL);
   github.fail = new Error('no network');
@@ -265,7 +265,7 @@ test('after a failure the beat asks again at growing intervals', async () => {
   assert.deepEqual(waits, [1, 2, 4, 8, 15, 15]);
 });
 
-test('after the month changes the next beat reads again right away', async () => {
+test('after the month changes the next timer run reads again right away', async () => {
   let now = new Date('2026-10-31T23:59:00Z').getTime();
   const github = fakeGitHub(REAL);
   const minutes = createMinutes({ github, now: () => now });

@@ -1,4 +1,4 @@
-// What the interface sees (`GET /api/status`): per repo with a pool its slots, runs, pipeline view, consumption and
+// What the interface sees (`GET /api/status`): per repo with a pool its slots, runs, network map, consumption and
 // settings, plus the machine, the Docker VM, the GitHub account and repos without a pool where nothing moves on.
 
 const fs = require('node:fs');

@@ -12,7 +12,7 @@ Mode: Operate. Audience and task: see PRODUCT.md (a quick glance on the side, cl
 Scope: the whole app in one window – project bar, project view, “All projects”, “Usage”, “Settings”.
 Set by the user: Midnight Transit with pills; one line color; state as color plus symbol; curved lines;
 light type, no pure white; load history as curves; compact and detail mode as an option, in compact mode
-a pill expands on hover and the others make room; German and English switchable; dark only.
+a pill extends downward on hover over what lies below, without moving anything; German and English switchable; dark only.
 Open: whether the delay stands as “+0:33” after the time (currently: the time changes color, the difference is in the detail).
 
 ## Direction contract
@@ -29,7 +29,7 @@ below, whether the machine carries the load – not as a momentary value but as 
 
 FIRST VIEWPORT: On the left the project bar (232 px). On the right at the very top, sticky while scrolling, the band with three history curves
 (Docker VM memory, Docker VM CPU, Windows memory) and the slots rolling within it. Below, for each running run, the title,
-below it repo, workflow and branch, far right the remaining time large and light, then the network plan across the full width, stages
+below it repo, workflow and branch, far right the remaining time large and light, then the network map across the full width, stages
 from left to right; after the last plan the legend, then the quiet projects as rows.
 
 FORM: Transit network map (Midnight Transit), chosen and refined by the user after two dice rounds; seed key ead5eeac.

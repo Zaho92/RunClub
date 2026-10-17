@@ -1,5 +1,5 @@
 // GitHub through its REST API (https://api.github.com), with the sign-in's token (see auth.js) and
-// sparing with the account's request limit (5,000 per hour).
+// sparing with the account's rate limit (5,000 per hour).
 //
 // Reading   Every query (`get`) remembers answer and tag (ETag) and asks conditionally next time. If nothing
 //           changed, GitHub answers 304; that doesn't count against the limit.

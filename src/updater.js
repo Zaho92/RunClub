@@ -1,5 +1,5 @@
 // Updating from the repo's GitHub releases: look whether there is a newer version, download and verify the installer
-// in the background, then report “update ready”. It is installed only on click (main.js): RunClub ends
+// in the background, then report “Update to … is ready”. It is installed only on click (main.js): RunClub ends
 // as on quitting and starts the installer, which opens the app again afterwards.
 //
 // Channel   “stable” sees only stable versions (tag vX.Y.Z), “beta” also pre-releases (vX.Y.Z-beta.N). The channel
@@ -8,7 +8,7 @@
 //           `beta.yml`): the installer's name and its SHA-512. An installer whose checksum doesn't match is
 //           discarded.
 // Sign-in   As long as the repo is private, even reading the releases needs a token (the RunClub sign-in's, see main.js).
-//           Without one it asks without; a public repo needs none.
+//           Without one it requests anonymously; a public repo needs none.
 //
 // No side effects on load; `createUpdater` does nothing until `check` or `setChannel` is called.
 

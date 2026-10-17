@@ -1,6 +1,6 @@
 name: Demo pipeline
 
-# Does nothing but wait: a multi-stage pipeline to look at the network plan in RunClub.
+# Does nothing but wait: a multi-stage pipeline to look at the network map in RunClub.
 # Start by hand:  gh workflow run demo.yml   (with a failure:  gh workflow run demo.yml -f fail=true)
 
 on:

@@ -27,7 +27,7 @@ function world() {
   return w;
 }
 
-test('on the beat: first the sign-in, then the quota', async () => {
+test('on the timer: first the sign-in, then the quota', async () => {
   const w = world();
   await w.account.watch();
   assert.deepEqual(w.calls, ['poll', 'mayPoll GitHub minutes', 'minutes poll zaho']);
@@ -50,7 +50,7 @@ test('if the sign-in fails, that is logged, and the quota still gets its turn', 
   assert.equal(w.calls.at(-1), 'minutes poll zaho');
 });
 
-test('another account: the quota anew right away, not only on the beat', async () => {
+test('another account: the quota anew right away, not only on the timer', async () => {
   const w = world();
   await w.account.changed();
   assert.deepEqual(w.calls, ['mayPoll GitHub minutes', 'minutes refresh zaho']);

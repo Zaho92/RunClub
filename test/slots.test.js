@@ -75,7 +75,7 @@ const isRunner = (name) => name === `run ${BASE}-runner`;
 const PROVISION = [
   `network create ${BASE}`,
   `volume create --label ${MARK} ${BASE}-work`, `volume create --label ${MARK} ${BASE}-sock`, `volume create --label ${MARK} ${BASE}-docker`,
-  `run ${BASE}-seed`, // set the volumes' permissions, copy the seed
+  `run ${BASE}-seed`, // set the volumes' permissions, copy the template
 ];
 const REMOVE = [
   `rm -f -v ${BASE}-runner ${BASE}-dind ${BASE}-seed`,
@@ -187,7 +187,7 @@ test('during the job the slot has its pair, name and registration; teardown happ
   assert.equal(removing, 'cleaning');
   assert.deepEqual(w.logs.at(-1), ['Job “Tests” – failed', REPO, 'fail']);
   const prepare = w.details.find((detail) => detail.name === `run ${BASE}-seed`).args;
-  assert.equal(prepare.at(-1), 'chown 1001:1001 /w /s /d'); // without a seed nothing is copied, only the permissions are set
+  assert.equal(prepare.at(-1), 'chown 1001:1001 /w /s /d'); // without a template nothing is copied, only the permissions are set
   assert.equal(prepare.includes('rc-seed-app:/seed:ro'), false);
 });
 

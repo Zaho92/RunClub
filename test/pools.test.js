@@ -141,7 +141,7 @@ test('a failed build leaves the reserve and is in the log; a cancelled one goes 
   assert.deepEqual(w.pool.reserve, []);
   assert.equal(w.logs.length, 1);
 
-  w.pools.replenish(w.pool); // the next tick refills
+  w.pools.replenish(w.pool); // the next timer refills
   assert.deepEqual(w.calls, ['provision 1', 'provision 2', 'provision 3', 'provision 4']);
 });
 

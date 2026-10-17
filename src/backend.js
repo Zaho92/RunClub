@@ -124,7 +124,7 @@ function start({
     file: path.join(dataDir, TOKEN_FILE), secrets, version, log: (text) => log(text),
     onAccount: () => { remote.watchQuota(); remote.refreshAll(); account.changed(); },
   });
-  const github = createGitHub({ token: auth.token, renew: auth.renew, timeout: GITHUB_TIMEOUT, version }); // conditional where possible, and with the state of the request limit
+  const github = createGitHub({ token: auth.token, renew: auth.renew, timeout: GITHUB_TIMEOUT, version }); // conditional where possible, and with the state of the rate limit
   const engine = createEngine({ run, timeout: DOCKER_TIMEOUT, ...engineFrom() }); // where Docker runs
   const { docker, dockerList } = engine;
 

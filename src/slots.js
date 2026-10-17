@@ -4,7 +4,7 @@
 // repeats all this (`slotLoop`).
 //
 // What belongs to the pool as a whole comes in as functions: the reserve (`replenish`, `discardReserve`, both from
-// pools.js), the seed (`withSeed`, `learnImages`, both from seed.js), from names.js the names of the caches and the
+// pools.js), the template (`withSeed`, `learnImages`, both from seed.js), from names.js the names of the caches and the
 // build service, the settings and limits of a repo. State both sides need (`stopping`, `dockerReady`,
 // `poolResting`) is asked for fresh on every use.
 //
@@ -53,7 +53,7 @@ const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT',
 //   github                  access to GitHub (see github.js)
 //   log(text, repo, kind, about), sleep(ms), timer (like `setTimeout`), newId() (id of a new pair)
 //   host, mark, image, dind name of the machine, mark of our own containers, image of the runner and of the daemon
-//   longTimeout             time limit for copying the seed
+//   longTimeout             time limit for copying the template
 //   metrics                 `{ meter(), recordJob(repo, record) }` (see metrics.js)
 //   settingsOf(repo), limitsOf(repo), seedVolume(repo), cacheVolume(repo), buildSocket(repo)
 //   stopping(), dockerReady(), poolResting(pool)
@@ -93,7 +93,7 @@ function createSlots({
     slot.kept = null;
   }
 
-  // Builds a pair up to just before registration: network, volumes, copy of the seed, running Docker daemon.
+  // Builds a pair up to just before registration: network, volumes, copy of the template, running Docker daemon.
   // That is the long part. It therefore happens ahead of time, as the pool's reserve
   // (`replenish` in pools.js); switching to the next job then only costs registration and starting the runner.
   async function provision(pool, cancelled) {
@@ -110,7 +110,7 @@ function createSlots({
     if (network.code !== 0) return giveUp(new Fault('m_netFailed', lastLine(network.stderr)));
     for (const volume of ['work', 'sock', 'docker']) await docker(['volume', 'create', ...label, `${base}-${volume}`]);
 
-    // The volumes belong to the user of daemon and runner; the seed is copied into the daemon's storage.
+    // The volumes belong to the user of daemon and runner; the template is copied into the daemon's storage.
     // Both in a container of their own, before the daemon starts.
     const prepared = await withSeed(pool.repo, false, async () => {
       pair.copied = cancelled() ? new Set() : new Set(pool.seeded);
@@ -119,7 +119,7 @@ function createSlots({
         ...asRoot(dind), `chown ${RUNNER_USER}:${RUNNER_USER} /w /s /d${seed.length ? ' && cp -a /seed/. /d/' : ''}`], { timeout: longTimeout });
     });
     if (cancelled()) return giveUp();
-    // If the volumes don't belong to the daemon's user, it does not start; half a copy of the seed is no good.
+    // If the volumes don't belong to the daemon's user, it does not start; half a copy of the template is no good.
     if (prepared.code !== 0) return giveUp(new Fault('m_volumesFailed', lastLine(prepared.stderr) || msg('m_exitCode', prepared.code)));
 
     // The job's daemon, without privileges (see dind.js): own network, own storage, reachable only through the shared

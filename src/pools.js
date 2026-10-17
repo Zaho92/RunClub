@@ -62,7 +62,7 @@ function createPools({
         const current = limitRules.key(limitsOf(pool.repo));
         await discardReserve(pool, (entry) => entry.built === current);
       })
-      // Refill even if tearing down fails: otherwise the reserve would stay empty until the next minute tick.
+      // Refill even if tearing down fails: otherwise the reserve would stay empty until the next minute timer.
       .catch(logError(pool.repo))
       .then(() => replenish(pool))
       .catch(logError(pool.repo));

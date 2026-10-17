@@ -137,7 +137,7 @@ test('repos are queried more often where one of our slots works or a job waits f
 
 const AT_1705 = new Date(2026, 9, 13, 17, 5).toISOString(); // 17:05 in this machine's local time
 
-test('the request limit: a message only when it flips; after running out CI_RUNNER is read again', async () => {
+test('the rate limit: a message only when it flips; after running out CI_RUNNER is read again', async () => {
   const cases = [
     [{ paused: true, resetAt: AT_1705 }, 'GitHub asks for a pause (too many requests in a short time). No polling until 17:05.'],
     [{ state: QUOTA.OUT, remaining: 10, limit: 5000, resetAt: AT_1705 }, 'GitHub requests are used up (10 of 5,000 left). No polling until 17:05; the rest is kept for registering new runners.'],
@@ -255,7 +255,7 @@ test('a pool counts as checked only after a successful check and only for CHECK_
   fail(new Error('no network'));
   await w.remote.watchVisibility(REPO);
   assert.deepEqual(w.guarded, [['rest', REPO]]);
-  assert.deepEqual(w.logs.map(([text, , kind]) => [text.slice(0, 15), kind]), [['Repo visibility', 'error'], ['Could not check', 'error']]);
+  assert.deepEqual(w.logs.map(([text, , kind]) => [text.slice(0, 32), kind]), [['Repo visibility – no network', 'error'], ['Could not check whether the repo', 'error']]);
   assert.equal(retries().length, 1);
   await w.remote.watchVisibility(REPO); // e.g. housekeeping in between: no message, no second attempt
   assert.deepEqual([w.guarded.length, w.logs.length, retries().length], [1, 2, 1]);

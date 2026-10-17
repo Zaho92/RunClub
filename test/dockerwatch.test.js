@@ -224,7 +224,7 @@ test('in operation: only free runners without a connection that belong to no sta
   await w.watch.removeRegistrations('owner/App', { keep: () => { asked = true; return new Set(['PC-linux-d4']); }, offline: true });
   assert.equal(asked, true);
   assert.deepEqual(w.calls, ['get repos/owner/App/actions/runners?per_page=100', 'send DELETE repos/owner/App/actions/runners/1']);
-  assert.deepEqual(w.logs, [['Removed 1 orphaned runners from GitHub', 'owner/App']]);
+  assert.deepEqual(w.logs, [['Orphaned runners removed from GitHub: 1', 'owner/App']]);
 });
 
 test('if removal at GitHub fails, it is logged with the project, and it carries on', async () => {
@@ -248,7 +248,7 @@ test('after an interruption only what belongs to no standing pair goes', async (
     `volume ls -q --filter label=${MARK}`, 'volume rm -f rc-app-2-work rc-app-2-docker',
     `network ls --filter label=${MARK} --format {{.Name}}`, 'network inspect rc-app-2 --format {{range .Containers}}{{println .Name}}{{end}}', 'network rm rc-app-2',
   ]);
-  assert.deepEqual(w.logs, [['Removed leftovers after the interruption: 1 containers, 2 volumes']]);
+  assert.deepEqual(w.logs, [['Removed leftovers after the interruption: containers: 1, volumes: 2']]);
 
   // If nothing is lying around, nothing is logged either.
   const quiet = world();

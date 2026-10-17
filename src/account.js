@@ -1,5 +1,5 @@
 // The GitHub account: the sign-in (through the GitHub App, see auth.js) and the GitHub Actions minutes quota
-// (see minutes.js). Both run on the same beat, the sign-in first: the quota needs its state.
+// (see minutes.js). Both run on the same timer, the sign-in first: the quota needs its state.
 
 const { createMinutes } = require('./minutes');
 const { msg } = require('./messages');

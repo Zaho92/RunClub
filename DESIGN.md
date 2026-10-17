@@ -321,7 +321,7 @@ Borders are 1 px. Solid means: its turn is now or was. Dashed (pill) and dotted 
 The signature component; a job in the network map, as a whole a link to the job on GitHub.
 - **Structure:** Three-column grid: state icon (22 px), name (`ink`, 400, truncated with an ellipsis), time on the right. The height is fixed. The details (step, slot, usual duration; 12 px `muted`) lie in a second surface in the shape of the pill, exactly behind its content; it shifts nothing.
 - **Shape and color:** Surface `surface`, border 1 px `edge`, radius 21 px, padding 8 px 16 px 8 px 9 px.
-- **Hover / focus:** Surface `raised`, border `track` (180 ms). This surface (`raised`, border `track`, radius 21 px, no shadow) grows downwards after an 80 ms delay over 280 ms (`grid-template-rows` 0fr → 1fr); corners and border do not change. At the same time the tracks of this pill stand out in `ink` and all others drop to 30 % opacity.
+- **Hover / focus:** Surface `raised`, border `track` (200 ms). This surface (`raised`, border `track`, radius 21 px, no shadow) grows downwards after an 80 ms delay over 280 ms (`grid-template-rows` 0fr → 1fr); corners and border do not change. At the same time the tracks of this pill stand out in `ink` and all others drop to 30 % opacity.
 - **Running:** At the bottom edge a 2 px stroke in `run` grows up to the usual duration. If the job takes noticeably longer (over 115 % and more than 10 s), the time turns `run`.
 - **Failed:** Border `fail-edge`; a second, shortened line names in both modes, in `fail-text`, the step at which it failed.
 - **Waiting / skipped:** Transparent, dashed border, name `muted`; the time is an estimate ("about 2:19").
@@ -344,7 +344,7 @@ See Shapes. A track to a waiting or skipped job is dotted in `track-open`. Color
 A quick overview in the band: per project, how many runners it has and what they are doing right now. Run times, job names and usage are not shown here.
 - **Structure:** Label "Slots", below it the projects in two columns (gap 18 px). One row of 22 px per project: on the left the short name (13 px, 400, `text`, truncated with an ellipsis), on the right without wrapping one state icon per slot (14 px, border 1.5 px, 4 px gap), then after 8 px the reserve. The reserve is as wide in all rows as the widest one, so the slot icons end at one edge.
 - **One project:** In the view of a single project there is one row per slot: icon (16 px), "Slot 2" and the state in words (`muted`), below that the reserve with its dots and "1 of 2 ready". No legend is needed there.
-- **States:** the same icons as in the network map. Working: running (`run`). Ready: empty ring. Starting, waiting, waiting for Docker, cleaning up: dot in the ring (`wait`, larger here than in the network map so it stands out from the empty ring); the legend calls this "starting", the tooltip gives the exact state. Faulty: cross on `fail`, the only red. Off and a slot paused on its own: dash in the ring (`skip`). A paused project shows "paused" in `muted` instead of the icons, a blocked one (repo public, workflows from forks allowed or not checkable) the cross on `fail` and "blocked". In the rail and the quiet projects a blocked project likewise shows the cross and "blocked", one without a fresh check with GitHub a dot in the ring (`wait`) and "being checked".
+- **States:** the same icons as in the network map. Working: running (`run`). Ready: empty ring. Starting, waiting, waiting for Docker, cleaning up: dot in the ring (`wait`, larger here than in the network map so it stands out from the empty ring); the legend calls this "starting", the tooltip gives the exact state. Faulty: cross on `fail`, the only red. Off and a slot paused on its own: dash in the ring (`skip`). A paused project shows "paused" in `muted` instead of the icons, a blocked one (repo public, workflows from forks allowed or not checkable) the cross on `fail` and "blocked". In the rail and the quiet projects a blocked project likewise shows the cross and "blocked", one without a fresh check with GitHub a dot in the ring (`wait`) and "being checked". In the rail a project whose repo GitHub no longer finds shows the cross on `fail` and "not found"; running runs take precedence, "not found" precedes "blocked".
 - **Reserve:** one dot (7 px, border 1.5 px `track`) per runner, filled when it is ready, half filled while it is still being prepared (an empty ring would mean "ready" in the slots).
 - **Tooltip:** per icon the slot, state and, when working, the job ("Slot 2 · working · build"), per reserve dot the project's total ("Reserve: 1 of 3 ready"); on the name the full repo.
 - **Legend:** fixed at the bottom of the box, outside the scrolling part (11 px `muted`): working, ready, starting, Reserve; faulty and off only when they currently exist. If reserve is missing anywhere, the full and the half dot stand before "Reserve", and the tooltip explains them. In a narrow window the rows scroll from 132 px.
@@ -419,9 +419,10 @@ rows are at most as wide as running text (56ch).
   ("Choose on GitHub which accounts and repos RunClub may provide runners for."), with the button "Install RunClub on
   GitHub" (a link that opens in the browser) and the hint on `runs-on` below. Once repos are granted, the step offers
   them as buttons, below them "Repo missing?" with the link "Install RunClub for another account or an org"; the same
-  sentence closes "Add a project" in the settings. If GitHub no longer finds the repo of a project, the expanded row
-  says so in `fail-text` with "Grant access on GitHub", and its header carries the tag "not found" in `fail-text`. When
-  the window comes back from the browser, RunClub reads the repos again.
+  sentence stands in "Add a project" in the settings, after the quick picks. If GitHub no longer finds the repo of a
+  project, the expanded row says so in `fail-text` with "Grant access on GitHub", its header carries the tag "not
+  found" in `fail-text`, and the rail shows the cross on `fail` and "not found". When the window comes back from the
+  browser, RunClub reads the repos again.
 
 
 ### Set up Docker
@@ -444,7 +445,7 @@ Once everything is there, the section disappears by itself; RunClub checks every
 ### Project row
 A project in the settings: surface `surface`, border 1 px `edge`, radius 8 px. The header holds the arrow, the name, the total of the caches in `muted` and on the right the number of slots with one fewer and one more. A click on the header expands the row downwards (the same motion as the pill: `grid-template-rows` 0fr → 1fr over 280 ms, the arrow rotates); only one is ever open. Expanded, set off by a hairline: where the jobs go, the limits of the project (segmented control "Shared" or "Own"; with own values the same four sliders as in the Limits section), the caches as rows with size and an icon to clear them, below that the buttons. A project with own limits carries the tag "own limits" in its header. If the limits do not fit the measured need, that also appears as a tag in the header and as a sentence at the limits: "limit reached" and "limit tight" (over 85 %) as a warning in red, "limit generous" (more than twice the need) muted; why generous protects less is in the info on the sentence. The suggestion from the measurements stands as one sentence in `text`, what it is derived from in the info after it. If the workflows do not read `CI_RUNNER`, a red sentence says so with the expression for `runs-on`; what the expression does is in the info. Hover lifts a closed row one step.
 
-The last row of the list is "Add a project": transparent with a dashed border in `cap`, because nothing is here yet.
+The last row of the list is "Add a project": transparent with a dashed border in `cap`, because nothing is here yet. In the frame: the label "Add a project", the input field ("Search a repo or owner/name") with the list of the repos a pool is possible for, the button "Create pool" with a plus; if there are such repos, "Available:" with up to three of them as buttons (short name, tooltip "Create a pool for …"); and, when the installation on GitHub is known, "Repo missing?" with the link "Install RunClub for another account or an org". Below, outside the frame, the hint on `runs-on` in `muted` ("The repo's jobs need runs-on: [self-hosted, Linux].").
 
 ### Memory bar
 What all slots together may use in memory, measured against the Docker VM. Above the bar the figure (`figure`) with the reference value. The bar itself: one field per slot (26 px tall, radius 6 px), grouped by project and labeled below; the width of a field follows its project's limit. A project with the cache turned on carries a further field at the end of its group for its build service (surface `cap`, as wide as its Docker limit); the label names it separately ("2 × 8 GB + build 4 GB"). The build service also runs while the pool is paused: a paused project then shows only this field. The build services count first, the slots fit into the rest. Fields that fit into the VM at full limit are filled (`raised`, border `cap`); the others are transparent with a dashed border. A vertical mark in `track` shows the limit of the VM. The figure only turns red when a single job (with its project's build service) may already use more than the VM has; that not all slots fit at once is the normal case and stands as a short sentence in `muted` below ("…; that is common"). The info on the sentence says why it is common, what gives more safety, and how to read the bar.
@@ -462,7 +463,7 @@ A few options in a shared frame (`edge`, radius 8 px), usually two; the log filt
 Surface `rail` (so recessed), border 1 px `edge`, radius 8 px, padding 6 px 12 px, placeholder `muted`, caret `chart`.
 
 ### Tag
-Fully rounded, 12 px, border 1 px `edge`, type `muted`, transparent; for "paused" and "rebuilding". As a warning (Docker or GitHub faulty; if the machine lacks something for Docker, the rows from "Set up Docker" stand instead of the tag; not signed in to GitHub, GitHub limit reached, a project blocked; then also "blocked" in the header of the project card) type `fail-text`, border `fail-edge`.
+Fully rounded, 12 px, border 1 px `edge`, type `muted`, transparent; for "paused" and "rebuilding". As a warning (Docker or GitHub faulty; if the machine lacks something for Docker, the rows from "Set up Docker" stand instead of the tag; not signed in to GitHub, GitHub limit reached, a project blocked; then also "blocked" in the header of the project card; "not found" in the header of a project whose repo GitHub no longer finds) type `fail-text`, border `fail-edge`.
 
 ### Tables and rows
 In "Usage" there is one row per job; if the same job name occurs in two workflows of one project, the workflow follows the name in `muted`.
@@ -594,7 +595,7 @@ In a narrow window the wordmark (18 px) sits in the strip, which there takes the
 Every operable element shows, with keyboard use, a 2 px ring in `chart` with a 2 px offset.
 
 ### Motion
-One curve for everything spatial: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 to 220 ms. Color changes 150 ms. The progress stroke runs linearly once per second. With `prefers-reduced-motion` the transitions of pills and buttons are dropped.
+One curve for everything spatial: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 200 to 280 ms. Color changes 150 ms. The progress stroke runs linearly once per second. With `prefers-reduced-motion` the transitions of pills and buttons are dropped.
 
 ## Do's and Don'ts
 

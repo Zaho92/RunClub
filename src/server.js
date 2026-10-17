@@ -52,7 +52,7 @@ function createServer({ access, token, uiFile, fontsDir, routes, actions }) {
   return http.createServer(async (request, response) => {
     const json = (code, data) => { response.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(data)); };
     const get = (url) => request.method === 'GET' && request.url === url;
-    // Only this machine under its own name: keeps out redirected names of foreign pages.
+    // Only this machine under its own name: keeps out other sites' host names pointed here (DNS rebinding).
     if (!access.hostAllowed(request.headers)) return json(403, failure(msg('m_wrongHost')));
     if (get('/api/ping')) return json(200, { ok: true });
     const font = request.method === 'GET' && request.url.match(FONT);

@@ -82,7 +82,7 @@ test('if the VM gets tight, that is in the log, and vmTight names the free memor
   assert.equal(w.logs[1][0], 'The Docker VM has 5 GB memory free again.');
 });
 
-test('each measuring beat passes the consumption to the meter of a working slot, every third becomes a point in the history', () => {
+test('each measuring interval passes the consumption to the meter of a working slot, every third becomes a point in the history', () => {
   const w = world();
   const added = [];
   w.pools = [{ slots: [{ base: 'rc-app-1', meter: { add: (...parts) => added.push(parts) } }, { base: 'rc-app-2', meter: null }, { base: null, meter: { add: () => assert.fail('without a pair') } }] }];

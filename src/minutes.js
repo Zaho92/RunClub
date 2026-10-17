@@ -118,7 +118,7 @@ function createMinutes({ github, log = () => {}, now = Date.now }) {
     return reading.promise;
   }
 
-  // For the beat in operation: fetches the figures only if there are no valid ones for the account (another account, new
+  // For the timer in operation: fetches the figures only if there are no valid ones for the account (another account, new
   // month) or the last attempt is long enough ago. After a failure it asks again at growing intervals.
   function poll(login) {
     const due = !asked || asked.login !== login || now() >= asked.nextAt || (!failures && !valid(login));
