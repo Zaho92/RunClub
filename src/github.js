@@ -4,7 +4,7 @@
 // Lesen     Jede Abfrage (`get`) merkt sich Antwort und Kennung (ETag) und fragt beim nächsten Mal bedingt. Hat sich
 //           nichts geändert, antwortet GitHub mit 304; das zählt nicht gegen das Limit.
 // Limit     Der Stand kommt aus den Kopfzeilen jeder Antwort und aus `rate_limit` (zählt ebenfalls nicht). Das Limit
-//           gilt für das ganze Konto: Auch `gh` im Terminal und andere Werkzeuge verbrauchen daraus.
+//           gilt für das ganze Konto: Auch andere Werkzeuge mit derselben Anmeldung (etwa `gh` im Terminal) verbrauchen daraus.
 // Pause     Bittet GitHub um Ruhe (403/429 mit `retry-after`, das zweite Limit), wird bis dahin nicht gelesen.
 // Zustand   ok | tight (weniger als 15 % frei: seltener abfragen) | out (nur noch die Reserve: nicht mehr lesen,
 //           der Rest bleibt für das Anmelden neuer Runner) | unknown (kein Stand, oder das Fenster ist abgelaufen
@@ -36,6 +36,9 @@ class GitHubError extends Error {
     this.status = status;
   }
 }
+
+// Die Kopfzeilen jeder Anfrage an API.
+const apiHeaders = (token, version) => ({ authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': API_VERSION, 'user-agent': `RunClub/${version}` });
 
 // Friert eine Antwort samt allem darin ein.
 function deepFreeze(value) {
@@ -99,7 +102,7 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
 
   // Eine Anfrage, einmal. Liefert die Antwort von fetch; wirft nur, wenn GitHub nicht antwortet.
   async function once(secret, method, path, { body, etag }) {
-    const headers = { authorization: `Bearer ${secret}`, accept: 'application/vnd.github+json', 'x-github-api-version': API_VERSION, 'user-agent': `RunClub/${version}` };
+    const headers = apiHeaders(secret, version);
     if (etag) headers['if-none-match'] = etag;
     if (body !== undefined) headers['content-type'] = 'application/json';
     try {
@@ -120,7 +123,11 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
     let response = await once(secret, method, path, options);
     if (response.status === 401) {
       const next = await renew(secret).catch(() => null);
-      if (next && next !== secret) { secret = next; response = await once(secret, method, path, options); }
+      if (next && next !== secret) {
+        await response.text().catch(() => {}); // die abgelehnte Antwort lesen, damit ihre Verbindung frei wird
+        secret = next;
+        response = await once(secret, method, path, options);
+      }
     }
     const headers = response.headers;
     if ((headers.get('x-ratelimit-resource') ?? 'core') === 'core') note(headers.get('x-ratelimit-limit'), headers.get('x-ratelimit-remaining'), headers.get('x-ratelimit-reset'));
@@ -197,4 +204,4 @@ async function unregisterRunner(github, repo, runnerId) {
   }
 }
 
-module.exports = { createGitHub, GitHubError, deepFreeze, unregisterRunner, STATE, PAGE_MAX, API };
+module.exports = { createGitHub, GitHubError, deepFreeze, unregisterRunner, apiHeaders, STATE, PAGE_MAX, API };

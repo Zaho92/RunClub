@@ -200,10 +200,6 @@ Bewusst so gelassen:
   Neustart mit gesichertem Token, Erneuern nach acht Stunden (oder mit künstlich verkürzter Ablaufzeit), ob `GET /user`
   mit dem Token der App `plan.name` liefert (sonst zeigt „Verbrauch“ den Tarif als unbekannt), und wie die App dasteht,
   solange niemand angemeldet ist.
-  Ebenfalls nur gegen ein nachgestelltes `gh` geprüft: dass `gh` mit leeren Umgebungsvariablen (`GH_TOKEN`, `GH_HOST`,
-  `GH_DEBUG` und verwandte, siehe `GH_ENV` in `src/github.js`) so arbeitet, als fehlten sie.
-  Bekannt und hingenommen: Wird die App hart beendet (Absturz, Task-Manager), bleibt ein wartendes `gh` bis zu einer
-  Viertelstunde stehen; eine Bestätigung im Browser gilt dann trotzdem.
 - **Abmelden von Windows** (`watchSession` in `src/main.js`, `releaseIdle` in `src/runners.js`): nur am Code geprüft. Nach
   einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
   Rechners stehen geblieben sind.
@@ -255,10 +251,10 @@ Bewusst so gelassen:
 - **Zuordnung im Netzplan** für Matrix-Jobs, Namen mit Ausdruck und aufgerufene Workflows: Die Namensformen von GitHub
   stammen aus der Dokumentation, nicht aus einem echten Lauf. Die eigenen Workflows nutzen nichts davon.
 - **Tägliches Neubauen der Abbilder von Runner und Docker-Daemon** und der Start ohne Netz mit vorhandenem Abbild: nur am Code geprüft.
-- **Pause auf Bitte von GitHub** (403/429 mit `retry-after`): nur gegen ein nachgestelltes `gh` getestet.
+- **Pause auf Bitte von GitHub** (403/429 mit `retry-after`): nur gegen ein nachgestelltes GitHub getestet.
 - **GitHub-Anfragen knapp und aufgebraucht.** Echt gemessen ist nur der Normalfall (bedingte Abfragen zählen nicht; im
   Leerlauf 0 statt rund 36 Anfragen in drei Minuten). Seltener abfragen, nicht mehr abfragen und die Meldungen dazu
-  sind nur gegen ein nachgestelltes `gh` getestet (`test/github.test.js`) und als Standbild angesehen.
+  sind nur gegen ein nachgestelltes GitHub getestet (`test/github.test.js`) und als Standbild angesehen.
 - **Protokoll speichern und kopieren** im Fenster der App. Geprüft sind die Endpunkte (`/api/log`, `/api/log/file`) an
   einer Testinstanz und die Darstellung als Standbild. Am echten Fenster prüfen: „Speichern“ öffnet den Dialog von
   Windows, „Kopieren“ legt die ganze Datei in die Zwischenablage und meldet die Zahl der Zeilen.

@@ -72,13 +72,16 @@ Docker daemon.
   but only in repositories the app is installed on. It requests: Administration (read and write: just-in-time runner
   registration, removing runners, the fork pull request setting), Actions (read and write: runs, jobs, re-runs),
   Variables (read and write: `CI_RUNNER`), Checks (read), Contents (read: workflow files and RunClub's own releases),
-  Metadata (read), and for the account Plan (read: billing for the minutes quota). It cannot change code.
+  Metadata (read), and for the account Plan (read: billing for the minutes quota). It cannot change code directly, but
+  Administration (write) reaches further: with it, a stolen token could change repository settings, collaborators and
+  visibility, and through a new collaborator also code. RunClub itself uses it only for runners and the fork setting.
 - **Token storage.** The user access token expires after eight hours and is renewed with its refresh token, which
-  GitHub accepts only once; the new pair is written before it is used. Both are stored in RunClub's data folder
+  GitHub accepts only once; the new pair is written before it is used. If Windows holds the file and the rename
+  fails, the new pair stays next to it (`github.token.neu`) and wins at the next start; the log says so. Both are stored in RunClub's data folder
   (`github.token`), encrypted with Electron's `safeStorage` (DPAPI, bound to the Windows user). Without `safeStorage`
   (the backend alone) the token lives in memory only. The token is never written to the log, and the one-time code
   only appears in the window.
-- **Signing out** forgets the token on this computer. Revoking it on GitHub needs the app's client secret, which
+- **Signing out** forgets the token on this computer and deletes both files; if that fails, the log says so. Revoking it on GitHub needs the app's client secret, which
   RunClub does not ship; the window links to GitHub's “Authorized GitHub Apps” page for that. The token is only
   ever sent to `api.github.com` (and `github.com` for signing in); the updater drops it when a download redirects
   elsewhere.

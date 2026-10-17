@@ -158,6 +158,9 @@ const DE = {
   m_loggedIn: 'Bei GitHub angemeldet als {0}.',
   m_loggedOut: 'Bei GitHub abgemeldet ({0}).',
   m_signInLost: 'GitHub nimmt die Anmeldung von {0} nicht mehr an; bitte neu anmelden.',
+  m_githubNoAccount: 'GitHub nennt kein Konto zur Anmeldung.',
+  m_tokenNotSaved: 'Die Anmeldung ließ sich nicht sichern ({0}); sie gilt bis zum Ende dieses Programms.',
+  m_tokenNotRemoved: 'Das Token ließ sich nicht von der Platte löschen ({0}); es liegt noch verschlüsselt im Datenordner (github.token).',
 
   // Programm (siehe backend.js, lifecycle.js, settings.js, server.js, main.js)
   m_listening: 'Runner-Anzeige: {0}',

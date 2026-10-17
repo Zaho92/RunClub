@@ -21,8 +21,8 @@
 
 const fs = require('node:fs');
 const { SECOND, MINUTE } = require('./units');
-const { API } = require('./github');
-const { msg, Fault } = require('./messages');
+const { API, apiHeaders } = require('./github');
+const { msg, Fault, reason } = require('./messages');
 
 // Die GitHub-App „RunClub“ (https://github.com/settings/apps/runclub-runners). Die Client-ID ist kein Geheimnis.
 const CLIENT_ID = 'Iv23liMHlB06HEzY8bPM';
@@ -47,6 +47,8 @@ const SLOW_DOWN = 5 * SECOND; // so viel länger wird gewartet, wenn GitHub um l
 const USER_CODE = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/; // so sieht ein Konto bei GitHub aus
 const SECRET = /^[\w.-]{10,512}$/; // ein Token oder Schlüssel, wie GitHub sie ausgibt; nichts für eine Kopfzeile Gefährliches
+const USER_TRIES = 3; // so oft wird nach der Bestätigung das Konto erfragt, bevor der Ablauf scheitert
+const RENAME_TRIES = 5; // Windows hält eine eben geschriebene Datei manchmal kurz fest (Virenscanner, Index)
 
 // Wartet `ms`, oder bis `signal` abbricht.
 function pause(ms, signal) {
@@ -89,9 +91,21 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     };
   }
 
+  const draft = () => `${file}.neu`;
+  function read(name) {
+    try { return { entry: valid(JSON.parse(secrets.decrypt(fs.readFileSync(name)).toString('utf8'))), at: fs.statSync(name).mtimeMs }; } catch { return null; }
+  }
+  // Ließ sich ein neuer Stand nicht an seinen Platz bringen, liegt er noch daneben (siehe `keep`); dann gilt der neuere.
   function load() {
-    if (!file || !secrets || !fs.existsSync(file)) return null;
-    try { return valid(JSON.parse(secrets.decrypt(fs.readFileSync(file)).toString('utf8'))); } catch { return null; }
+    if (!file || !secrets) return null;
+    const found = [read(file), read(draft())].filter((item) => item?.entry).sort((a, b) => b.at - a.at);
+    return found[0]?.entry ?? null;
+  }
+
+  function settle(name) {
+    for (let tries = 1; ; tries += 1) {
+      try { fs.renameSync(name, file); return; } catch (error) { if (tries >= RENAME_TRIES) throw error; }
+    }
   }
 
   // Erst sichern, dann gilt es: Ein neuer Erneuerungsschlüssel darf nicht verloren gehen, nachdem der alte verbraucht ist.
@@ -99,11 +113,17 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     if (file && secrets) {
       try {
         if (entry) {
-          const draft = `${file}.neu`;
-          fs.writeFileSync(draft, secrets.encrypt(Buffer.from(JSON.stringify(entry), 'utf8')));
-          fs.renameSync(draft, file);
-        } else fs.rmSync(file, { force: true });
-      } catch { /* dann gilt es nur bis zum Ende dieses Programms */ }
+          fs.writeFileSync(draft(), secrets.encrypt(Buffer.from(JSON.stringify(entry), 'utf8')));
+          settle(draft());
+        } else {
+          fs.rmSync(draft(), { force: true });
+          fs.rmSync(file, { force: true });
+        }
+      } catch (error) {
+        // Neu angemeldet oder erneuert: Der neue Stand liegt dann wenigstens daneben und gilt beim nächsten Start (siehe
+        // `load`). Abgemeldet: Das Token bliebe auf der Platte, also muss der Nutzer davon wissen.
+        log(msg(entry ? 'm_tokenNotSaved' : 'm_tokenNotRemoved', reason(error)));
+      }
     }
     held = entry;
     current = entry ? { state: STATE.IN, login: entry.login } : { state: STATE.OUT, login: null };
@@ -113,6 +133,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   function lost() {
     const login = held?.login;
     keep(null);
+    checked = false;
     if (login) log(msg('m_signInLost', login));
   }
 
@@ -134,13 +155,10 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
 
   // Das Konto zum Token. Wirft mit `status`, wenn GitHub ablehnt.
   async function userOf(token) {
-    const response = await fetch(`${API}/user`, {
-      headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': `RunClub/${version}` },
-      signal: AbortSignal.timeout(timeout),
-    });
+    const response = await fetch(`${API}/user`, { headers: apiHeaders(token, version), signal: AbortSignal.timeout(timeout) });
     if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
     const login = String((await response.json())?.login ?? '');
-    if (!LOGIN.test(login)) throw new Error('GitHub nennt kein Konto.');
+    if (!LOGIN.test(login)) throw new Fault('m_githubNoAccount');
     return login;
   }
 
@@ -187,7 +205,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   async function renew(rejected) {
     if (!held) return null;
     if (held.token !== rejected) return held.token;
-    if (!held.refresh) { lost(); return null; }
+    if (!held.refresh || (held.refreshExpiresAt && now() >= held.refreshExpiresAt)) { lost(); return null; }
     return renewOnce();
   }
 
@@ -243,8 +261,14 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
       mine.settled = true;
       const entry = granted(answer, null);
       if (!entry) { end(mine, FLOW.FAILED, WHY.GITHUB); return; }
+      // Das Token ist erteilt; ein kurzer Aussetzer beim Erfragen des Kontos soll es nicht verwerfen.
       let login;
-      try { login = await userOf(entry.token); } catch (error) { end(mine, FLOW.FAILED, WHY.GITHUB, said(error)); return; }
+      for (let tries = 1; !login; tries += 1) {
+        try { login = await userOf(entry.token); } catch (error) {
+          if (tries >= USER_TRIES || mine.controller.signal.aborted) { end(mine, FLOW.FAILED, WHY.GITHUB, error.msg ? null : said(error)); return; }
+          await wait(interval, mine.controller.signal);
+        }
+      }
       keep({ ...entry, login });
       checked = true;
       end(mine, FLOW.DONE);

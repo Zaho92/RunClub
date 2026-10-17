@@ -16,7 +16,8 @@ installiert ist: [RunClub installieren](https://github.com/apps/runclub-runners/
 Konto und jede Organisation, deren Repos Runner bekommen sollen. Die App darf je Repo Runner an- und abmelden
 (Administration), Läufe lesen und erneut starten (Actions), `CI_RUNNER` setzen (Variables), Prüfergebnisse lesen
 (Checks) und Code lesen (Contents, für die Workflow-Dateien und die Releases von RunClub), dazu die Abrechnung des
-Kontos für das Minuten-Kontingent (Plan). Code ändern darf sie nicht.
+Kontos für das Minuten-Kontingent (Plan). Code ändern darf sie nicht direkt; Administration erlaubt aber auch,
+Einstellungen, Mitarbeiter und Sichtbarkeit eines Repos zu ändern (RunClub nutzt es nur für die Runner).
 
 Das Token gilt acht Stunden und erneuert sich von selbst; es liegt mit dem Schlüssel des Windows-Benutzers
 verschlüsselt in `%APPDATA%\RunClub\data\github.token`. Abmelden vergisst es auf diesem Rechner; die Freigabe bei

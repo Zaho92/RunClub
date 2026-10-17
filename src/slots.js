@@ -172,7 +172,7 @@ function createSlots({
     } catch (error) {
       // Meldet GitHub, dass es den Runner schon gibt (eine frühere Anmeldung kam dort an, die Antwort aber nicht),
       // hilft ein neuer Versuch mit demselben Namen nicht: Dann geht das Paar, und das nächste trägt einen neuen.
-      if (!/already exists/i.test(error.message) && error.status !== 409 && error.status !== 422) slot.kept = pair;
+      if (error.status !== 409 && error.status !== 422) slot.kept = pair;
       throw error;
     }
     slot.runnerId = jit.runner?.id ?? null;

@@ -165,3 +165,12 @@ test('eine Antwort mit Fehler steht in der Anzeige', async (t) => {
   assert.equal(logged.length, 1); // derselbe Fehler nur einmal im Protokoll
   assert.match(logged[0], /404/);
 });
+
+test('nennt der Release für eine Datei eine andere Adresse als die von GitHub, geht das Token nicht dorthin', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0');
+  for (const asset of w.releases[0].assets) asset.url = asset.url.replace('https://api.github.com/repos/wer/RunClub/releases/assets/', 'https://objects.example/');
+  await w.updater.check();
+  assert.equal(w.updater.view().phase, 'ready');
+  assert.ok(w.calls.filter((call) => call.url.startsWith('https://objects.example/')).every((call) => call.authorization === null));
+});

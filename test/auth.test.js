@@ -258,3 +258,54 @@ test('Code und Token stehen nie im Protokoll', async () => {
   await auth.logout();
   assert.equal(logs.some((line) => line.includes(CODE) || line.includes('ghu_') || line.includes('ghr_')), false);
 });
+
+test('lehnt GitHub ein Token ab und ist der Schlüssel abgelaufen, ist der Nutzer abgemeldet', async () => {
+  const { auth, calls } = fake({ stored: { ...STORED, refreshExpiresAt: NOW - 1 } });
+  assert.equal(await auth.renew('ghu_gesichert_eins'), null);
+  assert.equal(auth.view().state, 'out');
+  assert.deepEqual(calls, []);
+});
+
+test('ließ sich ein neuer Stand nicht an seinen Platz bringen, gilt er beim nächsten Start', async () => {
+  const env = fake({ stored: STORED });
+  const draft = `${env.file}.neu`;
+  env.world.tokens.push(json(200, grant(2)));
+  const origin = fs.renameSync;
+  fs.renameSync = () => { throw Object.assign(new Error('belegt'), { code: 'EBUSY' }); };
+  try { assert.equal(await env.auth.renew('ghu_gesichert_eins'), 'ghu_token_nummer_2'); } finally { fs.renameSync = origin; }
+  assert.ok(fs.existsSync(draft));
+  fs.utimesSync(draft, new Date(), new Date(Date.now() + 1000));
+  assert.match(env.logs[0], /ließ sich nicht sichern/);
+  assert.equal(await env.make().token(), 'ghu_token_nummer_2');
+});
+
+test('Abmelden löscht auch einen liegengebliebenen neuen Stand', async () => {
+  const { auth, file } = fake({ stored: STORED });
+  fs.writeFileSync(`${file}.neu`, secrets.encrypt(Buffer.from(JSON.stringify(STORED))));
+  await auth.logout();
+  assert.equal(fs.existsSync(`${file}.neu`), false);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('nach der Bestätigung wird das Konto bei einem Aussetzer noch einmal erfragt', async () => {
+  const { auth, world, step } = fake();
+  await auth.login();
+  let asked = 0;
+  world.user = () => { asked += 1; return asked === 1 ? json(502, {}) : json(200, { login: 'Zaho92' }); };
+  world.tokens.push(json(200, grant(1)));
+  await step();
+  await step();
+  assert.equal(asked, 2);
+  assert.equal(auth.view().state, 'in');
+});
+
+test('nennt GitHub kein Konto, scheitert der Ablauf ohne eigenen Satz als Text von GitHub', async () => {
+  const { auth, world, step } = fake();
+  await auth.login();
+  world.user = () => json(200, { login: '' });
+  world.tokens.push(json(200, grant(1)));
+  await step();
+  await step();
+  await step();
+  assert.deepEqual(auth.view().flow, { state: 'failed', code: null, url: null, why: 'github', error: null });
+});

@@ -134,7 +134,8 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   }
 
   const asset = (release, name) => (release.assets ?? []).find((item) => item.name === name);
-  const loadAsset = (item) => request(item.url, { accept: 'application/octet-stream', auth: true });
+  // Das Token geht nur an die Schnittstelle von GitHub, auch wenn die Antwort eine andere Adresse nennt.
+  const loadAsset = (item) => request(item.url, { accept: 'application/octet-stream', auth: new URL(item.url).origin === API });
 
   // Lädt den Installer neben die Zieldatei, prüft ihn und benennt ihn erst dann um.
   async function download(item, info, target) {

@@ -257,8 +257,8 @@ test('ohne Fehlerausgabe nennt die Meldung den Code; nach der Pause versucht der
 const BUILD = [...PROVISION, `run ${BASE}-dind`, `exec ${BASE}-dind info`];
 
 test('meldet GitHub, dass es den Runner schon gibt, wird das Paar nicht behalten: derselbe Name hülfe nicht', async () => {
-  // Erkannt am Status (409, 422) oder am Text.
-  for (const error of [new GitHubError(409, 'Already exists - A runner with the name already exists.'), new GitHubError(422, 'Validation Failed'), new Error('A runner with the name already exists.')]) {
+  // Erkannt am Status (409, 422).
+  for (const error of [new GitHubError(409, 'Already exists - A runner with the name already exists.'), new GitHubError(422, 'Validation Failed')]) {
     const w = world();
     w.githubFails = error;
     w.onSleep = () => { if (w.slept.length === 1) w.slot.retired = true; };
