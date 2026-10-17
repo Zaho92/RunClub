@@ -1232,8 +1232,7 @@ function quotaStop() {
 // the GitHub requests. The limit is the plan's included minutes (table in minutes.js); without it there is only
 // the figure. The surface states the state briefly, reasons and consequences are in the info at the heading. Tight asks for nothing. Used up is red because there is a way out: own runners or a budget.
 // Whoever pays beyond what is included has a budget: that is neither tight nor red, but the header names the cost.
-// If the optional permission for it is missing, only the sentence with the way to the "GitHub" stop of the settings is here;
-// while there is no data yet, a sentence saying so, so that the stop does not only appear later.
+// While there is no data yet, a sentence says so, so that the stop does not only appear later.
 function minutesStop() {
   const m = data.minutes;
   const only = (body) => routeStop('minutes', t('minutesTitle'), '', body);

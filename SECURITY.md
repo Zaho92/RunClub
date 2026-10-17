@@ -77,7 +77,7 @@ Docker daemon.
   visibility, and through a new collaborator also code. RunClub itself uses it only for runners and the fork setting.
 - **Token storage.** The user access token expires after eight hours and is renewed with its refresh token, which
   GitHub accepts only once; the new pair is written before it is used. If Windows holds the file and the rename
-  fails, the new pair stays next to it (`github.token.neu`) and wins at the next start; the log says so. Both are stored in RunClub's data folder
+  fails, the new pair stays next to it (`github.token.new`) and wins at the next start; the log says so. Both are stored in RunClub's data folder
   (`github.token`), encrypted with Electron's `safeStorage` (DPAPI, bound to the Windows user). Without `safeStorage`
   (the backend alone) the token lives in memory only. The token is never written to the log, and the one-time code
   only appears in the window.

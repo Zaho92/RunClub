@@ -1,405 +1,402 @@
-# Offene Punkte
+# Open items
 
-Stand: 16.10.2026. Die Reihenfolge innerhalb eines Abschnitts ist die empfohlene. Wie hier gearbeitet wird, steht in
-`CLAUDE.md`; wofür die App da ist, in `PRODUCT.md`; wie sie aussieht und warum, in `DESIGN.md`.
+As of: 16.10.2026. Within a section, the order is the recommended one. How work is done here is in `CLAUDE.md`;
+what the app is for, in `PRODUCT.md`; how it looks and why, in `DESIGN.md`.
 
-## Weg zur Veröffentlichung
+## Road to publication
 
-Besprochen mit dem Nutzer am 16.10.2026. Ziel: RunClub als öffentliches Repo unter MIT, mit Installer zum Herunterladen
-und einem Updater, der sich aus den GitHub-Releases selbst aktualisiert. Entschieden:
+Discussed with the user on 16.10.2026. Goal: RunClub as a public repo under MIT, with an installer to download and an
+updater that updates itself from the GitHub releases. Decided:
 
-- **Lizenz MIT.**
-- **Installer erst unsigniert** (Windows warnt beim Installieren „Unbekannter Herausgeber“); Signatur später nachrüstbar.
-- **Updater:** lädt im Hintergrund, meldet „Update bereit“, eingespielt wird auf Klick und nur, wenn kein Runner arbeitet
-  (Beenden baut alle Runner ab).
-- **QS vor Live als Beta-Kanal** (entschieden 16.10.2026), keine zweite Instanz (zwei Instanzen mit denselben Pools
-  melden sich gegenseitig die Runner ab). Tags `vX.Y.Z-beta.N` erzeugen Vorabversionen, `vX.Y.Z` stabile; der Updater
-  hat einen Kanal „Stabil“/„Beta“, der Rechner des Nutzers läuft auf Beta. **Kein `qs`-Branch:** Feature-Branches →
-  `main`, Betas werden von `main` getaggt; nimmt der Nutzer eine Beta ab, kommt der stabile Tag auf genau deren Commit.
-- **Updater als eigenes Modul**, nicht `electron-updater` (bleibt ohne Laufzeit-Abhängigkeiten): GitHub-Releases-API,
-  Download, SHA512-Prüfung gegen `latest.yml`, NSIS-Installer still starten; solange das Repo privat ist, mit dem
-  Token der Anmeldung in der App (GitHub-App, siehe Schritt 3.3).
-- **Repo ganz englisch** (README, Doku, Kommentare, TODO, DESIGN; die Regel in `CLAUDE.md` ändert sich dann). Die
-  Oberfläche bleibt zweisprachig. Erst in Schritt 3, damit nicht Code übersetzt wird, der gleich umgebaut wird.
+- **License MIT.**
+- **Installer unsigned at first** (Windows warns “Unknown publisher” on install); signing can be added later.
+- **Updater:** downloads in the background, reports “Update ready”, installs on click and only while no runner is
+  working (quitting tears down all runners).
+- **QA before live as a beta channel** (decided 16.10.2026), no second instance (two instances with the same pools
+  sign each other's runners off). Tags `vX.Y.Z-beta.N` create pre-releases, `vX.Y.Z` stable ones; the updater has a
+  channel “Stable”/“Beta”, the user's machine runs on Beta. **No `qs` branch:** feature branches → `main`, betas are
+  tagged from `main`; when the user accepts a beta, the stable tag goes on exactly its commit.
+- **Updater as its own module**, not `electron-updater` (stays without runtime dependencies): GitHub Releases API,
+  download, SHA512 check against `latest.yml`, start the NSIS installer silently; while the repo is private, with the
+  token of the sign-in in the app (GitHub App, see step 3.3).
+- **Repo entirely in English** (README, docs, comments, TODO, DESIGN; the rule in `CLAUDE.md` changes then). The
+  interface stays bilingual. Only in step 3, so that no code gets translated that is about to be rebuilt.
 
-Schritte, in dieser Reihenfolge:
+Steps, in this order:
 
-1. **Installer und Updater** – gebaut 16.10.2026: `electron-builder` mit NSIS (lokal baubar, ohne die befürchtete
-   `winCodeSign`-Hürde), eigener Updater mit Kanal Stabil/Beta, Anzeige in Einstellungen → App, Startmenü und Autostart
-   auf der installierten App, Ablauf QS → Live in `README.md`. v0.1.0-beta.2 ist installiert, das Update auf Klick
-   erprobt. Releases baut `npm run release` auf diesem Rechner, solange das Repo privat ist (die Windows-Runner von
-   GitHub kosten dann Minuten, und die waren am 16.10. aufgebraucht); öffentlich übernimmt `release.yml`, das bis dahin
-   übersprungen wird. **Offen:** über Wochen auf Beta betreiben.
-2. **Sicher für Fremde:** Fork-PRs in Org-Repos und Seccomp-Profil (siehe „Aus den Reviews noch offen“), `SECURITY.md`
-   mit Bedrohungsmodell. Entscheidungen des Nutzers vom 16.10.2026: Ein Pool eines Org-Repos pausiert **immer**, wenn
-   dort Workflows aus Fork-PRs laufen dürfen, auch mit Freigabepflicht („require approval“). Startet ein Daemon mit dem
-   Seccomp-Profil nicht, gibt es einen klaren Fehler, keinen Rückfall auf `unconfined` und keine Einstellung zum
-   Abschalten. Meldeweg in `SECURITY.md` ist GitHubs „Private vulnerability reporting“, keine E-Mail-Adresse.
-   **Erledigt am 16.10.2026.** Fork-PRs (`src/forks.js`, Sperrgründe in `src/blocks.js`): geprüft beim Anlegen, beim
-   Start und alle 10 Minuten; ein Pool nimmt nur Jobs an, solange die letzte gelungene Prüfung höchstens 25 Minuten alt
-   ist (`vetted` in `src/remote.js`), und die Oberfläche nennt Grund und Ausweg einer Sperre. Seccomp-Profil
-   (`linux/seccomp.json`, erzeugt von `scripts/seccomp.js`; dort steht, wie die Zusätze ermittelt wurden, `keyctl` nur
-   für den Sitzungsschlüsselbund von runc), erprobt: Docker im Job, veröffentlichter Port, `exec`, Build im Daemon und
-   über den Build-Dienst, `services:`. Nach einem größeren Update von Docker Desktop das Profil mit dessen
-   Standardprofil neu erzeugen und erproben. `SECURITY.md` (englisch) gegen den Code geprüft. Review dazu siehe
-   „Zwischendurch, regelmäßig“.
-3. **Verständlich für Fremde.** Reihenfolge (entschieden vom Nutzer am 16.10.2026), jeder Punkt ein eigenes Stück:
-   1. Backend-Meldungen als Schlüssel – erledigt 16.10.2026: `src/messages.js` (Schlüssel `m_…` mit Werten, deutscher
-      Satz für Datei und `error.message`), Protokoll, Fehlerantworten und Zustände der Plätze (`st_…`) übersetzt die
-      Oberfläche; ein Test hält Backend und Tabellen gleich. Dazu folgen Oberfläche und Menü im Infobereich ohne
-      eigene Wahl der Sprache des Systems. Die Protokolldatei `runclub.log` bleibt deutsch.
-   2. Prüfung beim ersten Start – erledigt 17.10.2026: `src/setup.js` prüft, solange Docker nicht antwortet, alle
-      15 s, ob WSL fehlt (`wsl --status`), Docker Desktop nicht installiert ist, nicht läuft (`tasklist`) oder läuft,
-      ohne dass seine Engine nach 3 Minuten antwortet. Die Oberfläche zeigt je Stück eine Zeile mit Ausweg (Befehl
-      `wsl --install` kopieren, Anleitung von Docker öffnen, „Docker Desktop starten“ über `POST /api/docker/start`):
-      ohne Projekte als erster Schritt „Docker einrichten“, sonst in der Übersicht statt des Warn-Tags zu Docker. Mit
-      eigenem Endpunkt (`RUNCLUB_DOCKER_HOST`, `DOCKER_HOST`, `DOCKER_CONTEXT`) wird nichts geprüft.
-   3. Eigene **GitHub-App** „RunClub“ statt der Anmeldung von `gh`, und **`gh` fällt als Voraussetzung ganz weg**
-      (entschieden vom Nutzer am 16.10.2026). Warum GitHub-App statt OAuth-App: Eine OAuth-App braucht `repo`, also
-      Vollzugriff auf alle privaten Repos; eine GitHub-App bekommt nur die nötigen Rechte (Administration für
-      Runner und den Fork-Schalter, Actions, Variablen, Inhalte lesen, Metadaten). Bedienung so einfach wie bisher:
-      Anmelden per Einmalcode (Device Flow, Oberfläche bleibt), installiert mit „All repositories“, damit neue Repos
-      ohne neues Verbinden dabei sind; ist ein Repo nicht erreichbar, bietet RunClub den Link zum Installieren für
-      dieses Konto oder diese Org. Das Token (8 h) erneuert RunClub selbst mit dem Erneuerungsschlüssel (6 Monate,
-      wird bei jeder Erneuerung neu); der Nutzer merkt davon nichts. Token verschlüsselt ablegen (`safeStorage` von
-      Electron). Alle Abfragen direkt per HTTPS statt `gh api` (`src/github.js` mit seinem ETag-Speicher umbauen).
-      **Zuerst prüfen:** ob GitHub die Abrechnung (Minuten-Kontingent, `src/minutes.js`) an das Token einer GitHub-App
-      herausgibt; wenn nicht, entfällt die Minuten-Anzeige. Die App bei GitHub legt der Nutzer an (Anleitung von
-      Claude); dabei Zugriff auf „Plan“ nur, wenn die Abrechnung damit geht.
-      **Gebaut am 17.10.2026** (App `runclub-runners`, Client-ID in `src/auth.js`): Die Abrechnung geht mit dem Recht
-      „Plan“. `src/github.js` fragt per `fetch` bei `api.github.com` (ETag, Anfragelimit, Pause wie bisher; Fehler
-      tragen `status`, bei 401 wird das Token einmal erneuert). `src/auth.js` führt den Device Flow, erneuert das
-      Token 5 Minuten vor Ablauf (einer zugleich, der neue Schlüssel wird vor dem Gebrauch gesichert) und legt es über
-      `safeStorage` verschlüsselt ab; Abmelden vergisst es nur auf diesem Rechner (Widerrufen braucht das Geheimnis
-      der App), die Oberfläche verlinkt den Widerruf bei GitHub. Unter „Projekt hinzufügen“ und bei einem Repo, das
-      mit 404 antwortet, steht der Link zum Installieren der App. Der Updater nutzt dasselbe Token. **Offen:** echt
-      erproben (siehe „Noch nicht echt ausprobiert“). **Erprobt und als v0.1.0-beta.4 eingespielt am 18.10.2026.**
-   4. Repo ins Englische (siehe oben). Entschieden vom Nutzer am 18.10.2026: alles englisch, auch Testnamen und Texte in
-      den Tests; `src/messages.js` bekommt Englisch als Grundsprache (Protokolldatei, Konsole, `error.message`), die
-      Oberfläche bleibt zweisprachig; `CLAUDE.md` wird übersetzt, Kommentare und Commit-Nachrichten ab dann englisch
-      (der Chat mit dem Nutzer bleibt deutsch).
-   5. README mit Bildschirmfotos.
-4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
-   Einstellungen des Repos einschalten (`SECURITY.md` verweist darauf), Git-Historie auf Geheimnisse und Persönliches
-   prüfen (sie wird mit öffentlich), Repo öffentlich stellen, Release 0.1.0.
-   **Vor dem Öffentlichstellen: Updates signieren** (entschieden vom Nutzer am 16.10.2026). Der Updater prüft bisher nur
-   die Prüfsumme aus demselben Release; wer dort einen Release anlegen kann, kann allen ein Update unterschieben, im
-   öffentlichen Repo auch jeder Workflow mit `contents: write` (`release.yml` legt Releases als `github-actions[bot]`
-   an, eine Prüfung des Autors hilft daher nicht). Signiert wird mit einem Schlüssel, der nur beim Nutzer liegt, nicht
-   in CI; die App prüft die Signatur, bevor sie einen Installer annimmt. Danach `SECURITY.md` („Updates“) anpassen.
+1. **Installer and updater** – built 16.10.2026: `electron-builder` with NSIS (buildable locally, without the feared
+   `winCodeSign` hurdle), own updater with channel Stable/Beta, shown in Settings → App, Start menu and autostart on
+   the installed app, QA → live process in `README.md`. v0.1.0-beta.2 is installed, the update on click tested.
+   Releases are built by `npm run release` on this machine while the repo is private (GitHub's Windows runners cost
+   minutes then, and those were used up on 16.10.); once public, `release.yml` takes over, which is skipped until
+   then. **Open:** run on Beta for weeks.
+2. **Safe for strangers:** fork PRs in org repos and seccomp profile (see “Still open from the reviews”), `SECURITY.md`
+   with a threat model. The user's decisions of 16.10.2026: a pool of an org repo **always** pauses when workflows from
+   fork PRs may run there, even with approval required (“require approval”). If a daemon does not start with the
+   seccomp profile, there is a clear error, no fallback to `unconfined` and no setting to turn it off. The reporting
+   channel in `SECURITY.md` is GitHub's “Private vulnerability reporting”, no e-mail address.
+   **Done on 16.10.2026.** Fork PRs (`src/forks.js`, block reasons in `src/blocks.js`): checked on creation, on start
+   and every 10 minutes; a pool only accepts jobs while the last successful check is at most 25 minutes old (`vetted`
+   in `src/remote.js`), and the interface names the reason for a block and the way out. Seccomp profile
+   (`linux/seccomp.json`, generated by `scripts/seccomp.js`; it says how the additions were determined, `keyctl` only
+   for runc's session keyring), tested: Docker in the job, published port, `exec`, build in the daemon and via the
+   build service, `services:`. After a larger update of Docker Desktop, regenerate the profile from its default
+   profile and test it. `SECURITY.md` (English) checked against the code. Review of it see “In between, regularly”.
+3. **Understandable for strangers.** Order (decided by the user on 16.10.2026), each item a piece of its own:
+   1. Backend messages as keys – done 16.10.2026: `src/messages.js` (keys `m_…` with values, German sentence for the
+      file and `error.message`), the interface translates log, error replies and slot states (`st_…`); a test keeps
+      backend and tables in sync. Along with it, the interface and the tray menu follow the system language without a
+      choice of their own. The log file `runclub.log` stays German.
+   2. Check on first start – done 17.10.2026: while Docker does not respond, `src/setup.js` checks every 15 s whether
+      WSL is missing (`wsl --status`), Docker Desktop is not installed, not running (`tasklist`) or running without its
+      engine responding after 3 minutes. The interface shows one line per piece with a way out (copy the command
+      `wsl --install`, open Docker's instructions, “Start Docker Desktop” via `POST /api/docker/start`): without
+      projects as the first step “Set up Docker”, otherwise in the overview instead of the warning tag about Docker.
+      With a custom endpoint (`RUNCLUB_DOCKER_HOST`, `DOCKER_HOST`, `DOCKER_CONTEXT`) nothing is checked.
+   3. Own **GitHub App** “RunClub” instead of the sign-in of `gh`, and **`gh` is dropped as a prerequisite entirely**
+      (decided by the user on 16.10.2026). Why a GitHub App instead of an OAuth App: an OAuth App needs `repo`, i.e.
+      full access to all private repos; a GitHub App gets only the permissions it needs (Administration for runners
+      and the fork switch, Actions, Variables, read Contents, Metadata). Use as simple as before: sign in with a
+      one-time code (device flow, interface stays), installed with “All repositories” so that new repos are included
+      without connecting again; if a repo is not reachable, RunClub offers the link to install for that account or
+      org. RunClub renews the token (8 h) itself with the refresh token (6 months, new on every renewal); the user
+      notices none of it. Store the token encrypted (Electron's `safeStorage`). All requests directly via HTTPS
+      instead of `gh api` (rebuild `src/github.js` with its ETag store).
+      **Check first:** whether GitHub hands out billing (minutes quota, `src/minutes.js`) to the token of a GitHub App;
+      if not, the minutes display goes away. The user creates the app on GitHub (instructions from Claude); grant
+      access to “Plan” only if billing works with it.
+      **Built on 17.10.2026** (app `runclub-runners`, client ID in `src/auth.js`): billing works with the permission
+      “Plan”. `src/github.js` queries `api.github.com` via `fetch` (ETag, rate limit, pause as before; errors carry
+      `status`, on 401 the token is renewed once). `src/auth.js` runs the device flow, renews the token 5 minutes
+      before expiry (one at a time, the new refresh token is saved before use) and stores it encrypted via
+      `safeStorage`; signing out only forgets it on this machine (revoking needs the app's secret), the interface
+      links to revoking on GitHub. Under “Add a project” and for a repo that answers 404 there is the link to install
+      the app. The updater uses the same token. **Open:** test for real (see “Not yet tried for real”). **Tested and
+      installed as v0.1.0-beta.4 on 18.10.2026.**
+   4. Repo into English (see above). Decided by the user on 18.10.2026: everything English, including test names and
+      texts in the tests; `src/messages.js` gets English as its base language (log file, console, `error.message`),
+      the interface stays bilingual; `CLAUDE.md` gets translated, comments and commit messages English from then on
+      (the chat with the user stays German).
+   5. README with screenshots.
+4. **Open up:** remove transitional code and the demo pipeline, `LICENSE`, turn on “Private vulnerability reporting”
+   in the repo settings (`SECURITY.md` refers to it), check the Git history for secrets and personal data (it goes
+   public too), make the repo public, release 0.1.0.
+   **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
+   checksum from the same release; whoever can create a release there can push an update to everyone, in the public
+   repo also any workflow with `contents: write` (`release.yml` creates releases as `github-actions[bot]`, so checking
+   the author does not help). Signing uses a key that only the user holds, not in CI; the app checks the signature
+   before it accepts an installer. Then adjust `SECURITY.md` (“Updates”).
 
-Offen und unabhängig davon: Docker Engine statt Docker Desktop (Punkt 2 unten) und der MCP-Server (Punkt 3 unten).
+Open and independent of this: Docker Engine instead of Docker Desktop (item 2 below) and the MCP server (item 3 below).
 
-## Als Nächstes
+## Next
 
-1. **Repo umziehen** nach `D:\Development\Projects\` (dort liegen alle anderen Repos des Nutzers; dieses liegt nur
-   deshalb unter `C:\actions-runner\runclub`, weil hier begonnen wurde). Seit dem Installer (16.10.2026) zeigen
-   Startmenü und Autostart auf die installierte App, und die läuft aus ihrer eigenen Kopie; mitzuziehen ist nur noch,
-   was den alten Pfad fest nennt (`TODO.md`, `README.md`, Skripte). Der Datenordner `%APPDATA%\RunClub` bleibt.
-2. **Docker Engine statt Docker Desktop** (Idee des Nutzers, 14.10.2026; erst Analyse, dann entscheiden). Ziel: eine
-   Abhängigkeit weniger. Eine eigene Docker Engine in einer eigenen WSL-Distro statt Docker Desktop. Für
-   die Veröffentlichung spricht die Lizenz von Docker Desktop (in größeren Firmen kostenpflichtig) und mehr Kontrolle
-   über den Daemon (etwa sysbox oder ein AppArmor-Profil). Dagegen:
-   RunClub müsste die Distro selbst einrichten, starten und aktuell halten, und die Windows-CLI erreicht den Daemon nur
-   über einen Umweg (Aufruf über `wsl`, gesicherter TCP-Port oder Weiterleitung einer Named Pipe). Erster Schritt erledigt
-   (14.10.2026): Der Zugang zu Docker ist austauschbar (`src/engine.js`, Umgebungsvariablen `RUNCLUB_DOCKER_HOST`,
-   `RUNCLUB_DOCKER_CERTS` und `RUNCLUB_DOCKER_DISTRO`; ohne Angabe wie bisher Docker Desktop). Bedingung für den
-   Prototyp: Der Daemon ist nur über eine Named Pipe mit Rechten für den eigenen Benutzer, über `ssh://` oder über
-   `tcp://` mit TLS und Client-Zertifikat erreichbar, nie über ein offenes `tcp://` (ein Job käme sonst ohne Ausbruch
-   an den Daemon). Als Nächstes ein Prototyp mit einer Engine in einer Distro `runclub` messen (Kosten je
-   `docker`-Aufruf, Start nach dem Booten, Speicher im Leerlauf gegenüber Docker Desktop).
-   **Windows-Runner hängen daran** (besprochen 16.10.2026; der Nutzer will langfristig Windows und Mac anbieten, weil
-   nur Linux die Zielgruppe einschränkt). Docker Desktop kann nur Linux- oder Windows-Container zugleich; ohne Docker
-   Desktop laufen die Linux-Engine in WSL und die native Windows-Engine (`dockerd.exe`) nebeneinander. Windows-Jobs dann
-   in Windows-Containern mit Hyper-V-Isolation (unter Windows 11 Pflicht), je Job frisch wie bei Linux. Grenzen: große
-   Abbilder (Server Core ca. 5 GB), kein Docker im Job, die Werkzeuge von `windows-latest` müssen ins Abbild. Nicht als
-   Weg für Fremde: der Runner-Prozess direkt auf Windows (bricht „frisch je Job, nichts bleibt“).
-   **Mac-Runner** gibt es nur auf Apple-Hardware (Lizenz); RunClub müsste dafür selbst auf macOS laufen (Linux-Container
-   wie bisher, macOS-Jobs in VMs, z. B. `tart`). Eigenes, späteres Vorhaben.
-3. **MCP-Server aus der App heraus.** Idee des Nutzers: KIs (Claude Code und andere) sollen RunClub befragen und steuern
-   können. Lesen: Auslastung von Rechner und Docker-VM samt Verlauf, Plätze und ihr Zustand, Verbrauch je Job, Limits,
-   Größe der Caches, Protokoll. Steuern: Zahl der Plätze, Pause, Limits („wie stark die Runner sind“). Die Läufe selbst
-   holt eine KI schon von GitHub; RunClub liefert, was GitHub nicht weiß (Restzeit, Wartezeit auf einen Runner, was ein
-   Job den Rechner kostet). Vor dem Bau klären: welche weiteren Werkzeuge sinnvoll sind, und der Zugriff. Der Server
-   darf nicht zum Weg um den Schlüssel aus `src/access.js` werden, über den ein Job die App steuert; Löschendes
-   (Pool entfernen, Caches leeren, beenden) bleibt außen vor oder braucht eine Bestätigung in der App.
+1. **Move the repo** to `D:\Development\Projects\` (all the user's other repos live there; this one is only under
+   `C:\actions-runner\runclub` because it was started here). Since the installer (16.10.2026), Start menu and
+   autostart point to the installed app, and it runs from its own copy; what still has to move along is only what
+   names the old path explicitly (`TODO.md`, `README.md`, scripts). The data folder `%APPDATA%\RunClub` stays.
+2. **Docker Engine instead of Docker Desktop** (the user's idea, 14.10.2026; analyse first, then decide). Goal: one
+   dependency fewer. An own Docker Engine in an own WSL distro instead of Docker Desktop. In favour, for the
+   publication: Docker Desktop's license (paid in larger companies) and more control over the daemon (such as sysbox
+   or an AppArmor profile). Against:
+   RunClub would have to set up, start and update the distro itself, and the Windows CLI only reaches the daemon by a
+   detour (calls via `wsl`, a secured TCP port or forwarding a named pipe). First step done
+   (14.10.2026): access to Docker is swappable (`src/engine.js`, environment variables `RUNCLUB_DOCKER_HOST`,
+   `RUNCLUB_DOCKER_CERTS` and `RUNCLUB_DOCKER_DISTRO`; without them Docker Desktop as before). Condition for the
+   prototype: the daemon is only reachable via a named pipe with permissions for the own user, via `ssh://` or via
+   `tcp://` with TLS and a client certificate, never via an open `tcp://` (otherwise a job would reach the daemon
+   without breaking out). Next, measure a prototype with an engine in a distro `runclub` (cost per `docker` call,
+   start after boot, idle memory compared with Docker Desktop).
+   **Windows runners depend on it** (discussed 16.10.2026; the user wants to offer Windows and Mac in the long run,
+   because Linux only narrows the audience). Docker Desktop can only do Linux or Windows containers at a time; without
+   Docker Desktop, the Linux engine in WSL and the native Windows engine (`dockerd.exe`) run side by side. Windows jobs
+   then in Windows containers with Hyper-V isolation (mandatory on Windows 11), fresh per job as with Linux. Limits:
+   large images (Server Core about 5 GB), no Docker in the job, the tools of `windows-latest` have to go into the
+   image. Not a way for strangers: the runner process directly on Windows (breaks “fresh per job, nothing stays”).
+   **Mac runners** only exist on Apple hardware (license); RunClub would have to run on macOS itself for that (Linux
+   containers as before, macOS jobs in VMs, e.g. `tart`). A separate, later project.
+3. **MCP server from within the app.** The user's idea: AIs (Claude Code and others) should be able to query and
+   control RunClub. Read: load of the machine and the Docker VM including history, slots and their state, usage per
+   job, limits, size of the caches, log. Control: number of slots, pause, limits (“how strong the runners are”). An AI
+   already gets the runs themselves from GitHub; RunClub supplies what GitHub does not know (remaining time, wait for
+   a runner, what a job costs the machine). Clarify before building: which further tools make sense, and access. The
+   server must not become a way around the key from `src/access.js` through which a job controls the app; anything
+   destructive (remove a pool, clear caches, quit) stays out or needs a confirmation in the app.
 
-## Zwischendurch, regelmäßig
+## In between, regularly
 
-- **Code-Review.** Nach größeren Blöcken den Stand prüfen lassen, im Stil von Matt Pocock: Skill
-  `mattpocock-skills:code-review` (Regeln des Repos und Auftragstreue, zwei getrennte Durchgänge) über die Änderungen
-  seit dem letzten Review.
-- **Sicherheitsdurchgang** dazu: Skill `security-review`. Besonders ansehen: der lokale Dienst (Port 8770, Token und
-  Host-Prüfung in `src/server.js` und `src/access.js`), alles, was aus GitHub-Antworten in Befehle oder ins HTML gelangt (Repo-, Job- und
-  Schrittnamen), und die Abschottung der Runner (Daemons ohne Rechte, `sudo` im Runner-Container, Volumes, was Jobs schreiben dürfen).
-- Drei Durchgänge liefen am 13.10.2026 (jeweils beide): über den ganzen Stand, über die Änderungen danach bis
-  `4af3618` und über die bis `eba81c1` (Protokoll, GitHub-Anfragen). Behoben ist, was unten nicht mehr steht; der
-  nächste Durchgang prüft die Änderungen danach. Über die Korrekturen aus dem dritten lief ein Abschluss-Review; was es
-  fand, ist ebenfalls behoben (im Commit nach `eba81c1`), aber nicht noch einmal gegengelesen.
-- Ein vierter Durchgang lief am 14.10.2026 über die Kontingent-Anzeige und die Korrekturen der Anmeldung
-  (`19ae429..ab8212c`): Richtigkeit, Standards, Sicherheit und der Gutachter der Oberfläche. Alle Befunde sind
-  behoben, und die Korrekturen sind gegengelesen (Code und Oberfläche); was das Gegenlesen fand, ist ebenfalls
-  behoben, aber nicht noch einmal gelesen. `src/seed.js` und `src/caches.js` sind dabei mitgelesen worden.
-- Ein fünfter Durchgang lief am 14.10.2026 über den ganzen Stand (Richtigkeit, Sicherheit, Standards), danach ein
-  Abschluss-Review über die Korrekturen und den Umbau des Backends (`e427360..95f6a0c`). Was beide fanden, ist behoben
-  (Commit nach `95f6a0c`), aber nicht noch einmal gelesen. Der nächste Durchgang prüft die Änderungen danach.
-- Ein sechster Durchgang lief am 15.10.2026 über den ganzen Stand mit Schwerpunkt `95f6a0c..9686428` (Daemons ohne
-  Rechte, festgenagelte Abbilder): Richtigkeit, Sicherheit, Standards. Alle Befunde sind behoben oder nach Entscheidung
-  des Nutzers vermerkt (Fork-PRs, `--network host`), im Commit `1098b74`. Darüber lief ein Abschluss-Review
-  (`9686428..1098b74`, Richtigkeit, Sicherheit, Standards); was es fand, ist im Commit danach behoben (vor allem: Ende
-  und Ergebnis eines Jobs nicht mehr aus der Ausgabe des Runners), aber nicht noch einmal gelesen. Der nächste
-  Durchgang prüft die Änderungen danach.
-- Ein siebter Durchgang lief am 16.10.2026 über Schritt 2 „Sicher für Fremde“ (`503330f..d7e7edd`): Standards,
-  Auftragstreue, ein Sicherheitsdurchgang (der Skill `security-review` scheitert hier an fehlendem `origin/HEAD`; derselbe
-  Auftrag lief als Subagent) und ein eigener Sicherheitsprüfer, der `SECURITY.md` gegen den Code hielt. Alle Befunde
-  sind behoben; darüber liefen ein Abschluss-Review und der Gutachter der Oberfläche, deren Befunde ebenfalls behoben,
-  aber nicht noch einmal gelesen sind. Der nächste Durchgang prüft die Änderungen danach.
+- **Code review.** After larger blocks, have the state reviewed, in Matt Pocock's style: skill
+  `mattpocock-skills:code-review` (repo rules and faithfulness to the task, two separate passes) over the changes
+  since the last review.
+- **Security pass** alongside: skill `security-review`. Look especially at: the local service (port 8770, token and
+  host check in `src/server.js` and `src/access.js`), everything from GitHub replies that ends up in commands or the HTML (repo, job and
+  step names), and the isolation of the runners (daemons without privileges, `sudo` in the runner container, volumes, what jobs may write).
+- Three passes ran on 13.10.2026 (both each time): over the whole state, over the changes after it up to `4af3618`
+  and over those up to `eba81c1` (log, GitHub requests). Fixed is whatever is no longer listed below; the next pass
+  checks the changes after that. A final review ran over the fixes from the third; what it found is fixed as well (in
+  the commit after `eba81c1`), but not read again.
+- A fourth pass ran on 14.10.2026 over the quota display and the fixes to the sign-in (`19ae429..ab8212c`):
+  correctness, standards, security and the interface reviewer. All findings are fixed, and the fixes have been
+  re-read (code and interface); what the re-read found is fixed as well, but not read again. `src/seed.js` and
+  `src/caches.js` were read along with it.
+- A fifth pass ran on 14.10.2026 over the whole state (correctness, security, standards), then a final review over the
+  fixes and the backend rebuild (`e427360..95f6a0c`). What both found is fixed (commit after `95f6a0c`), but not read
+  again. The next pass checks the changes after that.
+- A sixth pass ran on 15.10.2026 over the whole state with a focus on `95f6a0c..9686428` (daemons without privileges,
+  pinned images): correctness, security, standards. All findings are fixed or, by the user's decision, noted (fork
+  PRs, `--network host`), in commit `1098b74`. A final review ran over it (`9686428..1098b74`, correctness, security,
+  standards); what it found is fixed in the commit after it (above all: end and result of a job no longer from the
+  runner's output), but not read again. The next pass checks the changes after that.
+- A seventh pass ran on 16.10.2026 over step 2 “Safe for strangers” (`503330f..d7e7edd`): standards, faithfulness to
+  the task, a security pass (the skill `security-review` fails here on a missing `origin/HEAD`; the same task ran as a
+  subagent) and a separate security checker that held `SECURITY.md` against the code. All findings are fixed; a final
+  review and the interface reviewer ran over it, whose findings are fixed as well, but not read again. The next pass
+  checks the changes after that.
 
-## Aus den Reviews noch offen
+## Still open from the reviews
 
-Der fünfte Durchgang (14.10.2026, über den Stand nach `08949b0`) und das Abschluss-Review über seine Korrekturen
-(`e427360..95f6a0c`) sind abgearbeitet, ebenso der sechste (15.10.2026); behoben ist, was hier nicht mehr steht.
-Entschieden am 15.10.2026: Die Docker-Daemons der Jobs laufen ohne Rechte (umgesetzt), `node` und das .NET-SDK sind
-festgenagelt und Dependabot meldet neue Stände (umgesetzt); der localhost von Windows bleibt für die Jobs erreichbar
-(siehe unten). Noch offen:
+The fifth pass (14.10.2026, over the state after `08949b0`) and the final review over its fixes
+(`e427360..95f6a0c`) are worked through, as is the sixth (15.10.2026); fixed is whatever is no longer listed here.
+Decided on 15.10.2026: the jobs' Docker daemons run without privileges (implemented), `node` and the .NET SDK are
+pinned and Dependabot reports new versions (implemented); the Windows localhost stays reachable for the jobs (see
+below). Still open:
 
-1. **Container-Jobs (`container:` im Workflow) scheitern** (gefunden 16.10.2026 beim Erproben des Seccomp-Profils, ebenso
-   mit `seccomp=unconfined`, also seit die Daemons ohne Rechte laufen): Der Runner hängt `/home/runner/externals` und
-   weitere Ordner außerhalb von `_work` in den Job-Container ein; die gibt es im Daemon-Container nicht, und der Daemon
-   ohne Rechte darf sie nicht anlegen (`mkdir /home/runner: permission denied`). Lösung noch offen (etwa diese Ordner
-   wie `_work` als Volume in beide Container).
+1. **Container jobs (`container:` in the workflow) fail** (found 16.10.2026 while testing the seccomp profile, likewise
+   with `seccomp=unconfined`, i.e. ever since the daemons run without privileges): the runner mounts
+   `/home/runner/externals` and other folders outside `_work` into the job container; they do not exist in the daemon
+   container, and the daemon without privileges may not create them (`mkdir /home/runner: permission denied`).
+   Solution still open (such as these folders as a volume in both containers, like `_work`).
 
-Bewusst so gelassen:
+Deliberately left as is:
 
-- **`--network host` und Dienste auf dem localhost des Runners** (Entscheidung des Nutzers, 15.10.2026): Seit die
-  Daemons ohne Rechte laufen, hat jeder Daemon ein eigenes Netz im Daemon-Container. Veröffentlichte Ports (`-p`,
-  `services:`) erreicht der Runner weiter auf `localhost`; ein Job-Container mit `--network host` sieht aber keine
-  Dienste, die ein Schritt im Runner auf `localhost` startet, und umgekehrt. Steht so in der README.
+- **`--network host` and services on the runner's localhost** (the user's decision, 15.10.2026): since the daemons run
+  without privileges, each daemon has its own network in the daemon container. The runner still reaches published
+  ports (`-p`, `services:`) on `localhost`; but a job container with `--network host` does not see services that a
+  step in the runner starts on `localhost`, and vice versa. The README says so.
 
-- **Jobs erreichen den localhost von Windows** über `host.docker.internal` (Entscheidung des Nutzers, 15.10.2026):
-  Sperren bräche Jobs, die einen Dienst auf diesem Rechner brauchen. RunClub warnt, wenn Docker seinen Daemon dort ohne
-  Schutz anbietet.
-- **Caches sind zwischen Branches beschreibbar** (entschieden am 13.10.2026: Läufe auf Branches blieben sonst
-  langsamer). Dazu gehört: Jeder Job eines Repos steuert dessen Build-Dienst über den Socket ganz (bauen, den Cache
-  leeren, vermutlich auch frühere Builds desselben Repos lesen). Andere Repos erreicht er nicht.
-- **Die Anmeldung eines Runners ist für seine Job-Schritte lesbar** (`/proc` des Runners, gleicher Benutzer). Sie gilt
-  nur für diesen einen Job; in `env`, `ps` und `docker inspect` steht sie nicht mehr.
-- **Ein laufender Job eines öffentlich gewordenen Repos läuft zu Ende**; danach nimmt der Pool nichts mehr an.
+- **Jobs reach the Windows localhost** via `host.docker.internal` (the user's decision, 15.10.2026): blocking it would
+  break jobs that need a service on this machine. RunClub warns when Docker offers its daemon there without
+  protection.
+- **Caches are writable across branches** (decided on 13.10.2026: runs on branches would otherwise stay slower). Part
+  of that: every job of a repo fully controls its build service via the socket (build, clear the cache, probably also
+  read earlier builds of the same repo). It does not reach other repos.
+- **A runner's registration is readable for its job steps** (`/proc` of the runner, same user). It only holds for this
+  one job; it is no longer in `env`, `ps` and `docker inspect`.
+- **A running job of a repo that went public runs to completion**; after that the pool accepts nothing more.
 
-## Noch nicht echt ausprobiert
+## Not yet tried for real
 
-- **Ansicht „RunClub wird beendet“** (`src/shutdown.js`, `renderShutdown` in `src/ui.html`, `quit` in `src/main.js`):
-  Am 16.10.2026 zweimal über `POST /api/shutdown` im Betrieb beendet (4 Projekte, je 2 Paare, kein Job lief).
-  `/api/status` lieferte bis zum Schluss den Stand: Projekte zählten 0/2 → 2/2, dann Aufräumen, dann Abmelden mit
-  Zählung; der Dienst schwieg nach etwa 16 s. Beim ersten Mal ohne Schätzung, beim zweiten mit `last: 13`; das
-  geschätzte Ende traf auf etwa eine Sekunde. Die Ansicht selbst ist nur als Standbild mit festem Zustand angesehen.
-  Echt prüfen: einmal über das Symbol im Infobereich beenden (Fenster kommt nach vorn, Menü zeigt „Wird beendet …“,
-  ein Klick aufs Symbol holt nur das Fenster), einmal über „RunClub beenden“ in den Einstellungen, und einmal, während
-  ein Job läuft (Zeile „Abbruch „Name““).
+- **View “RunClub is shutting down”** (`src/shutdown.js`, `renderShutdown` in `src/ui.html`, `quit` in `src/main.js`):
+  quit twice in operation via `POST /api/shutdown` on 16.10.2026 (4 projects, 2 pairs each, no job running).
+  `/api/status` delivered the state until the very end: projects counted 0/2 → 2/2, then cleanup, then sign-off with
+  a count; the service went silent after about 16 s. The first time without an estimate, the second with `last: 13`;
+  the estimated end was right to about a second. The view itself has only been seen as a still with a fixed state.
+  Check for real: quit once via the tray icon (window comes to the front, menu shows “Shutting down …”, a click on
+  the icon only brings up the window), once via “Quit RunClub” in the settings, and once while a job is running
+  (line “Cancelling “Name””).
 
-- **Anmeldung über die GitHub-App** (`src/auth.js`, Aktionen `auth/…` in `src/actions.js`, Haltestelle „GitHub“ in
-  `src/ui.html`, gebaut 17.10.2026). Echt erprobt am 18.10.2026 an einer zweiten Instanz ohne Pools: Anmelden per Code,
-  Repo-Liste, Anfragelimit, Minuten samt `plan.name` (`free`), Abmelden; im Protokoll stehen weder Code noch Token.
-  Erneuern mit vorgezogener Ablaufzeit: neues Token und neuer Schlüssel, ohne Client-Secret. Ein schon benutzter
-  Schlüssel bringt `incorrect_client_credentials` statt des dokumentierten `bad_refresh_token`; beides meldet jetzt ab.
-  In der installierten App (v0.1.0-beta.4, 18.10.2026): Anmelden, alle Pools bekommen Runner, und nach einem Neustart
-  ist sie mit dem gesicherten Token (`safeStorage`, kein Klartext in `github.token`) sofort wieder angemeldet.
-  Noch echt prüfen: „Abbrechen“ während des Wartens.
-- **Abmelden von Windows** (`watchSession` in `src/main.js`, `releaseIdle` in `src/runners.js`): nur am Code geprüft. Nach
-  einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
-  Rechners stehen geblieben sind.
-- **Startzustand der Oberfläche** („Verbinde mit RunClub …“, bei ausbleibender Antwort „RunClub antwortet nicht.“): nur
-  am Code geprüft.
-- **Belegung der Docker-VM aus der VM selbst und die Warnung** (`src/vmmemory.js`, `src/usage.js`).
-  Getestet sind das Lesen und die Regel (unter 15 % frei in drei Proben in Folge). Nur am Code geprüft: der Dauerlauf
-  `wsl -d docker-desktop` (startet er, liefert er alle 2 s, endet er mit der App), das stille Ausbleiben ohne die
-  Distro, der Neustart nach einem Neustart von Docker, die beiden Meldungen im Protokoll und die rote Kennzahl mit
-  „nur x frei“ im Auslastungsband. Im Betrieb prüfen: Die Kurve „Docker-VM · Arbeitsspeicher“ liegt nach dem Neustart
-  der App höher als zuvor (im Leerlauf rund 1,9 statt 1,1 GB) und macht dabei einen Sprung im Verlauf.
-- **Build-Dienst im Speicherbalken** (Einstellungen → Limits): nur am Code geprüft, nicht angesehen. Am Bild prüfen:
-  das Feld des Build-Diensts hebt sich von den Plätzen ab, die Beschriftung „2 × 8 GB + Build-Dienst 4 GB“ passt
-  unter schmale Gruppen, und ein pausiertes Projekt mit Cache zeigt nur dieses Feld.
-- **Wartende Läufe ohne Pool** (`src/waiting.js`): nur gegen ein nachgestelltes GitHub getestet und als Standbild
-  angesehen. Echt prüfen: in einem privaten Repo ohne Pool einen Lauf mit `runs-on: [self-hosted, Linux]` starten;
-  nach spätestens fünf Minuten steht in „Alle Projekte“ die Zeile mit „Pool anlegen“.
-- **Läufe, die am Kontingent von GitHub gescheitert sind** (`src/waiting.js`): Die Form von Job und Anmerkung stammt
-  aus einem echten Lauf (38468791627 in `Zaho92/RunClub`), die Suche selbst ist nur gegen ein nachgestelltes GitHub
-  getestet. Echt prüfen: Ein privates Repo ohne Pool, dessen Lauf in den letzten 24 Stunden so gescheitert ist, steht
-  nach spätestens fünf Minuten in „Alle Projekte“ als Zeile mit rotem Symbol „Keine GitHub-Minuten: …“ mit „Pool anlegen“; nach einem
-  gelungenen Lauf oder einem Tag verschwindet sie. Nicht angesehen: Zeile und Symbol. Gezählt werden
-  höchstens die jüngsten abgeschlossenen Läufe (`DONE_MAX` in `src/waiting.js`).
-- **Minuten-Kontingent in „Verbrauch“** (`src/minutes.js`, `watchMinutes` in `src/account.js`, `minutesStop` in
-  `src/ui.html`; in der Oberfläche „GitHub-Minuten“): Echt gelesen ist nur die Antwort der Abrechnung für ein Konto im
-  Tarif Free, dessen Minuten aufgebraucht waren (ihre Einträge stehen in `test/minutes.test.js`), und zwar ohne die
-  Angabe von Jahr und Monat, mit der seit dem Review gefragt wird (`?year=&month=`). Die Zustände in Ordnung, knapp
-  und bezahlt, macOS und ein unbekannter Tarif sind nur mit nachgestellten Antworten geprüft und als Standbild
-  angesehen. Annahmen, die bei Tarifänderungen von GitHub anzupassen sind: die Tabelle der enthaltenen Minuten
-  (`INCLUDED` in `src/minutes.js`; die Schnittstelle nennt sie nicht, und die echte Antwort zeigte 2.097 verbrauchte
-  Minuten ohne Berechnung, also mehr als die angenommenen 2.000), dass jede Minute einfach zählt, gleich auf welchem
-  Betriebssystem, und dass der Monat am Ersten (UTC) neu beginnt. Offen:
-  - ob Minuten größerer Runner (`actions_linux_4_core` und ähnliche, die das Enthaltene nicht deckt) mitzuzählen
-    sind; heute zählen sie mit. Ebenso zählt jedes unbekannte Kürzel als „andere“ mit.
-  - ob sich das Budget lesen lässt. Heute sieht RunClub nur, ob schon etwas berechnet wurde: „aufgebraucht“ heißt
-    deshalb „ohne Budget startet nichts mehr“, und wer bezahlt, erfährt nicht, ob sein Budget erreicht ist.
-  - ob für die Abrechnung das Recht `read:user` genügte. Verlangt wird `user`, das auch das Ändern des Profils
-    erlaubt (die Oberfläche sagt das).
-  - Im Betrieb nachsehen: Nach einem Start ohne Netz kommt die Haltestelle binnen einer Minute nach der Anmeldung;
-    scheitert die Abfrage, steht dort „ließ sich nicht lesen“ und der Grund einmal im Protokoll.
-- **Lauf und Job erneut starten** (`run/rerun`, `job/rerun` in `src/actions.js` und `rerun` in `src/remote.js`; Schaltflächen in `src/ui.html`): nur
-  am Code geprüft, kein Aufruf ging an GitHub. Echt prüfen: „Erneut starten“ und „Nur Gescheiterte“ unter dem Kopf des
-  letzten Laufs, „Job erneut starten“ in den aufgeklappten Details einer Pill; der Lauf erscheint nach wenigen
-  Sekunden wieder als laufend, im Protokoll steht die Meldung, und eine Absage von GitHub kommt als Meldung unten an.
-  Am Bild prüfen: Die Schaltfläche des Jobs sitzt rechts in den Details, ohne Text zu verdecken oder aus der
-  gerundeten Fläche zu ragen (kompakt und im Detailmodus, auch bei einer gescheiterten Pill mit langem Schrittnamen);
-  die Pill bleibt aufgeklappt, solange der Zeiger auf der Schaltfläche steht; das Symbol ist vom „Runner neu
-  aufbauen“ zu unterscheiden.
-- **Zuordnung im Netzplan** für Matrix-Jobs, Namen mit Ausdruck und aufgerufene Workflows: Die Namensformen von GitHub
-  stammen aus der Dokumentation, nicht aus einem echten Lauf. Die eigenen Workflows nutzen nichts davon.
-- **Tägliches Neubauen der Abbilder von Runner und Docker-Daemon** und der Start ohne Netz mit vorhandenem Abbild: nur am Code geprüft.
-- **Pause auf Bitte von GitHub** (403/429 mit `retry-after`): nur gegen ein nachgestelltes GitHub getestet.
-- **GitHub-Anfragen knapp und aufgebraucht.** Echt gemessen ist nur der Normalfall (bedingte Abfragen zählen nicht; im
-  Leerlauf 0 statt rund 36 Anfragen in drei Minuten). Seltener abfragen, nicht mehr abfragen und die Meldungen dazu
-  sind nur gegen ein nachgestelltes GitHub getestet (`test/github.test.js`) und als Standbild angesehen.
-- **Protokoll speichern und kopieren** im Fenster der App. Geprüft sind die Endpunkte (`/api/log`, `/api/log/file`) an
-  einer Testinstanz und die Darstellung als Standbild. Am echten Fenster prüfen: „Speichern“ öffnet den Dialog von
-  Windows, „Kopieren“ legt die ganze Datei in die Zwischenablage und meldet die Zahl der Zeilen.
-- **Fenster ohne Titelleiste von Windows.** Am echten Fenster prüfen: Ziehen und Doppelklick am oberen Streifen (auch über
-  der Leiste), Größe ändern an der oberen Kante, Andocken und Maximieren; ob die Knöpfe von Windows bündig mit dem
-  32 px hohen Streifen abschließen; ob die Knöpfe im schmalen Fenster (bis 760 px) die Farbe der Leiste
-  annehmen und beim Verbreitern zurückwechseln (`matchBar` in `src/main.js`).
-- **Die Rückfrage der App** per Tastatur: „Abbrechen“ hat den Fokus mit sichtbarem Ring, Escape bricht ab.
-- **Netze mit eigenem Subnetz** (`src/subnets.js`). Getestet sind die Rechnung und die Wiederholung gegen ein
-  nachgestelltes Docker; an echten Paaren zu sehen ist es erst nach dem nächsten Neustart der App:
-  `docker network inspect <Paar>` zeigt dann ein /28 aus 10.213.x. Bestehende Netze behalten ihr altes Subnetz, auch
-  die der Build-Dienste (`rc-buildnet-…`), solange das Repo seinen Cache behält. Im Protokoll nachsehen, ob „Netz
-  lässt sich nicht anlegen“ ausbleibt.
+- **Sign-in via the GitHub App** (`src/auth.js`, actions `auth/…` in `src/actions.js`, stop “GitHub” in
+  `src/ui.html`, built 17.10.2026). Tested for real on 18.10.2026 on a second instance without pools: sign in with a
+  code, repo list, rate limit, minutes including `plan.name` (`free`), sign out; the log contains neither code nor
+  token. Renewal with an expiry moved forward: new token and new refresh token, without a client secret. An already
+  used refresh token brings `incorrect_client_credentials` instead of the documented `bad_refresh_token`; both now sign
+  out. In the installed app (v0.1.0-beta.4, 18.10.2026): sign in, all pools get runners, and after a restart it is
+  signed in again right away with the saved token (`safeStorage`, no plain text in `github.token`).
+  Still to check for real: “Cancel” while waiting.
+- **Signing out of Windows** (`watchSession` in `src/main.js`, `releaseIdle` in `src/runners.js`): only checked in the
+  code. After signing out with the app running, check that no entries of the machine are left on GitHub under
+  Settings → Actions → Runners.
+- **Start state of the interface** (“Connecting to RunClub …”, if no answer comes “RunClub is not responding.”): only
+  checked in the code.
+- **Docker VM memory from inside the VM and the warning** (`src/vmmemory.js`, `src/usage.js`).
+  Tested are the reading and the rule (under 15 % free in three samples in a row). Only checked in the code: the
+  continuous run of `wsl -d docker-desktop` (does it start, does it deliver every 2 s, does it end with the app), the
+  silent absence without the distro, the restart after a restart of Docker, the two messages in the log and the red
+  figure with “only x free” in the load band. Check in operation: the curve “Docker VM · memory” is higher after the
+  app restarts than before (at idle about 1.9 instead of 1.1 GB) and jumps in the history.
+- **Build service in the memory bar** (Settings → Limits): only checked in the code, not looked at. Check in the
+  picture: the build service's field stands out from the slots, the caption “2 × 8 GB + build service 4 GB” fits under
+  narrow groups, and a paused project with a cache shows only this field.
+- **Waiting runs without a pool** (`src/waiting.js`): only tested against a simulated GitHub and looked at as a still.
+  Check for real: in a private repo without a pool, start a run with `runs-on: [self-hosted, Linux]`; after five
+  minutes at the latest, “All projects” shows the line with “Create pool”.
+- **Runs that failed on GitHub's quota** (`src/waiting.js`): the shape of job and annotation comes from a real run
+  (38468791627 in `Zaho92/RunClub`), the search itself is only tested against a simulated GitHub. Check for real: a
+  private repo without a pool whose run failed this way in the last 24 hours shows up in “All projects” after five
+  minutes at the latest as a line with a red icon “No GitHub minutes: …” with “Create pool”; after a
+  successful run or a day it disappears. Not looked at: line and icon. At most the most recent completed runs
+  are counted (`DONE_MAX` in `src/waiting.js`).
+- **Minutes quota in “Usage”** (`src/minutes.js`, `watchMinutes` in `src/account.js`, `minutesStop` in
+  `src/ui.html`; in the interface “GitHub minutes”): only the billing reply for an account on the Free plan whose
+  minutes were used up has been read for real (its entries are in `test/minutes.test.js`), and that without the year
+  and month that have been asked for since the review (`?year=&month=`). The states fine, tight and paid, macOS and an
+  unknown plan are only checked with simulated replies and looked at as a still. Assumptions to adjust when GitHub
+  changes its plans: the table of included minutes (`INCLUDED` in `src/minutes.js`; the API does not name them, and
+  the real reply showed 2,097 used minutes without charges, i.e. more than the assumed 2,000), that every minute
+  counts once, whatever the operating system, and that the month starts anew on the first (UTC). Open:
+  - whether minutes of larger runners (`actions_linux_4_core` and similar, which the included minutes do not cover)
+    should count; today they do. Likewise every unknown SKU counts as “other”.
+  - whether the budget can be read. Today RunClub only sees whether something has already been charged: “used up”
+    therefore means “without a budget nothing starts any more”, and whoever pays does not learn whether their budget
+    has been reached.
+  - whether the permission `read:user` would have been enough for billing. `user` is required, which also allows
+    changing the profile (the interface says so).
+  - Check in operation: after a start without network, the stop appears within a minute of signing in; if the query
+    fails, it says “could not be read” and the reason once in the log.
+- **Re-run run and job** (`run/rerun`, `job/rerun` in `src/actions.js` and `rerun` in `src/remote.js`; buttons in `src/ui.html`): only
+  checked in the code, no call went to GitHub. Check for real: “Re-run” and “Failed only” under the header of the
+  last run, “Re-run job” in the expanded details of a pill; the run shows as running again after a few seconds, the
+  log has the message, and a refusal from GitHub arrives as a message at the bottom.
+  Check in the picture: the job's button sits on the right in the details without covering text or sticking out of
+  the rounded area (compact and in detail mode, also on a failed pill with a long step name); the pill stays expanded
+  while the pointer is on the button; the icon is distinguishable from “Rebuild runners”.
+- **Mapping in the network plan** for matrix jobs, names with an expression and called workflows: GitHub's name forms
+  come from the documentation, not from a real run. The own workflows use none of it.
+- **Daily rebuild of the runner and Docker daemon images** and the start without network with an existing image: only checked in the code.
+- **Pause at GitHub's request** (403/429 with `retry-after`): only tested against a simulated GitHub.
+- **GitHub requests tight and used up.** Only the normal case has been measured for real (conditional requests do not
+  count; at idle 0 instead of about 36 requests in three minutes). Querying less often, no longer querying and the
+  messages for it are only tested against a simulated GitHub (`test/github.test.js`) and looked at as a still.
+- **Saving and copying the log** in the app window. The endpoints (`/api/log`, `/api/log/file`) are checked on a test
+  instance and the display as a still. Check in the real window: “Save” opens the Windows dialog, “Copy” puts the
+  whole file on the clipboard and reports the number of lines.
+- **Window without the Windows title bar.** Check in the real window: dragging and double-clicking the top strip (also
+  above the bar), resizing at the top edge, snapping and maximizing; whether the Windows buttons end flush with the
+  32 px high strip; whether the buttons in the narrow window (up to 760 px) take on the bar's colour and switch back
+  when widening (`matchBar` in `src/main.js`).
+- **The app's confirmation dialog** by keyboard: “Cancel” has the focus with a visible ring, Escape cancels.
+- **Networks with their own subnet** (`src/subnets.js`). Tested are the calculation and the retry against a simulated
+  Docker; on real pairs it only shows after the next restart of the app: `docker network inspect <pair>` then shows a
+  /28 from 10.213.x. Existing networks keep their old subnet, including those of the build services
+  (`rc-buildnet-…`), as long as the repo keeps its cache. Check in the log that “Could not create the network” does
+  not appear.
 
-- **Korrekturen aus dem zweiten Review**, alle nur am Code und in einer Testinstanz ohne Pools geprüft:
-  der Build-Dienst zieht neue Limits von selbst nach, sobald im Pool nichts läuft (`renewService`, im Minutentakt);
-  nach einer Unterbrechung von Docker werden liegen gebliebene Paare entfernt (`removeOrphans`); Runner und Docker
-  eines Jobs bleiben zusammen unter dem Speicher der Docker-VM (der Regler springt nach dem Loslassen zurück, wenn
-  die Summe zu hoch war). Im Betrieb beobachten, ob das Protokoll dazu passt.
+- **Fixes from the second review**, all only checked in the code and in a test instance without pools:
+  the build service picks up new limits by itself as soon as nothing runs in the pool (`renewService`, every
+  minute); after an interruption of Docker, leftover pairs are removed (`removeOrphans`); runner and Docker of a job
+  together stay below the memory of the Docker VM (the slider jumps back after release if the sum was too high).
+  Watch in operation whether the log matches.
 
-- **Limits je Projekt und „Runner neu aufbauen“** (Einstellungen → Projekt aufklappen → Limits → „Eigene“). Getestet sind
-  nur die Rechenregeln (`test/limits.test.js`). Im Betrieb prüfen: Ein Projekt mit eigenen Werten baut seine Paare damit
-  (`docker inspect`), „Wie alle“ nimmt sie wieder weg, und „Runner neu aufbauen“ ersetzt die freien Runner, ohne einen
-  laufenden Job zu stören.
-- **„Vorschlag übernehmen“ für alle Projekte** (`limits/plan`): setzt den Standard und eigene Limits für Ausreißer in einem
-  Schritt und nimmt allen anderen Projekten ihre eigenen Werte. Die Regeln sind getestet (`plan`, `rate` in
-  `test/limits.test.js`), der Aufruf gegen die laufende App nicht.
-- **Mehrere Limit-Änderungen kurz nacheinander.** Am 13.10.2026 scheiterten danach sieben Paare mit „Docker-Daemon
-  startet nicht“, und die Reserve dreier Pools blieb leer. Vermutete Ursache: Docker gingen die Netze aus, weil alte und
-  neue Paare zugleich standen (belegt ist das nicht, die Meldung zeigte nur den Hilfe-Hinweis). Seither laufen die
-  Erneuerungen nacheinander, ein gescheiterter Eintrag verlässt die Reserve, und die Meldung nennt die Ursache. Beim
-  nächsten Mal im Protokoll nachsehen, ob es dabei bleibt.
+- **Limits per project and “Rebuild runners”** (Settings → expand a project → Limits → “Own”). Only the calculation
+  rules are tested (`test/limits.test.js`). Check in operation: a project with its own values builds its pairs with
+  them (`docker inspect`), “Shared” removes them again, and “Rebuild runners” replaces the idle runners without
+  disturbing a running job.
+- **“Apply suggestion” for all projects** (`limits/plan`): sets the default and own limits for outliers in one step
+  and takes their own values away from all other projects. The rules are tested (`plan`, `rate` in
+  `test/limits.test.js`), the call against the running app is not.
+- **Several limit changes in quick succession.** On 13.10.2026, seven pairs then failed with “Docker daemon does not
+  start”, and the reserve of three pools stayed empty. Suspected cause: Docker ran out of networks because old and new
+  pairs stood at the same time (not proven, the message only showed the help hint). Since then the renewals run one
+  after another, a failed entry leaves the reserve, and the message names the cause. Next time, check in the log
+  whether it stays that way.
 
-- **Korrekturen an Plätzen und Reserve nach dem Umzug** (`src/slots.js`, `src/pools.js`), alle nur mit
-  nachgestelltem Docker und GitHub geprüft (`test/slots.test.js`, `test/pools.test.js`); wirksam erst nach einem
-  Neustart der App. Im Betrieb sähe man es so:
-  - Scheitert die Anmeldung bei GitHub (403, Anfragelimit aufgebraucht, kein Netz), bleibt der Platz „gestört“ mit
-    seinem Runner-Namen stehen, der Fehler steht jede Minute im Protokoll, und `docker ps` zeigt dasselbe Paar
-    (`rc-…-dind`) weiter; die Reserve baut nicht nach. Sobald GitHub wieder antwortet, wird der Platz ohne neuen Aufbau
-    „bereit“. Pausieren, Plätze verringern, Beenden oder geänderte Limits bauen das Paar ab.
-  - Endet ein Runner mitten im Job (etwa `docker rm -f <Paar>-runner` während eines Demo-Laufs), steht „Job „…“
-    endete ohne Ergebnis (…)“ als Fehler im Protokoll, der Platz zählt den Job mit, und unter Verbrauch erscheint
-    kein Eintrag dafür. Beim Beenden der App mit laufendem Job erscheint die Meldung nicht.
-  - Plätze von 3 auf 1 und gleich wieder auf 3 stellen, während ein Job läuft: Es stehen nie mehr als drei Plätze in
-    der Liste, keiner trägt „läuft aus“, und der arbeitende bedient nach seinem Job den nächsten.
-  - „Runner neu aufbauen“ mit laufendem Job nach einer Limit-Änderung: Freie Runner, die schon neu gebaut waren,
-    behalten ihren Namen; nur die mit alten Limits bekommen einen neuen.
-  - Nicht herbeiführbar, nur am Test geprüft: Nachfüllen der Reserve nach einem gescheiterten Abbau (`renewReserve`),
-    der Fehler von `discardReserve` beim Pausieren im Protokoll (`pool/set` in `src/actions.js`) und der Abbruch
-    während der Pause nach einem Fehler.
-- **CI_RUNNER setzen und entfernen** gegen GitHub. Gelesen wird richtig, das Schreiben ist nur gegen ein nachgestelltes
-  GitHub getestet (`test/routing.test.js`). Ausprobieren in Einstellungen → Projekt RunClub.
-- **Stehenbleiben des Auslastungsbands** beim Scrollen und die Ansicht im **schmalen Fenster**: nur im Code und als Standbild geprüft.
-- **Die letzte Korrekturrunde der Oberfläche** hat der Gutachter nicht mehr gegengeprüft.
+- **Fixes to slots and reserve after the move** (`src/slots.js`, `src/pools.js`), all only checked with a simulated
+  Docker and GitHub (`test/slots.test.js`, `test/pools.test.js`); effective only after a restart of the app. In
+  operation it would look like this:
+  - If the registration with GitHub fails (403, rate limit used up, no network), the slot stays “faulty” with its
+    runner name, the error is in the log every minute, and `docker ps` still shows the same pair (`rc-…-dind`); the
+    reserve does not rebuild. As soon as GitHub answers again, the slot becomes “ready” without being rebuilt.
+    Pausing, reducing slots, quitting or changed limits tear the pair down.
+  - If a runner ends in the middle of a job (such as `docker rm -f <pair>-runner` during a demo run), “Job “…” ended
+    without a result (…)” is in the log as an error, the slot counts the job, and no entry for it appears under
+    Usage. When quitting the app with a job running, the message does not appear.
+  - Set slots from 3 to 1 and right back to 3 while a job is running: there are never more than three slots in the
+    list, none says “retiring”, and the working one serves the next job after its own.
+  - “Rebuild runners” with a running job after a limit change: idle runners that were already rebuilt keep their
+    name; only those with old limits get a new one.
+  - Cannot be brought about, only checked in the test: refilling the reserve after a failed teardown
+    (`renewReserve`), the error of `discardReserve` when pausing in the log (`pool/set` in `src/actions.js`) and the
+    abort during the pause after an error.
+- **Setting and removing CI_RUNNER** against GitHub. Reading works correctly, writing is only tested against a
+  simulated GitHub (`test/routing.test.js`). Try it in Settings → project RunClub.
+- **The load band staying in place** while scrolling and the view in the **narrow window**: only checked in the code and as a still.
+- **The last round of interface fixes** has not been re-checked by the reviewer.
 
-- **Aus dem Umbau des Backends und dem fünften Review** (14.10.2026), nur an Tests und am Code geprüft: Limits ändern
-  (Reserve erneuert sich, der Build-Dienst entsteht mit neuen Limits), „Runner neu aufbauen“ mit und ohne laufenden Job,
-  Cache leeren (auch wenn das Löschen scheitert), Pool entfernen (Caches, Vorlage, Variable, Anmeldungen), ein Job lädt
-  ein neues Abbild und die Vorlage frischt sich auf, das Weiterlesen nach einem Abriss der Verbindung zu `docker run`,
-  das Abmelden verwaister Runner, ein Repo, das öffentlich und wieder privat wird. Im Betrieb gesehen: Start, Build-Dienst
-  ohne Rechte (ein `docker build` aus einem Runner geht über den Socket), Demo-Lauf und CI auf den eigenen Runnern,
-  Beenden ohne Reste.
+- **From the backend rebuild and the fifth review** (14.10.2026), only checked in tests and the code: changing limits
+  (the reserve renews itself, the build service comes up with new limits), “Rebuild runners” with and without a
+  running job, clearing a cache (also when deleting fails), removing a pool (caches, template, variable,
+  registrations), a job pulls a new image and the template refreshes, continuing to read after the connection to
+  `docker run` drops, signing off orphaned runners, a repo that goes public and private again. Seen in operation:
+  start, build service without privileges (a `docker build` from a runner goes via the socket), demo run and CI on
+  the own runners, quitting without leftovers.
 
-- **Daemons ohne Rechte** (seit `9686428`, App neu gestartet am 15.10.2026 um 12:43). Im Betrieb gesehen: Die Paare
-  laufen mit `runclub-dind`; Jobs von RunClub und what-to-wear liefen darauf durch, auch der Job „docker“ von
-  what-to-wear (Docker im Job über den Socket); die Anmeldung der Runner über die Standardeingabe trägt damit; der
-  Lade-Daemon der Vorlage hat um 12:43 die Vorlage von what-to-wear aufgefrischt, ohne Fehler im Protokoll. Offen:
-  ob ein Abbild aus der Vorlage einem frisch geladenen gleicht (Verdacht aus dem sechsten Durchgang, unbelegt: `cp -a`
-  aus busybox übernimmt womöglich keine erweiterten Attribute wie `user.overlay.opaque`, sodass in kopierten Abbildern
-  gelöschte Ordner unterer Schichten wieder auftauchen. Prüfweg: ein Abbild, das einen Ordner einer unteren Schicht
-  ersetzt, einmal aus der Vorlage und einmal frisch geladen vergleichen).
-- **Pause eines öffentlich gewordenen Repos über einen Neustart** (`pausedPublic` in `src/actions.js`, seit `7d36a3b`):
-  nur am Test geprüft. Echt prüfen: Der Pool eines Repos, das öffentlich wurde, bleibt nach einem Neustart der App
-  pausiert und wird erst wieder frei, wenn das Repo privat ist.
-- **Korrekturen aus dem sechsten Durchgang** (15.10.2026). Im Betrieb gesehen am 15.10.2026 nach zwei Neustarts mit
-  je zwei sich überlappenden Demo-Läufen (einer gescheitert): Volumes, Ende eines Jobs und Bestätigung, Capabilities
-  und Protokollgrenze (unten je „Gesehen“). Offen sind nur die Fehlerwege, die im Betrieb nicht vorkamen:
-  - Gesehen: Der Lade-Container der Vorlage hinterlässt kein anonymes Volume mehr (`docker rm -v`); nach zwei
-    Auffrischen blieb `docker volume ls -q --filter dangling=true` bei 4.
-  - Scheitert das Vorbereiten der Volumes eines Paars (Rechte, Kopie der Vorlage), steht „Volumes ließen sich nicht
-    vorbereiten: …“ im Protokoll, und das Paar geht, statt mit einem Daemon zu starten, der nicht hochkommt.
-  - Beim Beenden während des Auffrischens der Vorlage steht kein roter Eintrag „Lade-Daemon wurde nicht bereit“ mehr,
-    und der Lade-Container geht trotzdem.
-  - Scheitert das Lesen von `CI_RUNNER` beim Start, steht das im Protokoll; ebenso, wenn sich `access.key` nicht
-    schreiben lässt. `npm run backend` legt seine Daten ohne `RUNCLUB_DATA` jetzt unter `%APPDATA%\RunClub\backend` ab.
-  - Gesehen: Ein Job kann seinen Verbrauch nicht mehr verkürzen: Die Dauer läuft bis zum Ende des Runner-Containers, der Name
-    kommt aus der ersten „Running job“-Zeile, das Ergebnis aus der Ausgabe ist vorläufig und wird durch das von GitHub
-    ersetzt, sobald die üblichen Abfragen den Job des Runners abgeschlossen sehen (`confirmResults` in
-    `src/metrics.js`). Nach jedem Job fragt der Platz einmal mehr `docker inspect` (läuft der Runner noch?). Ein Runner
-    endet spätestens nach 24 Stunden (`RUNNER_MAX` in `src/slots.js`; ein Workflow mit längerem `timeout-minutes`
-    bräche dort ab), und sein Container-Protokoll in der Docker-VM ist auf zweimal 20 MB begrenzt. Im Betrieb:
-    Ergebnisse und Verbrauch erscheinen wie bisher, ein bis zwei Sekunden später; in `metrics.json` tragen die neuen
-    Durchläufe `runner` und nach der Bestätigung `confirmed: true`. Gesehen: alle Jobs beider Läufe mit `runner`,
-    bestätigt, der gescheiterte als „Failed“. Dabei gefunden und behoben: Endete ein früher gestarteter Lauf nach einem
-    später gestarteten, blieb sein letzter Job unbestätigt, weil nur der jüngste abgeschlossene Lauf gelesen wurde;
-    jetzt wird jeder eben beendete Lauf einmal abschließend gelesen und sechs Abfragen lang mitgegeben (`finishedOf`
-    in `src/pipeline.js`). Bekannt: Beendet man die App, während ein Runner
-    nach seinem Job noch aufräumt, wird dieser Job nicht mehr verbucht.
-  - Gesehen (`docker inspect`: CapDrop mit den sechs, LogConfig `max-size=20m`, `max-file=2`; in den Demo-Läufen kein
-    „Operation not permitted“): Der Runner-Container gibt `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` und `NET_BIND_SERVICE` ab.
-    Geprüft an einem eigenen Container aus dem Runner-Abbild: `sudo`, `sudo -u`, `apt-get install` (auch eines Pakets,
-    das Capabilities setzen will), `ping`, `dotnet`, `node` gehen. Ein Dienst, den ein Schritt per `sudo` direkt im
-    Runner auf einem Port unter 1024 startet, geht nicht mehr. Offen: in den Läufen der anderen Repos auf
-    „Operation not permitted“ achten.
+- **Daemons without privileges** (since `9686428`, app restarted on 15.10.2026 at 12:43). Seen in operation: the pairs
+  run with `runclub-dind`; jobs of RunClub and what-to-wear ran through on them, including the job “docker” of
+  what-to-wear (Docker in the job via the socket); the runners' registration via standard input holds with it; the
+  template's pull daemon refreshed what-to-wear's template at 12:43, without errors in the log. Open:
+  whether an image from the template equals a freshly pulled one (suspicion from the sixth pass, unproven: `cp -a`
+  from busybox may not carry over extended attributes such as `user.overlay.opaque`, so that in copied images deleted
+  folders of lower layers reappear. How to check: compare an image that replaces a folder of a lower layer once from
+  the template and once freshly pulled).
+- **Pause of a repo that went public across a restart** (`pausedPublic` in `src/actions.js`, since `7d36a3b`):
+  only checked in the test. Check for real: the pool of a repo that went public stays paused after a restart of the
+  app and only becomes free again when the repo is private.
+- **Fixes from the sixth pass** (15.10.2026). Seen in operation on 15.10.2026 after two restarts with two overlapping
+  demo runs each (one failed): volumes, end of a job and confirmation, capabilities and log limit (each “Seen”
+  below). Only the error paths that did not occur in operation are open:
+  - Seen: the template's pull container no longer leaves an anonymous volume behind (`docker rm -v`); after two
+    refreshes `docker volume ls -q --filter dangling=true` stayed at 4.
+  - If preparing a pair's volumes fails (permissions, copy of the template), “Could not prepare the volumes: …” is in
+    the log, and the pair goes instead of starting with a daemon that does not come up.
+  - When quitting while the template is being refreshed, there is no longer a red entry “pull daemon did not become
+    ready”, and the pull container goes anyway.
+  - If reading `CI_RUNNER` fails on start, the log says so; likewise if `access.key` cannot be written.
+    `npm run backend` now stores its data under `%APPDATA%\RunClub\backend` without `RUNCLUB_DATA`.
+  - Seen: a job can no longer shorten its usage: the duration runs until the end of the runner container, the name
+    comes from the first “Running job” line, the result from the output is provisional and is replaced by GitHub's as
+    soon as the usual queries see the runner's job completed (`confirmResults` in
+    `src/metrics.js`). After every job the slot asks `docker inspect` once more (is the runner still running?). A runner
+    ends after 24 hours at the latest (`RUNNER_MAX` in `src/slots.js`; a workflow with a longer `timeout-minutes`
+    would be cut off there), and its container log in the Docker VM is limited to twice 20 MB. In operation:
+    results and usage appear as before, one or two seconds later; in `metrics.json` the new runs carry `runner` and,
+    after confirmation, `confirmed: true`. Seen: all jobs of both runs with `runner`, confirmed, the failed one as
+    “Failed”. Found and fixed along the way: if a run started earlier ended after one started later, its last job
+    stayed unconfirmed because only the most recent completed run was read; now every run that just ended is read
+    once more at the end and passed along for six queries (`finishedOf`
+    in `src/pipeline.js`). Known: if the app is quit while a runner
+    is still cleaning up after its job, that job is no longer booked.
+  - Seen (`docker inspect`: CapDrop with the six, LogConfig `max-size=20m`, `max-file=2`; in the demo runs no
+    “Operation not permitted”): the runner container drops `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` and `NET_BIND_SERVICE`.
+    Checked on a separate container from the runner image: `sudo`, `sudo -u`, `apt-get install` (also of a package
+    that wants to set capabilities), `ping`, `dotnet`, `node` work. A service that a step starts via `sudo` directly in
+    the runner on a port below 1024 no longer works. Open: watch for “Operation not permitted” in the other repos'
+    runs.
 
-## Offene Entscheidungen des Nutzers
+## Open decisions for the user
 
-- Keine. (Die eigene Anmeldung ist entschieden: GitHub-App statt OAuth-App, siehe Schritt 3.3 oben.)
+- None. (The own sign-in is decided: GitHub App instead of OAuth App, see step 3.3 above.)
 
-## Später
+## Later
 
-- **Schmale Ansicht als eigener Entwurf.** Einschätzung des Nutzers (13.10.2026): RunClub ist ein Werkzeug für den
-  Desktop; die heutige schmale Ansicht (bis 760 px) schiebt nur alles untereinander, der Inhalt trägt dort nicht und
-  ist schlecht bedienbar. Für jetzt genügt das, es gibt keinen Anspruch darauf. Wenn es einmal gebraucht wird, dann als
-  Fenster, das am Rand mitläuft, mit eigenem Inhalt (was läuft, wie lange noch, ist etwas rot) statt der gestauchten
-  Vollansicht. Bis dahin keinen Aufwand in die schmale Ansicht stecken; sie muss nur nicht kaputtgehen.
+- **Narrow view as a design of its own.** The user's assessment (13.10.2026): RunClub is a desktop tool; today's
+  narrow view (up to 760 px) only stacks everything, the content does not hold up there and is hard to use. For now
+  that is enough, there is no claim to it. If it is ever needed, then as a window that runs along at the edge, with
+  its own content (what is running, how much longer, is anything red) instead of the squeezed full view. Until then,
+  put no effort into the narrow view; it just must not break.
 
-## Kleinere Punkte
+## Smaller items
 
-- **Übergangscode aus der Zeit vor den Daemons ohne Rechte.** Kann entfallen, sobald jede Installation einmal mit
-  dem Stand vom 15.10.2026 gestartet ist (heute nur dieser Rechner, also nach dem nächsten Neustart der App):
-  `removeLeftovers` in `src/dockerwatch.js` entfernt Build-Dienst und Netz eines Repos auch beim Namen (ältere
-  Versionen legten sie ohne Kennzeichen an); `startService` in `src/caches.js` leert Build-Layer, die root gehören;
-  `refreshSeed` in `src/seed.js` leert eine Vorlage, die root gehört. Vor der Veröffentlichung entfernen, wenn es
-  keine älteren Installationen gibt.
-- **Demo-Pipeline** (`.github/workflows/demo.yml`) entfernen, sobald sie zum Ansehen des Netzplans nicht mehr gebraucht wird.
+- **Transitional code from the time before the daemons without privileges.** Can go as soon as every installation
+  has started once with the state of 15.10.2026 (today only this machine, i.e. after the next restart of the app):
+  `removeLeftovers` in `src/dockerwatch.js` also removes a repo's build service and network by name (older versions
+  created them without a label); `startService` in `src/caches.js` clears build layers owned by root;
+  `refreshSeed` in `src/seed.js` clears a template owned by root. Remove before publication, once there are no older
+  installations.
+- **Demo pipeline** (`.github/workflows/demo.yml`): remove once it is no longer needed for looking at the network plan.
 
-## Erledigt (zur Einordnung)
+## Done (for context)
 
-Electron-App mit Symbol im Infobereich und Autostart · Windows-Runner entfernt · Repo-Auswahl aus dem GitHub-Konto ·
-Netzplan je Lauf mit Abhängigkeiten aus `needs`, üblicher Dauer und Restzeit · Verlauf der Auslastung und Verbrauch je Job ·
-neue Oberfläche „Midnight Transit“ mit Kompakt- und Detailmodus, Deutsch und Englisch · Läufe erscheinen sofort ·
-CI_RUNNER wird beim Anlegen und Entfernen eines Pools gesetzt · Tests und CI auf den eigenen Runnern ·
-erstes Code- und Sicherheits-Review mit Korrekturen (Zugriff nur mit Schlüssel, Zeitgrenzen, Docker-Aussetzer) ·
-Einstellungen und Verbrauch als Strecke mit Haltestellen, Limits je Job einstellbar mit Vorschlag aus den Messwerten,
-auch je Projekt; freie Runner lassen sich mit neuen Limits neu aufbauen · eigene Rückfrage statt des Dialogs von
-Windows, Fenster ohne Titelleiste von Windows · Protokoll als Liste mit Zeit, Projekt und Zustandssymbol, Filter nach
-Projekt, ganze Datei speichern oder kopieren · Info-Symbole statt Textwände in Einstellungen und Verbrauch (vom Nutzer
-am 14.10.2026 im Fenster bestätigt, auch das Hinüberführen des Zeigers auf die Info-Fläche) · Backend-Umbau
-abgeschlossen (14.10.2026): `src/backend.js` ist nur noch Verdrahtung mit `start()`; Plätze, Reserve, Vorlage, Caches,
-Docker-Überwachung, Einstellungen, Namen, Messung, GitHub-Abfragen, Konto, Stand, Aufrufe und der lokale Dienst sind
-eigene Module mit Tests · fünftes Review mit Abschluss-Review: Build-Dienst ohne Rechte über einen Socket statt über die
-Netze der Paare, Grenze für Prozesse, öffentlich gewordene Repos pausieren, verwaiste Runner werden abgemeldet.
+Electron app with tray icon and autostart · Windows runners removed · repo selection from the GitHub account ·
+network plan per run with dependencies from `needs`, usual duration and remaining time · load history and usage per job ·
+new interface “Midnight Transit” with compact and detail mode, German and English · runs appear immediately ·
+CI_RUNNER is set when creating and removing a pool · tests and CI on the own runners ·
+first code and security review with fixes (access only with a key, timeouts, Docker dropouts) ·
+settings and usage as a line with stops, limits per job adjustable with a suggestion from the measurements,
+also per project; idle runners can be rebuilt with new limits · own confirmation dialog instead of the Windows
+dialog, window without the Windows title bar · log as a list with time, project and state icon, filter by
+project, save or copy the whole file · info icons instead of walls of text in settings and usage (confirmed by the
+user in the window on 14.10.2026, including moving the pointer over to the info area) · backend rebuild
+finished (14.10.2026): `src/backend.js` is only wiring with `start()`; slots, reserve, template, caches,
+Docker monitoring, settings, names, measurement, GitHub queries, account, state, actions and the local service are
+modules of their own with tests · fifth review with final review: build service without privileges via a socket
+instead of via the pairs' networks, limit on processes, repos that went public pause, orphaned runners are signed off.

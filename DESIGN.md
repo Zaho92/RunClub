@@ -1,6 +1,6 @@
 ---
 name: RunClub
-description: Eigene GitHub-Actions-Runner als Liniennetz auf mitternachtsblauem Grund.
+description: Self-hosted GitHub Actions runners as a transit map on a midnight-blue ground.
 colors:
   ground: "#0c1838"
   rail: "#091230"
@@ -192,427 +192,431 @@ components:
 
 # Design System: RunClub
 
-Abgeleitet aus dem gebauten Stand von `src/ui.html`. Die Werte im Kopf dieser Datei sind maßgeblich; der Text erklärt, wo und warum sie gelten. Die Token heißen wie im CSS (`--ground` → `ground`). `rail-hover` und `fail-edge` stehen im CSS als feste Werte, nicht als Variablen.
+Derived from the built state of `src/ui.html`. The values in the header of this file are authoritative; the text explains where and why they apply. The tokens are named as in the CSS (`--ground` → `ground`). `rail-hover` and `fail-edge` are fixed values in the CSS, not variables.
+
+Interface text quoted below is the English text from `TEXT.en` in `src/ui.html`; the German version lives in `TEXT.de`.
 
 ## Overview
 
 **Creative North Star: "Midnight Transit"**
 
-Ein Lauf ist ein Liniennetz auf einem mitternachtsblauen Emailleschild. Jobs sind Stationen in Form von Pills, die Abhängigkeiten zwischen ihnen sind geschwungene Strecken. Wer hinsieht, liest ohne ein Wort Text, was auf was wartet und wo es hängt. Die Oberfläche arbeitet im Modus Operate: Sie wird nebenbei für zwei Sekunden angesehen oder beim Verfolgen eines Laufs genau gelesen, und beides muss dieselbe Ansicht tragen.
+A run is a transit map on a midnight-blue enamel sign. Jobs are stations shaped as pills, the dependencies between them are curved tracks. Anyone who looks reads, without a word of text, what waits on what and where it is stuck. The interface works in Operate mode: it is glanced at for two seconds in passing or read closely while following a run, and the same view has to carry both.
 
-Das System ist ruhig und flach. Es gibt genau ein dunkles Thema, keine Schatten, keine Verläufe und kein reines Weiß. Tiefe entsteht aus vier eng gestuften Blautönen, Gliederung aus feinen Haarlinien. Die Schrift ist Overpass in leichten Schnitten; alle Zahlen stehen in Tabellenziffern, weil sie im Sekundentakt weiterzählen. Sättigung ist dem Zustand vorbehalten: Sechs Zustandsfarben, jede mit eigenem gezeichnetem Symbol, sind das Einzige auf der Fläche, das leuchtet.
+The system is calm and flat. There is exactly one dark theme, no shadows, no gradients and no pure white. Depth comes from four closely stepped blues, structure from fine hairlines. The typeface is Overpass in light weights; all numbers use tabular figures because they keep counting every second. Saturation is reserved for state: six state colors, each with its own drawn icon, are the only things on the surface that glow.
 
-Die Dichte folgt der Aufgabe. Im Kompaktmodus zeigt eine Pill Symbol, Name und Zeit; beim Überfahren verlängert sie sich nach unten und legt ihre Details über das, was darunter liegt – nichts verschiebt sich. Im Detailmodus trägt jede Pill eine gekürzte zweite Zeile. Über allem steht die Auslastung des Rechners als Verlauf über die Zeit, nicht als Momentwert; sie bleibt beim Scrollen stehen.
+Density follows the task. In compact mode a pill shows icon, name and time; on hover it extends downwards and lays its details over whatever lies below – nothing shifts. In detail mode every pill carries a shortened second line. Above everything sits the machine's load as a history over time, not as a momentary value; it stays put while scrolling.
 
 **Key Characteristics:**
-- Netzplan statt Jobliste: Stufen von links nach rechts, Strecken zwischen den Pills.
-- Nur dunkel, mitternachtsblau; hellster Ton ist Porzellan-Blaugrau, nie Weiß.
-- Zustand immer doppelt: Farbe und gezeichnetes Symbol.
-- Leichte Schrift (200 bis 400), Tabellenziffern überall.
-- Flach: Tonstufen und Haarlinien statt Schatten.
-- Verlauf der Auslastung als Linie mit zarter Fläche darunter.
+- Network map instead of job list: stages from left to right, tracks between the pills.
+- Dark only, midnight blue; the lightest tone is porcelain blue-grey, never white.
+- State always twice: color and drawn icon.
+- Light type (200 to 400), tabular figures everywhere.
+- Flat: tonal steps and hairlines instead of shadows.
+- Load history as a line with a faint area below it.
 
 ## Colors
 
-Eine einfarbige Welt in Blau um Farbton 268°, in der allein die sechs Zustände Farbe tragen.
+A monochrome world in blue around hue 268°, in which only the six states carry color.
 
 ### Primary
-- **Streckenblau** (`track`): Die Strecken des Netzplans (2,5 px, runde Enden), der Rahmen einer überfahrenen Pill oder Schaltfläche, der Rahmen von Tooltip und Meldung. Das gedämpfte Stahlblau ist die Linienfarbe des Systems.
-- **Offene Strecke** (`track-open`): Dieselbe Strecke, wenn ihr Ziel noch wartet oder ausgesetzt ist; dann gepunktet (`2 7`). Wertgleich mit `wait`.
-- **Kurvenblau** (`chart`): Linie und Fläche (16 % Deckkraft) der Verlaufskurven, außerdem Fokusring, Schreibmarke und Häkchen der Auswahlkästchen.
+- **Track Blue** (`track`): The tracks of the network map (2.5 px, round caps), the border of a hovered pill or button, the border of tooltip and toast. The muted steel blue is the line color of the system.
+- **Open Track** (`track-open`): The same track when its target is still waiting or skipped; then dotted (`2 7`). Same value as `wait`.
+- **Chart Blue** (`chart`): Line and area (16 % opacity) of the history charts, plus focus ring, text caret and the check mark of checkboxes.
 
 ### Secondary
-Die sechs Zustandsfarben. Ihre Helligkeit folgt der Dringlichkeit: was läuft, ist am hellsten, was wartet, am dunkelsten.
-- **Signalgelb** (`run`): Job läuft. Füllt das Symbol, färbt den 2 px hohen Fortschrittsstrich am unteren Rand der Pill und die Zeit eines Jobs, der länger braucht als üblich.
-- **Signalgrün** (`done`): Job fertig; auch das Wort „fertig“ beim letzten Lauf.
-- **Signalrot** (`fail`): Fehler. Füllt das Symbol und färbt eine Verlaufskurve, wenn der Speicher knapp wird.
-- **Fehlertext** (`fail-text`): Rot für Schrift, aufgehellt, damit es auf den blauen Flächen lesbar bleibt: Fehlerzahl, fehlgeschlagener Schritt, Warnsätze, gefährliche Schaltflächen.
-- **Fehlerrand** (`fail-edge`): Abgedunkeltes Rot für Rahmen: fehlgeschlagene Pill, Warn-Tag, gefährliche Schaltfläche.
-- **Violett** (`cancel`): Abgebrochen.
-- **Schiefer** (`skip`): Ausgesetzt. Nur Ring und Strich, keine Füllung.
-- **Wartegrau** (`wait`): Wartet. Nur Ring und Punkt, keine Füllung; auch die senkrechte Marke „Lauf gestartet“ in den Kurven.
+The six state colors. Their lightness follows urgency: what runs is lightest, what waits is darkest.
+- **Signal Yellow** (`run`): Job running. Fills the icon, colors the 2 px progress stroke at the bottom edge of the pill and the time of a job that takes longer than usual.
+- **Signal Green** (`done`): Job done; also the word "done" for the last run.
+- **Signal Red** (`fail`): Failure. Fills the icon and colors a history chart when memory runs low.
+- **Fail Text** (`fail-text`): Red for type, lightened so it stays legible on the blue surfaces: failure count, failed step, warning sentences, dangerous buttons.
+- **Fail Edge** (`fail-edge`): Darkened red for borders: failed pill, warning tag, dangerous button.
+- **Violet** (`cancel`): Cancelled.
+- **Slate** (`skip`): Skipped. Ring and dash only, no fill.
+- **Wait Grey** (`wait`): Waiting. Ring and dot only, no fill; also the vertical "run started" mark in the charts.
 
 ### Neutral
-- **Mitternachtsgrund** (`ground`): Hintergrund des Hauptbereichs; zugleich die Farbe der Symbolzeichnung auf gefüllten Zustandskreisen.
-- **Leiste** (`rail`): Eine Stufe dunkler; Projektleiste und Eingabefelder.
-- **Leisten-Hover** (`rail-hover`): Überfahrener Eintrag der Projektleiste.
-- **Fläche** (`surface`): Eine Stufe heller; Pills, Schaltflächen, gewählter Eintrag der Leiste.
-- **Angehoben** (`raised`): Überfahrene Pill oder Schaltfläche, gewähltes Segment, Tooltip und Meldung.
-- **Kante** (`edge`): Rahmen von Pills, Schaltflächen, Feldern, Tags; gedrückte Schaltfläche; Rollbalken.
-- **Haarlinie** (`rule`): Trennlinien zwischen Abschnitten und Tabellenzeilen, Mittellinie der Kurven.
-- **Obergrenze** (`cap`): Die Linie, die in einer Kurve das Maximum markiert.
-- **Porzellan** (`ink`): Hellster Ton. Überschriften, Namen, große Zahlen, hervorgehobene Strecke.
-- **Text** (`text`): Lauftext und Zeiten.
-- **Gedämpft** (`muted`): Unterzeilen, Beschriftungen, Achsen, Hinweise.
+- **Midnight Ground** (`ground`): Background of the main area; also the color of the drawing on filled state circles.
+- **Rail** (`rail`): One step darker; project rail and input fields.
+- **Rail Hover** (`rail-hover`): Hovered entry of the project rail.
+- **Surface** (`surface`): One step lighter; pills, buttons, selected entry of the rail.
+- **Raised** (`raised`): Hovered pill or button, selected segment, tooltip and toast.
+- **Edge** (`edge`): Border of pills, buttons, fields, tags; pressed button; scrollbars.
+- **Hairline** (`rule`): Dividers between sections and table rows, center line of the charts.
+- **Cap** (`cap`): The line that marks the maximum in a chart.
+- **Porcelain** (`ink`): Lightest tone. Headings, names, large figures, highlighted track.
+- **Text** (`text`): Running text and times.
+- **Muted** (`muted`): Sublines, labels, axes, hints.
 
 ### Named Rules
-**Die Kein-Weiß-Regel.** Der hellste Ton ist `ink`. Reines Weiß kommt nirgends vor, auch nicht in Symbolen: Auf gefüllten Zustandskreisen ist die Zeichnung in `ground` ausgespart.
+**The No-White Rule.** The lightest tone is `ink`. Pure white appears nowhere, not even in icons: on filled state circles the drawing is cut out in `ground`.
 
-**Die Farbe-plus-Symbol-Regel.** Ein Zustand erscheint nie nur als Farbe. Jede der sechs Farben hat ihr gezeichnetes Symbol (Dreieck, Haken, Kreuz, Quadrat, Strich, Punkt); wer die Farbe nicht unterscheidet, liest das Symbol.
+**The Color-Plus-Icon Rule.** A state never appears as color alone. Each of the six colors has its drawn icon (triangle, check, cross, square, dash, dot); anyone who cannot tell the colors apart reads the icon.
 
-**Die Strecken-bleiben-blau-Regel.** Strecken tragen nie eine Zustandsfarbe. Sie sind `track`, gepunktet `track-open`, solange das Ziel noch nicht dran ist, und `ink`, wenn die Pill an ihrem Ende überfahren wird. Der Zustand steht an der Station, nicht auf der Linie.
+**The Tracks-Stay-Blue Rule.** Tracks never carry a state color. They are `track`, dotted `track-open` while the target's turn has not come, and `ink` when the pill at their end is hovered. The state sits at the station, not on the line.
 
-**Die Rot-ist-Störung-Regel.** Rot bedeutet, dass etwas das Eingreifen des Nutzers verlangt: ein Fehler im Lauf, ein voller Speicher, eine fehlende Anmeldung bei GitHub, eine Aktion, die etwas löscht. Für nichts anderes.
+**The Red-Means-Trouble Rule.** Red means something needs the user to step in: a failure in the run, full memory, a missing GitHub sign-in, an action that deletes something. Nothing else.
 
 ## Typography
 
-**Display Font:** Overpass (mit „Segoe UI“, system-ui, sans-serif), als variable Schrift lokal ausgeliefert (`src/fonts/overpass-latin.woff2`, Strichstärken 100–900)
-**Body Font:** Overpass (dieselbe Familie)
-**Label/Mono Font:** Consolas, monospace, nur für Code (der Ausdruck für `runs-on`, die Namen der GitHub-Rechte und Variablen, der Einmalcode der Anmeldung)
+**Display Font:** Overpass (with "Segoe UI", system-ui, sans-serif), shipped locally as a variable font (`src/fonts/overpass-latin.woff2`, weights 100–900)
+**Body Font:** Overpass (the same family)
+**Label/Mono Font:** Consolas, monospace, for code only (the expression for `runs-on`, the names of GitHub variables, the one-time code of the sign-in)
 
-**Character:** Eine einzige Familie, deren Herkunft aus der Verkehrsbeschilderung zur Bildwelt passt. Die Hierarchie entsteht aus Größe und Farbe, kaum aus Gewicht: Lauftext in 300, Namen und Überschriften in 400, die große Restzeit in 200.
+**Character:** A single family whose origin in traffic signage fits the imagery. Hierarchy comes from size and color, hardly from weight: running text in 300, names and headings in 400, the large remaining time in 200.
 
 ### Hierarchy
-- **Display** (200, 56 px, Zeilenhöhe 1): Die Restzeit des Laufs oben rechts. Unter 760 px Breite 40 px.
-- **Display klein** (300, 34 px, Zeilenhöhe 1): An derselben Stelle, wenn dort ein Wort statt einer Zeit steht („fertig“, „Fehler“, „wartet auf einen Runner“).
-- **Headline** (400, 26 px, Zeilenhöhe 1,2): Titel des Laufs oder der Ansicht, eine je Ansicht oder Lauf; ausgeglichener Umbruch.
-- **Title** (400, 18 px): Abschnitte in „Verbrauch“ und „Einstellungen“.
-- **Kennzahl** (`figure`; 300, 26 px, Zeilenhöhe 1,25): Der aktuelle Wert über einer Verlaufskurve, mit der Bezugsgröße in 13 px `muted` dahinter.
-- **Body** (300, 14 px, Zeilenhöhe 1,45): Lauftext, Tabellenzellen, Zeiten in den Pills.
-- **Body betont** (400, 14 px): Namen von Jobs und Projekten, in `ink`.
-- **Meta** (400, 13 px): Unterzeilen, Hinweise, Legende, Tabellen, Schaltflächen, die Info-Fläche.
-- **Label** (400, 12 px): Beschriftung über Kennzahlen, zweite Zeile in Leiste und Pill, Tags, Tooltip.
-- **Achse** (400, 11 px): Zeitachse unter den Kurven.
-- **Wortmarke** (600, 22 px): „RunClub“ oben in der Leiste; die einzige Stelle mit kräftigem Schnitt.
-- **Mono** (Consolas, 12 px): Code, wo immer er steht; in einem hervorgehobenen Satz in `ink`, damit er nicht hinter dem Satz zurückfällt. Das Protokoll steht in Overpass.
+- **Display** (200, 56 px, line height 1): The remaining time of the run at the top right. Below 760 px width 40 px.
+- **Display small** (300, 34 px, line height 1): In the same place when a word stands there instead of a time ("done", "failed", "waiting for a runner").
+- **Headline** (400, 26 px, line height 1.2): Title of the run or view, one per view or run; balanced wrapping.
+- **Title** (400, 18 px): Sections in "Usage" and "Settings".
+- **Figure** (`figure`; 300, 26 px, line height 1.25): The current value above a history chart, followed by the reference value in 13 px `muted`.
+- **Body** (300, 14 px, line height 1.45): Running text, table cells, times in the pills.
+- **Body strong** (400, 14 px): Names of jobs and projects, in `ink`.
+- **Meta** (400, 13 px): Sublines, hints, legend, tables, buttons, the info panel.
+- **Label** (400, 12 px): Label above figures, second line in rail and pill, tags, tooltip.
+- **Axis** (400, 11 px): Time axis below the charts.
+- **Wordmark** (600, 22 px): "RunClub" at the top of the rail; the only place with a heavy weight.
+- **Mono** (Consolas, 12 px): Code, wherever it appears; in a highlighted sentence in `ink` so it does not fall behind the sentence. The log is set in Overpass.
 
 ### Named Rules
-**Die Leichte-Schnitte-Regel.** Lauftext steht in 300, Betonung in 400, nichts außer der Wortmarke darüber. Je größer die Schrift, desto leichter der Schnitt.
+**The Light-Weights Rule.** Running text is 300, emphasis 400, nothing above that except the wordmark. The larger the type, the lighter the weight.
 
-**Die Tabellenziffern-Regel.** `font-variant-numeric: tabular-nums` gilt für die ganze Seite. Zeiten zählen im Sekundentakt weiter; ohne feste Ziffernbreite würden Pills und Spalten zittern.
+**The Tabular-Figures Rule.** `font-variant-numeric: tabular-nums` applies to the whole page. Times keep counting every second; without fixed figure widths pills and columns would jitter.
 
-**Die Kleinschreib-Regel.** Beschriftungen stehen in normaler Schreibung ohne Sperrung. Versalien und Laufweiten kommen nicht vor.
+**The No-Caps Rule.** Labels use normal case without letter spacing. All caps and tracking do not occur.
 
 ## Layout
 
-Zwei Spalten über die volle Fensterhöhe: links die Projektleiste (232 px), rechts der Hauptbereich, der allein rollt. Der Hauptbereich hat 26 px Abstand oben, 44 px seitlich und 40 px unten. Sein Inhalt ist ein senkrechter Stapel mit 22 px Abstand; innerhalb eines Laufs sind es 14 px, zwischen mehreren Läufen und zwischen den Spalten des Auslastungsbands 34 px.
+Two columns over the full window height: on the left the project rail (232 px), on the right the main area, which alone scrolls. The main area has 26 px padding at the top, 44 px at the sides and 40 px at the bottom. Its content is a vertical stack with 22 px gaps; within a run it is 14 px, between several runs and between the columns of the load band 34 px.
 
-Der Kopf eines Laufs stellt Titel und Herkunft links an die Grundlinie der großen Restzeit rechts. Der Netzplan füllt die Breite: Jede Stufe ist eine Spalte (mindestens 180 px, höchstens 280 px), die Spalten stehen mit `clamp(40px, 6vw, 96px)` Abstand nebeneinander und sind senkrecht mittig ausgerichtet, die Pills einer Spalte haben 12 px Abstand. Hat ein Lauf keine Abhängigkeiten, stehen die Jobs in Startreihenfolge zu sechst je Spalte. Im Kompaktmodus hält der Plan 44 px Höhe vor, damit das Aufklappen einer Pill nichts darunter verschiebt. Reicht die Breite nicht, rollt der Plan waagerecht.
+The header of a run sets title and origin on the left against the baseline of the large remaining time on the right. The network map fills the width: each stage is a column (at least 180 px, at most 280 px), the columns sit side by side with `clamp(40px, 6vw, 96px)` spacing and are vertically centered, the pills of a column have 12 px spacing. If a run has no dependencies, the jobs stand in start order, six per column. In compact mode the map reserves 44 px of height so that expanding a pill shifts nothing below it. If the width is not enough, the map scrolls horizontally.
 
-Ganz oben im Hauptbereich steht das Auslastungsband und bleibt beim Scrollen stehen (`position: sticky`), nach unten durch eine Haarlinie abgesetzt: drei gleich breite Verlaufskurven und rechts die etwas breitere Spalte mit den Plätzen (Verhältnis 1 : 1 : 1 : 1,7, damit die Projektnamen in zwei Spalten lesbar bleiben). Die Plätze sind so hoch wie die Kurvenspalte daneben; ihre Zeilen rollen in sich, die Legende bleibt darunter stehen. Darunter stehen die Läufe untereinander, jeder mit Kopf und Netzplan, nach dem letzten die Legende, danach die ruhigen Projekte als Zeilen. „Verbrauch“ ist wie die Einstellungen eine Strecke (höchstens 860 px breit): Die erste Haltestelle zeigt dieselben drei Kurven über 24 Stunden, die zweite die GitHub-Anfragen, die dritte die GitHub-Minuten (mit dem Recht `user`; ohne es steht dort nur ein Satz mit dem Weg in die Einstellungen, ohne Anmeldung fehlt sie), danach hat jedes Projekt seine eigene Haltestelle mit der höchsten gemessenen Spitze eines Jobs (zwei Schienen wie beim Regler, Runner und Docker, gemessen am erlaubten Limit; rot ab 85 %, dann mit Verweis auf die Limits) und einer Tabelle seiner Jobs über die volle Breite der Haltestelle (Zahlenspalten 96 px, im schmalen Fenster 84 px; reicht die Breite nicht, rollt sie waagerecht). Die Tabelle nennt den Verbrauch zuerst, Runner und Docker getrennt; der Wert, der die Schiene bestimmt, steht in `ink`. Eine gepunktete Marke auf jeder Schiene zeigt die 85 %. „Einstellungen“ ist auf 860 px begrenzt und als Strecke gegliedert: Links läuft eine senkrechte Linie, an der jeder der fünf Abschnitte (GitHub, Projekte, Limits je Job, App, Protokoll) mit einer Haltestelle beginnt; der Inhalt steht 44 px rechts der Linie, zwischen den Abschnitten liegen 44 px ohne weitere Trennlinie.
+At the very top of the main area sits the load band, which stays put while scrolling (`position: sticky`), set off below by a hairline: three equally wide history charts and on the right the somewhat wider column with the slots (ratio 1 : 1 : 1 : 1.7, so the project names stay legible in two columns). The slots are as tall as the chart column next to them; their rows scroll within, the legend stays below. Below that the runs stand one under another, each with header and network map, after the last one the legend, then the quiet projects as rows. "Usage", like the settings, is a line of stops (at most 860 px wide): the first stop shows the same three charts over 24 hours, the second the GitHub requests, the third the GitHub minutes (without a sign-in it is missing), after that each project has its own stop with the highest measured peak of a job (two bars as on the slider, runner and Docker, measured against the allowed limit; red from 85 %, then with a link to the limits) and a table of its jobs across the full width of the stop (number columns 96 px, 84 px in a narrow window; if the width is not enough, it scrolls horizontally). The table lists usage first, runner and Docker separately; the value that sets the bar is in `ink`. A dotted mark on each bar shows the 85 %. "Settings" is limited to 860 px and structured as a line: on the left runs a vertical line at which each of the five sections (GitHub, Projects, Limits per job, App, Log) begins with a stop; the content sits 44 px to the right of the line, between the sections lie 44 px without any further divider.
 
-Umbrüche:
-- **bis 1100 px:** Das Band wird zweispaltig, der seitliche Abstand des Hauptbereichs sinkt auf 24 px.
-- **bis 900 px:** Die Zeilen ruhiger Projekte in „Alle Projekte“ werden zweizeilig.
-- **bis 760 px:** Die Leiste wird zur waagerecht rollenden Zeile oben, das Band zweispaltig mit niedrigeren Kurven (44 px) und den Plätzen über die volle Breite, Titel und Restzeit stehen untereinander. Das Band bleibt dort nicht stehen. Der Netzplan rollt die Spalte mit dem ersten roten oder laufenden Job in die Mitte.
+Breakpoints:
+- **up to 1100 px:** The band becomes two columns, the side padding of the main area drops to 24 px.
+- **up to 900 px:** The rows of quiet projects in "All projects" become two lines.
+- **up to 760 px:** The rail becomes a horizontally scrolling row at the top, the band two columns with lower charts (44 px) and the slots across the full width, title and remaining time stack. The band does not stick there. The network map scrolls the column with the first red or running job into the middle.
 
 ## Elevation & Depth
 
-Das System ist flach. Es gibt keinen Schatten, keinen Verlauf und keine Unschärfe. Tiefe entsteht aus Tonstufen: `rail` liegt unter `ground`, `surface` darüber, `raised` noch eine Stufe höher. Was schwebt (Tooltip, Info-Fläche, Meldung), ist `raised` mit einem Rahmen in `track`, nicht mit Schatten abgehoben. Flächen, die noch nicht dran sind, sind gar keine: Wartende und ausgesetzte Pills sind durchsichtig mit gestricheltem Rand.
+The system is flat. There is no shadow, no gradient and no blur. Depth comes from tonal steps: `rail` lies below `ground`, `surface` above it, `raised` one step higher still. What floats (tooltip, info panel, toast) is `raised` with a border in `track`, not lifted by a shadow. Surfaces whose turn has not come are not surfaces at all: waiting and skipped pills are transparent with a dashed border.
 
 ### Named Rules
-**Die Tonstufen-Regel.** Eine Fläche hebt sich durch die nächsthellere Stufe und einen 1 px breiten Rahmen ab, nie durch einen Schatten. Die Reihenfolge ist fest: `rail`, `ground`, `surface`, `raised`.
+**The Tonal-Step Rule.** A surface stands out through the next lighter step and a 1 px border, never through a shadow. The order is fixed: `rail`, `ground`, `surface`, `raised`.
 
-**Die Antwort-ist-eine-Stufe-Regel.** Überfahren hebt eine Fläche genau eine Stufe (`surface` → `raised`) und färbt ihren Rahmen von `edge` nach `track`. Nichts bewegt sich dabei von der Stelle.
+**The Response-Is-One-Step Rule.** Hover lifts a surface exactly one step (`surface` → `raised`) and turns its border from `edge` to `track`. Nothing moves from its place.
 
 ## Shapes
 
-Drei Formen, jede mit fester Bedeutung. Die **Pill** (Radius 21 px, die halbe Höhe der geschlossenen Station) ist dem Job vorbehalten; beim Überfahren wächst sie als eine Form mit unverändertem Radius nach unten. Der **Kreis** ist das Zustandssymbol (22 px, in Legende 18 px, in Leiste und Listen 16 px; Rand 2 px). Alles Bedienbare außerhalb des Netzplans (Schaltfläche, Segment, Feld, Eintrag der Leiste) hat **sanft gerundete Ecken** (8 px); Tooltip und Meldung 6 px, Tags sind voll gerundet.
+Three shapes, each with a fixed meaning. The **pill** (radius 21 px, half the height of the closed station) is reserved for the job; on hover it grows downwards as one shape with an unchanged radius. The **circle** is the state icon (22 px, 18 px in the legend, 16 px in rail and lists; border 2 px). Everything operable outside the network map (button, segment, field, rail entry) has **softly rounded corners** (8 px); tooltip and toast 6 px, tags are fully rounded.
 
-Strecken sind kubische Bézierkurven: Sie verlassen die rechte Mitte des Vorgängers waagerecht und laufen waagerecht in die linke Mitte des Nachfolgers ein (Anfasser 55 % des Abstands, mindestens 30 px), 2,5 px stark mit runden Enden. Gerade oder rechtwinklig geführte Strecken gibt es im Netzplan nicht. Die einzige gerade Strecke ist die senkrechte Linie der Einstellungen (siehe „Haltestelle“): Dort ist sie Wegweiser durch die Seite, keine Abhängigkeit.
+Tracks are cubic Bézier curves: they leave the right middle of the predecessor horizontally and run horizontally into the left middle of the successor (handles 55 % of the distance, at least 30 px), 2.5 px thick with round caps. Straight or right-angled tracks do not exist in the network map. The only straight track is the vertical line of the settings (see "Stop"): there it is a guide through the page, not a dependency.
 
-Rahmen sind 1 px. Durchgezogen heißt: ist dran oder war dran. Gestrichelt (Pill) und gepunktet (Strecke) heißt: noch offen. Trennlinien sind 1 px in `rule` und immer waagerecht; die Linie der Einstellungen ist keine Trennlinie, sondern eine Strecke (2,5 px, `track`).
+Borders are 1 px. Solid means: its turn is now or was. Dashed (pill) and dotted (track) means: still open. Dividers are 1 px in `rule` and always horizontal; the line of the settings is not a divider but a track (2.5 px, `track`).
 
 ## Components
 
 ### Pill (Station)
-Die Signaturkomponente; ein Job im Netzplan, als Ganzes ein Link zum Job bei GitHub.
-- **Aufbau:** Dreispaltiges Raster: Zustandssymbol (22 px), Name (`ink`, 400, mit Auslassungspunkten gekürzt), Zeit rechts. Die Höhe ist fest. Die Details (Schritt, Platz, übliche Dauer; 12 px `muted`) liegen in einer zweiten Fläche in der Form der Pill, deckungsgleich hinter ihrem Inhalt; sie verschiebt nichts.
-- **Form und Farbe:** Fläche `surface`, Rahmen 1 px `edge`, Radius 21 px, Innenabstand 8 px 16 px 8 px 9 px.
-- **Überfahren / Fokus:** Fläche `raised`, Rahmen `track` (180 ms). Diese Fläche (`raised`, Rahmen `track`, Radius 21 px, kein Schatten) wächst nach 80 ms Verzögerung in 280 ms nach unten (`grid-template-rows` 0fr → 1fr); Ecken und Rand ändern sich dabei nicht. Zugleich treten die Strecken dieser Pill in `ink` hervor und alle anderen gehen auf 30 % Deckkraft zurück.
-- **Läuft:** Am unteren Rand wächst ein 2 px hoher Strich in `run` bis zur üblichen Dauer. Braucht der Job spürbar länger (über 115 % und mehr als 10 s), färbt sich die Zeit `run`.
-- **Fehler:** Rahmen `fail-edge`; eine zweite, gekürzte Zeile nennt in beiden Modi in `fail-text` den Schritt, an dem es scheiterte.
-- **Wartet / ausgesetzt:** Durchsichtig, Rahmen gestrichelt, Name `muted`; die Zeit ist eine Schätzung („ca. 2:19“).
-- **Detailmodus:** Jede Pill trägt eine zweite, auf eine Zeile gekürzte Detailzeile; die Überlagerung setzt dann unter der ersten Zeile an.
-- **Erneut starten:** Ein abgeschlossener Job eines abgeschlossenen Laufs trägt rechts in seinen aufgeklappten Details die Schaltfläche „Job erneut starten“ (nur Symbol, 30 px, Radius 8 px; auf `raised` mit den Rahmentönen als Stufen wie in der Rückfrage). Sie ist kein Teil des Links, sondern steht neben der Pill im selben Rahmen und erscheint mit den Details, bei Überfahren und bei Tastaturfokus; in der Tastaturfolge kommt sie direkt nach ihrer Pill. Steht der Zeiger auf ihr, bleibt die Pill aufgeklappt. Die geschlossene Pill ändert sich nicht.
+The signature component; a job in the network map, as a whole a link to the job on GitHub.
+- **Structure:** Three-column grid: state icon (22 px), name (`ink`, 400, truncated with an ellipsis), time on the right. The height is fixed. The details (step, slot, usual duration; 12 px `muted`) lie in a second surface in the shape of the pill, exactly behind its content; it shifts nothing.
+- **Shape and color:** Surface `surface`, border 1 px `edge`, radius 21 px, padding 8 px 16 px 8 px 9 px.
+- **Hover / focus:** Surface `raised`, border `track` (180 ms). This surface (`raised`, border `track`, radius 21 px, no shadow) grows downwards after an 80 ms delay over 280 ms (`grid-template-rows` 0fr → 1fr); corners and border do not change. At the same time the tracks of this pill stand out in `ink` and all others drop to 30 % opacity.
+- **Running:** At the bottom edge a 2 px stroke in `run` grows up to the usual duration. If the job takes noticeably longer (over 115 % and more than 10 s), the time turns `run`.
+- **Failed:** Border `fail-edge`; a second, shortened line names in both modes, in `fail-text`, the step at which it failed.
+- **Waiting / skipped:** Transparent, dashed border, name `muted`; the time is an estimate ("about 2:19").
+- **Detail mode:** Every pill carries a second detail line, truncated to one line; the overlay then starts below the first line.
+- **Re-run:** A finished job of a finished run carries, on the right in its expanded details, the button "Re-run job" (icon only, 30 px, radius 8 px; on `raised` with the border tones as steps, as in the confirmation). It is not part of the link but sits next to the pill in the same frame and appears with the details, on hover and on keyboard focus; in the tab order it comes right after its pill. While the pointer is on it, the pill stays expanded. The closed pill does not change.
 
-### Zustandssymbol
-Ein Kreis mit einer Zeichnung aus einem 16er-Raster, Strich 2,2 mit runden Enden. Läuft: gefülltes Dreieck auf `run`. Fertig: Haken auf `done`. Fehler: Kreuz auf `fail`. Abgebrochen: gefülltes Quadrat auf `cancel`. Ausgesetzt: Strich im leeren Ring `skip`. Wartet: Punkt im leeren Ring `wait`. Ein leerer Ring ohne Zeichnung steht in der Leiste für ein Projekt, in dem nichts läuft. Die Legende unter dem Netzplan zeigt alle sechs mit ihrem Wort.
+### State icon
+A circle with a drawing on a 16 grid, stroke 2.2 with round caps. Running: filled triangle on `run`. Done: check on `done`. Failed: cross on `fail`. Cancelled: filled square on `cancel`. Skipped: dash in the empty ring `skip`. Waiting: dot in the empty ring `wait`. An empty ring without a drawing stands in the rail for a project in which nothing is running. The legend below the network map shows all six with their word.
 
-### Strecke
-Siehe Shapes. Eine Strecke zu einem wartenden oder ausgesetzten Job ist gepunktet in `track-open`. Farbe und Deckkraft wechseln in 150 ms.
+### Track
+See Shapes. A track to a waiting or skipped job is dotted in `track-open`. Color and opacity change over 150 ms.
 
-### Verlaufskurve
-- **Aufbau:** Beschriftung (12 px `muted`), darunter die Kennzahl mit Bezugsgröße, die Kurve (74 px hoch, volle Spaltenbreite), eine Achse mit zwei oder drei Wörtern („vor 30 min“, „Lauf gestartet“, „jetzt“) und eine Zeile mit der Spitze.
-- **Zeichnung:** Linie 2 px in `chart` mit runden Ecken, darunter dieselbe Farbe als Fläche mit 16 % Deckkraft. Hilfslinien 1 px: Obergrenze (`cap`), Mitte (`rule`), Spitze (gepunktet, `chart`), Beginn eines Laufs (senkrecht, gestrichelt, `wait`).
-- **Warnung:** Wird der Speicher knapp, wechseln Linie, Fläche, Kennzahl und Spitzenzeile auf Rot, und vor der Spitze steht, wie wenig noch frei ist („nur 0,9 GB frei“). Das gilt für Windows und für die Docker-VM (dort unter 15 % frei, in der VM selbst gemessen).
-- **Mauszeiger:** Fadenkreuz; eine senkrechte Linie in `ink` und ein Tooltip mit Uhrzeit und Wert.
+### History chart
+- **Structure:** Label (12 px `muted`), below it the figure with reference value, the chart (74 px tall, full column width), an axis with two or three words ("30 min ago", "run started", "now") and a line with the peak.
+- **Drawing:** Line 2 px in `chart` with round joins, below it the same color as an area at 16 % opacity. Guide lines 1 px: cap (`cap`), middle (`rule`), peak (dotted, `chart`), start of a run (vertical, dashed, `wait`).
+- **Warning:** When memory runs low, line, area, figure and peak line switch to red, and before the peak it says how little is still free ("only 0.9 GB free"). This applies to Windows and to the Docker VM (there below 15 % free, measured inside the VM itself).
+- **Mouse pointer:** Crosshair; a vertical line in `ink` and a tooltip with time and value.
 
-### Plätze
-Eine schnelle Übersicht im Band: je Projekt, wie viele Runner es hat und was sie gerade tun. Laufzeiten, Jobnamen und Verbrauch stehen hier nicht.
-- **Aufbau:** Beschriftung „Plätze“, darunter die Projekte in zwei Spalten (Abstand 18 px). Je Projekt eine Zeile von 22 px: links der kurze Name (13 px, 400, `text`, mit Auslassungspunkten gekürzt), rechts ohne Umbruch ein Zustandssymbol je Platz (14 px, Rand 1,5 px, 4 px Abstand), dann nach 8 px die Reserve. Die Reserve ist in allen Zeilen so breit wie die größte, damit die Platzsymbole an einer Kante enden.
-- **Ein Projekt:** In der Ansicht eines Projekts steht je Platz eine Zeile: Symbol (16 px), „Platz 2“ und der Zustand in Worten (`muted`), darunter die Reserve mit ihren Punkten und „1 von 2 bereit“. Eine Legende braucht es dort nicht.
-- **Zustände:** dieselben Symbole wie im Netzplan. Arbeitet: läuft (`run`). Bereit: leerer Ring. Startet, wartet, wartet auf Docker, räumt auf: Punkt im Ring (`wait`, hier größer als im Netzplan, damit er sich vom leeren Ring abhebt); die Legende nennt dafür „startet“, der Tooltip den genauen Zustand. Gestört: Kreuz auf `fail`, das einzige Rot. Aus und ein einzeln pausierter Platz: Strich im Ring (`skip`). Ein pausiertes Projekt zeigt statt der Symbole „pausiert“ in `muted`, ein gesperrtes (Repo öffentlich, Workflows aus Forks erlaubt oder nicht prüfbar) das Kreuz auf `fail` und „gesperrt“. In der Leiste und den ruhigen Projekten steht ein gesperrtes Projekt ebenso mit Kreuz und „gesperrt“, eines ohne frische Prüfung bei GitHub mit Punkt im Ring (`wait`) und „wird geprüft“.
-- **Reserve:** ein Punkt (7 px, Rand 1,5 px `track`) je Runner, gefüllt, wenn er bereitsteht, zur Hälfte gefüllt, solange er noch vorbereitet wird (ein leerer Ring hieße bei den Plätzen „bereit“).
-- **Tooltip:** je Symbol Platz, Zustand und beim Arbeiten der Job („Platz 2 · arbeitet · build“), je Reserve-Punkt die Summe des Projekts („Reserve: 1 von 3 bereit“); am Namen das ganze Repo.
-- **Legende:** fest unten im Kasten, außerhalb des rollenden Teils (11 px `muted`): arbeitet, bereit, startet, Reserve; gestört und aus nur, wenn es sie gerade gibt. Fehlt irgendwo Reserve, stehen vor „Reserve“ der volle und der halbe Punkt, der Tooltip erklärt sie. Im schmalen Fenster rollen die Zeilen ab 132 px.
+### Slots
+A quick overview in the band: per project, how many runners it has and what they are doing right now. Run times, job names and usage are not shown here.
+- **Structure:** Label "Slots", below it the projects in two columns (gap 18 px). One row of 22 px per project: on the left the short name (13 px, 400, `text`, truncated with an ellipsis), on the right without wrapping one state icon per slot (14 px, border 1.5 px, 4 px gap), then after 8 px the reserve. The reserve is as wide in all rows as the widest one, so the slot icons end at one edge.
+- **One project:** In the view of a single project there is one row per slot: icon (16 px), "Slot 2" and the state in words (`muted`), below that the reserve with its dots and "1 of 2 ready". No legend is needed there.
+- **States:** the same icons as in the network map. Working: running (`run`). Ready: empty ring. Starting, waiting, waiting for Docker, cleaning up: dot in the ring (`wait`, larger here than in the network map so it stands out from the empty ring); the legend calls this "starting", the tooltip gives the exact state. Faulty: cross on `fail`, the only red. Off and a slot paused on its own: dash in the ring (`skip`). A paused project shows "paused" in `muted` instead of the icons, a blocked one (repo public, workflows from forks allowed or not checkable) the cross on `fail` and "blocked". In the rail and the quiet projects a blocked project likewise shows the cross and "blocked", one without a fresh check with GitHub a dot in the ring (`wait`) and "being checked".
+- **Reserve:** one dot (7 px, border 1.5 px `track`) per runner, filled when it is ready, half filled while it is still being prepared (an empty ring would mean "ready" in the slots).
+- **Tooltip:** per icon the slot, state and, when working, the job ("Slot 2 · working · build"), per reserve dot the project's total ("Reserve: 1 of 3 ready"); on the name the full repo.
+- **Legend:** fixed at the bottom of the box, outside the scrolling part (11 px `muted`): working, ready, starting, Reserve; faulty and off only when they currently exist. If reserve is missing anywhere, the full and the half dot stand before "Reserve", and the tooltip explains them. In a narrow window the rows scroll from 132 px.
 
-### Navigation (Projektleiste)
-- **Eintrag:** Zweizeilig: Name (`ink`, 400) und Zustand in Worten (12 px `muted`), links das Zustandssymbol (16 px). Radius 8 px, Innenabstand 8 px 12 px 8 px 36 px, 4 px Abstand zwischen Einträgen.
-- **Zustände:** Ruhe durchsichtig, überfahren `rail-hover`, gewählt `surface`.
-- **Fuß:** „Verbrauch“ und „Einstellungen“ einzeilig ohne Symbol am unteren Rand. „Verbrauch“ trägt eine zweite Zeile, wenn die GitHub-Anfragen oder die GitHub-Minuten knapp (`muted`) oder aufgebraucht (`fail-text`) sind. Es bleibt bei einer Zeile, auch wenn beides zutrifft: Aufgebraucht geht vor knapp, sonst die Anfragen vor den Minuten. Gibt es in den Einstellungen etwas zu tun (ein Job hat sein Limit erreicht oder kam ihm nahe), trägt „Einstellungen“ eine zweite Zeile in `fail-text`, die sagt, was und bei welchem Projekt; im schmalen Fenster steht dafür ein Punkt hinter dem Wort. Fehlt die Anmeldung bei GitHub (nicht angemeldet, ein Pflichtrecht fehlt, `gh` ist nicht installiert), steht stattdessen das dort; es geht den Limits vor. Gibt es noch kein Projekt und ist niemand angemeldet, ist das der Anfang und keine Störung: Die Zeile steht dann in `muted`.
-- **Schmal:** Eine waagerecht rollende Zeile aus Symbol und Name; der gewählte Eintrag rückt in den Blick.
+### Navigation (project rail)
+- **Entry:** Two lines: name (`ink`, 400) and state in words (12 px `muted`), on the left the state icon (16 px). Radius 8 px, padding 8 px 12 px 8 px 36 px, 4 px gap between entries.
+- **States:** at rest transparent, hovered `rail-hover`, selected `surface`.
+- **Footer:** "Usage" and "Settings" on one line each without an icon at the bottom edge. "Usage" carries a second line when the GitHub requests or the GitHub minutes are running low (`muted`) or used up (`fail-text`). It stays one line even if both apply: used up comes before running low, otherwise the requests before the minutes. If there is something to do in the settings (a job reached its limit or came close to it), "Settings" carries a second line in `fail-text` that says what and for which project; in a narrow window a dot after the word stands for it. If the GitHub sign-in is missing ("Not signed in to GitHub"), that is shown there instead; it takes precedence over the limits. If there is no project yet and nobody is signed in, that is the beginning and not a fault: the line is then in `muted`.
+- **Narrow:** A horizontally scrolling row of icon and name; the selected entry scrolls into view.
 
-### Schaltflächen
-Zurückhaltend und klein; sie gehören zum Einrichten, nicht zum Zustand.
-- **Form:** Radius 8 px, Rahmen 1 px `edge`, Fläche `surface`, 13 px, Innenabstand 5 px 12 px.
-- **Überfahren / gedrückt / gesperrt:** `raised` mit Rahmen `track` (150 ms); gedrückt `edge`; gesperrt 50 % Deckkraft.
-- **Gefährlich:** Schrift `fail-text`, Rahmen `fail-edge`; steht am rechten Ende der Zeile, getrennt von den harmlosen Aktionen.
-- **Nur Symbol:** 30 px breit und hoch, für Aktionen, die sich in einer Liste wiederholen (eins mehr, eins weniger, einen Cache leeren). Die Aktion steht als Tooltip der App daran, bei Überfahren und bei Tastaturfokus.
-- **Symbol mit Wort:** für seltene und gefährliche Aktionen; 8 px zwischen Symbol und Wort.
-- **Am Lauf:** Unter dem Kopf eines abgeschlossenen Laufs, linksbündig mit dem Titel, steht „Erneut starten“ (Symbol mit Wort; der ganze Lauf), nach einem Fehler daneben „Nur Gescheiterte“ (nur Wort, weil es dieselbe Aktion enger fasst). Sie stehen unter dem Kopf und nicht in ihm, damit Titel und Restzeit auf einer Grundlinie bleiben. Erneut starten löscht nichts und fragt deshalb nicht nach; eine Meldung bestätigt es, weil der Lauf bei GitHub erst nach einem Augenblick wieder erscheint. Ein laufender Lauf trägt keine Schaltflächen.
-- **Gesperrt mit Grund:** Kann eine Aktion gerade nicht gelten (höchstens 4 Plätze), bleibt die Schaltfläche überfahrbar und nennt den Grund im Tooltip.
-- Was löscht, steht abgesetzt am rechten Ende der Zeile; nur was nicht wiederkommt (Projekt entfernen, RunClub beenden), ist rot.
-- Eine gefüllte Hauptschaltfläche gibt es nicht.
+### Buttons
+Restrained and small; they belong to setup, not to state.
+- **Shape:** Radius 8 px, border 1 px `edge`, surface `surface`, 13 px, padding 5 px 12 px.
+- **Hover / pressed / disabled:** `raised` with border `track` (150 ms); pressed `edge`; disabled 50 % opacity.
+- **Dangerous:** Type `fail-text`, border `fail-edge`; sits at the right end of the row, apart from the harmless actions.
+- **Icon only:** 30 px wide and tall, for actions repeated in a list (one more, one fewer, clear a cache). The action is attached as the app's tooltip, on hover and on keyboard focus.
+- **Icon with word:** for rare and dangerous actions; 8 px between icon and word.
+- **On the run:** Below the header of a finished run, left-aligned with the title, stands "Re-run" (icon with word; the whole run), after a failure next to it "Failed only" (word only, because it narrows the same action). They sit below the header and not in it, so title and remaining time stay on one baseline. Re-running deletes nothing and therefore does not ask; a toast confirms it, because the run only reappears on GitHub after a moment. A running run carries no buttons.
+- **Disabled with a reason:** If an action cannot apply right now (at most 4 slots), the button stays hoverable and gives the reason in the tooltip.
+- What deletes sits apart at the right end of the row; only what does not come back (Remove project, Quit RunClub) is red.
+- There is no filled primary button.
 
-### Bediensymbole
-Gezeichnet im selben 16er-Raster wie die Zustandssymbole, aber als Linie ohne Kreis: Strich 1,7 mit runden Enden, in der Schriftfarbe der Schaltfläche. Sie tragen nie eine Zustandsfarbe. Ein Symbol steht für genau eine Aktion: Plus heißt hinzufügen, der Papierkorb leeren, die Gabelung „wohin die Jobs gehen“. Der Bogen im Uhrzeigersinn heißt „Runner neu aufbauen“; der Bogen zurück an den Anfang mit dem Dreieck darin heißt „erneut starten“, für den Lauf wie für den einzelnen Job. Der Pfeil hinauf an die Linie heißt „Update einspielen“ (das Spiegelbild von „Speichern“). Das „i“ im Kreis heißt „mehr dazu“ und steht nur am Info-Element.
+### Control icons
+Drawn on the same 16 grid as the state icons, but as a line without a circle: stroke 1.7 with round caps, in the button's text color. They never carry a state color. One icon stands for exactly one action: plus means add, the trash can clear, the fork "where the jobs go". The clockwise arc means "Rebuild runners"; the arc back to the start with the triangle inside means "re-run", for the run as well as for a single job. The arrow up to the line means "install update" (the mirror image of "Save"). The "i" in a circle means "more about this" and appears only on the info element.
 
-### Info-Element
-Erklärungen stehen nicht als Textwand in der Fläche, sondern hinter einem kleinen „i“. **Die Kurz-in-der-Fläche-Regel:** Sichtbar bleibt, was etwas ist, sein Zustand und was zu tun ist, in einer knappen Zeile. Gründe, Folgen, Hintergrund und was man beim dritten Mal nicht mehr liest, stehen im Info. Was aus der Fläche verschwindet, steht dort; nichts geht verloren. Rückfragen und Fehlermeldungen bleiben vollständig sichtbar; ein roter Warnsatz behält Störung und Ausweg in der Fläche, nur die Erläuterung wandert ins Info.
-- **Symbol:** ein Knopf (18 px, Trefferfläche größer) mit dem gezeichneten „i“ im Kreis (16er-Raster, Strich 1,7), in `muted`, überfahren und bei Fokus `ink`. Er steht direkt hinter einem Titel: der Überschrift einer Haltestelle oder Ansicht, dem Titel einer Zeile, einer Beschriftung über einer Kennzahl. Eine Zeile ohne Titel trägt ihn am Ende ihres Satzes. Je Titel höchstens eins.
-- **Info-Fläche:** wie der Tooltip `raised` mit Rahmen 1 px `track` und Radius 6 px, aber mehrzeilig: höchstens 44ch breit, Innenabstand 10 px 14 px, 13 px in `text` mit Zeilenhöhe 1,45; Code darin in `ink`. Mehrere Absätze stehen mit 7 px Abstand, der zustandsabhängige zuerst, das Allgemeine danach. Sie hängt am Symbol (nicht am Mauszeiger), steht darunter und nur ohne Platz darunter darüber, und bleibt seitlich im Fenster.
-- **Bedienung:** Überfahren und Tastaturfokus öffnen sie; der Zeiger kann vom Symbol auf die Fläche wandern, um zu lesen oder zu markieren (Verlassen schließt erst nach 180 ms, damit der Spalt dazwischen nicht schließt). Verlassen, Fokuswechsel und Escape schließen sie. Ein Klick hält sie fest, ein zweiter Klick oder ein Klick daneben schließt sie. Der Knopf steht neben der Überschrift, nicht in ihr, damit sie ihren Namen behält. Vorleseprogramme hören den Bezug als Namen des Knopfs („Mehr zu …“) und die Erklärung, die verborgen im Knopf steht, als seine Beschreibung.
-- **Wo:** Einstellungen: „Angemeldet als …“, die Störungen der Anmeldung, die Zeile eines freiwilligen Rechts, der Einmalcode beim Ergänzen, die Haltestellen Projekte, Limits je Job und Protokoll, „Darstellung“, der Weg der Jobs ohne `CI_RUNNER`, „Limit großzügig“, die Vorschläge, der Satz unter dem Speicherbalken, die Version, der Update-Kanal und das bereite Update. Docker einrichten: die Überschrift und jede Zeile. Verbrauch: die Haltestellen „Die letzten 24 Stunden“, „GitHub-Anfragen“ und „GitHub-Minuten“, die Beschriftung der Speicherspitzen. Ohne Projekte: die Überschrift des ersten Schritts.
+### Info element
+Explanations do not stand as a wall of text on the surface but behind a small "i". **The Short-On-The-Surface Rule:** what stays visible is what something is, its state and what to do, in one terse line. Reasons, consequences, background and what nobody reads the third time go into the info. What disappears from the surface is there; nothing is lost. Confirmations and error messages stay fully visible; a red warning sentence keeps fault and way out on the surface, only the explanation moves into the info.
+- **Icon:** a button (18 px, larger hit area) with the drawn "i" in a circle (16 grid, stroke 1.7), in `muted`, `ink` on hover and focus. It sits directly after a title: the heading of a stop or view, the title of a row, a label above a figure. A row without a title carries it at the end of its sentence. At most one per title.
+- **Info panel:** like the tooltip `raised` with border 1 px `track` and radius 6 px, but multi-line: at most 44ch wide, padding 10 px 14 px, 13 px in `text` with line height 1.45; code inside in `ink`. Several paragraphs have 7 px spacing, the state-dependent one first, the general one after. It is anchored to the icon (not to the mouse pointer), sits below it and above only when there is no room below, and stays within the window horizontally.
+- **Behavior:** Hover and keyboard focus open it; the pointer can move from the icon onto the panel to read or select (leaving only closes after 180 ms, so the gap between them does not close it). Leaving, focus change and Escape close it. A click pins it, a second click or a click elsewhere closes it. The button sits next to the heading, not inside it, so the heading keeps its name. Screen readers hear the reference as the button's name ("More about “…”") and the explanation, hidden inside the button, as its description.
+- **Where:** Settings: "Signed in as …", "Not signed in to GitHub", the stops Projects, Limits per job and Log, "Display", the route of jobs without `CI_RUNNER`, "limit generous", the suggestions, the sentence below the memory bar, the version, the update channel and the ready update. Set up Docker: the heading and each row. Usage: the stops "The last 24 hours", "GitHub requests" and "GitHub minutes", the label of the memory peaks. Without projects: the heading of the first step.
 
-### Haltestelle
-Die Gliederung der Einstellungen. Hinter der Überschrift kann ein Info-Element stehen. Eine senkrechte Strecke (2,5 px, `track`) verbindet die Abschnitte; an jedem sitzt ein Ring (17 px, Rand 2,5 px `track`, Fläche `ground`) neben der Überschrift. Der Ring ist ein Knopf und rollt zu seinem Abschnitt. Die Haltestelle, an der die Seite gerade steht, ist in `ink` gefüllt. Die Strecke endet an der letzten Haltestelle.
+### Stop
+The structure of the settings. An info element may follow the heading. A vertical track (2.5 px, `track`) connects the sections; at each one sits a ring (17 px, border 2.5 px `track`, surface `ground`) next to the heading. The ring is a button and scrolls to its section. The stop where the page currently is, is filled in `ink`. The track ends at the last stop.
 
-### GitHub (Anmeldung)
-Die erste Haltestelle der Einstellungen, weil die Anmeldung die Voraussetzung für alles danach ist und die Strecke sich
-so in der Reihenfolge des Einrichtens liest. Es ist die Anmeldung von `gh`, dieselbe wie im Terminal. Der Inhalt sind
-Zeilen wie im Abschnitt App: Titel in `ink`, ein Satz in `muted` darunter, rechts die Schaltfläche, Haarlinie darunter.
-- **Angemeldet:** „Angemeldet als …“ mit Info-Element, darunter kurz, wofür RunClub die Anmeldung nutzt (keine Liste
-  von Kürzeln). Im Info: was RunClub genau tut und wie weit das Recht dahinter reicht, wofür es `user` nutzt, welche
-  Rechte die Anmeldung außerdem trägt, ohne dass RunClub sie nutzt (`gh` verlangt von sich aus mehr), und dass es
-  dieselbe Anmeldung ist wie die von `gh` im Terminal. Rechts „Abmelden“. Abmelden fragt nach, weil es Jobs trifft und
-  auch `gh` im Terminal abmeldet; rot ist es nicht, weil sich wieder anmelden lässt. Das Anmelden verlangt `repo` und
-  `user` in einem Schritt. Fehlt ein freiwilliges Recht (nach einer Anmeldung im Terminal), folgt eine Zeile ohne
-  Titel mit einem kurzen Satz, wofür es gebraucht würde, dem Info-Element am Satzende (was RunClub damit liest, wie weit
-  es reicht, warum es fehlt) und „Recht ergänzen“. Das ist keine Störung und bleibt `muted`. Der Name eines Rechts
-  steht immer in Mono. Die Sätze der Zeilen sind höchstens so breit wie Lauftext (56ch).
-- **Störung mit Ausweg:** Nicht angemeldet, ein fehlendes Pflichtrecht und ein fehlendes `gh` sind rot: der Titel der
-  Zeile in `fail-text` mit Info-Element, der kurze Satz darunter in `text` (was fehlt oder nicht geht), rechts der
-  Ausweg („Bei GitHub anmelden“, „Recht ergänzen“). Wozu RunClub es braucht, steht im Info. Fehlt `gh`, gibt es keine
-  Schaltfläche, nur den Satz mit dem Link, wo es `gh` gibt. Dazu trägt „Einstellungen“ in der Leiste
-  die zweite Zeile in `fail-text`, und in der Übersicht steht ein Warn-Tag. Solange ein Pflichtrecht fehlt, steht nur
-  dieses zur Wahl; die freiwilligen folgen, sobald es ergänzt ist. Ein gescheiterter Ablauf steht als Satz in
-  `fail-text` in der Zeile, um die es ging, über deren Titel und Satz: beim Ergänzen in der Zeile des Rechts, sonst in
-  der des Kontos. Den Grund sagt die Oberfläche in ihrer Sprache; wörtlich steht nur da, was `gh` selbst schrieb.
-- **Während eines Ablaufs** (Anmelden oder Ergänzen) ersetzt er die Zeilen: die Beschriftung „Einmalcode“ (Label,
-  `muted`), darunter der Code als Kennzahl (`figure`, `ink`, in Mono, damit 0 und O, 1 und I zu unterscheiden sind; ein
-  Klick markiert ihn ganz), ein Satz in `text`, was zu tun
-  ist, und eine Zeile Schaltflächen in der Reihenfolge des Gebrauchs: „Code kopieren“ (Symbol mit Wort), „GitHub öffnen“
-  (ein Link, der im Browser aufgeht) und abgesetzt am rechten Ende „Abbrechen“. Beim Ergänzen nennt der Satz das Konto,
-  als das zu bestätigen ist, und das Recht, weil im Browser ein anderes Konto angemeldet sein kann; was dann geschieht,
-  steht im Info an der Beschriftung „Einmalcode“. Rot ist hier
-  nichts. Bis der Code da ist, steht nur ein Satz in `muted` mit „Abbrechen“.
-- **Ohne Projekte** steht bei fehlender Anmeldung statt „Noch kein Projekt“ der Schritt „Zuerst bei GitHub anmelden“:
-  Überschrift mit Info-Element, ein Satz, die Schaltfläche „Bei GitHub anmelden“; während des Ablaufs derselbe Einmalcode. Dass hier noch
-  niemand angemeldet ist, ist der Anfang und keine Störung; auch die Zeile in der Leiste ist dann `muted`. Fehlt `gh`
-  oder ein Pflichtrecht, nennt die Überschrift das, und die Zeile dazu steht ohne ihren Titel (das Info dann am Ende
-  ihres Satzes) direkt darunter, beim
-  Pflichtrecht gefolgt von der Zeile des Kontos; rot sind dort die Zeile in der Leiste und ein gescheiterter Ablauf.
-  Fehlt dem Rechner etwas für Docker, folgt darunter der Abschnitt „Docker einrichten“.
-  Die Zeilen des ersten Schritts tragen keine Haarlinie. „Alle Projekte“ trägt in der Leiste keine zweite Zeile,
-  solange es kein Projekt gibt.
+### GitHub (sign-in)
+The first stop of the settings, because the sign-in is the precondition for everything after it and the line thus reads
+in the order of setting up. RunClub signs in through its own GitHub App "RunClub" with a one-time code (device flow),
+independent of `gh` in the terminal, and acts only in the repos the app is installed on. The content is rows as in the
+App section: title in `ink`, a sentence in `muted` below, the button on the right, hairline below. The sentences of the
+rows are at most as wide as running text (56ch).
+- **Signed in:** "Signed in as …" with info element, below it briefly what RunClub uses the sign-in for ("RunClub uses
+  it to manage runners and runs in the repos the app is installed on.") and the link "Revoke on GitHub"; it stands in
+  the sentence and not in the info, so it is visible and reachable by keyboard. In the info: what the app does in your
+  name and only in the installed repos, that it can read code but not change it, how far the permission for the
+  runners (Administration) reaches, and that signing out only applies to this computer. On the right "Sign out".
+  Signing out asks first, because it affects jobs; the confirmation says that the authorization on GitHub stays until
+  it is revoked there. It is not red, because you can sign in again.
+- **Fault with a way out:** Not signed in is red: the title "Not signed in to GitHub" in `fail-text` with info element,
+  the short sentence below in `text` (what does not work without it), on the right "Sign in to GitHub". In the info:
+  that GitHub asks in the browser whether the app may act for the account, and what it may do there. In addition
+  "Settings" in the rail carries the second line in `fail-text`, and the overview shows a warning tag. A failed flow
+  appears as a sentence in `fail-text` in the row of the account, above its title and sentence ("Signing in failed:
+  …"): the confirmation did not arrive in time, or GitHub gave no reason. The interface states the reason in its own
+  language; only what GitHub itself reported is quoted verbatim ("GitHub says: “…”"). If the user declined in the
+  browser, that is not a fault: the sentence stands in `muted` ("You did not authorize RunClub in the browser. …").
+  While the sign-in is still being read, there is only a sentence in `muted` ("Checking the GitHub sign-in …").
+- **During a flow** it replaces the rows: the label "One-time code" (Label, `muted`), below it the code as a figure
+  (`figure`, `ink`, in mono, so 0 and O, 1 and I can be told apart; a click selects all of it), a sentence in `text` on
+  what to do, and a row of buttons in the order of use: "Copy code" (icon with word), "Open GitHub" (a link that opens
+  in the browser) and, set apart at the right end, "Cancel". Nothing is red here. Until the code arrives, there is only
+  a row without a title, the sentence in `muted` ("Getting a one-time code from GitHub …") and "Cancel".
+- **Without projects**, if the sign-in is missing, the step "First, sign in to GitHub" stands instead of "No project
+  yet": heading with info element (the same info as on "Not signed in to GitHub"), a sentence, the button "Sign in to
+  GitHub", a failed flow above it; during the flow the same one-time code. That nobody is signed in yet is the
+  beginning and not a fault; the line in the rail is then `muted` too, and only a failed flow is red.
+  If the machine lacks something for Docker, the section "Set up Docker" follows below.
+  The rows of the first step carry no hairline. "All projects" carries no second line in the rail as long as there is
+  no project.
+- **Installing the app:** The sign-in alone grants no repo; which accounts and repos RunClub may provide runners for is
+  chosen on GitHub when installing the app. Signed in, but installed nowhere yet: the step "No project yet" says so
+  ("Choose on GitHub which accounts and repos RunClub may provide runners for."), with the button "Install RunClub on
+  GitHub" (a link that opens in the browser) and the hint on `runs-on` below. Once repos are granted, the step offers
+  them as buttons, below them "Repo missing?" with the link "Install RunClub for another account or an org"; the same
+  sentence closes "Add a project" in the settings. If GitHub no longer finds the repo of a project, the expanded row
+  says so in `fail-text` with "Grant access on GitHub", and its header carries the tag "not found" in `fail-text`. When
+  the window comes back from the browser, RunClub reads the repos again.
 
 
-### Docker einrichten
-Was dem Rechner für Docker fehlt, solange Docker nicht antwortet: WSL, Docker Desktop (nicht installiert, nicht
-gestartet) oder seine Engine (Docker Desktop läuft, antwortet aber nach drei Minuten noch nicht). Je Stück eine Zeile
-wie bei der Anmeldung: Titel mit Info-Element, darunter ein Satz, was zu tun ist, rechts der Ausweg. WSL: der Befehl
-`wsl --install` in Mono im Satz und „Befehl kopieren“ (Symbol mit Wort). Nicht installiert:
-„Anleitung öffnen“, ein Link zur Anleitung von Docker, der im Browser aufgeht. Nicht gestartet: „Docker Desktop starten“. Engine: „Docker
-Desktop öffnen“ (holt sein Fenster nach vorn). Im Info: wozu es gebraucht wird, wie es von selbst startet, was hilft.
-- **Ohne Projekte** steht der Abschnitt unter dem Schritt der Ansicht („Zuerst bei GitHub anmelden“ oder „Noch kein
-  Projekt“), weil eine Ansicht eine Überschrift hat und der Schritt davon nicht aufgehalten wird: „Docker einrichten“
-  als Title (`h2`) mit Info-Element, ein Satz in `muted`, die Zeilen ohne Haarlinie wie im ersten Schritt der Anmeldung.
-  Das ist der Anfang und keine Störung: Titel in `ink`, Sätze in `muted`.
-- **In der Übersicht** stehen die Zeilen unter den Warn-Tags und ersetzen den Tag zu Docker: Titel in `fail-text`, Satz in
-  `text`, weil die Runner warten und es einen Ausweg gibt. Höchstens 860 px breit wie die Zeilen der Einstellungen,
-  damit Störung und Ausweg zusammen gelesen werden.
-Ist alles da, verschwindet der Abschnitt von selbst; RunClub prüft alle 15 Sekunden.
+### Set up Docker
+What the machine lacks for Docker, as long as Docker does not respond: WSL, Docker Desktop (not installed, not
+started) or its engine (Docker Desktop is running but still does not respond after three minutes). One row per piece,
+as with the sign-in: title with info element, below it a sentence on what to do, the way out on the right. WSL: the
+command `wsl --install` in mono in the sentence and "Copy command" (icon with word). Not installed:
+"Open install guide", a link to Docker's guide that opens in the browser. Not started: "Start Docker Desktop". Engine:
+"Open Docker Desktop" (brings its window to the front). In the info: what it is needed for, how it starts by itself,
+what helps.
+- **Without projects** the section stands below the view's step ("First, sign in to GitHub" or "No project yet"),
+  because a view has one heading and the step is not held up by this: "Set up Docker" as a Title (`h2`) with info
+  element, a sentence in `muted`, the rows without hairline as in the first step of the sign-in.
+  That is the beginning and not a fault: titles in `ink`, sentences in `muted`.
+- **In the overview** the rows stand below the warning tags and replace the Docker tag: title in `fail-text`, sentence
+  in `text`, because the runners are waiting and there is a way out. At most 860 px wide like the rows of the settings,
+  so fault and way out are read together.
+Once everything is there, the section disappears by itself; RunClub checks every 15 seconds.
 
-### Projektzeile
-Ein Projekt in den Einstellungen: Fläche `surface`, Rahmen 1 px `edge`, Radius 8 px. Im Kopf stehen Pfeil, Name, die Summe der Caches in `muted` und rechts die Zahl der Plätze mit eins weniger und eins mehr. Ein Klick auf den Kopf klappt die Zeile nach unten auf (dieselbe Bewegung wie die Pill: `grid-template-rows` 0fr → 1fr in 280 ms, der Pfeil dreht sich); es ist immer nur eine offen. Aufgeklappt, durch eine Haarlinie abgesetzt: wohin die Jobs gehen, die Limits des Projekts (Segmentschalter „Wie alle“ oder „Eigene“; mit eigenen Werten dieselben vier Regler wie im Abschnitt Limits), die Caches als Zeilen mit Größe und Symbol zum Leeren, darunter die Schaltflächen. Ein Projekt mit eigenen Limits trägt im Kopf das Tag „eigene Limits“. Passen die Limits nicht zum gemessenen Bedarf, steht das ebenfalls als Tag im Kopf und als Satz bei den Limits: „Limit erreicht“ und „Limit knapp“ (über 85 %) als Warnung in Rot, „Limit großzügig“ (mehr als das Doppelte des Bedarfs) gedämpft; warum großzügig weniger schützt, steht im Info am Satz. Der Vorschlag aus den Messwerten steht als ein Satz in `text`, woraus er entsteht, im Info dahinter. Lesen die Workflows `CI_RUNNER` nicht, sagt ein roter Satz das mit dem Ausdruck für `runs-on`; was der Ausdruck tut, steht im Info. Überfahren hebt eine geschlossene Zeile eine Stufe.
+### Project row
+A project in the settings: surface `surface`, border 1 px `edge`, radius 8 px. The header holds the arrow, the name, the total of the caches in `muted` and on the right the number of slots with one fewer and one more. A click on the header expands the row downwards (the same motion as the pill: `grid-template-rows` 0fr → 1fr over 280 ms, the arrow rotates); only one is ever open. Expanded, set off by a hairline: where the jobs go, the limits of the project (segmented control "Shared" or "Own"; with own values the same four sliders as in the Limits section), the caches as rows with size and an icon to clear them, below that the buttons. A project with own limits carries the tag "own limits" in its header. If the limits do not fit the measured need, that also appears as a tag in the header and as a sentence at the limits: "limit reached" and "limit tight" (over 85 %) as a warning in red, "limit generous" (more than twice the need) muted; why generous protects less is in the info on the sentence. The suggestion from the measurements stands as one sentence in `text`, what it is derived from in the info after it. If the workflows do not read `CI_RUNNER`, a red sentence says so with the expression for `runs-on`; what the expression does is in the info. Hover lifts a closed row one step.
 
-Die letzte Zeile der Liste ist „Projekt hinzufügen“: durchsichtig mit gestricheltem Rand in `cap`, weil hier noch nichts ist.
+The last row of the list is "Add a project": transparent with a dashed border in `cap`, because nothing is here yet.
 
-### Speicherbalken
-Was alle Plätze zusammen an Arbeitsspeicher dürfen, gemessen an der Docker-VM. Über dem Balken die Kennzahl (`figure`) mit der Bezugsgröße. Der Balken selbst: je Platz ein Feld (26 px hoch, Radius 6 px), nach Projekten gruppiert und darunter beschriftet; die Breite eines Feldes folgt dem Limit seines Projekts. Ein Projekt mit eingeschaltetem Cache trägt am Ende seiner Gruppe ein weiteres Feld für seinen Build-Dienst (Fläche `cap`, so breit wie sein Docker-Limit); die Beschriftung nennt ihn eigens („2 × 8 GB + Build 4 GB“). Der Build-Dienst läuft auch, während der Pool pausiert: Ein pausiertes Projekt zeigt dann nur dieses Feld. Die Build-Dienste zählen zuerst, in den Rest passen die Plätze. Felder, die mit vollem Limit in die VM passen, sind gefüllt (`raised`, Rahmen `cap`); die übrigen durchsichtig mit gestricheltem Rand. Eine senkrechte Marke in `track` zeigt die Grenze der VM. Rot wird die Kennzahl erst, wenn schon ein einzelner Job (mit dem Build-Dienst seines Projekts) mehr darf, als die VM hat; dass nicht alle Plätze zugleich hineinpassen, ist der Normalfall und steht als kurzer Satz in `muted` darunter („…; das ist üblich“). Das Info am Satz sagt, warum es üblich ist, was mehr Sicherheit gibt, und wie der Balken zu lesen ist.
+### Memory bar
+What all slots together may use in memory, measured against the Docker VM. Above the bar the figure (`figure`) with the reference value. The bar itself: one field per slot (26 px tall, radius 6 px), grouped by project and labeled below; the width of a field follows its project's limit. A project with the cache turned on carries a further field at the end of its group for its build service (surface `cap`, as wide as its Docker limit); the label names it separately ("2 × 8 GB + build 4 GB"). The build service also runs while the pool is paused: a paused project then shows only this field. The build services count first, the slots fit into the rest. Fields that fit into the VM at full limit are filled (`raised`, border `cap`); the others are transparent with a dashed border. A vertical mark in `track` shows the limit of the VM. The figure only turns red when a single job (with its project's build service) may already use more than the VM has; that not all slots fit at once is the normal case and stands as a short sentence in `muted` below ("…; that is common"). The info on the sentence says why it is common, what gives more safety, and how to read the bar.
 
-### Regler
-Schiene 4 px, voll gerundet, links vom Griff `chart`, rechts `edge`; Griff 16 px, rund, `ink`. Links die Beschriftung, rechts der Wert in `ink`. Ein Vorschlag steht als gepunktete senkrechte Marke in `ink` durch die Schiene. Während des Ziehens rechnet der Speicherbalken mit; gespeichert wird beim Loslassen.
+### Slider
+Bar 4 px, fully rounded, left of the thumb `chart`, right of it `edge`; thumb 16 px, round, `ink`. On the left the label, on the right the value in `ink`. A suggestion appears as a dotted vertical mark in `ink` across the bar. While dragging, the memory bar recalculates along; saving happens on release.
 
-### Schalter
-Für An und Aus einer einzelnen Einstellung: 38 × 22 px, voll gerundet. Aus: Fläche `rail`, Rahmen `edge`, Griff `muted`. An: Fläche `raised`, Rahmen `track`, Griff `ink`.
+### Switch
+For on and off of a single setting: 38 × 22 px, fully rounded. Off: surface `rail`, border `edge`, thumb `muted`. On: surface `raised`, border `track`, thumb `ink`.
 
-### Segmentschalter
-Wenige Möglichkeiten in einem gemeinsamen Rahmen (`edge`, Radius 8 px), meist zwei; der Filter des Protokolls hat eine je Projekt und bricht um, wenn die Breite nicht reicht. Nicht gewählt: durchsichtig, `muted`. Gewählt: `raised`, `ink`.
+### Segmented control
+A few options in a shared frame (`edge`, radius 8 px), usually two; the log filter has one per project and wraps when the width is not enough. Not selected: transparent, `muted`. Selected: `raised`, `ink`.
 
-### Eingabefeld
-Fläche `rail` (also vertieft), Rahmen 1 px `edge`, Radius 8 px, Innenabstand 6 px 12 px, Platzhalter `muted`, Schreibmarke `chart`.
+### Input field
+Surface `rail` (so recessed), border 1 px `edge`, radius 8 px, padding 6 px 12 px, placeholder `muted`, caret `chart`.
 
 ### Tag
-Voll gerundet, 12 px, Rahmen 1 px `edge`, Schrift `muted`, durchsichtig; für „pausiert“ und „wird umgebaut“. Als Warnung (Docker oder GitHub gestört; fehlt dem Rechner etwas für Docker, stehen statt des Tags die Zeilen aus „Docker einrichten“, nicht bei GitHub angemeldet, GitHub-Limit erreicht, ein Projekt gesperrt; dann auch „gesperrt“ im Kopf der Projektkarte) Schrift `fail-text`, Rahmen `fail-edge`.
+Fully rounded, 12 px, border 1 px `edge`, type `muted`, transparent; for "paused" and "rebuilding". As a warning (Docker or GitHub faulty; if the machine lacks something for Docker, the rows from "Set up Docker" stand instead of the tag; not signed in to GitHub, GitHub limit reached, a project blocked; then also "blocked" in the header of the project card) type `fail-text`, border `fail-edge`.
 
-### Tabellen und Zeilen
-In „Verbrauch“ steht je Job eine Zeile; kommt derselbe Jobname in einem Projekt in zwei Workflows vor, steht der Workflow in `muted` hinter dem Namen.
+### Tables and rows
+In "Usage" there is one row per job; if the same job name occurs in two workflows of one project, the workflow follows the name in `muted`.
 
-Über den ruhigen Projekten in „Alle Projekte“ stehen im selben Raster die Repos ohne Pool, in denen Jobs auf einen eigenen Runner warten: links das Symbol „wartet“ mit dem Namen (ein Link zu den wartenden Läufen bei GitHub), in der Mitte ein Satz, der mit „Kein Pool:“ beginnt, rechts statt des Alters die Schaltfläche „Pool anlegen“. Welche Jobs warten, steht im Tooltip.
+Above the quiet projects in "All projects", in the same grid, stand the repos without a pool in which jobs wait for a self-hosted runner: on the left the "waiting" icon with the name (a link to the waiting runs on GitHub), in the middle a sentence beginning with "No pool:", on the right, instead of the age, the button "Create pool". Which jobs are waiting is in the tooltip.
 
-Dieselbe Zeile steht für ein Repo ohne Pool, dessen Läufe in den letzten 24 Stunden nicht gestartet sind, weil die Minuten bei GitHub aufgebraucht sind: links das Symbol „Fehler“ mit dem Namen (ein Link zu den gescheiterten Läufen bei GitHub), in der Mitte ein Satz in `text`, der mit „Kein Kontingent:“ beginnt und sagt, wie viele Läufe seit wann, rechts „Pool anlegen“. Rot ist nur das Symbol; es steht hier, weil es einen Ausweg gibt: Mit einem Pool brauchen die Jobs keine Minuten. Der Tooltip des Satzes nennt Ursache und Ausweg. Warten in dem Repo zugleich Jobs auf einen eigenen Runner, steht nur die Zeile „Kein Pool“.
+The same row stands for a repo without a pool whose runs in the last 24 hours did not start because the minutes on GitHub are used up: on the left the "failed" icon with the name (a link to the failed runs on GitHub), in the middle a sentence in `text` beginning with "No GitHub minutes:" and saying how many runs since when, on the right "Create pool". Only the icon is red; it stands here because there is a way out: with a pool the jobs need no minutes. The tooltip of the sentence names cause and way out. If jobs in the repo are also waiting for a self-hosted runner, only the "No pool" row appears.
 
-Bis zur ersten Antwort des Dienstes zeigt die Seite die Wortmarke in der Leiste und im Hauptbereich die Überschrift „Alle Projekte“ mit einem Satz darunter („Verbinde mit RunClub …“); bleibt die Antwort aus, steht dort in `fail-text`, dass RunClub nicht antwortet.
+Until the service's first answer, the page shows the wordmark in the rail and in the main area the heading "All projects" with a sentence below it ("Connecting to RunClub …"); if the answer does not come, it says there in `fail-text` that RunClub is not responding.
 
-Keine Rahmen, keine Zebrastreifen: nur eine Haarlinie unter jeder Zeile. (Die Projektzeile der Einstellungen ist keine Tabellenzeile, sondern eine aufklappbare Fläche.) Kopfzeile in `muted` 400, Zahlen rechtsbündig. In „Alle Projekte“ steht jedes ruhige Projekt in einer Zeile aus drei Spalten (190 px Name mit Symbol, Titel des letzten Laufs mit einer Kette kleiner Zustandssymbole davor, rechts das Alter).
+No borders, no zebra stripes: only a hairline below each row. (The project row of the settings is not a table row but an expandable surface.) Header row in `muted` 400, numbers right-aligned. In "All projects" each quiet project stands in a row of three columns (190 px name with icon, title of the last run preceded by a chain of small state icons, the age on the right).
 
-### GitHub-Anfragen
-Die zweite Haltestelle in „Verbrauch“: der Stand des Anfragelimits des GitHub-Kontos in dieser Stunde. Im Kopf rechts,
-was noch frei ist und wann das Fenster wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und der
-Bezugsgröße, eine Schiene über die volle Breite mit derselben Größe und der gepunkteten Marke, ab der es knapp ist (dieselbe
-Schiene wie bei den Speicherspitzen). Ist alles in Ordnung, steht darunter nichts: Für wen das Limit gilt und was die
-Marke bedeutet, sagt das Info an der Überschrift. Ab der Marke fragt RunClub seltener ab. Das ist keine Störung und
-vergeht von selbst: Ein kurzer Satz in `text` nennt, bis wann, und „Verbrauch“ trägt in der Leiste eine zweite Zeile
-in `muted`; was daraus folgt, steht im Info. Erst an der Reserve (2 %), wenn RunClub gar nicht mehr abfragt, wird es
-rot: Kennzahl, Schiene und der erste Satz, der die Uhrzeit nennt, zu der es weitergeht; der Rest des Satzes nennt in
-`text` den Ausweg, das Info, was so lange weiterläuft. Die Zeile in
-der Leiste ist dann `fail-text`, und in der Übersicht steht ein Warn-Tag mit der Uhrzeit.
+### GitHub requests
+The second stop in "Usage": the state of the GitHub account's rate limit in this hour. In the header on the right, what
+is still free and when the window is full again. Below it the figure (`figure`) with what has been used and the
+reference value, a bar across the full width with the same quantity and the dotted mark from which it is tight (the same
+bar as for the memory peaks). If everything is fine, nothing stands below: whom the limit applies to and what the mark
+means is said by the info on the heading. Past the mark RunClub polls less often. That is not a fault and passes by
+itself: a short sentence in `text` says until when, and "Usage" in the rail carries a second line in `muted`; what
+follows from it is in the info. Only at the reserve (2 %), when RunClub stops polling altogether, does it turn red:
+figure, bar and the first sentence, which names the time at which it continues; the rest of the sentence names the way
+out in `text`, the info what keeps running in the meantime. The line in the rail is then `fail-text`, and the overview
+shows a warning tag with the time.
 
-### GitHub-Minuten
-Die dritte Haltestelle in „Verbrauch“, gebaut wie die GitHub-Anfragen: was das Konto in diesem Monat auf GitHubs
-eigenen Runnern verbraucht hat. So heißt es überall in der Oberfläche, auch in den Zeilen der Übersicht („Keine
-GitHub-Minuten“); im Code und in der übrigen Doku ist es das Minuten-Kontingent. Im Kopf rechts, was noch frei ist und
-an welchem Tag es wieder voll ist. Darunter die Kennzahl (`figure`) mit dem Verbrauchten und den enthaltenen Minuten,
-dieselbe Schiene mit der gepunkteten Marke bei 85 % und ein Satz in `muted`: woraus die Zahl besteht (Linux, Windows,
-macOS, soweit vorhanden), was davon berechnet wird, und der Tarif mit seinen enthaltenen Minuten („Tarif Free mit
-2.000 Minuten im Monat.“). Das Info an der Überschrift nennt, was die Tarife enthalten (gebildet aus der Tabelle im
-Stand, `plans`; sie steht nur in `src/minutes.js`, `INCLUDED`), dass jede Minute gleich zählt, gleich auf welchem
-Betriebssystem, und was bei einem anderen Tarif gilt; je nach Zustand steht davor, was daraus folgt. Kennt RunClub für
-den Tarif keine Zahl, steht die Kennzahl allein, ohne Grenze und Schiene, und der Satz sagt das. Die Zustände und ihre
-Regeln stehen in `src/minutes.js`; die Oberfläche liest sie nur ab.
-- **Knapp** (ab der Marke) ist keine Störung: ein kurzer Satz in `text` über dem Satz in `muted` (was ohne Minuten
-  geschieht, steht im Info), und die zweite Zeile in der Leiste in `muted`.
-- **Aufgebraucht** (das Enthaltene ist erreicht, nichts wurde bezahlt: Ohne Budget startet GitHub in privaten Repos
-  keine Läufe mehr) ist rot, weil es einen Ausweg gibt: Kennzahl, Schiene und der erste Satz, der den Tag nennt, an dem
-  es weitergeht; der Rest nennt in `text` den Ausweg (Projekte auf die eigenen Runner holen oder bei GitHub ein Budget
-  setzen), darunter die Schaltfläche „Zu den Projekten“. Ob ein Budget gesetzt ist, sieht RunClub nicht; der Satz sagt
-  deshalb „ohne Budget“. Dass es private Repos auf GitHubs Runnern betrifft und warum ein Pool hilft, steht im Info. Die Zeile in der Leiste
-  ist dann `fail-text`. Ein Warn-Tag in der Übersicht gibt es dafür nicht; dort stehen die betroffenen Repos als Zeilen
-  „Keine GitHub-Minuten“.
-- **Bezahlt** (das Enthaltene ist erreicht, und es wird berechnet) ist weder knapp noch rot: Wer bezahlt, hat ein
-  Budget gesetzt. Der Kopf nennt dann statt des Freien, wie viele Minuten berechnet sind und was sie bisher kosten. Ein
-  kurzer Satz in `text` sagt, was daraus folgt: GitHub berechnet bis zum Budget und startet danach nichts mehr; dass
-  RunClub diese Grenze nicht sieht, steht im Info. Die Leiste meldet nichts. Wird schon unter dem Enthaltenen etwas berechnet (etwa ein
-  größerer Runner), steht das nur im Satz in `muted`; knapp ist es dann nicht, weil es ein Budget gibt.
-- **Ohne das Recht `user`** steht in der Haltestelle nur ein kurzer Satz in `muted` mit der Schaltfläche „In den
-  Einstellungen ergänzen“, die zur Haltestelle „GitHub“ führt; was das Recht zeigt und wie weit es reicht, steht im Info. Das Recht ist freiwillig; rot ist hier nichts.
-- **Ohne Stand** (noch nicht gelesen, oder die Abfrage ist gescheitert) steht dort ein Satz in `muted`, damit die
-  Haltestelle nicht erst später dazukommt und die Projekte nach unten schiebt. Der Grund eines Fehlers steht im
-  Protokoll; die Schaltfläche „Zum Protokoll“ führt hin. Ohne Anmeldung fehlt die Haltestelle; lassen sich die Rechte der Anmeldung nicht lesen, wird die Abfrage
-  versucht.
+### GitHub minutes
+The third stop in "Usage", built like the GitHub requests: what the account has used this month on GitHub's own
+runners. That is its name everywhere in the interface, also in the rows of the overview ("No GitHub minutes"); in the
+code and the rest of the docs it is the minutes quota. In the header on the right, what is still free and on which day
+it is full again. Below it the figure (`figure`) with what has been used and the included minutes, the same bar with
+the dotted mark at 85 % and a sentence in `muted`: what the number consists of (Linux, Windows, macOS, where present),
+what of it is billed, and the plan with its included minutes ("Free plan with 2,000 minutes a month."). The info on the
+heading names what the plans include (built from the table in the state, `plans`; it lives only in `src/minutes.js`,
+`INCLUDED`), that every minute counts the same, whatever the operating system, and what applies to a different plan;
+depending on the state, what follows from it comes first. If RunClub knows no number for the plan, the figure stands
+alone, without limit and bar, and the sentence says so. The states and their rules live in `src/minutes.js`; the
+interface only reads them.
+- **Running low** (from the mark) is not a fault: a short sentence in `text` above the sentence in `muted` (what
+  happens without minutes is in the info), and the second line in the rail in `muted`.
+- **Used up** (the included amount is reached, nothing was billed: without a budget GitHub starts no more runs in
+  private repos) is red, because there is a way out: figure, bar and the first sentence, which names the day on which
+  it continues; the rest names the way out in `text` (move projects to your own runners or set a budget on GitHub),
+  below it the button "Go to projects". Whether a budget is set, RunClub cannot see; the sentence therefore says
+  "without a budget". That it affects private repos on GitHub's runners and why a pool helps is in the info. The line
+  in the rail is then `fail-text`. There is no warning tag in the overview for this; the affected repos appear there as
+  "No GitHub minutes" rows.
+- **Billed** (the included amount is reached and minutes are being billed) is neither low nor red: whoever pays has set
+  a budget. The header then names, instead of what is free, how many minutes are billed and what they cost so far. A
+  short sentence in `text` says what follows from it: GitHub bills up to the budget and starts nothing after that; that
+  RunClub cannot see this limit is in the info. The rail reports nothing. If something is already billed below the
+  included amount (for example a larger runner), that appears only in the sentence in `muted`; it is not low then,
+  because there is a budget.
+- **Without a state** (not read yet, or the request failed) a sentence in `muted` stands there, so the stop does not
+  appear only later and push the projects down. The reason for a failure is in the log; the button "Open log" leads
+  there. Without a sign-in the stop is missing.
 
 
-### App (Version und Update)
-Der Abschnitt App beginnt mit der Version, die läuft („RunClub 0.2.0-beta.1“), darunter ein Satz in `muted`, was das
-Update gerade tut: sieht nach, lädt, aktuell mit der Uhrzeit des letzten Nachsehens, gescheitert, Entwicklerbetrieb. Ist
-nichts unterwegs, steht rechts „Nachsehen“ (nur Wort); liegt ein Update bereit, bleiben Satz und „Nachsehen“ weg, außer
-ein erneutes Nachsehen ist gescheitert. Darunter der Update-Kanal als Segmentschalter (Stabil, Beta);
-was die Kanäle bekommen, steht im Info. Im Entwicklerbetrieb ist er gesperrt und nennt den Grund im Tooltip. Ist ein
-Update geladen und geprüft, folgt die Zeile „Update auf X ist bereit“ mit „Jetzt aktualisieren“ (Symbol mit Wort);
-dass dabei alle Runner abgebaut werden, steht im Info und in der Rückfrage. Arbeitet ein Runner, ist die Schaltfläche
-gesperrt mit Grund. Nichts davon ist rot: Ein gescheitertes Nachsehen versucht es von selbst wieder, und der Grund
-steht im Info der Versionszeile. Eingespielt wird über die Ansicht „RunClub wird beendet“, danach startet die App neu.
+### App (version and update)
+The App section begins with the version that is running ("RunClub 0.2.0-beta.1"), below it a sentence in `muted` on
+what the update is doing right now: checking, downloading, up to date with the time of the last check, failed,
+development mode. If nothing is in progress, "Check now" (word only) stands on the right; if an update is ready, the
+sentence and "Check now" are left out, unless a renewed check has failed. Below that the update channel as a segmented
+control (Stable, Beta); what the channels get is in the info. In development mode it is disabled and gives the reason
+in the tooltip. Once an update is downloaded and verified, the row "Update to X is ready" follows with "Update now"
+(icon with word); that this takes down all runners is in the info and in the confirmation. While a runner is working,
+the button is disabled with a reason. None of this is red: a failed check retries by itself, and the reason is in the
+info of the version row. Installing goes through the view "RunClub is shutting down", after which the app restarts.
 
-### Protokoll
-Die letzte Haltestelle der Einstellungen; das Info an der Überschrift sagt, woher die Meldungen kommen, was Kopieren
-und Speichern nehmen und warum gefiltert die allgemeinen Fehler bleiben. Je Meldung eine Zeile mit Haarlinie darunter, die neueste oben: Zeit und
-Projekt in Meta `muted` (Spalten 92 px und 128 px), ein Zustandssymbol (16 px) und der Text in Body. Von heute steht
-die Uhrzeit, von früher Tag und Uhrzeit ohne Sekunden. Ein Symbol trägt nur, was ein Ergebnis ist: Job fertig, Job
-gescheitert, Job abgebrochen, Fehler. Der Beginn eines Jobs bleibt ohne Symbol, weil Gelb „läuft jetzt“ heißt. Der
-Text einer Fehlerzeile bleibt in `text`; das rote Symbol trägt den Zustand, denn ein Fehler von vor Stunden verlangt
-nichts mehr. Darüber links der Filter als Segmentschalter (Alle, je Projekt, Allgemein; nur bei mehr als einem
-Projekt), rechts „Kopieren“ und „Speichern“, die beide die ganze Datei nehmen. Auf ein Projekt gefiltert entfällt die
-Projektspalte, und die allgemeinen Fehler bleiben dabei, weil dort oft die Ursache steht; sie tragen dann „Allgemein“ in
-`muted` vor dem Text. Die Meldungen bildet die Oberfläche aus Schlüssel und Werten in ihrer Sprache (`src/messages.js`); nur Texte von
-außen (Docker, GitHub) und Einträge älterer Versionen stehen, wie sie kamen. Eingeklappt acht Zeilen;
-aufgeklappt rollt die Liste in sich (höchstens 496 px), damit „Weniger zeigen“ erreichbar bleibt.
+### Log
+The last stop of the settings; the info on the heading says where the messages come from, what Copy and Save take and
+why the general errors stay when filtering. One row per message with a hairline below, newest at the top: time and
+project in Meta `muted` (columns 92 px and 128 px), a state icon (16 px) and the text in Body. For today the time of
+day is shown, for earlier days date and time without seconds. Only what is a result carries an icon: job done, job
+failed, job cancelled, error. The start of a job stays without an icon, because yellow means "running now". The text of
+an error row stays in `text`; the red icon carries the state, because an error from hours ago demands nothing anymore.
+Above it on the left the filter as a segmented control (All, one per project, General; only with more than one
+project), on the right "Copy" and "Save", which both take the whole file. Filtered to one project, the project column
+is dropped, and the general errors stay in, because that is often where the cause is; they then carry "General" in
+`muted` before the text. The interface builds the messages from key and values in its own language
+(`src/messages.js`); only texts from outside (Docker, GitHub) and entries from older versions appear as they came.
+Collapsed eight rows; expanded, the list scrolls within itself (at most 496 px), so "Show less" stays reachable.
 
-### Tooltip und Meldung
-`raised`, Rahmen 1 px `track`, Radius 6 px, Schrift `ink` 400. Der Tooltip (12 px, eine Zeile) folgt dem Mauszeiger über einer Kurve und über Schaltflächen, die nur ein Symbol zeigen; bei Tastaturbedienung steht er über dem Element; die Meldung steht unten mittig und verschwindet nach fünf Sekunden. Was mehr als eine Zeile braucht, ist kein Tooltip, sondern ein Info-Element (siehe dort).
+### Tooltip and toast
+`raised`, border 1 px `track`, radius 6 px, type `ink` 400. The tooltip (12 px, one line) follows the mouse pointer over a chart and over buttons that show only an icon; with keyboard use it sits above the element; the toast sits at the bottom center and disappears after five seconds. Whatever needs more than one line is not a tooltip but an info element (see there).
 
-### Rückfrage
-Vor allem, was löscht oder Jobs trifft (leeren, Projekt entfernen, zurückschalten, beenden, aktualisieren), fragt die App nach, im
-eigenen Feld statt im Dialog von Windows. Das Feld ist `raised` mit Rahmen 1 px `track`, Radius 8 px wie alles
-Bedienbare, höchstens 440 px breit, mittig über einem Schleier in `rail` mit 72 % Deckkraft; kein Schatten, keine
-Unschärfe. Die Überschrift (Title) ist die Aktion als Frage, darunter steht die Folge als ein Satz, der das Projekt
-nennt. Rechts unten „Abbrechen“ und daneben die Aktion mit ihrem eigenen Wort; rot ist sie nur, wenn sie nicht
-wiederkommt. „Abbrechen“ hat den Fokus, und der Fokusring ist hier immer sichtbar; Escape und ein Klick neben das Feld
-brechen ab. Feld und Schleier erscheinen in 200 ms.
+### Confirmation
+Before anything that deletes or affects jobs (clear, remove project, switch back, quit, update), the app asks first, in
+its own panel instead of a Windows dialog. The panel is `raised` with border 1 px `track`, radius 8 px like everything
+operable, at most 440 px wide, centered over a veil in `rail` at 72 % opacity; no shadow, no blur. The heading (Title)
+is the action as a question, below it the consequence as one sentence that names the project. At the bottom right
+"Cancel" and next to it the action with its own word; it is red only if it does not come back. "Cancel" has the
+focus, and the focus ring is always visible here; Escape and a click beside the panel cancel. Panel and veil appear in
+200 ms.
 
-Schaltflächen auf `raised` nehmen die Rahmentöne als Stufen, weil es darüber keine hellere Fläche gibt: Ruhe `edge`
-mit Rahmen `cap`, überfahren `cap` mit Rahmen `track`, gedrückt `raised`.
+Buttons on `raised` take the border tones as steps, because there is no lighter surface above it: at rest `edge`
+with border `cap`, hovered `cap` with border `track`, pressed `raised`.
 
-### Beenden
-Beim Beenden gehört das ganze Fenster dem Abbau, damit niemand mehrfach klickt: Die Leiste fehlt, im Streifen oben
-steht die Wortmarke (15 px, 600, `muted`). Der Inhalt ist höchstens 820 px breit und mittig; die Ansicht erscheint,
-sobald `/api/status` den Stand `shutdown` liefert, gleich ob über „RunClub beenden“ in den Einstellungen oder über das
-Symbol im Infobereich.
-- **Aufbau:** Kopf wie bei einem Lauf: Headline „RunClub wird beendet“, darunter ein Satz in `text` (höchstens 56
-  Zeichen breit), was abgebaut wird und dass das Fenster sich selbst schließt; rechts die Restzeit als Display mit dem
-  Wort darüber („noch etwa“). Darunter ein Netzplan aus drei Stufen: je Projekt mit Pool eine Station, dann
-  „Aufräumen“ (Build-Dienste, Netze, Volumes), dann „Abmelden“ (bei GitHub). Darunter ein Hinweis in `muted`, woher
-  die Schätzung stammt und wie lange höchstens auf einen entstehenden Runner gewartet wird.
-- **Stationen:** Die Form der Pill mit einer immer sichtbaren zweiten Zeile, aber kein Link und ohne Aufklappen; sie
-  reagieren nicht auf den Zeiger. Ein Projekt im Abbau läuft (`run`, Zeit seit Beginn, „2 von 3 Runnern abgebaut“,
-  Fortschrittsstrich nach dem Anteil); wird dort ein laufender Job abgebrochen, steht stattdessen „Abbruch „Name““ in
-  `run`. Fertig ist `done` mit der Dauer. Aufräumen und Abmelden warten durchsichtig und gestrichelt
-  mit der Schätzung aus dem letzten Beenden („ca. 0:02“), laufen mit der Zeit seit ihrem Beginn und zählen beim
-  Abmelden die Projekte, mit Fortschrittsstrich wie die Projekte. Die Spalte der Projekte ist breiter als die übrigen.
-- **Ohne Schätzung:** Gibt es noch keine gespeicherte Dauer, steht statt der Restzeit die verstrichene Zeit („bisher
-  0:06“), die wartenden Stufen tragen keine Zeit, und der Hinweis sagt, dass die Schätzung ab dem nächsten Mal kommt.
-- **Überzogen:** Ist die Schätzung um und der Abbau noch nicht fertig, zählt statt einer stehenden Restzeit die
-  verstrichene Zeit („länger als geschätzt, bisher 0:17“); eine stehende Zahl sähe aus wie eine hängende App.
-- **Abbruch:** Gekürzt wird nur der Name des Jobs, nie das Wort davor oder die Anführungszeichen.
-- **Kein Rot:** Beenden hat der Nutzer selbst gewollt, und nichts darin verlangt ein Eingreifen (siehe
-  Rot-ist-Störung-Regel). Scheitert ein Schritt, steht das im Protokoll, und der Abbau geht weiter. Ein Dienst, der
-  am Ende nicht mehr antwortet, ist das erwartete Ende und keine Meldung wert.
+### Shutdown
+While shutting down, the whole window belongs to the teardown, so nobody clicks several times: the rail is missing, the
+strip at the top holds the wordmark (15 px, 600, `muted`). The content is at most 820 px wide and centered; the view
+appears as soon as `/api/status` delivers the state `shutdown`, whether via "Quit RunClub" in the settings or via the
+icon in the notification area.
+- **Structure:** Header as for a run: Headline "RunClub is shutting down", below it a sentence in `text` (at most 56
+  characters wide) on what is taken down and that the window closes by itself; on the right the remaining time as
+  Display with the words above it ("time left"). Below that a network map of three stages: one station per project
+  with a pool, then "Clean up" (build services, networks, volumes), then "Sign off" (on GitHub). Below that a hint in
+  `muted` on where the estimate comes from and how long at most it waits for a runner that is being created.
+- **Stations:** The shape of the pill with an always visible second line, but not a link and without expanding; they
+  do not react to the pointer. A project being torn down is running (`run`, time since start, "2 of 3 runners
+  removed", progress stroke by share); if a running job is cancelled there, it shows "Cancelling “Name”" in `run`
+  instead. Done is `done` with the duration. Clean up and Sign off wait transparent and dashed with the estimate from
+  the last shutdown ("about 0:02"), run with the time since their start and, for Sign off, count the projects, with a
+  progress stroke like the projects. The column of the projects is wider than the others.
+- **Without an estimate:** If there is no stored duration yet, the elapsed time stands instead of the remaining time
+  ("so far 0:06"), the waiting stages carry no time, and the hint says that the estimate comes from next time on.
+- **Overrun:** If the estimate is up and the teardown is not finished, the elapsed time counts instead of a frozen
+  remaining time ("longer than estimated, so far 0:17"); a frozen number would look like a hung app.
+- **Cancelling:** Only the job's name is truncated, never the word before it or the quotation marks.
+- **No red:** The user wanted to quit, and nothing in it requires stepping in (see the Red-Means-Trouble Rule). If a
+  step fails, that goes into the log, and the teardown continues. A service that no longer responds at the end is the
+  expected end and not worth a message.
 
-### Fenster
-Im Fenster der App gibt es keine Titelleiste von Windows. Die obersten 32 px sind über die ganze Breite der Griff zum
-Ziehen und bleiben leer; Leiste und Hauptbereich beginnen darunter auf einer Linie, die Wortmarke auf Höhe der
-Überschrift. Minimieren, Maximieren und Schließen sind die Knöpfe von Windows in den Farben der App (Fläche `ground`,
-Zeichen `text`), damit Andocken und Tastatur wie gewohnt funktionieren. Im schmalen Fenster steht die Wortmarke
-(18 px) im Streifen, der dort die Farbe der Leiste trägt.
+### Window
+The app's window has no Windows title bar. The top 32 px are the drag handle across the full width and stay empty;
+rail and main area start below on one line, the wordmark at the height of the heading. Minimize, maximize and close
+are the Windows buttons in the app's colors (surface `ground`, glyphs `text`), so snapping and keyboard work as usual.
+In a narrow window the wordmark (18 px) sits in the strip, which there takes the color of the rail.
 
-### Fokus
-Jedes bedienbare Element zeigt bei Tastaturbedienung einen 2 px breiten Ring in `chart` mit 2 px Abstand.
+### Focus
+Every operable element shows, with keyboard use, a 2 px ring in `chart` with a 2 px offset.
 
-### Bewegung
-Eine Kurve für alles Räumliche: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 bis 220 ms. Farbwechsel 150 ms. Der Fortschrittsstrich läuft linear im Sekundentakt. Mit `prefers-reduced-motion` entfallen die Übergänge von Pills und Schaltflächen.
+### Motion
+One curve for everything spatial: `--ease` (`cubic-bezier(.16, 1, .3, 1)`), 180 to 220 ms. Color changes 150 ms. The progress stroke runs linearly once per second. With `prefers-reduced-motion` the transitions of pills and buttons are dropped.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** Zustand immer als Farbe und Symbol zugleich zeigen, mit den sechs festen Paaren.
-- **Do** Abhängigkeiten als geschwungene Strecke von rechter Mitte zu linker Mitte zeichnen, 2,5 px, runde Enden.
-- **Do** Flächen über Tonstufen staffeln (`rail`, `ground`, `surface`, `raised`) und mit 1 px `edge` fassen.
-- **Do** Zahlen in Tabellenziffern setzen und rechts ausrichten, wo sie untereinander stehen.
-- **Do** Auslastung als Verlauf über die Zeit zeigen, mit Obergrenze, Spitze und dem Beginn des Laufs als Bezug.
-- **Do** Schätzungen als solche kennzeichnen („ca.“, „üblich“, „grob geschätzt“) und in `muted` oder `text` halten, nicht hervorheben.
-- **Do** Offenes gestrichelt oder gepunktet und ohne Füllung zeichnen, Erledigtes und Laufendes durchgezogen.
-- **Do** in der Fläche kurz sagen, was ist und was zu tun ist; Gründe und Hintergrund gehören ins Info-Element.
-- **Do** `fail-text` für rote Schrift und `fail-edge` für rote Rahmen nehmen; `fail` selbst nur für gefüllte Symbole und die Warnkurve.
+- **Do** always show state as color and icon at once, with the six fixed pairs.
+- **Do** draw dependencies as a curved track from right middle to left middle, 2.5 px, round caps.
+- **Do** stack surfaces by tonal steps (`rail`, `ground`, `surface`, `raised`) and frame them with 1 px `edge`.
+- **Do** set numbers in tabular figures and right-align them where they stand in columns.
+- **Do** show load as history over time, with cap, peak and the start of the run as reference.
+- **Do** mark estimates as such ("about", "usual", "rough estimate") and keep them in `muted` or `text`, not highlighted.
+- **Do** draw what is open as dashed or dotted and without fill, what is done or running as solid.
+- **Do** say briefly on the surface what is and what to do; reasons and background belong in the info element.
+- **Do** use `fail-text` for red type and `fail-edge` for red borders; `fail` itself only for filled icons and the warning chart.
 
 ### Don't:
-- **Don't** reines Weiß verwenden; der hellste Ton ist `ink`.
-- **Don't** ein helles Thema anlegen; das System ist nur dunkel (`color-scheme: dark`).
-- **Don't** Schatten, Verläufe oder Unschärfe einsetzen.
-- **Don't** Strecken in einer Zustandsfarbe färben oder im Netzplan gerade beziehungsweise rechtwinklig führen.
-- **Don't** ein Bediensymbol in einer Zustandsfarbe zeichnen oder ein Schriftzeichen (+, −, ×) als Symbol verwenden.
-- **Don't** einen Dauerzustand rot färben, aus dem keine Einstellung herausführt; Rot braucht einen Ausweg.
-- **Don't** einen Lauf als Jobliste mit Statuspunkten in Karten darstellen.
-- **Don't** eine der leuchtenden Zustandsfarben (`run`, `done`, `fail`, `cancel`) als Schmuck oder für etwas anderes als ihren Zustand verwenden.
-- **Don't** Schrift schwerer als 400 setzen (Ausnahme: die Wortmarke) oder Beschriftungen in Versalien sperren.
-- **Don't** die Pill-Form für etwas anderes als einen Job verwenden. Einzige Ausnahme sind die Stationen beim Beenden, das sich als Lauf zeigt (siehe „Beenden“).
+- **Don't** use pure white; the lightest tone is `ink`.
+- **Don't** add a light theme; the system is dark only (`color-scheme: dark`).
+- **Don't** use shadows, gradients or blur.
+- **Don't** color tracks in a state color or route them straight or at right angles in the network map.
+- **Don't** draw a control icon in a state color or use a typed character (+, −, ×) as an icon.
+- **Don't** color a permanent state red if no setting leads out of it; red needs a way out.
+- **Don't** show a run as a job list with status dots in cards.
+- **Don't** use one of the glowing state colors (`run`, `done`, `fail`, `cancel`) as decoration or for anything other than its state.
+- **Don't** set type heavier than 400 (exception: the wordmark) or letter-space labels in all caps.
+- **Don't** use the pill shape for anything other than a job. The only exception are the stations while shutting down, which presents itself as a run (see "Shutdown").
