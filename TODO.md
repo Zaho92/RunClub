@@ -195,11 +195,12 @@ Bewusst so gelassen:
   ein Job läuft (Zeile „Abbruch „Name““).
 
 - **Anmeldung über die GitHub-App** (`src/auth.js`, Aktionen `auth/…` in `src/actions.js`, Haltestelle „GitHub“ in
-  `src/ui.html`, gebaut 17.10.2026): nur mit nachgestelltem GitHub getestet und als Standbild angesehen. Echt prüfen
-  (zweite Instanz ohne Pools, siehe `CLAUDE.md`): Anmelden per Code, „Abbrechen“, Abmelden und erneut anmelden,
-  Neustart mit gesichertem Token, Erneuern nach acht Stunden (oder mit künstlich verkürzter Ablaufzeit), ob `GET /user`
-  mit dem Token der App `plan.name` liefert (sonst zeigt „Verbrauch“ den Tarif als unbekannt), und wie die App dasteht,
-  solange niemand angemeldet ist.
+  `src/ui.html`, gebaut 17.10.2026). Echt erprobt am 18.10.2026 an einer zweiten Instanz ohne Pools: Anmelden per Code,
+  Repo-Liste, Anfragelimit, Minuten samt `plan.name` (`free`), Abmelden; im Protokoll stehen weder Code noch Token.
+  Erneuern mit vorgezogener Ablaufzeit: neues Token und neuer Schlüssel, ohne Client-Secret. Ein schon benutzter
+  Schlüssel bringt `incorrect_client_credentials` statt des dokumentierten `bad_refresh_token`; beides meldet jetzt ab.
+  Noch echt prüfen: Neustart der installierten App mit gesichertem Token (`safeStorage`), „Abbrechen“ während des
+  Wartens, und wie die App dasteht, solange niemand angemeldet ist.
 - **Abmelden von Windows** (`watchSession` in `src/main.js`, `releaseIdle` in `src/runners.js`): nur am Code geprüft. Nach
   einem Abmelden bei laufender App nachsehen, ob bei GitHub unter Settings → Actions → Runners keine Einträge des
   Rechners stehen geblieben sind.

@@ -48,6 +48,9 @@ const SLOW_DOWN = 5 * SECOND; // so viel länger wird gewartet, wenn GitHub um l
 const USER_CODE = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/; // so sieht ein Konto bei GitHub aus
 const SECRET = /^[\w.-]{10,512}$/; // ein Token oder Schlüssel, wie GitHub sie ausgibt; nichts für eine Kopfzeile Gefährliches
+// So lehnt GitHub einen Erneuerungsschlüssel ab, der nicht mehr gilt. Einen schon benutzten beantwortet es (echt
+// erprobt am 18.10.2026) mit `incorrect_client_credentials`, nicht mit dem dokumentierten `bad_refresh_token`.
+const REJECTED = ['bad_refresh_token', 'incorrect_client_credentials'];
 const USER_TRIES = 3; // so oft wird nach der Bestätigung das Konto erfragt, bevor der Ablauf scheitert
 const RENAME_TRIES = 5; // Windows hält eine eben geschriebene Datei manchmal kurz fest (Virenscanner, Index)
 
@@ -183,7 +186,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
     let answer;
     try { answer = await post(TOKEN_URL, { client_id: clientId, grant_type: 'refresh_token', refresh_token: before.refresh }); } catch { return null; }
     if (held !== before) return held?.token ?? null; // inzwischen ab- oder neu angemeldet
-    if (answer.error === 'bad_refresh_token') { lost(); return null; }
+    if (REJECTED.includes(answer.error)) { lost(); return null; }
     const next = granted(answer, before.login);
     if (!next) return null;
     keep(next);

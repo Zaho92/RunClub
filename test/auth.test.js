@@ -202,6 +202,13 @@ test('lehnt GitHub ein Token ab, wird erneuert; ein schon erneuertes wird nicht 
   assert.equal(env.posts(TOKEN_URL).length, 1);
 });
 
+test('auch incorrect_client_credentials (so antwortet GitHub auf einen schon benutzten Schlüssel) meldet ab', async () => {
+  const { auth, world } = fake({ stored: STORED });
+  world.tokens.push(json(200, { error: 'incorrect_client_credentials', error_description: 'The client_id and/or client_secret passed are incorrect.' }));
+  assert.equal(await auth.renew('ghu_gesichert_eins'), null);
+  assert.equal(auth.view().state, 'out');
+});
+
 test('nimmt GitHub den Schlüssel nicht mehr an, ist der Nutzer abgemeldet', async () => {
   const { auth, world, logs, file } = fake({ stored: STORED });
   world.tokens.push(json(200, { error: 'bad_refresh_token', error_description: 'The refresh token passed is incorrect or expired.' }));
