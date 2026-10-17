@@ -82,7 +82,8 @@ Steps, in this order:
       by `test/states.test.js`); `runclub.log`, console and `error.message` are English with en-GB numbers and times,
       older log entries carry keys and stay translated in the interface. File suffixes `.new`, `.broken-<time>` and
       `.part`; `src/auth.js` still loads and removes a `github.token.neu` left by 0.1.0-beta.4. On the way, DESIGN.md
-      and PRODUCT.md now describe the sign-in through the GitHub App instead of `gh`.
+      and PRODUCT.md now describe the sign-in through the GitHub App instead of `gh`. Released and installed as
+      v0.1.0-beta.5 on 18.10.2026; the log file is written in English since then.
    5. README with screenshots.
 4. **Open up:** remove transitional code and the demo pipeline, `LICENSE`, turn on “Private vulnerability reporting”
    in the repo settings (`SECURITY.md` refers to it), check the Git history for secrets and personal data (it goes
