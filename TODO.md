@@ -74,7 +74,10 @@ Schritte, in dieser Reihenfolge:
       der App), die Oberfläche verlinkt den Widerruf bei GitHub. Unter „Projekt hinzufügen“ und bei einem Repo, das
       mit 404 antwortet, steht der Link zum Installieren der App. Der Updater nutzt dasselbe Token. **Offen:** echt
       erproben (siehe „Noch nicht echt ausprobiert“). **Erprobt und als v0.1.0-beta.4 eingespielt am 18.10.2026.**
-   4. Repo ins Englische (siehe oben).
+   4. Repo ins Englische (siehe oben). Entschieden vom Nutzer am 18.10.2026: alles englisch, auch Testnamen und Texte in
+      den Tests; `src/messages.js` bekommt Englisch als Grundsprache (Protokolldatei, Konsole, `error.message`), die
+      Oberfläche bleibt zweisprachig; `CLAUDE.md` wird übersetzt, Kommentare und Commit-Nachrichten ab dann englisch
+      (der Chat mit dem Nutzer bleibt deutsch).
    5. README mit Bildschirmfotos.
 4. **Öffnen:** Übergangscode und Demo-Pipeline entfernen, `LICENSE`, „Private vulnerability reporting“ in den
    Einstellungen des Repos einschalten (`SECURITY.md` verweist darauf), Git-Historie auf Geheimnisse und Persönliches
