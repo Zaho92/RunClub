@@ -12,7 +12,7 @@ What is still pending: the GitHub issues (`docs/agents/issue-tracker.md`). What 
 - The syntax check rejects CRLF in `linux/`: these files run in the runner container; with Windows line endings every `docker` call fails there.
 - Issues live on GitHub; work happens directly on `main`, commits close issues with `Fixes #<n>`. Tracker: `docs/agents/issue-tracker.md`, labels and priorities: `docs/agents/triage-labels.md`. The Jade flows for this are in `.jade/ablaeufe/` (local only, excluded from git).
 - Check: `npm run check` (syntax, including the script in `src/ui.html`) and `npm test`.
-- After larger blocks, run `mattpocock-skills:code-review` and a security pass over the changes since the last pass; the next one is an issue.
+- After larger blocks, run `mattpocock-skills:code-review` and a security pass over the changes since the last pass; the next one is an issue. Such a pass runs in the Jade flow "RunClub Prüfrunde", not in "Issue umsetzen".
 
 ## The running app
 
