@@ -10,7 +10,7 @@ What is still pending: `TODO.md`. What the app is for: `PRODUCT.md`. What it loo
 - What the backend reports to the interface (log, errors, states) is a key with values, not a sentence: `msg('m_…', …)` or `new Fault('m_…', …)` from `src/messages.js`. The English sentence lives there in `EN` (log file, console, `error.message`); the same English sentence and the German one go into the tables of `src/ui.html` (`test/states.test.js` checks that). Texts from outside (Docker, GitHub) stay text.
 - New logic goes into its own module without side effects on load (like `src/pipeline.js`, `src/metrics.js`) and gets tests in `test/`. `src/backend.js` is wiring only (`start()`); logic does not belong there but in a module.
 - The syntax check rejects CRLF in `linux/`: these files run in the runner container; with Windows line endings every `docker` call fails there.
-- Issues live on GitHub; work happens directly on `main`, commits close issues with `Fixes #<n>`. Tracker: `docs/agents/issue-tracker.md`, labels and priorities: `docs/agents/triage-labels.md`. The Jade flows for this are in `.jade/ablaeufe/`.
+- Issues live on GitHub; work happens directly on `main`, commits close issues with `Fixes #<n>`. Tracker: `docs/agents/issue-tracker.md`, labels and priorities: `docs/agents/triage-labels.md`. The Jade flows for this are in `.jade/ablaeufe/` (local only, excluded from git).
 - Check: `npm run check` (syntax, including the script in `src/ui.html`) and `npm test`.
 
 ## The running app
