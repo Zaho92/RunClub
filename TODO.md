@@ -100,6 +100,7 @@ Steps, in this order:
    (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo. Open: release
    0.1.0 (stable tag only with the user's yes), then drop the “only beta releases” sentence under Installing.
    **Released, signed and installed as v0.1.0-beta.7 on 18.10.2026** (updated from beta.6 through the signed manifest).
+   **Released, signed and installed as v0.1.0-beta.8 on 18.10.2026** (updated from beta.7 through the signed manifest; daemons of the pairs now carry the runner tools).
    **Order decided by the user on 18.10.2026:** (a) fix container jobs (“Still open from the reviews”, item 1; fixed 18.10.2026), release
    it as beta.8; (b) 0.1.0 on the commit of the approved beta (the user's yes is given), then drop the “only beta
    releases” sentence; (c) repo page: topics, social preview (the user uploads it); (d) move from `TODO.md` to GitHub
