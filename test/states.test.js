@@ -4,15 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SLOT } = require('../src/states');
 const { EN } = require('../src/messages');
+const auth = require('../src/auth');
+const { literal: read, textsIn } = require('../src/texts');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'ui.html'), 'utf8');
 
-// An object literal from the page's script as it stands there: on one line, or over several lines up to the
-// closing brace at the start of a line.
+// An object literal from the page's script as it stands there (see texts.js).
 function literal(name) {
-  const found = html.match(new RegExp(`const ${name} = (\\{[^\\n]*\\});`)) ?? html.match(new RegExp(`const ${name} = (\\{\\n[\\s\\S]*?\\n\\});`));
+  const found = read(html, name);
   assert.ok(found, `${name} is not in ui.html`);
-  return new Function(`return ${found[1]};`)();
+  return found;
 }
 const TEXT = literal('TEXT');
 const placeholders = (text) => [...new Set(text.match(/\{\d\}/g) ?? [])].sort();
@@ -26,7 +27,19 @@ test('every slot state has a word in the interface in both languages', () => {
 });
 
 test('the states the interface names itself are named there as in the backend', () => {
-  for (const [key, value] of Object.entries(literal('SLOT'))) assert.equal(value, SLOT[key], key);
+  // The interface names only the states it treats on its own.
+  for (const [name, backend] of [['SLOT', SLOT], ['SIGN_IN', auth.STATE], ['FLOW', auth.FLOW], ['WHY', auth.WHY]]) {
+    for (const [key, value] of Object.entries(literal(name))) assert.equal(value, backend[key], `${name}.${key}`);
+  }
+});
+
+test('the tray icon has its texts in both languages, with the same placeholders', () => {
+  for (const key of ['open', 'closing', 'autostart', 'quit', 'stopping', 'count']) {
+    assert.ok(TEXT.en[`tray_${key}`]?.trim(), `en: tray_${key}`);
+    assert.deepEqual(placeholders(TEXT.de[`tray_${key}`] ?? ''), placeholders(TEXT.en[`tray_${key}`]), `de: tray_${key}`);
+  }
+  assert.equal(textsIn('de')('tray_count', 2, 3), 'RunClub – 2 arbeiten, 3 bereit');
+  assert.equal(textsIn('fr')('tray_open'), 'Open RunClub');
 });
 
 test('every backend message is in the interface in English as in the backend and in German with the same placeholders', () => {

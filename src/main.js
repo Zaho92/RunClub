@@ -8,8 +8,11 @@ const path = require('node:path');
 const { SECOND, MINUTE, HOUR } = require('./units');
 const { SLOT } = require('./states');
 const { run } = require('./run');
-const { createUpdater } = require('./updater');
-const { msg, Fault } = require('./messages');
+const { createUpdater, releaseRepo } = require('./updater');
+const { secretsFrom } = require('./auth');
+const { prepareInstall, launchInstaller } = require('./install');
+const { textsIn } = require('./texts');
+const { msg } = require('./messages');
 const pkg = require('../package.json');
 
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
@@ -26,8 +29,7 @@ const EXTERNAL = ['https://github.com/', 'https://docs.docker.com/desktop/'];
 const TOOLTIP_INTERVAL = 5 * SECOND; // how often the tray icon's tooltip is refreshed
 const UPDATE_FIRST = MINUTE; // after startup, once the runners stand
 const UPDATE_INTERVAL = 6 * HOUR;
-// The releases live in the repo from package.json (`repository.url`).
-const REPO = pkg.repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1];
+const REPO = releaseRepo(pkg);
 
 if (!app.requestSingleInstanceLock()) app.exit(0);
 
@@ -59,37 +61,16 @@ async function adoptAutostart() {
   if (result.code === 0 && /RunClub\s+REG_SZ/i.test(result.stdout)) setAutostart(true);
 }
 
-// This is how the GitHub sign-in token lies in the data folder: encrypted with the Windows user's key
-// (DPAPI). If that isn't available, the sign-in holds only until the program ends (see auth.js).
-const secrets = () => (safeStorage.isEncryptionAvailable()
-  ? { encrypt: (buffer) => safeStorage.encryptString(buffer.toString('utf8')), decrypt: (buffer) => Buffer.from(safeStorage.decryptString(buffer), 'utf8') }
-  : null);
-
-// Installs the downloaded update: only if no runner is working, since quitting tears all of them down. The installer
-// starts only once teardown is done (hooks.onExit), and opens RunClub again afterwards.
+// Installs the downloaded update (see install.js); the installer starts once teardown is done.
 function installUpdate() {
-  if (!updater.view().ready) throw new Fault('m_noUpdate');
-  const working = backend.status().repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === SLOT.WORKING).length;
-  if (working) throw new Fault('m_updateBusy', working);
-  const ready = updater.installer();
-  if (!ready) throw new Fault('m_noUpdate');
-  updater.hold(); // no check may remove the file during teardown
-  installer = ready;
-  backend.log(msg('m_updating', ready.version));
+  installer = prepareInstall(updater, backend.status());
+  backend.log(msg('m_updating', installer.version));
   quit();
 }
 
 function exit() {
   exiting = true;
-  // Verified once more right before starting; if the file changed or is gone, RunClub starts again instead of
-  // leaving the machine without runners.
-  if (installer) {
-    try {
-      const verified = updater.installer();
-      if (verified) spawn(verified.file, verified.args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
-      else app.relaunch();
-    } catch { app.relaunch(); } // a virus scanner holding the file, for instance
-  }
+  if (installer) launchInstaller(updater, { spawn, relaunch: () => app.relaunch() });
   app.exit(0);
 }
 
@@ -127,23 +108,19 @@ function showWindow() {
   window.on('closed', () => { window = null; });
 }
 
-// Menu and tooltip of the tray icon in the language of Windows; the interface starts the same way (see `lang` in
-// ui.html), but can be switched there.
-const TRAY_TEXT = {
-  de: { open: 'RunClub öffnen', closing: 'Wird beendet …', autostart: 'Mit Windows starten', quit: 'Beenden (Runner stoppen)', stopping: 'RunClub – beendet die Runner …', count: (working, ready) => `RunClub – ${working} arbeiten, ${ready} bereit` },
-  en: { open: 'Open RunClub', closing: 'Shutting down …', autostart: 'Start with Windows', quit: 'Quit (stop runners)', stopping: 'RunClub – stopping the runners …', count: (working, ready) => `RunClub – ${working} working, ${ready} ready` },
-};
-const trayText = () => TRAY_TEXT[app.getLocale().toLowerCase().startsWith('de') ? 'de' : 'en'];
+// Menu and tooltip of the tray icon in the language of Windows, from the tables in ui.html (`tray_…`); the interface
+// starts the same way (see `lang` in ui.html), but can be switched there.
+let trayTexts = null;
+const trayText = (key, ...args) => (trayTexts ??= textsIn(app.getLocale().toLowerCase().startsWith('de') ? 'de' : 'en'))(`tray_${key}`, ...args);
 
 function refreshTray() {
   if (!tray) return;
-  const text = trayText();
-  if (quitting) { tray.setContextMenu(Menu.buildFromTemplate([{ label: text.open, click: showWindow }, { label: text.closing, enabled: false }])); return; }
+  if (quitting) { tray.setContextMenu(Menu.buildFromTemplate([{ label: trayText('open'), click: showWindow }, { label: trayText('closing'), enabled: false }])); return; }
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: text.open, click: showWindow },
-    { label: text.autostart, type: 'checkbox', checked: autostart(), click: (item) => setAutostart(item.checked) },
+    { label: trayText('open'), click: showWindow },
+    { label: trayText('autostart'), type: 'checkbox', checked: autostart(), click: (item) => setAutostart(item.checked) },
     { type: 'separator' },
-    { label: text.quit, click: quit },
+    { label: trayText('quit'), click: quit },
   ]));
 }
 
@@ -151,10 +128,10 @@ function refreshTray() {
 function refreshTooltip() {
   if (!tray || quitting) return;
   const status = backend.status();
-  if (status.shutdown) { quitting = true; refreshTray(); tray.setToolTip(trayText().stopping); return; }
+  if (status.shutdown) { quitting = true; refreshTray(); tray.setToolTip(trayText('stopping')); return; }
   const runners = status.repos.flatMap((repo) => repo.runners);
   const count = (state) => runners.filter((runner) => runner.state === state).length;
-  tray.setToolTip(trayText().count(count(SLOT.WORKING), count(SLOT.READY)));
+  tray.setToolTip(trayText('count', count(SLOT.WORKING), count(SLOT.READY)));
 }
 
 // While quitting, the window shows in large what is still being torn down (`shutdown` in /api/status). An open window
@@ -163,7 +140,7 @@ async function quit() {
   if (quitting) return;
   quitting = true;
   refreshTray();
-  tray?.setToolTip(trayText().stopping);
+  tray?.setToolTip(trayText('stopping'));
   const open = Boolean(window);
   showWindow();
   const done = backend.shutdown(); // ends via hooks.onExit
@@ -187,7 +164,7 @@ app.whenReady().then(() => {
   backend = require('./backend').start({
     hooks: {
       onExit: exit,
-      secrets: secrets(),
+      secrets: secretsFrom(safeStorage),
       version: app.getVersion(),
       status: () => ({ app: { autostart: autostart(), update: updater.view() } }),
       actions: {
@@ -199,7 +176,7 @@ app.whenReady().then(() => {
     },
   });
   updater = createUpdater({
-    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, log: (text) => backend.log(text),
+    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, log: backend.log,
   });
   adoptAutostart();
   setTimeout(() => { updater.check(); setInterval(() => updater.check(), UPDATE_INTERVAL); }, UPDATE_FIRST);

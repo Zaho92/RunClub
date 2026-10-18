@@ -359,4 +359,4 @@ const pairNames = (pool) => new Set(pool.slots.filter((slot) => slot.base).map((
 // without losing a job.
 const idleRegistrations = (pools) => [...pools].flatMap((pool) => pool.slots.filter((slot) => slot.runnerId && !slot.job).map((slot) => ({ repo: slot.repo, runnerId: slot.runnerId })));
 
-module.exports = { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_CAP_DROP, RUNNER_MAX, RUNNER_LOG_MAX, ROUND_PAUSE, IDLE_PAUSE, BROKEN_PAUSE };
+module.exports = { createSlots, noteWorkflows, pairNames, idleRegistrations, REFRESH_AGAIN, JOB_NAME_MAX, RESULT_MAX, RUNNER_MAX, RUNNER_LOG_MAX, ROUND_PAUSE, IDLE_PAUSE, BROKEN_PAUSE };

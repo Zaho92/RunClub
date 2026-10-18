@@ -243,6 +243,9 @@ class Fault extends Error {
 
 // What an error reports: its message, otherwise its text (from Node or a program, say).
 const reason = (error) => error?.msg ?? String(error?.message ?? error);
+// Why a request did not reach its server, as fetch reports it: the network's code (`ENOTFOUND`, say), otherwise the
+// error's text.
+const unreachable = (error) => String(error?.cause?.code ?? error?.message ?? error ?? '');
 
 // A message that came from outside (from the log file), made safe: only known shapes, texts through `clean`, not
 // arbitrarily deep. null if it is none.
@@ -258,4 +261,4 @@ function sanitize(message, clean, depth = 0) {
   return { key: message.key, args: message.args.slice(0, 10).map(item) };
 }
 
-module.exports = { EN, msg, isMsg, render, Fault, reason, sanitize };
+module.exports = { EN, msg, isMsg, render, Fault, reason, unreachable, sanitize };

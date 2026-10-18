@@ -123,4 +123,4 @@ function createWaiting({ github, now = Date.now }) {
   return { scan, list: () => found, forget: (repo) => { found = found.filter((entry) => entry.repo !== repo); } };
 }
 
-module.exports = { createWaiting, candidates, wantsOwnRunner, neverStarted, minutesNote, REASON };
+module.exports = { createWaiting, candidates, wantsOwnRunner, neverStarted, minutesNote };

@@ -84,7 +84,7 @@ function summarize(summary, plan, now = Date.now()) {
   };
 }
 
-// `github` as in github.js. `log(text)` writes an error to the log.
+// `github` as in github.js. `log(message)` writes an error (see messages.js) to the log.
 function createMinutes({ github, log = () => {}, now = Date.now }) {
   let current = null; // { login, …figures }
   let failures = 0; // failed requests in a row for the account in `asked`: only the first is reported

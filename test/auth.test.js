@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createAuth, CLIENT_ID, INSTALL_URL, REVOKE_URL } = require('../src/auth');
+const { createAuth, secretsFrom, CLIENT_ID, INSTALL_URL, REVOKE_URL } = require('../src/auth');
 const { render } = require('../src/messages');
 const { settle, until } = require('./support');
 
@@ -357,4 +357,14 @@ test('if a file cannot be deleted on sign-out, the log says which, and the other
   try { await auth.logout(); } finally { fs.rmSync = origin; }
   assert.equal(fs.existsSync(file), false);
   assert.match(logs[0], /^github\.token\.new could not be deleted \(busy\)/);
+});
+
+test('the token is encrypted with safeStorage if it can, otherwise it stays in memory', () => {
+  const safeStorage = { isEncryptionAvailable: () => true, encryptString: (text) => Buffer.from(`enc:${text}`), decryptString: (buffer) => buffer.toString().slice(4) };
+  const secrets = secretsFrom(safeStorage);
+  const sealed = secrets.encrypt(Buffer.from('token ä', 'utf8'));
+  assert.equal(sealed.toString(), 'enc:token ä');
+  assert.equal(secrets.decrypt(sealed).toString('utf8'), 'token ä');
+  assert.equal(secretsFrom({ ...safeStorage, isEncryptionAvailable: () => false }), null);
+  assert.equal(secretsFrom(undefined), null);
 });

@@ -19,6 +19,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { passphrase } = require('./passphrase');
 const signature = require('../src/signature');
+const { releaseRepo } = require('../src/updater');
 const { channelOf, compareVersions, parseVersion } = require('../src/versions');
 
 const root = path.join(__dirname, '..');
@@ -103,7 +104,7 @@ function main() {
   if (option >= 0 && (!args[option + 1] || args[option + 1].startsWith('--'))) fail('--key needs the path of a key file.');
   const keyFile = path.resolve(option >= 0 ? args[option + 1] : path.join(KEY_FOLDER, 'primary.pem'));
   const asked = args.find((arg, i) => !arg.startsWith('--') && args[i - 1] !== '--key');
-  const repo = require('../package.json').repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1]; // as in src/main.js
+  const repo = releaseRepo(require('../package.json'));
 
   if (git('status', '--porcelain')) fail('The working tree has changes. Commit or discard them first.');
   const chosen = chooseTag(git('tag', '--points-at', 'HEAD').split('\n'), asked);

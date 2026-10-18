@@ -20,13 +20,15 @@ const crypto = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { readJson, writeJson } = require('./store');
-const { msg, render, Fault, reason } = require('./messages');
+const { msg, render, Fault, reason, unreachable } = require('./messages');
 const { compareVersions, parseVersion, isPrerelease, channelOf } = require('./versions');
 const signature = require('./signature');
+const { API, API_VERSION } = require('./github');
 
 const FILE = 'update.json';
+// The repo the releases live in, “owner/name”, from the `repository.url` of package.json.
+const releaseRepo = (pkg) => pkg.repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1];
 const CHANNELS = ['stable', 'beta'];
-const API = 'https://api.github.com';
 const PER_PAGE = 30; // this many releases are read; older ones aren't newer anyway
 const REDIRECTS = 5;
 const TRIES = 5; // this many of the newest releases are tried before the check gives up
@@ -86,7 +88,7 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 //   timeouts                `request`: longest wait for an answer and a small file; `idle`: longest pause in the
 //                           installer's download (ms)
 //   fetch                   like Node's; controllable in tests
-//   log(text), now()
+//   log(message), now()     a message (see messages.js) to the log; the clock
 function createUpdater({ repo, current, packaged, dataDir, keys = signature.KEYS, timeouts = {}, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
   const file = path.join(dataDir, FILE);
   const folder = path.join(dataDir, 'update');
@@ -108,8 +110,8 @@ function createUpdater({ repo, current, packaged, dataDir, keys = signature.KEYS
   async function request(url, { accept, signal }) {
     let target = url;
     for (let hop = 0; hop <= REDIRECTS; hop += 1) {
-      const headers = { accept, 'user-agent': 'RunClub', 'x-github-api-version': '2022-11-28' };
-      const response = await fetch(target, { headers, redirect: 'manual', signal }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', String(failure?.cause?.code ?? failure?.message ?? failure))); });
+      const headers = { accept, 'user-agent': `RunClub/${current}`, 'x-github-api-version': API_VERSION };
+      const response = await fetch(target, { headers, redirect: 'manual', signal }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', unreachable(failure))); });
       if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
         target = new URL(response.headers.get('location'), target).href;
         continue;
@@ -312,4 +314,4 @@ function createUpdater({ repo, current, packaged, dataDir, keys = signature.KEYS
   return { check, setChannel, installer, hold, view };
 }
 
-module.exports = { createUpdater, candidates, pickRelease, FILE, PHASE, CHANNELS };
+module.exports = { createUpdater, releaseRepo, candidates, pickRelease, FILE };

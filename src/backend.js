@@ -121,7 +121,7 @@ function start({
   // The GitHub sign-in; its token holds for all requests. After a successful sign-in, read the new account's request
   // limit, repos and minutes.
   const auth = createAuth({
-    file: path.join(dataDir, TOKEN_FILE), secrets, version, log: (text) => log(text),
+    file: path.join(dataDir, TOKEN_FILE), secrets, version, log,
     onAccount: () => { remote.watchQuota(); remote.refreshAll(); account.changed(); },
   });
   const github = createGitHub({ token: auth.token, renew: auth.renew, timeout: GITHUB_TIMEOUT, version }); // conditional where possible, and with the state of the rate limit

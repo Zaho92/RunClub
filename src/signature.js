@@ -87,4 +87,4 @@ function checkManifest(manifest, { repo, version, current, channel }) {
   return m;
 }
 
-module.exports = { MANIFEST, SIGNATURE, PREFIX, KEYS, manifestBytes, sign, verify, checkManifest, keyId, rawPublicKey };
+module.exports = { MANIFEST, SIGNATURE, KEYS, manifestBytes, sign, verify, checkManifest, keyId, rawPublicKey };

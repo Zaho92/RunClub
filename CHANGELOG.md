@@ -11,6 +11,10 @@ version (`0.2.0`), or with `Unreleased` as long as that does not exist yet.
 - `CHANGELOG.md`; releases take their notes from it.
 - Issue forms for bug reports, `CONTRIBUTING.md`.
 
+### Changed
+
+- When signing in fails, the window gives the reason in the same words as the log.
+
 ### Security
 
 - Caches and template of a removed pool that could not be deleted no longer reach a new pool for another repo with the

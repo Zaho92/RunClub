@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { createUpdater, pickRelease, FILE } = require('../src/updater');
+const { createUpdater, releaseRepo, pickRelease, FILE } = require('../src/updater');
 const { compareVersions, channelOf } = require('../src/versions');
 const { manifestBytes, sign, keyId, rawPublicKey } = require('../src/signature');
 const { render } = require('../src/messages');
@@ -288,4 +288,9 @@ test('a beta in a release not marked as pre-release doesn\'t reach channel stabl
   release(w, '0.2.0', { manifest: { version: '0.2.0-beta.1' } });
   await w.updater.check();
   assert.deepEqual(w.updater.view().error, { code: 'unsigned', status: null });
+});
+
+test('the releases live in the repo named in package.json', () => {
+  assert.equal(releaseRepo({ repository: { url: 'git+https://github.com/Zaho92/RunClub.git' } }), 'Zaho92/RunClub');
+  assert.equal(releaseRepo(require('../package.json')), 'Zaho92/RunClub');
 });

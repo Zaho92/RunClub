@@ -37,7 +37,7 @@ const listed = (stdout, name) => stdout.toLowerCase().includes(`"${name.toLowerC
 //   docker(args, options)   from engine.js; if the daemon answers, nothing is missing, even while it is still being prepared
 //   desktop                 RunClub uses Docker Desktop (see engine.js)
 //   env, exists, findDocker, spawn, now   environment, `fs.existsSync`, where the CLI is, `child_process.spawn`, clock; controllable in tests
-//   log(text)
+//   log(message)            writes a message (see messages.js) to the log
 // Returns:
 //   check()    checks what is missing (Promise); never throws
 //   view()     for the interface: { missing: [MISSING…], app } or null if nothing is missing or there is nothing to check;

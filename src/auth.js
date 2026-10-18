@@ -23,7 +23,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SECOND, MINUTE } = require('./units');
 const { API, apiHeaders } = require('./github');
-const { msg, Fault, reason } = require('./messages');
+const { msg, Fault, reason, unreachable } = require('./messages');
 
 // The GitHub App “RunClub” (https://github.com/settings/apps/runclub-runners). The client ID is not a secret.
 const CLIENT_ID = 'Iv23liMHlB06HEzY8bPM';
@@ -64,11 +64,17 @@ function pause(ms, signal) {
 }
 
 // What an error while asking says, as outside text.
-const said = (error) => String(error?.cause?.code ?? error?.message ?? error ?? '').slice(0, 300) || null;
+const said = (error) => unreachable(error).slice(0, 300) || null;
+
+// What main.js hands over as `secrets`: Electron's safeStorage (DPAPI, bound to the Windows user), or null if it
+// can't encrypt; then the sign-in holds only until the program ends.
+const secretsFrom = (safeStorage) => (safeStorage?.isEncryptionAvailable()
+  ? { encrypt: (buffer) => safeStorage.encryptString(buffer.toString('utf8')), decrypt: (buffer) => Buffer.from(safeStorage.decryptString(buffer), 'utf8') }
+  : null);
 
 //   file, secrets           where the token lives and how it is encrypted and decrypted ({ encrypt(buffer), decrypt(buffer) });
 //                           without both only in memory
-//   log(text)               writes to the log
+//   log(message)            writes a message (see messages.js) to the log
 //   onAccount()             a different token applies (after a successful sign-in): re-read rate limit and repos
 //   fetch, now, wait        like Node's and `pause`; controllable in tests
 function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch = globalThis.fetch, log = () => {}, onAccount = () => {}, now = Date.now, timeout = MINUTE, flowTimeout = FLOW_TIMEOUT, wait = pause, version = '0' }) {
@@ -363,4 +369,4 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   return { view, signedIn, poll, token, renew, login, cancel, logout, close };
 }
 
-module.exports = { createAuth, STATE, FLOW, WHY, CLIENT_ID, APP_SLUG, INSTALL_URL, REVOKE_URL, FILE };
+module.exports = { createAuth, secretsFrom, STATE, FLOW, WHY, CLIENT_ID, INSTALL_URL, REVOKE_URL, FILE };

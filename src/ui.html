@@ -433,8 +433,9 @@ const TEXT = {
     authIn: 'Angemeldet als {0}', authWhat: 'RunClub handelt über die GitHub-App „RunClub“ in deinem Namen, und nur in den Repos, auf denen die App installiert ist: Runner an- und abmelden, Läufe lesen und erneut starten, {0} setzen und deine Abrechnung für die GitHub-Minuten lesen. Den Code kann sie lesen, aber nicht direkt ändern. Das Recht für die Runner (Administration) reicht weiter: Es erlaubt auch, Einstellungen, Mitarbeiter und Sichtbarkeit der Repos zu ändern; RunClub tut das nicht.',
     authLogin: 'Bei GitHub anmelden', authLogout: 'Abmelden', authConfirmOut: 'Danach kann RunClub keine neuen Runner mehr anmelden; laufende Jobs arbeiten zu Ende. Abgemeldet wird nur auf diesem Rechner: Die Freigabe bei GitHub bleibt bestehen, bis du sie dort widerrufst.',
     authOut: 'Nicht bei GitHub angemeldet', authOutMore: 'Ohne Anmeldung kann RunClub keine Runner anmelden und keine Läufe lesen.',
-    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authLate: 'Die Bestätigung im Browser kam nicht rechtzeitig.', authNoReason: 'GitHub hat keinen Grund genannt.', authDenied: 'Du hast RunClub im Browser nicht zugelassen. Zum erneuten Versuch: Bei GitHub anmelden.', authGithubSays: 'GitHub meldet: „{0}“. Versuch es erneut; hält es an, steht mehr im Protokoll.', authLocal: 'Abmelden gilt nur für diesen Rechner; die Freigabe bei GitHub bleibt, bis du sie dort widerrufst.', authRevokeLink: 'Freigabe bei GitHub widerrufen',
-    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.', authFailed: 'Die Anmeldung ist gescheitert: {0}',
+    authChecking: 'Prüfe die Anmeldung bei GitHub …', authStarting: 'Hole einen Einmalcode von GitHub …', authCode: 'Einmalcode', authEnter: 'Öffne GitHub im Browser, gib dort diesen Code ein und bestätige. RunClub merkt es von selbst.', authDenied: 'Du hast RunClub im Browser nicht zugelassen. Zum erneuten Versuch: Bei GitHub anmelden.', authGithubSays: 'GitHub meldet: „{0}“. Versuch es erneut; hält es an, steht mehr im Protokoll.', authLocal: 'Abmelden gilt nur für diesen Rechner; die Freigabe bei GitHub bleibt, bis du sie dort widerrufst.', authRevokeLink: 'Freigabe bei GitHub widerrufen',
+    tray_open: 'RunClub öffnen', tray_closing: 'Wird beendet …', tray_autostart: 'Mit Windows starten', tray_quit: 'Beenden (Runner stoppen)', tray_stopping: 'RunClub – beendet die Runner …', tray_count: 'RunClub – {0} arbeiten, {1} bereit',
+    authOpen: 'GitHub öffnen', authCopy: 'Code kopieren', codeCopied: 'Der Code liegt in der Zwischenablage.', codeCopyFailed: 'Der Code ließ sich nicht kopieren.',
     authFirstTitle: 'Zuerst bei GitHub anmelden', authFirstText: 'Einmal nötig, damit RunClub Runner in deinen Repos anmelden und ihre Läufe lesen kann.',
     setupTitle: 'Docker einrichten', setupText: 'Die Linux-Runner brauchen Docker auf diesem Rechner.', setupInfo: 'RunClub prüft das von selbst, solange Docker nicht antwortet, und merkt, wenn alles da ist. Dann verschwindet dieser Abschnitt.',
     su_wsl: 'WSL fehlt', su_wslMore: 'In einem Terminal als Administrator {0} ausführen, danach Windows neu starten.', su_wslInfo: 'Docker Desktop lässt die Container in einer Linux-VM laufen, die das Windows-Subsystem für Linux (WSL) bereitstellt.', su_wslCopy: 'Befehl kopieren',
@@ -623,8 +624,9 @@ const TEXT = {
     authIn: 'Signed in as {0}', authWhat: 'RunClub acts on your behalf through the GitHub App “RunClub”, and only in the repos the app is installed on: registering and removing runners, reading runs and starting them again, setting {0}, and reading your billing for the GitHub minutes. It can read code but not change it directly. The permission for the runners (Administration) reaches further: it also allows changing the repos’ settings, collaborators and visibility; RunClub does not do that.',
     authLogin: 'Sign in to GitHub', authLogout: 'Sign out', authConfirmOut: 'RunClub can then no longer register new runners; running jobs finish. This signs out on this computer only: the authorization on GitHub stays until you revoke it there.',
     authOut: 'Not signed in to GitHub', authOutMore: 'Without a sign-in RunClub cannot register runners or read runs.',
-    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authLate: 'The confirmation in the browser did not arrive in time.', authNoReason: 'GitHub gave no reason.', authDenied: 'You did not authorize RunClub in the browser. To try again, sign in to GitHub.', authGithubSays: 'GitHub says: “{0}”. Try again; if it persists, the log has more.', authLocal: 'Signing out only applies to this computer; the authorization on GitHub stays until you revoke it there.', authRevokeLink: 'Revoke on GitHub',
-    authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.', authFailed: 'Signing in failed: {0}',
+    authChecking: 'Checking the GitHub sign-in …', authStarting: 'Getting a one-time code from GitHub …', authCode: 'One-time code', authEnter: 'Open GitHub in the browser, enter this code there and confirm. RunClub picks it up on its own.', authDenied: 'You did not authorize RunClub in the browser. To try again, sign in to GitHub.', authGithubSays: 'GitHub says: “{0}”. Try again; if it persists, the log has more.', authLocal: 'Signing out only applies to this computer; the authorization on GitHub stays until you revoke it there.', authRevokeLink: 'Revoke on GitHub',
+    tray_open: 'Open RunClub', tray_closing: 'Shutting down …', tray_autostart: 'Start with Windows', tray_quit: 'Quit (stop runners)', tray_stopping: 'RunClub – stopping the runners …', tray_count: 'RunClub – {0} working, {1} ready',
+    authOpen: 'Open GitHub', authCopy: 'Copy code', codeCopied: 'The code is on the clipboard.', codeCopyFailed: 'The code could not be copied.',
     authFirstTitle: 'First, sign in to GitHub', authFirstText: 'Needed once so RunClub can register runners in your repos and read their runs.',
     setupTitle: 'Set up Docker', setupText: 'Linux runners need Docker on this machine.', setupInfo: 'RunClub checks this on its own while Docker does not respond and notices when everything is there. Then this section disappears.',
     su_wsl: 'WSL is missing', su_wslMore: 'Run {0} in a terminal as administrator, then restart Windows.', su_wslInfo: 'Docker Desktop runs the containers in a Linux VM provided by the Windows Subsystem for Linux (WSL).', su_wslCopy: 'Copy command',
@@ -740,6 +742,10 @@ const TEXT = {
 };
 // The states of a slot as the backend names them (SLOT in src/states.js); their words are in TEXT as `st_<state>`.
 const SLOT = { WORKING: 'working', READY: 'ready', STARTING: 'starting', BROKEN: 'broken', OFF: 'off', PAUSED: 'paused' };
+// The sign-in and its flow as the backend names them (STATE, FLOW and WHY in src/auth.js).
+const SIGN_IN = { UNKNOWN: 'unknown', OUT: 'out', IN: 'in' };
+const FLOW = { STARTING: 'starting', WAITING: 'waiting', DONE: 'done', FAILED: 'failed', CANCELLED: 'cancelled' };
+const WHY = { LATE: 'late', DENIED: 'denied', GITHUB: 'github' };
 // Up to this width the window counts as narrow; the same limit is in the CSS (`max-width: 760px`) and in main.js.
 const NARROW = 760;
 const store = { get: (key, fallback) => { try { return localStorage.getItem('rc.' + key) ?? fallback; } catch { return fallback; } }, set: (key, value) => { try { localStorage.setItem('rc.' + key, value); } catch { /* no storage */ } } };
@@ -862,12 +868,12 @@ function limitTrouble() {
 // --- Sign-in with GitHub ---
 
 // What needs doing about the sign-in, as a short sentence for bar and warning tag; otherwise null. Signed out is a
-// fault with a way out and therefore red. The state words come from the backend (see STATE and FLOW in auth.js).
+// fault with a way out and therefore red. The state words are SIGN_IN and FLOW.
 function authTrouble() {
-  return data.auth?.state === 'out' ? t('authOut') : null;
+  return data.auth?.state === SIGN_IN.OUT ? t('authOut') : null;
 }
 // No project yet and nobody signed in: that is the beginning and not a fault, so not red.
-const authStart = () => data.auth?.state === 'out' && !data.repos.length;
+const authStart = () => data.auth?.state === SIGN_IN.OUT && !data.repos.length;
 // A link to GitHub; only such links are opened by the app window in the browser (see main.js). No valid URL, nothing.
 const githubUrl = (url) => String(url ?? '').startsWith('https://github.com/');
 // Links lead only to GitHub: anything else from outside gets no address.
@@ -892,16 +898,16 @@ function authBody(first) {
     const tip = info(title, ...more);
     return '<div class="arow' + (first ? ' bare' : '') + '"><div>' + above + (titled ? '<b' + (alarm ? ' class="c-fail"' : '') + '>' + esc(title) + '</b>' + tip : '') + '<div class="note' + (alarm ? ' strong' : '') + '">' + hint + '</div></div>' + (control ?? '') + '</div>';
   };
-  if (flow?.state === 'starting') return line('', t('authStarting'), act('auth/cancel', t('cancel')));
+  if (flow?.state === FLOW.STARTING) return line('', t('authStarting'), act('auth/cancel', t('cancel')));
   // First the code, then the page where it is to be entered.
-  if (flow?.state === 'waiting') return '<div class="flow"><div><div class="k">' + t('authCode') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + t('authEnter') + '</div>' +
+  if (flow?.state === FLOW.WAITING) return '<div class="flow"><div><div class="k">' + t('authCode') + '</div><div class="v code">' + esc(flow.code) + '</div></div><div class="note measure strong">' + t('authEnter') + '</div>' +
     '<div class="row"><button class="btn" data-copy="' + esc(flow.code) + '">' + glyph('copy') + t('authCopy') + '</button>' + githubButton(flow.url, t('authOpen')) + '<span class="row push">' + act('auth/cancel', t('cancel')) + '</span></div></div>';
   // Why a flow failed is said by the interface in its language; only what GitHub itself reports is shown verbatim.
   // The user declined themselves: that is not a fault and is shown without red.
-  const why = flow?.state !== 'failed' || flow.why === 'denied' ? '' : flow.why === 'late' ? t('authLate') : flow.error ? t('authGithubSays', flow.error) : t('authNoReason');
-  const failed = flow?.state === 'failed' && flow.why === 'denied' ? '<div class="note measure">' + esc(t('authDenied')) + '</div>' : why ? '<div class="note measure c-fail fault">' + esc(t('authFailed', why)) + '</div>' : '';
-  if (a.state === 'out') return first ? failed + '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true, failed, [t('authOutInfo')]);
-  if (a.state !== 'in') return '<div class="note">' + t('authChecking') + '</div>';
+  const why = flow?.state !== FLOW.FAILED || flow.why === WHY.DENIED ? '' : flow.why === WHY.LATE ? t('m_loginLate') : flow.error ? t('authGithubSays', flow.error) : t('m_noReason');
+  const failed = flow?.state === FLOW.FAILED && flow.why === WHY.DENIED ? '<div class="note measure">' + esc(t('authDenied')) + '</div>' : why ? '<div class="note measure c-fail fault">' + esc(t('m_loginFailed', why)) + '</div>' : '';
+  if (a.state === SIGN_IN.OUT) return first ? failed + '<div class="row">' + act('auth/login', t('authLogin')) + '</div>' : line(t('authOut'), t('authOutMore'), act('auth/login', t('authLogin')), true, failed, [t('authOutInfo')]);
+  if (a.state !== SIGN_IN.IN) return '<div class="note">' + t('authChecking') + '</div>';
   // The row says briefly what RunClub uses the sign-in for; the info says what the app may do and where to revoke it.
   // Signing out affects jobs and therefore asks first; it is not red because one can sign in again.
   // Revoking is a link in the row: in the info it would neither be visible nor reachable by keyboard.
@@ -1681,7 +1687,7 @@ async function refresh() {
   try { data = await (await fetch('/api/status')).json(); } catch { if (data?.shutdown) return; if (data) toast(t('noAnswer')); else renderStart(true); return; }
   if (before && data.ui && data.ui !== before) { location.reload(); return; }
   // Freshly signed in: the account's repos could not be read so far.
-  if (signedIn && signedIn !== 'in' && data.auth?.state === 'in') loadRepos();
+  if (signedIn && signedIn !== SIGN_IN.IN && data.auth?.state === SIGN_IN.IN) loadRepos();
   render();
   if (view === 'settings' && data.logStamp !== logStamp) loadLog();
 }
@@ -1702,7 +1708,7 @@ async function fetchLogFile() {
 }
 const copyLog = () => copyText(fetchLogFile, (text) => t('logCopied', text.split('\n').filter(Boolean).length), t('logCopyFailed'));
 // Back from the browser (say after installing the app on GitHub): fetch the repos again.
-window.addEventListener('focus', () => { if (data?.auth?.state === 'in') loadRepos(); });
+window.addEventListener('focus', () => { if (data?.auth?.state === SIGN_IN.IN) loadRepos(); });
 async function loadRepos() { try { const response = await fetch('/api/repos'); if (response.ok) { repoList = await response.json(); render(); } } catch { /* suggestions are extras */ } }
 async function loadDay() { try { dayData = await (await fetch('/api/metrics/day')).json(); if (view === 'usage') render(); } catch { /* history is an extra */ } }
 async function addPool(repo) { if (await call('pool/add', { repo, parallel: 1 })) { toast(t('added')); loadRepos(); return true; } return false; }

@@ -66,8 +66,8 @@ see the caches. Usage shows the last 24 hours, GitHub's quotas and, per project,
 
 RunClub talks to GitHub through its own GitHub App and acts only in the repos the app is installed on. Per repo
 the app may register and unregister runners (Administration), read and re-run runs (Actions), set `CI_RUNNER`
-(Variables), read check results (Checks) and read code (Contents, for the workflow files),
-plus the account's billing for the minutes quota (Plan). It cannot change code directly; Administration, however,
+(Variables), read check results (Checks), read code (Contents, for the workflow files) and the repo's basic data (Metadata,
+read), plus the account's billing for the minutes quota (Plan). It cannot change code directly; Administration, however,
 also allows changing a repo's settings, collaborators and visibility (RunClub uses it only for the runners).
 
 The token is valid for eight hours and renews itself; it is stored encrypted with the key of the Windows user
@@ -158,6 +158,7 @@ serve the same repos: each unregisters the other's runners at GitHub. Build the 
 | Path | Contents |
 | --- | --- |
 | `src/main.js` | Window, notification area, start with Windows |
+| `src/install.js`, `src/texts.js` | For main.js: installing a downloaded update after teardown; the tray icon's texts from the tables in `src/ui.html` |
 | `src/backend.js` | Wiring only: `start()` creates the modules, starts the timers and the local service and shuts everything down again (sequence in `src/lifecycle.js`) |
 | `src/lifecycle.js` | Start and end of a program run: timers, starting the pools, key file, quitting, fast unregistering when signing out of Windows |
 | `src/settings.js`, `src/names.js` | Settings and learned data in the data folder; names of the images, tags and names of the caches and build services per repo |

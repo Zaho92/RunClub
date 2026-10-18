@@ -54,4 +54,4 @@ function createAccess({ port, key = crypto.randomBytes(24).toString('hex') }) {
   };
 }
 
-module.exports = { createAccess, pageHeaders, newNonce, same, COOKIE };
+module.exports = { createAccess, pageHeaders, newNonce, same };
