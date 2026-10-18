@@ -5,7 +5,8 @@
 //           npm run release -- --key <stick>\backup.pem   (another key file, e.g. the backup key, see SECURITY.md)
 //           npm run release -- --keys-changed             (the public keys differ from the trusted ones; see below)
 // Only a clean state is built: no changed or new file in the working tree, HEAD on origin/main, the tag pushed and
-// pointing at HEAD, no release for the tag yet, checks and tests pass. The public keys in src/signature.js must equal
+// pointing at HEAD, a section for the version in CHANGELOG.md on origin/main (its notes), no release for the tag yet,
+// checks and tests pass. The public keys in src/signature.js must equal
 // those keygen.js noted outside the repo (`public-keys.json` next to the key files): a key slipped into main would
 // otherwise be signed along unnoticed. If they differ or the note is missing, it stops and shows both; --keys-changed
 // goes on and notes the keys of src/signature.js as the trusted ones. The release is created as a draft, its files are checked, and only then it is
@@ -18,7 +19,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { passphrase } = require('./passphrase');
 const signature = require('../src/signature');
-const { channelOf, compareVersions } = require('../src/versions');
+const { channelOf, compareVersions, parseVersion } = require('../src/versions');
 
 const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');
@@ -60,6 +61,28 @@ function missingAssets(assets, expected) {
   return problems;
 }
 
+// The release notes for a version from CHANGELOG.md: its own section, for a beta the section of its base version
+// (“0.2.0” for “0.2.0-beta.3”) or else “Unreleased”. Returns { notes, section } or { error }.
+function releaseNotes(changelog, version) {
+  const sections = new Map();
+  let current = null;
+  for (const line of String(changelog ?? '').split(/\r?\n/)) {
+    const heading = line.match(/^## \[?([^\]\s]+)\]?/);
+    if (heading) { current = heading[1]; sections.set(current, []); continue; }
+    // Link definitions at the end belong to no section.
+    if (current && !/^\[[^\]]+\]:\s/.test(line)) sections.get(current).push(line);
+  }
+  const parsed = parseVersion(version);
+  if (!parsed) return { error: `${version} is not a version.` };
+  const base = parsed.core.join('.');
+  const names = parsed.pre.length ? [base, 'Unreleased'] : [base];
+  const section = names.find((name) => sections.has(name));
+  if (!section) return { error: `CHANGELOG.md has no section ${names.map((name) => `“${name}”`).join(' or ')}. Note the changes there first.` };
+  const notes = sections.get(section).join('\n').trim();
+  if (!notes) return { error: `The section “${section}” in CHANGELOG.md is empty. Note the changes there first.` };
+  return { notes, section };
+}
+
 function main() {
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   const gh = (...args) => execFileSync('gh', args, { cwd: root, encoding: 'utf8' });
@@ -85,6 +108,14 @@ function main() {
   if (remoteCommit !== head) fail(`The tag ${tag} on GitHub points at ${remoteCommit.slice(0, 7)}, HEAD is ${head.slice(0, 7)}.`);
   git('fetch', '--quiet', 'origin', 'main');
   if (spawnSync('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main'], { cwd: root }).status !== 0) fail('HEAD is not on origin/main. Releases are tagged on main.');
+  // The notes come from main, not from HEAD: a stable version is tagged on the commit of its beta, and its section is
+  // only written on main afterwards.
+  let changelog = '';
+  try { changelog = git('show', 'origin/main:CHANGELOG.md'); } catch { fail('There is no CHANGELOG.md on origin/main.'); }
+  const changes = releaseNotes(changelog, version);
+  if (changes.error) fail(changes.error);
+  const notesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'runclub-notes-')), 'notes.md');
+  fs.writeFileSync(notesFile, `${changes.notes}\n`);
 
   // Two keys, and the ones noted outside the repo unless the change is intended.
   if (Object.keys(signature.KEYS).length !== 2) fail('src/signature.js needs the primary and the backup public key (node scripts/keygen.js).');
@@ -121,11 +152,11 @@ function main() {
     sha512: crypto.createHash('sha512').update(fs.readFileSync(installer)).digest('base64'),
     commit: head, signedAt: new Date().toISOString(),
   });
-  return { tag, version, repo, keyFile, bytes, exe, installer, gh, releasesFor, fail };
+  return { tag, version, repo, keyFile, bytes, exe, installer, notesFile, gh, releasesFor, fail };
 }
 
 // The key is only opened after the build, so it is not in memory while electron-builder runs.
-async function signAndPublish({ tag, version, repo, keyFile, bytes, exe, installer, gh, releasesFor, fail }) {
+async function signAndPublish({ tag, version, repo, keyFile, bytes, exe, installer, notesFile, gh, releasesFor, fail }) {
   let privateKey = null;
   for (let attempt = 1; !privateKey; attempt += 1) {
     const secret = await passphrase(`Passphrase for ${keyFile}: `);
@@ -145,7 +176,7 @@ async function signAndPublish({ tag, version, repo, keyFile, bytes, exe, install
   // unchecked update path (RunClub up to 0.1.0-beta.5 read them; no such installation is left).
   const files = fs.readdirSync(dist).filter((name) => /\.exe$|\.blockmap$/.test(name) || name === signature.MANIFEST || name === signature.SIGNATURE)
     .map((name) => path.join(dist, name));
-  const flags = ['--title', `RunClub ${version}`, '--generate-notes', '--verify-tag', '--draft', ...(version.includes('-') ? ['--prerelease'] : [])];
+  const flags = ['--title', `RunClub ${version}`, '--notes-file', notesFile, '--verify-tag', '--draft', ...(version.includes('-') ? ['--prerelease'] : [])];
   let draft = null;
   try {
     execFileSync('gh', ['release', 'create', tag, ...files, ...flags], { cwd: root, stdio: 'inherit' });
@@ -167,4 +198,4 @@ async function signAndPublish({ tag, version, repo, keyFile, bytes, exe, install
 
 if (require.main === module) Promise.resolve().then(main).then(signAndPublish).catch((failure) => { console.error(failure.message); process.exit(1); });
 
-module.exports = { chooseTag, keysOf, missingAssets };
+module.exports = { chooseTag, keysOf, missingAssets, releaseNotes };

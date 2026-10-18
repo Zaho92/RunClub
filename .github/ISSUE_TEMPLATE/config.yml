@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/Zaho92/RunClub/security/advisories/new
+    about: Report vulnerabilities privately (private vulnerability reporting), not as a public issue. See SECURITY.md.
+  - name: Security policy
+    url: https://github.com/Zaho92/RunClub/blob/main/SECURITY.md
+    about: Whom RunClub trusts, what a job can reach and which risks are accepted.

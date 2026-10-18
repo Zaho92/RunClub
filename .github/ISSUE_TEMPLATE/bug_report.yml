@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in RunClub does not work as it should.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem does not belong here: report it privately (see SECURITY.md).
+        Before you paste the log, remove what you do not want to show, such as names of private repos.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: runclub
+    attributes:
+      label: RunClub version
+      description: Settings → App, e.g. 0.1.0 or 0.2.0-beta.1.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: "`winver`, e.g. Windows 11 24H2 (26100.4061)."
+    validations:
+      required: true
+  - type: input
+    id: docker
+    attributes:
+      label: Docker Desktop version
+      description: Docker Desktop → About, or `docker version`.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Excerpt from runclub.log
+      description: The lines around the problem, from the log in the window (save or copy) or from `%APPDATA%\RunClub\data\runclub.log`.
+      render: text
+    validations:
+      required: true

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { chooseTag, keysOf, missingAssets } = require('../scripts/release');
+const { chooseTag, keysOf, missingAssets, releaseNotes } = require('../scripts/release');
 const { isInside } = require('../scripts/keygen');
 const { feed } = require('../scripts/passphrase');
 
@@ -28,6 +28,22 @@ test('a draft is only published with installer, manifest and signature in the ri
   assert.deepEqual(missingAssets([{ name: 'RunClub-Setup-0.2.0.exe', size: 100 }, { name: 'runclub-update.json', size: 10 }, { name: 'runclub-update.json.sig', size: 5 }], expected), []);
   assert.deepEqual(missingAssets([{ name: 'RunClub-Setup-0.2.0.exe', size: 99 }, { name: 'runclub-update.json', size: 10 }], expected),
     ['RunClub-Setup-0.2.0.exe has 99 bytes instead of 100', 'runclub-update.json.sig is missing']);
+});
+
+test('the release notes are the section of the version in CHANGELOG.md; a beta falls back to Unreleased', () => {
+  const changelog = ['# Changelog', '', 'Intro.', '', '## [Unreleased]', '', '### Fixed', '', '- next', '', '## [0.2.0] - 2026-11-01', '',
+    '### Added', '', '- two', '', '## [0.1.0] - 2026-10-18', '', '- one', '', '[Unreleased]: https://example.com/compare',
+    '[0.1.0]: https://example.com/v0.1.0', ''].join('\r\n');
+  assert.deepEqual(releaseNotes(changelog, '0.2.0'), { notes: '### Added\n\n- two', section: '0.2.0' });
+  assert.deepEqual(releaseNotes(changelog, '0.2.0-beta.3'), { notes: '### Added\n\n- two', section: '0.2.0' });
+  assert.deepEqual(releaseNotes(changelog, '0.3.0-beta.1'), { notes: '### Fixed\n\n- next', section: 'Unreleased' });
+  // The link definitions at the end are not part of the last section.
+  assert.deepEqual(releaseNotes(changelog, '0.1.0'), { notes: '- one', section: '0.1.0' });
+  // A stable version needs its own section, and an empty one counts as missing.
+  assert.match(releaseNotes(changelog, '0.3.0').error, /no section “0\.3\.0”/);
+  assert.match(releaseNotes('## [Unreleased]\n\n## [0.1.0]\n\n- one\n', '0.2.0-beta.1').error, /“Unreleased” in CHANGELOG\.md is empty/);
+  assert.match(releaseNotes('', '0.2.0-beta.1').error, /no section “0\.2\.0” or “Unreleased”/);
+  assert.ok(releaseNotes(changelog, 'latest').error);
 });
 
 test('the key folder must lie outside the repo; another drive is outside', () => {

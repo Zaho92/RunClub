@@ -137,7 +137,8 @@ npm run check   # syntax of all scripts, including the script in the interface
 npm test        # tests of all modules except backend.js and main.js
 ```
 
-The same two steps run as CI on every push and pull request (`.github/workflows/ci.yml`).
+The same two steps run as CI on every push and pull request (`.github/workflows/ci.yml`). The rules for changes are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md), what changed in each version in [`CHANGELOG.md`](CHANGELOG.md).
 
 Start without the installer:
 
@@ -204,20 +205,26 @@ serve the same repos: each unregisters the other's runners at GitHub. Build the 
 There is no separate `qs` branch. QA is the Beta channel.
 
 1. Development happens directly on `main`; commits close their issues with `Fixes #<n>`
-   (`docs/agents/issue-tracker.md`).
+   (`docs/agents/issue-tracker.md`), and what changed goes into `CHANGELOG.md` under `Unreleased`.
 2. A beta is created with a tag on `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`, then
    `npm run release` in a terminal on the maintainer's computer (in Git Bash: `winpty npm run release`): it runs
    checks and tests, builds the installer, asks for the passphrase of the signing key, signs the manifest, checks it
    the way the app does and publishes a pre-release (as a draft first, published once its files are checked); every
    RunClub on the Beta channel then offers it.
 3. The beta is tried out in your own operation. Whatever comes up goes into the next beta (`-beta.2`).
-4. Once a beta is approved, **the same commit** gets the stable tag: `git tag v0.2.0 v0.2.0-beta.2 && git push
-   origin v0.2.0`, then `npm run release -- v0.2.0` (HEAD now carries two tags, so it is named). It becomes an
-   ordinary release, which the Stable channel also gets.
+4. Once a beta is approved, rename `Unreleased` in `CHANGELOG.md` to the version (`## [0.2.0] - <date>`, with a new
+   empty `Unreleased` above it) and push that to `main`. Then **the same commit** as the beta gets the stable tag:
+   `git tag v0.2.0 v0.2.0-beta.2 && git push origin v0.2.0`, then `git checkout v0.2.0`, `npm run release -- v0.2.0`
+   (HEAD now carries two tags, so it is named) and `git checkout main`. It becomes an ordinary release, which the
+   Stable channel also gets.
 
 `npm run release` only signs while the public keys in `src/signature.js` are the ones `keygen.js` noted next to the
 key files (`public-keys.json`); otherwise it stops and shows both. If the change is yours (the note got lost), check
 the keys, then `npm run release -- --keys-changed`, which notes them anew.
+
+The release notes are the version's section of `CHANGELOG.md` as it is on `origin/main`; a beta takes the section of
+its base version (`0.2.0` for `v0.2.0-beta.3`), or `Unreleased` while that does not exist. Without a section that has
+text, `npm run release` stops.
 
 The version comes from the tag; `version` in `package.json` is not touched for it. `npm run release` only builds a
 clean state (HEAD on the pushed tag, working tree clean). There is deliberately no release workflow: the signing key
