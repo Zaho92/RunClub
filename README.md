@@ -203,7 +203,8 @@ serve the same repos: each unregisters the other's runners at GitHub. Build the 
 
 There is no separate `qs` branch. QA is the Beta channel.
 
-1. Development happens on feature branches; when done, it goes to `main`.
+1. Development happens directly on `main`; commits close their issues with `Fixes #<n>`
+   (`docs/agents/issue-tracker.md`).
 2. A beta is created with a tag on `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`, then
    `npm run release` in a terminal on the maintainer's computer (in Git Bash: `winpty npm run release`): it runs
    checks and tests, builds the installer, asks for the passphrase of the signing key, signs the manifest, checks it
