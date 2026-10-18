@@ -123,12 +123,13 @@ function createSlots({
     // The volumes belong to the user of daemon and runner; the template is copied into the daemon's storage.
     // Both in a container of their own, before the daemon starts. It runs the runner image, not the daemon image: its
     // GNU cp keeps xattrs and hard links, busybox cp drops them. Without the xattr `user.overlay.opaque` a folder that
-    // a layer deleted and created again shows the old contents of the lower layer from the copy (#6).
+    // a layer deleted and created again shows the old contents of the lower layer from the copy (#6). `-a` alone would skip an attribute it cannot set without a word; `--preserve=xattr`
+    // makes that an error.
     const prepared = await withSeed(pool.repo, false, async () => {
       pair.copied = cancelled() ? new Set() : new Set(pool.seeded);
       const seed = pair.copied.size ? ['-v', `${seedVolume(pool.repo)}:/seed:ro`] : [];
       return docker(['run', '--rm', ...label, '--name', `${base}-seed`, ...seed, '-v', `${base}-work:/w`, '-v', `${base}-sock:/s`, '-v', `${base}-docker:/d`,
-        ...asRoot(tools.image), `chown ${RUNNER_USER}:${RUNNER_USER} /w /s /d${seed.length ? ' && cp -a /seed/. /d/' : ''}`], { timeout: longTimeout });
+        ...asRoot(tools.image), `chown ${RUNNER_USER}:${RUNNER_USER} /w /s /d${seed.length ? ' && cp -a --preserve=xattr /seed/. /d/' : ''}`], { timeout: longTimeout });
     });
     if (cancelled()) return giveUp();
     // If the volumes don't belong to the daemon's user, it does not start; half a copy of the template is no good.

@@ -26,7 +26,7 @@ const SECURITY_FLAGS = ['--security-opt', `seccomp=${SECCOMP_PROFILE}`, '--secur
 // Plus a TUN device for the daemon's network.
 const DAEMON_FLAGS = ['--device', '/dev/net/tun', ...SECURITY_FLAGS];
 const DAEMON_COMMAND = ['dockerd', `--host=${PAIR_SOCKET}`];
-// A tool for volumes (set permissions, copy, measure): the daemon's image with a script as root – root
+// A tool for volumes (set permissions, copy, measure): an image with a script as root – root
 // only in its own container. The script follows.
 const asRoot = (image) => ['--user', '0', '--entrypoint', 'sh', image, '-c'];
 const READY_TRIES = 40;
