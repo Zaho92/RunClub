@@ -55,7 +55,7 @@ Limits:
 
 Decided:
 
-- RunClub will be published as a public repo under the MIT license (road to publication in `TODO.md`).
+- RunClub is a public repo under the MIT license (since 18.10.2026).
 
 ## Brand Commitments
 

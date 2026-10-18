@@ -1,6 +1,6 @@
 // Where Docker runs, in one place. Today it is Docker Desktop: the Windows CLI `docker` talks to its daemon,
 // and the VM in which the containers run is the WSL distro `docker-desktop`. Another engine (such as a separate
-// Docker Engine in its own WSL distro, see "Docker Engine instead of Docker Desktop" in TODO.md) only needs
+// Docker Engine in its own WSL distro, see issue #3) only needs
 // other values here; the rest of RunClub calls Docker exclusively through this module.
 //
 //   RUNCLUB_DOCKER_HOST    endpoint of the daemon for the CLI (passed to it as DOCKER_HOST), ideally a named pipe
