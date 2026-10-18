@@ -103,7 +103,8 @@ Steps, in this order:
    `scripts/release.js` signs, checks like the app and publishes draft-first. The updater refuses releases without a
    valid signature (no fallback to `latest.yml`), binds version to tag, refuses downgrades, caps the download at the
    signed size. `release.yml` is gone: releases are only built locally, also once public. Keys created on 18.10.2026
-   (primary `62cfc22c9dc3fffb`, backup `f9010f22fefbca1f`). **Open:** the first signed beta (v0.1.0-beta.6) is released and installed **before** the repo
+   (primary `62cfc22c9dc3fffb`, backup `f9010f22fefbca1f`). **Released, signed and installed as v0.1.0-beta.6 on 18.10.2026** (updated from beta.5 via `latest.yml`;
+   from now on every update is checked against the signature). Was: the first signed beta (v0.1.0-beta.6) is released and installed **before** the repo
    goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`).
    After the reviews the updater also tries up to five older releases when the newest is refused, gives up a stalled
    download, verifies the installer again right before starting it, and `release.js` checks the tag, origin/main, the
