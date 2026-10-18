@@ -119,7 +119,8 @@ test('a job from start to end: build, registration, runner, teardown', async () 
 
   const call = (name) => w.details.find((detail) => detail.name === name);
   assert.deepEqual(call(`run ${BASE}-seed`).args, ['run', '--rm', '--label', MARK, '--name', `${BASE}-seed`, '-v', 'rc-seed-app:/seed:ro',
-    '-v', `${BASE}-work:/w`, '-v', `${BASE}-sock:/s`, '-v', `${BASE}-docker:/d`, '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c', 'chown 1001:1001 /w /s /d && cp -a /seed/. /d/']);
+    '-v', `${BASE}-work:/w`, '-v', `${BASE}-sock:/s`, '-v', `${BASE}-docker:/d`, '--user', '0', '--entrypoint', 'sh', TOOLS.image, '-c', 'chown 1001:1001 /w /s /d && cp -a /seed/. /d/']);
+  // GNU cp from the runner image, not busybox from the daemon image: it keeps the template's xattrs and hard links (#6).
   assert.deepEqual(call(`run ${BASE}-seed`).options, { timeout: 1234 });
   // The daemon runs without privileges (see dind.js).
   assert.deepEqual(call(`run ${BASE}-dind`).args, ['run', '-d', '--label', MARK, '--name', `${BASE}-dind`,

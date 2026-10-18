@@ -20,6 +20,8 @@ version (`0.2.0`), or with `Unreleased` as long as that does not exist yet.
 
 - After the daily rebuild of the runner image, a container job could get an empty folder of runner tools; the old
   copy now stays until the pairs that are about to use it have started.
+- An image from the template could show files that one of its layers had deleted, if that layer created the folder
+  again; the template is now copied with its extended attributes and hard links, which also saves space.
 
 ### Security
 
