@@ -22,7 +22,7 @@ function compareVersions(a, b) {
     if (p === undefined || q === undefined) return p === undefined ? -1 : 1;
     if (p === q) continue;
     const numeric = /^\d+$/;
-    if (numeric.test(p) && numeric.test(q)) return Number(p) - Number(q);
+    if (numeric.test(p) && numeric.test(q)) { if (Number(p) !== Number(q)) return Number(p) - Number(q); continue; }
     if (numeric.test(p) !== numeric.test(q)) return numeric.test(p) ? -1 : 1;
     return p < q ? -1 : 1;
   }

@@ -17,7 +17,7 @@ updater that updates itself from the GitHub releases. Decided:
   channel “Stable”/“Beta”, the user's machine runs on Beta. **No `qs` branch:** feature branches → `main`, betas are
   tagged from `main`; when the user accepts a beta, the stable tag goes on exactly its commit.
 - **Updater as its own module**, not `electron-updater` (stays without runtime dependencies): GitHub Releases API,
-  download, SHA512 check against `latest.yml`, start the NSIS installer silently; while the repo is private, with the
+  download, SHA512 check against `latest.yml` (since 18.10.2026 against the signed manifest, see step 4), start the NSIS installer silently; while the repo is private, with the
   token of the sign-in in the app (GitHub App, see step 3.3).
 - **Repo entirely in English** (README, docs, comments, TODO, DESIGN; the rule in `CLAUDE.md` changes then). The
   interface stays bilingual. Only in step 3, so that no code gets translated that is about to be rebuilt.
@@ -94,7 +94,7 @@ Steps, in this order:
    about only beta releases under Installing once a stable release exists.
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
    checksum from the same release; whoever can create a release there can push an update to everyone, in the public
-   repo also any workflow with `contents: write` (`release.yml` creates releases as `github-actions[bot]`, so checking
+   repo also any workflow with `contents: write` (the former `release.yml` created releases as `github-actions[bot]`, so checking
    the author does not help). Signing uses a key that only the user holds, not in CI; the app checks the signature
    before it accepts an installer. Then adjust `SECURITY.md` (“Updates”).
    **Built on 18.10.2026** (what is checked and why: `SECURITY.md`, “Updates”):
@@ -104,7 +104,11 @@ Steps, in this order:
    valid signature (no fallback to `latest.yml`), binds version to tag, refuses downgrades, caps the download at the
    signed size. `release.yml` is gone: releases are only built locally, also once public. **Open:** the user runs
    `node scripts/keygen.js` (key ceremony), then the first signed beta is released and installed **before** the repo
-   goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`).
+   goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`). That first
+   signed release needs `npm run release -- --keys-changed` (0.1.0-beta.5 carried no keys).
+   After the reviews the updater also tries up to five older releases when the newest is refused, gives up a stalled
+   download, verifies the installer again right before starting it, and `release.js` checks the tag, origin/main, the
+   keys against the last release and the draft's files before publishing.
 
 Open and independent of this: Docker Engine instead of Docker Desktop (item 2 below) and the MCP server (item 3 below).
 

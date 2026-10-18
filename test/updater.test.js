@@ -17,6 +17,7 @@ test('versions are compared as in semver', () => {
   assert.ok(compareVersions('0.2.0-beta.1', '0.1.0') > 0);
   assert.equal(compareVersions('v1.2.3', '1.2.3'), 0);
   assert.ok(compareVersions('broken', '0.0.1') < 0);
+  assert.ok(compareVersions('1.0.0-beta.01.9', '1.0.0-beta.1.1') > 0); // equal numbers go on to the next part
 });
 
 test('without an entry the channel follows the running version', () => {
@@ -77,10 +78,7 @@ function release(w, version, { prerelease = false, manifest = {}, key = signer.p
   });
   const files = {
     [exe]: content ?? signed,
-    [yml]: `version: ${version}
-path: ${exe}
-sha512: x
-`,
+    [yml]: `version: ${version}\npath: ${exe}\nsha512: x\n`,
     'runclub-update.json': bytes,
     'runclub-update.json.sig': sign(bytes, key),
     [`${exe}.blockmap`]: 'map',
@@ -242,4 +240,61 @@ test('without keys in the app no update is accepted', async (t) => {
   const updater = createUpdater({ repo: 'owner/RunClub', current: '0.1.0', packaged: true, dataDir: w.dir, keys: {}, fetch: w.fetch });
   await updater.check();
   assert.deepEqual(updater.view().error, { code: 'unsigned', status: null });
+});
+
+test('a newer release without signature doesn\'t block an older signed one', async (t) => {
+  const logged = [];
+  const w = world(t);
+  release(w, '0.2.0');
+  release(w, '9.0.0', { without: ['runclub-update.json'] });
+  const updater = createUpdater({ repo: 'owner/RunClub', current: '0.1.0', packaged: true, dataDir: w.dir, keys: KEYS, fetch: w.fetch, log: (text) => logged.push(render(text)) });
+  await updater.check();
+  assert.equal(updater.view().ready, '0.2.0');
+  assert.equal(updater.view().error, null);
+  await updater.check();
+  assert.equal(logged.filter((line) => /9\.0\.0/.test(line)).length, 1); // the refused release appears once
+});
+
+test('a download that stalls is given up', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0');
+  const inner = w.fetch;
+  // The installer's body never delivers anything; only the abort ends it.
+  const fetch = async (url, options) => (/\.exe$/.test(url) && url.startsWith('https://objects.example/')
+    ? new Response(new ReadableStream({ start(controller) { options.signal?.addEventListener('abort', () => controller.error(new Error('aborted'))); } }))
+    : inner(url, options));
+  const updater = createUpdater({ repo: 'owner/RunClub', current: '0.1.0', packaged: true, dataDir: w.dir, keys: KEYS, fetch, timeouts: { idle: 50 } });
+  await updater.check();
+  assert.deepEqual(updater.view().error, { code: 'network', status: null });
+  assert.deepEqual(fs.readdirSync(path.join(w.dir, 'update')), []);
+});
+
+test('an installer changed after the download is not started', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0');
+  await w.updater.check();
+  const { file } = w.updater.installer();
+  fs.writeFileSync(file, 'Installer 0.2.X');
+  assert.equal(w.updater.installer(), null);
+  assert.equal(w.updater.view().ready, null);
+  assert.equal(fs.existsSync(file), false);
+});
+
+test('while an update is being installed, no check runs', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0');
+  await w.updater.check();
+  w.updater.hold();
+  const calls = w.calls.length;
+  release(w, '0.3.0');
+  await w.updater.check();
+  assert.equal(w.calls.length, calls);
+  assert.equal(w.updater.installer().version, '0.2.0');
+});
+
+test('a beta in a release not marked as pre-release doesn\'t reach channel stable', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0', { manifest: { version: '0.2.0-beta.1' } });
+  await w.updater.check();
+  assert.deepEqual(w.updater.view().error, { code: 'unsigned', status: null });
 });

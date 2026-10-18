@@ -190,10 +190,11 @@ const EN = {
   m_updatePrivate: 'GitHub does not hand out {0} ({1}).',
   m_updateHttp: 'GitHub answers {0} for {1}.',
   m_updateRedirects: 'Too many redirects while downloading the update.',
-  m_updateBroken: 'The installer for {0} is damaged (checksum does not match).',
+  m_updateBroken: 'The installer for {0} is damaged (size or checksum does not match).',
   m_updateUnsigned: 'The update {0} is not signed (runclub-update.json or its signature is missing).',
   m_updateNotTrusted: 'The update {0} is not trusted: {1}',
   m_updateTooLarge: 'The file {1} for {0} is larger than expected.',
+  m_updateStalled: 'The download for {0} stalled.',
 
   // Signature of an update (see signature.js)
   m_sigUnreadable: 'the signature cannot be read',

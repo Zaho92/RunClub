@@ -72,6 +72,7 @@ function installUpdate() {
   if (!ready) throw new Fault('m_noUpdate');
   const working = backend.status().repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === SLOT.WORKING).length;
   if (working) throw new Fault('m_updateBusy', working);
+  updater.hold(); // no check may remove the file during teardown
   installer = ready;
   backend.log(msg('m_updating', ready.version));
   quit();
@@ -79,7 +80,13 @@ function installUpdate() {
 
 function exit() {
   exiting = true;
-  if (installer) spawn(installer.file, installer.args, { detached: true, stdio: 'ignore' }).unref();
+  // Verified once more right before starting; if the file changed or is gone, RunClub starts again instead of
+  // leaving the machine without runners.
+  if (installer) {
+    const verified = updater.installer();
+    if (verified) spawn(verified.file, verified.args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+    else app.relaunch();
+  }
   app.exit(0);
 }
 

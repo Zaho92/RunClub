@@ -138,6 +138,8 @@ npm run check   # syntax of all scripts, including the script in the interface
 npm test        # tests of all modules except backend.js and main.js
 ```
 
+The same two steps run as CI on every push and pull request (`.github/workflows/ci.yml`).
+
 Start without the installer:
 
 ```sh
@@ -195,7 +197,7 @@ serve the same repos: each unregisters the other's runners at GitHub. Build the 
 | `src/ui.html` | Interface: project rail, network map per run, load, usage, settings (German and English) |
 | `src/fonts/` | Font Overpass (OFL), shipped with the app so that it works without internet |
 | `linux/` | Image of the runners (`Dockerfile`, with `docker-shim.sh`), image of the Docker daemon without privileges (`dind/Dockerfile`) and the pinned images of daemon and build service (`pins.Dockerfile`, only read, not built), the seccomp profile of the daemons (`seccomp.json`, generated) |
-| `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds, signs and publishes a release on this machine (`npm run release`), `keygen.js` creates the signing keys once, `seccomp.js` writes `linux/seccomp.json` |
+| `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds, signs and publishes a release on this machine (`npm run release`), `keygen.js` creates the signing keys once (`passphrase.js` asks for their passphrase), `seccomp.js` writes `linux/seccomp.json` |
 
 ### Release: QA → Live (maintainers)
 
@@ -203,12 +205,17 @@ There is no separate `qs` branch. QA is the Beta channel.
 
 1. Development happens on feature branches; when done, it goes to `main`.
 2. A beta is created with a tag on `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`, then
-   `npm run release` in a terminal on the maintainer's computer: it asks for the passphrase of the signing key, builds
-   the installer, signs the manifest, checks it the way the app does and publishes a pre-release (as a draft first,
-   then published once all files are up); every RunClub on the Beta channel then offers it.
+   `npm run release` in a terminal on the maintainer's computer (in Git Bash: `winpty npm run release`): it runs
+   checks and tests, builds the installer, asks for the passphrase of the signing key, signs the manifest, checks it
+   the way the app does and publishes a pre-release (as a draft first, published once its files are checked); every
+   RunClub on the Beta channel then offers it.
 3. The beta is tried out in your own operation. Whatever comes up goes into the next beta (`-beta.2`).
 4. Once a beta is approved, **the same commit** gets the stable tag: `git tag v0.2.0 v0.2.0-beta.2 && git push
-   origin v0.2.0`, then `npm run release` again. It becomes an ordinary release, which the Stable channel also gets.
+   origin v0.2.0`, then `npm run release -- v0.2.0` (HEAD now carries two tags, so it is named). It becomes an
+   ordinary release, which the Stable channel also gets.
+
+If the public keys in `src/signature.js` changed since the last release (the first signed one, or after replacing a
+key), `npm run release` stops and shows old and new keys; check them, then `npm run release -- --keys-changed`.
 
 The version comes from the tag; `version` in `package.json` is not touched for it. `npm run release` only builds a
 clean state (HEAD on the pushed tag, working tree clean). There is deliberately no release workflow: the signing key
@@ -222,18 +229,16 @@ keep what:
 
 - `primary.pem` stays in that folder (`npm run release` reads it from there); a copy and its passphrase go into the
   password manager. Lost from the disk: restore it from there.
-- `backup.pem` goes onto a USB stick kept offline, its passphrase on paper next to it, and is deleted from the
-  computer.
+- `backup.pem` goes onto a USB stick kept offline, its passphrase on paper kept in another place than the stick, and
+  is deleted from the computer.
 
 Primary key lost or stolen:
 
 1. `node scripts/keygen.js --new-primary` creates a new `primary.pem` and replaces the primary public key in
    `src/signature.js` (the backup's stays, the old primary's is gone). Commit, tag, push.
-2. Plug in the stick and release this version with the backup key: `npm run release -- --key E:\backup.pem`.
+2. Plug in the stick and release this version with the backup key: `npm run release -- --key <stick>\backup.pem`.
 3. From the next release on, `npm run release` signs with the new primary again.
 
 Background in `SECURITY.md`, “Updates”.
-
-The same two steps run as CI on every push and pull request (`.github/workflows/ci.yml`).
 Notes for working with Claude Code are in `CLAUDE.md`, the product description for the design in `PRODUCT.md`.
 The design follows the skill [Impeccable](https://github.com/pbakaus/impeccable) (`npx impeccable install --providers=claude --project`).

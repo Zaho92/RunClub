@@ -19,6 +19,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { Readable, Transform } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 const { readJson, writeJson } = require('./store');
 const { msg, render, Fault, reason } = require('./messages');
 const { compareVersions, parseVersion, isPrerelease, channelOf } = require('./versions');
@@ -29,6 +31,8 @@ const CHANNELS = ['stable', 'beta'];
 const API = 'https://api.github.com';
 const PER_PAGE = 30; // this many releases are read; older ones aren't newer anyway
 const REDIRECTS = 5;
+const TRIES = 5; // this many of the newest releases are tried before the check gives up
+const RENAME_TRIES = 5;
 const SMALL = 64 * 1024; // manifest and signature are a few hundred bytes; more is not ours
 const PHASE = { DEV: 'dev', IDLE: 'idle', CHECKING: 'checking', CURRENT: 'current', DOWNLOADING: 'downloading', READY: 'ready', ERROR: 'error' };
 
@@ -45,19 +49,36 @@ class UpdateError extends Error {
   constructor(code, message, status = null) { super(render(message)); this.msg = message; this.code = code; this.status = status; }
 }
 
-// The newest release that applies to the channel and is newer than the running version; otherwise null. Drafts never
-// count, pre-releases only in the channel “beta” (which also sees the stable ones).
-function pickRelease(releases, { channel, current }) {
-  let best = null;
+// The releases that apply to the channel and are newer than the running version, newest first. Drafts never count,
+// pre-releases only in the channel “beta” (which also sees the stable ones).
+function candidates(releases, { channel, current }) {
+  const found = [];
   for (const release of releases ?? []) {
     if (release.draft || (release.prerelease && channel !== 'beta')) continue;
     const version = String(release.tag_name ?? '').replace(/^v/, '');
     if (!parseVersion(version) || (isPrerelease(version) && channel !== 'beta')) continue;
     if (compareVersions(version, current) <= 0) continue;
-    if (!best || compareVersions(version, best.version) > 0) best = { version, release };
+    found.push({ version, release });
   }
-  return best;
+  return found.sort((a, b) => compareVersions(b.version, a.version));
 }
+
+// The newest of them; otherwise null.
+const pickRelease = (releases, options) => candidates(releases, options)[0] ?? null;
+
+// The SHA-512 (Base64) and size of a file, read in pieces.
+function digest(file) {
+  const hash = crypto.createHash('sha512');
+  const buffer = Buffer.alloc(1024 * 1024);
+  const fd = fs.openSync(file, 'r');
+  let size = 0;
+  try {
+    for (let read; (read = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0;) { hash.update(buffer.subarray(0, read)); size += read; }
+  } finally { fs.closeSync(fd); }
+  return { size, sha512: hash.digest('base64') };
+}
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 //   repo                    “owner/name” of the repo with the releases
 //   current                 the running version
@@ -65,29 +86,35 @@ function pickRelease(releases, { channel, current }) {
 //   dataDir                 holds `update.json` and the downloaded installer (folder `update`)
 //   token()                 returns the token for GitHub or null
 //   keys                    the public keys a manifest must be signed with (see signature.js); controllable in tests
+//   timeouts                `request`: longest wait for an answer and a small file; `idle`: longest pause in the
+//                           installer's download (ms)
 //   fetch                   like Node's; controllable in tests
 //   log(text), now()
-function createUpdater({ repo, current, packaged, dataDir, token = async () => null, keys = signature.KEYS, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
+function createUpdater({ repo, current, packaged, dataDir, token = async () => null, keys = signature.KEYS, timeouts = {}, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
   const file = path.join(dataDir, FILE);
   const folder = path.join(dataDir, 'update');
   const saved = readJson(file, {}).data ?? {};
+  const wait = { request: 60 * 1000, idle: 60 * 1000, ...timeouts };
   let channel = CHANNELS.includes(saved.channel) ? saved.channel : channelOf(current);
   let phase = packaged ? PHASE.IDLE : PHASE.DEV;
   let available = null; // the newer version, once known
-  let ready = null; // { version, file } after a verified download
+  let ready = null; // { version, file, size, sha512 } after a verified download
   let error = null;
   let checkedAt = null;
   let lastLogged = null;
   let running = null; // the running check; a second one waits for it
+  let held = false; // the update is being installed: no more checks that could remove it
+  const skipped = new Set(); // releases already logged as refused, so each appears only once
 
   // A request to GitHub. Redirects (downloads live elsewhere) are followed without the token: it is only for GitHub.
-  async function request(url, { accept, auth }) {
+  // `signal` ends it (and reading its body) from outside.
+  async function request(url, { accept, auth, signal }) {
     let target = url;
     let secret = auth ? await token().catch(() => null) : null;
     for (let hop = 0; hop <= REDIRECTS; hop += 1) {
       const headers = { accept, 'user-agent': 'RunClub', 'x-github-api-version': '2022-11-28' };
       if (secret) headers.authorization = `Bearer ${secret}`;
-      const response = await fetch(target, { headers, redirect: 'manual' }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', String(failure?.cause?.code ?? failure?.message ?? failure))); });
+      const response = await fetch(target, { headers, redirect: 'manual', signal }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', String(failure?.cause?.code ?? failure?.message ?? failure))); });
       if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
         const next = new URL(response.headers.get('location'), target);
         if (next.origin !== new URL(target).origin) secret = null;
@@ -104,17 +131,23 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
 
   const asset = (release, name) => (release.assets ?? []).find((item) => item.name === name);
   // The token goes only to GitHub's API, even if the answer names another address.
-  const loadAsset = (item) => request(item.url, { accept: 'application/octet-stream', auth: new URL(item.url).origin === API });
+  const loadAsset = (item, signal) => request(item.url, { accept: 'application/octet-stream', auth: new URL(item.url).origin === API, signal });
 
   // A small file of the release (manifest, signature) as bytes; beyond `SMALL` it is not read further.
   async function loadSmall(item, version) {
-    const response = await loadAsset(item);
+    const signal = AbortSignal.timeout(wait.request);
+    const response = await loadAsset(item, signal);
     const chunks = [];
     let size = 0;
-    for await (const chunk of response.body ?? []) {
-      size += chunk.length;
-      if (size > SMALL) throw new UpdateError('unsigned', msg('m_updateTooLarge', version, item.name));
-      chunks.push(chunk);
+    try {
+      for await (const chunk of response.body ?? []) {
+        size += chunk.length;
+        if (size > SMALL) throw new UpdateError('unsigned', msg('m_updateTooLarge', version, item.name));
+        chunks.push(chunk);
+      }
+    } catch (failure) {
+      if (failure instanceof UpdateError) throw failure;
+      throw new UpdateError('network', msg('m_updateStalled', version));
     }
     return Buffer.concat(chunks);
   }
@@ -135,32 +168,43 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   }
 
   // Downloads the installer next to the target file, verifies size and checksum from the manifest and only then
-  // renames it. Beyond the signed size the download stops.
+  // renames it. Beyond the signed size the download stops, likewise after a pause longer than `wait.idle`.
   async function download(item, info, target) {
-    const response = await loadAsset(item);
+    const stall = new AbortController();
+    let timer = setTimeout(() => stall.abort(), wait.idle);
     const draft = `${target}.part`;
     const hash = crypto.createHash('sha512');
-    const out = fs.createWriteStream(draft);
     let size = 0;
-    try {
-      for await (const chunk of response.body) {
+    const meter = new Transform({
+      transform(chunk, encoding, done) {
+        clearTimeout(timer);
+        timer = setTimeout(() => stall.abort(), wait.idle);
         size += chunk.length;
-        if (size > info.size) throw new UpdateError('broken', msg('m_updateTooLarge', info.version, info.file));
+        if (size > info.size) return done(new UpdateError('broken', msg('m_updateTooLarge', info.version, info.file)));
         hash.update(chunk);
-        if (!out.write(chunk)) await new Promise((resolve) => out.once('drain', resolve));
-      }
-      await new Promise((resolve, reject) => out.end((failure) => (failure ? reject(failure) : resolve())));
+        return done(null, chunk);
+      },
+    });
+    try {
+      const response = await loadAsset(item, stall.signal);
+      const body = typeof response.body?.getReader === 'function' ? Readable.fromWeb(response.body) : response.body;
+      await pipeline(body, meter, fs.createWriteStream(draft));
     } catch (failure) {
-      // The file opens in the background; only once it is closed can it be removed for good.
-      if (!out.closed) await new Promise((resolve) => { out.once('close', resolve); out.destroy(); });
       fs.rmSync(draft, { force: true });
+      if (stall.signal.aborted) throw new UpdateError('network', msg('m_updateStalled', info.version));
       throw failure;
-    }
+    } finally { clearTimeout(timer); }
     if (size !== info.size || hash.digest('base64') !== info.sha512) {
       fs.rmSync(draft, { force: true });
       throw new UpdateError('broken', msg('m_updateBroken', info.version));
     }
-    fs.renameSync(draft, target);
+    // A virus scanner often holds a freshly written .exe for a moment.
+    for (let attempt = 1; ; attempt += 1) {
+      try { fs.renameSync(draft, target); return; } catch (failure) {
+        if (attempt >= RENAME_TRIES) { fs.rmSync(draft, { force: true }); throw failure; }
+        await sleep(attempt * 500);
+      }
+    }
   }
 
   // Removes downloaded installers except `keep`.
@@ -169,29 +213,54 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     for (const name of fs.readdirSync(folder)) if (path.join(folder, name) !== keep) fs.rmSync(path.join(folder, name), { force: true });
   }
 
+  // Logs a refused release once, then goes on with the next older one.
+  function skip(failure) {
+    const message = msg('m_withReason', 'Update', reason(failure));
+    if (!skipped.has(render(message))) log(message);
+    skipped.add(render(message));
+  }
+
   async function checkNow() {
     phase = ready ? PHASE.READY : PHASE.CHECKING;
     error = null;
     try {
-      const response = await request(`${API}/repos/${repo}/releases?per_page=${PER_PAGE}`, { accept: 'application/vnd.github+json', auth: true });
-      const found = pickRelease(await response.json(), { channel, current });
+      const response = await request(`${API}/repos/${repo}/releases?per_page=${PER_PAGE}`, { accept: 'application/vnd.github+json', auth: true, signal: AbortSignal.timeout(wait.request) });
+      const found = candidates(await response.json(), { channel, current });
       checkedAt = now();
       lastLogged = null;
-      if (!found) { available = null; ready = null; prune(null); phase = PHASE.CURRENT; return; }
-      available = found.version;
-      if (ready?.version === found.version && fs.existsSync(ready.file)) { phase = PHASE.READY; return; }
-      const info = await manifestOf(found);
-      const installer = asset(found.release, info.file);
-      if (!installer) throw new UpdateError('missing', msg('m_updateNoInstaller', found.version, info.file));
-      phase = PHASE.DOWNLOADING;
-      fs.mkdirSync(folder, { recursive: true });
-      const target = path.join(folder, path.basename(info.file));
-      ready = null; // an older downloaded update gives way to the newer one
-      prune(null);
-      await download(installer, info, target);
-      ready = { version: found.version, file: target };
-      phase = PHASE.READY;
-      log(msg('m_updateReady', found.version));
+      if (!found.length) { available = null; ready = null; prune(null); phase = PHASE.CURRENT; return; }
+      // A newer release that isn't signed (or lacks its installer) doesn't block an older one that is: whoever can
+      // create releases could otherwise stop all updates, including the one that replaces a stolen key.
+      let refused = null;
+      for (const candidate of found.slice(0, TRIES)) {
+        if (ready?.version === candidate.version && fs.existsSync(ready.file)) { available = candidate.version; phase = PHASE.READY; return; }
+        let info;
+        let installer;
+        try {
+          info = await manifestOf(candidate);
+          installer = asset(candidate.release, info.file);
+          if (!installer) throw new UpdateError('missing', msg('m_updateNoInstaller', candidate.version, info.file));
+        } catch (failure) {
+          if (!(failure instanceof UpdateError) || !['unsigned', 'missing'].includes(failure.code)) throw failure;
+          refused ??= failure;
+          skip(failure);
+          continue;
+        }
+        available = candidate.version;
+        phase = PHASE.DOWNLOADING;
+        fs.mkdirSync(folder, { recursive: true });
+        const target = path.join(folder, path.basename(info.file));
+        ready = null; // an older downloaded update gives way to the newer one
+        prune(null);
+        await download(installer, info, target);
+        ready = { version: candidate.version, file: target, size: info.size, sha512: info.sha512 };
+        phase = PHASE.READY;
+        log(msg('m_updateReady', candidate.version));
+        return;
+      }
+      available = null;
+      lastLogged = render(msg('m_withReason', 'Update', reason(refused))); // already in the log through skip()
+      throw refused;
     } catch (failure) {
       checkedAt = now();
       const message = msg('m_withReason', 'Update', reason(failure));
@@ -203,9 +272,9 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     }
   }
 
-  // Looks and downloads what is newer; outside the installed app nothing.
+  // Looks and downloads what is newer; outside the installed app nothing, nor while an update is being installed.
   function check() {
-    if (!packaged) return Promise.resolve();
+    if (!packaged || held) return Promise.resolve();
     running ??= checkNow().finally(() => { running = null; });
     return running;
   }
@@ -219,8 +288,23 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     return check();
   }
 
-  // What the installer needs to install: install silently, then start the app (`--force-run`).
-  const installer = () => (ready && fs.existsSync(ready.file) ? { file: ready.file, args: ['--updated', '/S', '--force-run'], version: ready.version } : null);
+  // What the installer needs to install: install silently, then start the app (`--force-run`). The file is verified
+  // once more against the manifest right before; one that changed since the download is discarded.
+  function installer() {
+    if (!ready || !fs.existsSync(ready.file)) return null;
+    const onDisk = digest(ready.file);
+    if (onDisk.size !== ready.size || onDisk.sha512 !== ready.sha512) {
+      log(msg('m_withReason', 'Update', msg('m_updateBroken', ready.version)));
+      ready = null;
+      prune(null);
+      phase = packaged ? PHASE.IDLE : PHASE.DEV;
+      return null;
+    }
+    return { file: ready.file, args: ['--updated', '/S', '--force-run'], version: ready.version };
+  }
+
+  // From here on the update is being installed: no check may replace or remove the downloaded file.
+  const hold = () => { held = true; };
 
   //   phase    dev | idle | checking | current | downloading | ready | error
   //   error    null or `{ code, status }` (see UpdateError)
@@ -230,7 +314,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     checkedAt: checkedAt == null ? null : new Date(checkedAt).toISOString(),
   });
 
-  return { check, setChannel, installer, view };
+  return { check, setChannel, installer, hold, view };
 }
 
-module.exports = { createUpdater, pickRelease, FILE, PHASE, CHANNELS };
+module.exports = { createUpdater, candidates, pickRelease, FILE, PHASE, CHANNELS };

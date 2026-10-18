@@ -74,13 +74,19 @@ RunClub updates itself from this repository's GitHub releases (`src/updater.js`,
 - **Who signs.** Only the maintainer, on their own computer (`npm run release`), with a passphrase-encrypted private
   key. The key is never in CI, in a GitHub secret or in the repository; no workflow publishes releases. So a stolen
   GitHub token, a rogue workflow with `contents: write` or a compromised account can create a release, but not one
-  the app accepts.
+  the app accepts. One way remains: a commit on `main` that swaps a public key in `src/signature.js`, which the
+  maintainer would then sign along. `npm run release` therefore stops when the keys differ from those of the last
+  release and shows both, unless `--keys-changed` says the change is intended.
 - **What the app checks, in this order:** manifest and signature are present (otherwise nothing is downloaded, and
   there is no fallback to electron-builder's `latest.yml`); the signature holds for one of the two public keys built
   into the app, before the manifest is even parsed; the manifest names this repository and exactly the release's
   version, that version is newer than the running one (no downgrade, no replay of an old signed release under a new
-  tag), and a beta never reaches the Stable channel; the download stops beyond the signed size; the installer's
-  SHA-512 matches the manifest. Manifest and signature are read up to 64 KB.
+  tag), and a beta never reaches the Stable channel; the download stops beyond the signed size or after a minute
+  without data; the installer's SHA-512 matches the manifest. Manifest and signature are read up to 64 KB. Right
+  before the installer starts, its size and SHA-512 are checked once more; checks stop while an update installs.
+- **A refused release doesn't block.** If the newest release fails these checks (or lacks its installer), the app
+  logs it once and tries the next older ones, up to five. So someone who can create releases cannot stop all updates
+  with an unsigned `v99.0.0`, including the one that replaces a stolen key; only more than five such releases would.
 - **Two keys.** The app carries the public keys of a primary key (signs every release) and of a backup key (kept
   offline). Either one is accepted.
   - *Primary key lost:* the backup key signs the next release; that release carries a new primary public key next to
@@ -90,8 +96,10 @@ RunClub updates itself from this repository's GitHub releases (`src/updater.js`,
     this window.
   - *Both lost:* installations can no longer update themselves; users have to install the new version by hand.
 - **Limits.** If the maintainer's computer is compromised while the key is unlocked, the key is gone; the passphrase
-  protects a stolen copy of the file, not a live attack. Hiding new releases (an attacker who withholds updates) is
-  not detected. Versions up to 0.1.0-beta.5 do not check signatures; they still read `latest.yml`/`beta.yml`, which
+  protects a stolen copy of the file, not a live attack, and only as well as it is strong: the file is encrypted with
+  PBKDF2 at OpenSSL's default rounds, so `scripts/keygen.js` asks for at least 20 characters (several words). The
+  key is only opened after the build, so it is not in memory while electron-builder runs. Hiding new releases (an
+  attacker who withholds updates, or floods the list with refused ones) is not detected. Versions up to 0.1.0-beta.5 do not check signatures; they still read `latest.yml`/`beta.yml`, which
   releases keep carrying for them.
 
 ## Access to GitHub

@@ -54,7 +54,8 @@ function verify(bytes, signatureText, keys = KEYS) {
   let signature;
   try { signature = JSON.parse(String(signatureText)); } catch { throw new Fault('m_sigUnreadable'); }
   const raw = typeof signature?.key === 'string' && Object.hasOwn(keys, signature.key) ? Buffer.from(keys[signature.key], 'base64') : null;
-  if (!raw) throw new Fault('m_sigUnknownKey', String(signature?.key ?? '–'));
+  // The id comes from outside and goes into the log: only what a key id can consist of.
+  if (!raw) throw new Fault('m_sigUnknownKey', String(signature?.key ?? '').replace(/[^0-9a-f]/g, '').slice(0, 16) || '–');
   const sig = typeof signature.sig === 'string' ? Buffer.from(signature.sig, 'base64') : Buffer.alloc(0);
   let valid = false;
   try { valid = sig.length === 64 && crypto.verify(null, Buffer.concat([PREFIX, bytes]), publicKey(raw), sig); } catch { valid = false; }
