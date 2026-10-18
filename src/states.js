@@ -16,4 +16,7 @@ const SLOT = Object.freeze({
 // caches and build service is changed.
 const busy = (slot) => slot.state === SLOT.WORKING || slot.state === SLOT.CLEANING;
 
-module.exports = { SLOT, busy };
+// How many runners in a status (`repos[].runners[].state`, see status.js) are in a state.
+const countRunners = (status, state) => status.repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === state).length;
+
+module.exports = { SLOT, busy, countRunners };

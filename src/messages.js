@@ -40,6 +40,7 @@ const EN = {
   // Pools (see actions.js)
   m_noPool: 'There is no such pool.',
   m_dockerNotReady: 'Docker is not ready yet; the limits of the Docker VM are still unknown.',
+  m_poolNeedsDocker: 'Docker is not ready yet; a pool can be created once it is.',
   m_repoName: 'Give the repo as owner/name.',
   m_noAdmin: 'You lack admin rights for this repo; without them no runner can be registered.',
   m_publicRefused: 'The repo is public. Only code you trust may run on your own runners, so pools are only for private repos.',
@@ -245,7 +246,7 @@ class Fault extends Error {
 const reason = (error) => error?.msg ?? String(error?.message ?? error);
 // Why a request did not reach its server, as fetch reports it: the network's code (`ENOTFOUND`, say), otherwise the
 // error's text.
-const unreachable = (error) => String(error?.cause?.code ?? error?.message ?? error ?? '');
+const unreachableReason = (error) => String(error?.cause?.code ?? error?.message ?? error ?? '');
 
 // A message that came from outside (from the log file), made safe: only known shapes, texts through `clean`, not
 // arbitrarily deep. null if it is none.
@@ -261,4 +262,4 @@ function sanitize(message, clean, depth = 0) {
   return { key: message.key, args: message.args.slice(0, 10).map(item) };
 }
 
-module.exports = { EN, msg, isMsg, render, Fault, reason, unreachable, sanitize };
+module.exports = { EN, msg, isMsg, render, Fault, reason, unreachableReason, sanitize };

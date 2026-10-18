@@ -20,14 +20,12 @@ const crypto = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { readJson, writeJson } = require('./store');
-const { msg, render, Fault, reason, unreachable } = require('./messages');
+const { msg, render, Fault, reason, unreachableReason } = require('./messages');
 const { compareVersions, parseVersion, isPrerelease, channelOf } = require('./versions');
 const signature = require('./signature');
 const { API, API_VERSION } = require('./github');
 
 const FILE = 'update.json';
-// The repo the releases live in, “owner/name”, from the `repository.url` of package.json.
-const releaseRepo = (pkg) => pkg.repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1];
 const CHANNELS = ['stable', 'beta'];
 const PER_PAGE = 30; // this many releases are read; older ones aren't newer anyway
 const REDIRECTS = 5;
@@ -111,7 +109,7 @@ function createUpdater({ repo, current, packaged, dataDir, keys = signature.KEYS
     let target = url;
     for (let hop = 0; hop <= REDIRECTS; hop += 1) {
       const headers = { accept, 'user-agent': `RunClub/${current}`, 'x-github-api-version': API_VERSION };
-      const response = await fetch(target, { headers, redirect: 'manual', signal }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', unreachable(failure))); });
+      const response = await fetch(target, { headers, redirect: 'manual', signal }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', unreachableReason(failure))); });
       if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
         target = new URL(response.headers.get('location'), target).href;
         continue;
@@ -314,4 +312,4 @@ function createUpdater({ repo, current, packaged, dataDir, keys = signature.KEYS
   return { check, setChannel, installer, hold, view };
 }
 
-module.exports = { createUpdater, releaseRepo, candidates, pickRelease, FILE };
+module.exports = { createUpdater, candidates, pickRelease, FILE };

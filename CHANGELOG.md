@@ -14,11 +14,18 @@ version (`0.2.0`), or with `Unreleased` as long as that does not exist yet.
 ### Changed
 
 - When signing in fails, the window gives the reason in the same words as the log.
+- A pool can only be created while Docker is ready.
+
+### Fixed
+
+- After the daily rebuild of the runner image, a container job could get an empty folder of runner tools; the old
+  copy now stays until the pairs that are about to use it have started.
 
 ### Security
 
 - Caches and template of a removed pool that could not be deleted no longer reach a new pool for another repo with the
   same name: they are deleted before it starts, or the pool is not created.
+- Links to jobs and runs open only if they point to `https://github.com/`.
 - The updater accepts a public key only under its own id, and `npm run release` signs only while the keys the app
   loads are the ones written in `src/signature.js`.
 

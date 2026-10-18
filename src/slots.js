@@ -103,10 +103,10 @@ function createSlots({
     // The runner's tools for container jobs, before anything stands that would have to be removed again. Their volume
     // must not go until the pair's daemon holds it.
     const tools = await externals.prepare();
-    try { return await build(pool, cancelled, tools); } finally { externals.release(tools.volume); }
+    try { return await assemble(pool, cancelled, tools); } finally { externals.release(tools.volume); }
   }
 
-  async function build(pool, cancelled, tools) {
+  async function assemble(pool, cancelled, tools) {
     const limits = limitsOf(pool.repo);
     const id = newId();
     const base = `rc-${slug(pool.repo)}-${id}`;

@@ -1,4 +1,5 @@
-// Version numbers of RunClub (“1.2.3”, “1.2.3-beta.4”, also with a leading “v”) and the channel they belong to.
+// Version numbers of RunClub (“1.2.3”, “1.2.3-beta.4”, also with a leading “v”), the channel they belong to and the
+// repo their releases live in.
 // No side effects on load.
 
 // Splits “1.2.3-beta.4” (also with a leading “v”); null if it isn't a version.
@@ -32,4 +33,7 @@ function compareVersions(a, b) {
 const isPrerelease = (version) => Boolean(parseVersion(version)?.pre.length);
 const channelOf = (version) => (isPrerelease(version) ? 'beta' : 'stable');
 
-module.exports = { parseVersion, compareVersions, isPrerelease, channelOf };
+// The repo the releases live in, “owner/name”, from the `repository.url` of package.json.
+const releaseRepo = (pkg) => pkg.repository.url.match(/github\.com\/([^/]+\/[^/.]+)/)[1];
+
+module.exports = { parseVersion, compareVersions, isPrerelease, channelOf, releaseRepo };

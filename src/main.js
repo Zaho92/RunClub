@@ -6,9 +6,10 @@ const { app, BrowserWindow, Tray, Menu, shell, safeStorage } = require('electron
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const { SECOND, MINUTE, HOUR } = require('./units');
-const { SLOT } = require('./states');
+const { SLOT, countRunners } = require('./states');
 const { run } = require('./run');
-const { createUpdater, releaseRepo } = require('./updater');
+const { createUpdater } = require('./updater');
+const { releaseRepo } = require('./versions');
 const { secretsFrom } = require('./auth');
 const { prepareInstall, launchInstaller } = require('./install');
 const { textsIn } = require('./texts');
@@ -129,9 +130,7 @@ function refreshTooltip() {
   if (!tray || quitting) return;
   const status = backend.status();
   if (status.shutdown) { quitting = true; refreshTray(); tray.setToolTip(trayText('stopping')); return; }
-  const runners = status.repos.flatMap((repo) => repo.runners);
-  const count = (state) => runners.filter((runner) => runner.state === state).length;
-  tray.setToolTip(trayText('count', count(SLOT.WORKING), count(SLOT.READY)));
+  tray.setToolTip(trayText('count', countRunners(status, SLOT.WORKING), countRunners(status, SLOT.READY)));
 }
 
 // While quitting, the window shows in large what is still being torn down (`shutdown` in /api/status). An open window

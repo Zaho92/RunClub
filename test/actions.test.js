@@ -62,6 +62,9 @@ test('pool/add checks name, admin right, duplicate, name clash and visibility be
   const add = (repo, info) => { w.info = info; return w.actions['pool/add']({ repo, parallel: 1 }); };
   const own = { full_name: 'owner/New', permissions: { admin: true }, private: true };
   await assert.rejects(add('--help', own), { message: 'Give the repo as owner/name.' });
+  w.ready = false;
+  await assert.rejects(add('owner/New', own), { message: 'Docker is not ready yet; a pool can be created once it is.' });
+  w.ready = true;
   await assert.rejects(add('owner/New', { ...own, permissions: { admin: false } }), /admin rights/);
   await assert.rejects(add('OWNER/tool', { ...own, full_name: 'owner/Tool' }), { message: 'This repo already has a pool.' });
   await assert.rejects(add('other/tool', { ...own, full_name: 'other/tool' }), { message: 'A pool for owner/Tool uses the same name for caches and build service. Two repos with the same name cannot be served at once.' });

@@ -467,7 +467,7 @@ const TEXT = {
     m_daemonFailed: 'Docker-Daemon startet nicht: {0}', m_toolsFailed: 'Werkzeuge des Runners für Container-Jobs ließen sich nicht kopieren: {0}', m_daemonNotReady: 'Docker-Daemon wurde nicht bereit{0}', m_whyNotReady: ' – {0}',
     m_whyNotReadySeccomp: ' – {0} (womöglich verbietet das Seccomp-Profil linux/seccomp.json einen Aufruf, den diese Docker-Version braucht)',
     m_whatSlot: 'Platz', m_whatPairPrep: 'Vorbereitung eines Paars', m_whatReserve: 'Abbau der Reserve', m_whatPrep: 'Vorbereitung',
-    m_noPool: 'Diesen Pool gibt es nicht.', m_dockerNotReady: 'Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.',
+    m_noPool: 'Diesen Pool gibt es nicht.', m_dockerNotReady: 'Docker ist noch nicht bereit; die Grenzen der Docker-VM sind noch unbekannt.', m_poolNeedsDocker: 'Docker ist noch nicht bereit; ein Pool lässt sich anlegen, sobald es läuft.',
     m_repoName: 'Das Repo wird als besitzer/name angegeben.',
     m_noAdmin: 'Für dieses Repo fehlen dir die Verwaltungsrechte; ohne sie lässt sich kein Runner anmelden.',
     m_publicRefused: 'Das Repo ist öffentlich. Auf den eigenen Runnern darf nur Code laufen, dem du vertraust; Pools gibt es deshalb nur für private Repos.',
@@ -658,7 +658,7 @@ const TEXT = {
     m_daemonFailed: 'Docker daemon does not start: {0}', m_toolsFailed: 'Could not copy the runner tools for container jobs: {0}', m_daemonNotReady: 'Docker daemon did not become ready{0}', m_whyNotReady: ' – {0}',
     m_whyNotReadySeccomp: ' – {0} (the seccomp profile linux/seccomp.json may block a call this Docker version needs)', m_whatSlot: 'Slot',
     m_whatPairPrep: 'Preparing a pair', m_whatReserve: 'Clearing the reserve', m_whatPrep: 'Preparation', m_noPool: 'There is no such pool.',
-    m_dockerNotReady: 'Docker is not ready yet; the limits of the Docker VM are still unknown.', m_repoName: 'Give the repo as owner/name.',
+    m_dockerNotReady: 'Docker is not ready yet; the limits of the Docker VM are still unknown.', m_poolNeedsDocker: 'Docker is not ready yet; a pool can be created once it is.', m_repoName: 'Give the repo as owner/name.',
     m_noAdmin: 'You lack admin rights for this repo; without them no runner can be registered.',
     m_publicRefused: 'The repo is public. Only code you trust may run on your own runners, so pools are only for private repos.',
     m_forksRefused: '{0}. Only code you trust may run on your own runners. {1}',
@@ -877,9 +877,10 @@ const authStart = () => data.auth?.state === SIGN_IN.OUT && !data.repos.length;
 // A link to GitHub; only such links are opened by the app window in the browser (see main.js). No valid URL, nothing.
 const githubUrl = (url) => String(url ?? '').startsWith('https://github.com/');
 // Links lead only to GitHub: anything else from outside gets no address.
-const githubHref = (url) => (githubUrl(url) ? ' href="' + esc(url) + '" target="_blank" rel="noopener"' : '');
-const githubLink = (url, text) => (githubUrl(url) ? '<a' + githubHref(url) + '>' + esc(text) + '</a>' : '');
-const githubButton = (url, text) => (githubUrl(url) ? '<a class="btn"' + githubHref(url) + '>' + esc(text) + '</a>' : '');
+const outward = (url) => ' href="' + esc(url) + '" target="_blank" rel="noopener"';
+const githubHref = (url) => (githubUrl(url) ? outward(url) : '');
+const githubLink = (url, text) => (githubUrl(url) ? '<a' + outward(url) + '>' + esc(text) + '</a>' : '');
+const githubButton = (url, text) => (githubUrl(url) ? '<a class="btn"' + outward(url) + '>' + esc(text) + '</a>' : '');
 // Where the RunClub app is installed for another account or org; without a URL the whole sentence is dropped.
 const installNote = () => (githubUrl(data.auth?.install) ? '<div class="note">' + esc(t('addMissing')) + ' ' + githubLink(data.auth.install, t('addInstall')) + '</div>' : '');
 

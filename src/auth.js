@@ -23,7 +23,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SECOND, MINUTE } = require('./units');
 const { API, apiHeaders } = require('./github');
-const { msg, Fault, reason, unreachable } = require('./messages');
+const { msg, Fault, reason, unreachableReason } = require('./messages');
 
 // The GitHub App “RunClub” (https://github.com/settings/apps/runclub-runners). The client ID is not a secret.
 const CLIENT_ID = 'Iv23liMHlB06HEzY8bPM';
@@ -64,7 +64,7 @@ function pause(ms, signal) {
 }
 
 // What an error while asking says, as outside text.
-const said = (error) => unreachable(error).slice(0, 300) || null;
+const said = (error) => unreachableReason(error).slice(0, 300) || null;
 
 // What main.js hands over as `secrets`: Electron's safeStorage (DPAPI, bound to the Windows user), or null if it
 // can't encrypt; then the sign-in holds only until the program ends.

@@ -132,6 +132,8 @@ function createActions({ github, settings, runners, remote, routing, waiting, me
   const actions = {
     async 'pool/add'({ repo, parallel }) {
       if (!REPO_NAME.test(String(repo))) throw new Fault('m_repoName');
+      // Leftovers under the pool's name are removed before it starts (see below); that needs Docker.
+      if (!dockerWatch.ready()) throw new Fault('m_poolNeedsDocker');
       const info = await github.get(`repos/${repo}`);
       if (!info.permissions?.admin) throw new Fault('m_noAdmin');
       // Outside pull requests of a public repo would run code on this machine (see the head of backend.js).

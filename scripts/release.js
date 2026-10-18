@@ -19,8 +19,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { passphrase } = require('./passphrase');
 const signature = require('../src/signature');
-const { releaseRepo } = require('../src/updater');
-const { channelOf, compareVersions, parseVersion } = require('../src/versions');
+const { channelOf, compareVersions, parseVersion, releaseRepo } = require('../src/versions');
 
 const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');

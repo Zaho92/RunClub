@@ -15,7 +15,7 @@
 //           the text. The text is GitHub's, with the status after it.
 
 const { SECOND, MINUTE, DAY } = require('./units');
-const { Fault, unreachable } = require('./messages');
+const { Fault, unreachableReason } = require('./messages');
 
 const API = 'https://api.github.com';
 const API_VERSION = '2022-11-28';
@@ -109,7 +109,7 @@ function createGitHub({ token, renew = async () => null, fetch = globalThis.fetc
       return await fetch(`${API}/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(timeout) });
     } catch (error) {
       if (error?.name === 'TimeoutError' || error?.name === 'AbortError') throw new Fault('m_githubSilent');
-      throw new Fault('m_githubUnreachable', unreachable(error));
+      throw new Fault('m_githubUnreachable', unreachableReason(error));
     }
   }
 

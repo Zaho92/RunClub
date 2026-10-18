@@ -3,7 +3,7 @@
 // opens RunClub again afterwards. No side effects on load.
 
 const { Fault } = require('./messages');
-const { SLOT } = require('./states');
+const { SLOT, countRunners } = require('./states');
 
 // Whether the update can go now. Returns the installer (`{ file, args, version }`, see `installer` in updater.js) and
 // holds the updater, so no check removes the file during teardown; throws a Fault otherwise.
@@ -11,7 +11,7 @@ const { SLOT } = require('./states');
 //   status    the backend's status (`repos[].runners[].state`)
 function prepareInstall(updater, status) {
   if (!updater.view().ready) throw new Fault('m_noUpdate');
-  const working = status.repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === SLOT.WORKING).length;
+  const working = countRunners(status, SLOT.WORKING);
   if (working) throw new Fault('m_updateBusy', working);
   const ready = updater.installer();
   if (!ready) throw new Fault('m_noUpdate');

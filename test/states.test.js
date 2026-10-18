@@ -40,6 +40,7 @@ test('the tray icon has its texts in both languages, with the same placeholders'
   }
   assert.equal(textsIn('de')('tray_count', 2, 3), 'RunClub – 2 arbeiten, 3 bereit');
   assert.equal(textsIn('fr')('tray_open'), 'Open RunClub');
+  assert.equal(textsIn('de', '<script>const TEXT = changed;</script>')('tray_open'), 'tray_open');
 });
 
 test('every backend message is in the interface in English as in the backend and in German with the same placeholders', () => {
