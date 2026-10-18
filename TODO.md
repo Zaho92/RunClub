@@ -100,7 +100,8 @@ Steps, in this order:
    (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo. Open: release
    0.1.0 (stable tag only with the user's yes), then drop the “only beta releases” sentence under Installing.
    **Released, signed and installed as v0.1.0-beta.7 on 18.10.2026** (updated from beta.6 through the signed manifest).
-   **Released, signed and installed as v0.1.0-beta.8 on 18.10.2026** (updated from beta.7 through the signed manifest; daemons of the pairs now carry the runner tools).
+   **Released, signed and installed as v0.1.0-beta.8 on 18.10.2026** (updated from beta.7 through the signed manifest; daemons of the pairs now carry the runner tools). A workflow with `container:` and a service passed on it
+   (18.10.2026).
    **Order decided by the user on 18.10.2026:** (a) fix container jobs (“Still open from the reviews”, item 1; fixed 18.10.2026), release
    it as beta.8; (b) 0.1.0 on the commit of the approved beta (the user's yes is given), then drop the “only beta
    releases” sentence; (c) repo page: topics, social preview (the user uploads it); (d) move from `TODO.md` to GitHub
@@ -202,8 +203,9 @@ Nothing at the moment. Fixed last: **container jobs (`container:` in the workflo
 lies outside `_work` (runner 2.338.0). It now comes as a read-only volume with a copy from the runner image (once per
 image, about 8 s, stays across restarts) into the daemon container at the same path; a pair runs its runner from that
 very image (by id). Tried for real without GitHub: daemon and runner container as in a pair, job container with all of
-the runner's mounts, `node` from `/__e` runs, files in the workspace belong to the runner. Still to see for real: a
-workflow with `container:` on beta.8.
+the runner's mounts, `node` from `/__e` runs, files in the workspace belong to the runner. Seen for real on beta.8
+(18.10.2026, Zaho92/jade run 39133044226): `container: node:24-alpine` with a `redis:7-alpine` service, checkout and a
+step in the container passed.
 
 Deliberately left as is:
 
