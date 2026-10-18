@@ -49,3 +49,13 @@ test('every message the backend uses is in the catalogue', () => {
   }
   assert.deepEqual([...used].filter((key) => !(key in EN)), []);
 });
+
+test('every error code of the updater is known to the interface and has its texts in both languages', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'updater.js'), 'utf8');
+  const codes = [...new Set([...source.matchAll(/UpdateError\('(\w+)'/g)].map((match) => match[1])), 'other'];
+  const listed = JSON.parse(html.match(/const failCode = [^\n]*?(\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  assert.deepEqual([...listed].sort(), [...codes].sort());
+  for (const lang of ['de', 'en']) {
+    for (const code of codes) for (const key of [`updFail_${code}`, `updWhy_${code}`]) assert.ok(TEXT[lang][key]?.trim(), `${lang}: ${key}`);
+  }
+});
