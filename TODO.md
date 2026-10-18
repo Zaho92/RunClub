@@ -95,7 +95,7 @@ Steps, in this order:
    state. **Transitional code and demo pipeline removed on 18.10.2026:** the `.neu` draft in `src/auth.js`, the
    clean-up by name of unlabelled build services, the clearing of root-owned build layers and templates, and
    `.github/workflows/demo.yml`. Releases no longer carry `latest.yml`/`beta.yml` (decided by the user on 18.10.2026:
-   no installation below beta.6 is left). Then also: in the README drop “As long as the repo is private …”
+   no installation below beta.6 is left). **`LICENSE` added on 18.10.2026:** MIT, holder “Zaho92” (the user's choice). Then also: in the README drop “As long as the repo is private …”
    under Updating and “RunClub's releases” at Contents (likewise the comment in `src/updater.js`), and the sentence
    about only beta releases under Installing once a stable release exists.
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the

@@ -3,6 +3,7 @@
   "productName": "RunClub",
   "version": "0.1.0",
   "description": "Your own GitHub Actions runners on this machine: fresh for every job, with a reserve and caches.",
+  "license": "MIT",
   "private": true,
   "main": "src/main.js",
   "scripts": {
@@ -32,6 +33,7 @@
     "asar": false,
     "files": [
       "package.json",
+      "LICENSE",
       "src/**/*",
       "linux/**/*",
       "build/icon.png",

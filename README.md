@@ -243,3 +243,7 @@ Primary key lost or stolen:
 Background in `SECURITY.md`, “Updates”.
 Notes for working with Claude Code are in `CLAUDE.md`, the product description for the design in `PRODUCT.md`.
 The design follows the skill [Impeccable](https://github.com/pbakaus/impeccable) (`npx impeccable install --providers=claude --project`).
+
+## License
+
+MIT, see `LICENSE`. The fonts in `src/fonts/` carry their own license (`src/fonts/LICENSE.txt`).
