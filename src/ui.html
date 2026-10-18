@@ -409,7 +409,7 @@ const TEXT = {
     updCurrent: 'Aktuell, zuletzt nachgesehen um {0}.', updDownloading: 'Lädt {0} …',
     updFail_private: 'Nachsehen gescheitert: GitHub gibt die Releases nicht heraus.', updFail_network: 'Nachsehen gescheitert: GitHub ist nicht erreichbar.', updFail_http: 'Nachsehen gescheitert: GitHub antwortet mit einem Fehler.',
     updFail_broken: 'Das geladene Update war beschädigt und wurde verworfen.', updFail_missing: 'Zum neuesten Release fehlt der Installer.', updFail_unsigned: 'Das neueste Release ist nicht gültig signiert und wurde nicht geladen.', updFail_other: 'Nachsehen gescheitert.',
-    updWhy_private: 'Solange das Repo privat ist, braucht RunClub zum Nachsehen die Anmeldung bei GitHub. Antwort {0}.', updWhy_network: 'RunClub sieht alle sechs Stunden wieder nach, mit „Nachsehen“ sofort.', updWhy_http: 'GitHub antwortete mit einem Fehler {0}. RunClub sieht alle sechs Stunden wieder nach, mit „Nachsehen“ sofort.',
+    updWhy_denied: 'GitHub gibt die Releases von RunClub gerade nicht heraus (Antwort {0}). RunClub sieht alle sechs Stunden wieder nach, mit „Nachsehen“ sofort.', updWhy_network: 'RunClub sieht alle sechs Stunden wieder nach, mit „Nachsehen“ sofort.', updWhy_http: 'GitHub antwortete mit einem Fehler {0}. RunClub sieht alle sechs Stunden wieder nach, mit „Nachsehen“ sofort.',
     updWhy_broken: 'Größe oder Prüfsumme stimmten nicht mit den signierten Angaben überein. Beim nächsten Nachsehen wird es neu geladen.', updWhy_unsigned: 'RunClub spielt nur Updates ein, die mit dem Schlüssel des Herausgebers signiert sind. Einzelheiten stehen im Protokoll; RunClub prüft beim nächsten Nachsehen wieder.', updWhy_missing: 'Das Release ist unvollständig; Einzelheiten stehen im Protokoll. RunClub prüft beim nächsten Nachsehen wieder.', updWhy_other: 'Einzelheiten stehen im Protokoll. RunClub versucht es beim nächsten Nachsehen wieder.',
     updVersionInfo: 'Geladen wird im Hintergrund, eingespielt erst, wenn du es auslöst.', updDevTip: 'Im Entwicklerbetrieb gibt es keine Updates.',
     updInfo: 'Stabil bekommt nur abgenommene Versionen, Beta auch Vorabversionen zum Erproben. Wer von Beta zurück auf Stabil wechselt, behält die laufende Version bis zur nächsten stabilen.',
@@ -547,7 +547,7 @@ const TEXT = {
     m_noUpdate: 'Es ist kein Update geladen.',
     m_updateBusy: 'Gerade arbeitet ein Runner ({0}). Das Update lässt sich einspielen, sobald keiner mehr arbeitet.',
     m_updating: 'RunClub wird beendet und auf {0} aktualisiert.', m_updateReady: 'RunClub {0} ist geladen und kann eingespielt werden.',
-    m_updateUnreachable: 'GitHub ist nicht erreichbar: {0}', m_updatePrivate: 'GitHub gibt {0} nicht heraus ({1}).',
+    m_updateUnreachable: 'GitHub ist nicht erreichbar: {0}', m_updateDenied: 'GitHub gibt {0} nicht heraus ({1}).',
     m_updateHttp: 'GitHub antwortet mit {0} auf {1}.', m_updateRedirects: 'Zu viele Weiterleitungen beim Laden des Updates.',
     m_updateBroken: 'Der Installer für {0} ist beschädigt (Größe oder Prüfsumme stimmt nicht).',
     m_updateUnsigned: 'Das Update {0} ist nicht signiert (runclub-update.json oder die Signatur fehlt).', m_updateNotTrusted: 'Dem Update {0} ist nicht zu trauen: {1}',
@@ -599,7 +599,7 @@ const TEXT = {
     updCurrent: 'Up to date, last checked at {0}.', updDownloading: 'Downloading {0} …',
     updFail_private: 'Check failed: GitHub does not hand out the releases.', updFail_network: 'Check failed: GitHub cannot be reached.', updFail_http: 'Check failed: GitHub answered with an error.',
     updFail_broken: 'The downloaded update was damaged and has been discarded.', updFail_missing: 'The newest release has no installer.', updFail_unsigned: 'The newest release has no valid signature and was not downloaded.', updFail_other: 'Check failed.',
-    updWhy_private: 'While the repo is private, RunClub needs the GitHub sign-in to check. Answer {0}.', updWhy_network: 'RunClub checks again every six hours, or right away with “Check now”.', updWhy_http: 'GitHub answered with an error {0}. RunClub checks again every six hours, or right away with “Check now”.',
+    updWhy_denied: 'GitHub is not handing out RunClub’s releases right now (answer {0}). RunClub checks again every six hours, or right away with “Check now”.', updWhy_network: 'RunClub checks again every six hours, or right away with “Check now”.', updWhy_http: 'GitHub answered with an error {0}. RunClub checks again every six hours, or right away with “Check now”.',
     updWhy_broken: 'Size or checksum did not match the signed details. It is downloaded again on the next check.', updWhy_unsigned: 'RunClub only installs updates signed with the publisher’s key. The log has the details; RunClub checks again on the next check.', updWhy_missing: 'The release is incomplete; the log has the details. RunClub checks again on the next check.', updWhy_other: 'The log has the details. RunClub tries again on the next check.',
     updVersionInfo: 'Updates download in the background and are only installed when you say so.', updDevTip: 'There are no updates in development mode.',
     updInfo: 'Stable only gets approved versions, Beta also gets pre-releases to try out. Switching from Beta back to Stable keeps the running version until the next stable one.',
@@ -730,7 +730,7 @@ const TEXT = {
     m_pageStale: 'The page is out of date – please reload.', m_noUpdate: 'No update has been downloaded.',
     m_updateBusy: 'A runner is working ({0}). The update can be installed once none is.', m_updating: 'RunClub is shutting down and updating to {0}.',
     m_updateReady: 'RunClub {0} is downloaded and ready to install.', m_updateUnreachable: 'GitHub is not reachable: {0}',
-    m_updatePrivate: 'GitHub does not hand out {0} ({1}).', m_updateHttp: 'GitHub answers {0} for {1}.',
+    m_updateDenied: 'GitHub does not hand out {0} ({1}).', m_updateHttp: 'GitHub answers {0} for {1}.',
     m_updateRedirects: 'Too many redirects while downloading the update.', m_updateBroken: 'The installer for {0} is damaged (size or checksum does not match).',
     m_updateUnsigned: 'The update {0} is not signed (runclub-update.json or its signature is missing).', m_updateNotTrusted: 'The update {0} is not trusted: {1}',
     m_updateTooLarge: 'The file {1} for {0} is larger than expected.', m_updateStalled: 'The download for {0} stalled.', m_sigUnreadable: 'the signature cannot be read', m_sigUnknownKey: 'signed with an unknown key ({0})',
@@ -1522,7 +1522,7 @@ function renderSettings() {
   // Version and update (from main.js; missing when the backend runs on its own).
   const up = data.app?.update;
   const busy = data.repos.flatMap((entry) => entry.runners).filter((r) => r.state === SLOT.WORKING).length;
-  const failCode = up?.error && ['private', 'network', 'http', 'unsigned', 'broken', 'missing', 'other'].includes(up.error.code) ? up.error.code : 'other';
+  const failCode = up?.error && ['denied', 'network', 'http', 'unsigned', 'broken', 'missing', 'other'].includes(up.error.code) ? up.error.code : 'other';
   const upState = !up ? '' : up.error ? t('updFail_' + failCode) : ({
     dev: t('updDev'), idle: t('updIdle'), checking: t('updChecking'), downloading: t('updDownloading', esc(up.available ?? '')),
     current: t('updCurrent', up.checkedAt ? new Date(up.checkedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : '–'), ready: '',

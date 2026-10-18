@@ -62,7 +62,7 @@ function world(t, { current = '0.1.0', packaged = true, releases = [], files = {
     }
     return new Response('?', { status: 404 });
   };
-  w.updater = createUpdater({ repo: 'owner/RunClub', current, packaged, dataDir: dir, token: async () => 'secret', keys: KEYS, fetch: w.fetch });
+  w.updater = createUpdater({ repo: 'owner/RunClub', current, packaged, dataDir: dir, keys: KEYS, fetch: w.fetch });
   return w;
 }
 
@@ -104,9 +104,8 @@ test('downloads the newer version, verifies it and reports it ready', async (t) 
   const installer = w.updater.installer();
   assert.equal(fs.readFileSync(installer.file, 'utf8'), 'Installer 0.2.0');
   assert.deepEqual(installer.args, ['--updated', '/S', '--force-run']);
-  // The token goes only to GitHub, not to the host behind the redirect.
-  assert.ok(w.calls.filter((call) => call.url.startsWith('https://api.github.com/')).every((call) => call.authorization === 'Bearer secret'));
-  assert.ok(w.calls.filter((call) => call.url.startsWith('https://objects.example/')).every((call) => call.authorization === null));
+  // Anonymous: no token of the user leaves for the releases.
+  assert.ok(w.calls.every((call) => call.authorization === null));
 });
 
 test('an installer with a wrong checksum is discarded', async (t) => {
@@ -176,18 +175,9 @@ test('an answer with an error shows in the view', async (t) => {
   await updater.check();
   await updater.check();
   assert.equal(updater.view().phase, 'error');
-  assert.deepEqual(updater.view().error, { code: 'private', status: 404 });
+  assert.deepEqual(updater.view().error, { code: 'denied', status: 404 });
   assert.equal(logged.length, 1); // the same error only once in the log
   assert.match(logged[0], /404/);
-});
-
-test('if the release names another address than GitHub\'s for a file, the token doesn\'t go there', async (t) => {
-  const w = world(t);
-  release(w, '0.2.0');
-  for (const asset of w.releases[0].assets) asset.url = asset.url.replace('https://api.github.com/repos/owner/RunClub/releases/assets/', 'https://objects.example/');
-  await w.updater.check();
-  assert.equal(w.updater.view().phase, 'ready');
-  assert.ok(w.calls.filter((call) => call.url.startsWith('https://objects.example/')).every((call) => call.authorization === null));
 });
 
 // Whether the installer itself was requested.

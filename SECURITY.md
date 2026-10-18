@@ -109,7 +109,7 @@ RunClub updates itself from this repository's GitHub releases (`src/updater.js`,
 - **Own GitHub App.** RunClub signs in through its GitHub App “RunClub” (device flow) and acts on the user's behalf,
   but only in repositories the app is installed on. It requests: Administration (read and write: just-in-time runner
   registration, removing runners, the fork pull request setting), Actions (read and write: runs, jobs, re-runs),
-  Variables (read and write: `CI_RUNNER`), Checks (read), Contents (read: workflow files and RunClub's own releases),
+  Variables (read and write: `CI_RUNNER`), Checks (read), Contents (read: workflow files),
   Metadata (read), and for the account Plan (read: billing for the minutes quota). It cannot change code directly, but
   Administration (write) reaches further: with it, a stolen token could change repository settings, collaborators and
   visibility, and through a new collaborator also code. RunClub itself uses it only for runners and the fork setting.
@@ -121,8 +121,7 @@ RunClub updates itself from this repository's GitHub releases (`src/updater.js`,
   only appears in the window.
 - **Signing out** forgets the token on this computer and deletes both files; if that fails, the log says so. Revoking it on GitHub needs the app's client secret, which
   RunClub does not ship; the window links to GitHub's “Authorized GitHub Apps” page for that. The token is only
-  ever sent to `api.github.com` (and `github.com` for signing in); the updater drops it when a download redirects
-  elsewhere.
+  ever sent to `api.github.com` (and `github.com` for signing in); the updater reads the public releases without it.
 
 ## Accepted on purpose
 

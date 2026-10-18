@@ -66,7 +66,7 @@ see the caches. Usage shows the last 24 hours, GitHub's quotas and, per project,
 
 RunClub talks to GitHub through its own GitHub App and acts only in the repos the app is installed on. Per repo
 the app may register and unregister runners (Administration), read and re-run runs (Actions), set `CI_RUNNER`
-(Variables), read check results (Checks) and read code (Contents, for the workflow files and RunClub's releases),
+(Variables), read check results (Checks) and read code (Contents, for the workflow files),
 plus the account's billing for the minutes quota (Plan). It cannot change code directly; Administration, however,
 also allows changing a repo's settings, collaborators and visibility (RunClub uses it only for the runners).
 
@@ -84,8 +84,7 @@ installer whose size and SHA-512 match it (details in `SECURITY.md`, â€œUpdatesâ
 the installer and opens again afterwards.
 
 The channel is set in the same settings: **Stable** gets only approved versions, **Beta** also pre-releases.
-As long as the repo is private, RunClub reads the releases with the token of the sign-in in the app (the app needs
-Contents on this repo for that).
+RunClub reads the releases without signing in; the token of the sign-in is not sent for it.
 
 ## Quitting
 

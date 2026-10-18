@@ -199,7 +199,7 @@ app.whenReady().then(() => {
     },
   });
   updater = createUpdater({
-    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, token: async () => backend.githubToken(), log: (text) => backend.log(text),
+    repo: REPO, current: app.getVersion(), packaged: app.isPackaged, dataDir: process.env.RUNCLUB_DATA, log: (text) => backend.log(text),
   });
   adoptAutostart();
   setTimeout(() => { updater.check(); setInterval(() => updater.check(), UPDATE_INTERVAL); }, UPDATE_FIRST);

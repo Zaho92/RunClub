@@ -215,8 +215,7 @@ function start({
   dockerWatch.watch();
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, shutdown);
 
-  // `githubToken()`: the sign-in token, e.g. for the updater (main.js); null without a sign-in.
-  return { port, entry: access.entry, status, shutdown, release, log, githubToken: auth.token };
+  return { port, entry: access.entry, status, shutdown, release, log };
 }
 
 if (require.main === module) start();

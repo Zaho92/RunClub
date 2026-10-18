@@ -17,8 +17,8 @@ updater that updates itself from the GitHub releases. Decided:
   channel “Stable”/“Beta”, the user's machine runs on Beta. **No `qs` branch:** feature branches → `main`, betas are
   tagged from `main`; when the user accepts a beta, the stable tag goes on exactly its commit.
 - **Updater as its own module**, not `electron-updater` (stays without runtime dependencies): GitHub Releases API,
-  download, SHA512 check against `latest.yml` (since 18.10.2026 against the signed manifest, see step 4), start the NSIS installer silently; while the repo is private, with the
-  token of the sign-in in the app (GitHub App, see step 3.3).
+  download, SHA512 check against `latest.yml` (since 18.10.2026 against the signed manifest, see step 4), start the NSIS installer silently; the releases are read anonymously since the repo
+  is public (18.10.2026; before, with the token of the sign-in).
 - **Repo entirely in English** (README, docs, comments, TODO, DESIGN; the rule in `CLAUDE.md` changes then). The
   interface stays bilingual. Only in step 3, so that no code gets translated that is about to be rebuilt.
 
@@ -95,9 +95,10 @@ Steps, in this order:
    state. **Transitional code and demo pipeline removed on 18.10.2026:** the `.neu` draft in `src/auth.js`, the
    clean-up by name of unlabelled build services, the clearing of root-owned build layers and templates, and
    `.github/workflows/demo.yml`. Releases no longer carry `latest.yml`/`beta.yml` (decided by the user on 18.10.2026:
-   no installation below beta.6 is left). **`LICENSE` added on 18.10.2026:** MIT, holder “Zaho92” (the user's choice). Then also: in the README drop “As long as the repo is private …”
-   under Updating and “RunClub's releases” at Contents (likewise the comment in `src/updater.js`), and the sentence
-   about only beta releases under Installing once a stable release exists.
+   no installation below beta.6 is left). **`LICENSE` added on 18.10.2026:** MIT, holder “Zaho92” (the user's choice).
+   **Public since 18.10.2026**, private vulnerability reporting on. The updater now reads the releases anonymously
+   (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo. Open: release
+   0.1.0 (stable tag only with the user's yes), then drop the “only beta releases” sentence under Installing.
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
    checksum from the same release; whoever can create a release there can push an update to everyone, in the public
    repo also any workflow with `contents: write` (the former `release.yml` created releases as `github-actions[bot]`, so checking

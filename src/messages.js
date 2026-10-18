@@ -187,7 +187,7 @@ const EN = {
   // Updates (see updater.js)
   m_updateReady: 'RunClub {0} is downloaded and ready to install.',
   m_updateUnreachable: 'GitHub is not reachable: {0}',
-  m_updatePrivate: 'GitHub does not hand out {0} ({1}).',
+  m_updateDenied: 'GitHub does not hand out {0} ({1}).',
   m_updateHttp: 'GitHub answers {0} for {1}.',
   m_updateRedirects: 'Too many redirects while downloading the update.',
   m_updateBroken: 'The installer for {0} is damaged (size or checksum does not match).',

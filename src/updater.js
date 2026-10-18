@@ -10,8 +10,7 @@
 //           the manifest must name this repo and the release's version, which must be newer than the running one;
 //           the download stops beyond the signed size; an installer whose checksum doesn't match is discarded.
 //           `latest.yml`/`beta.yml` from electron-builder, which older releases carry, are not trusted.
-// Sign-in   As long as the repo is private, even reading the releases needs a token (the RunClub sign-in's, see main.js).
-//           Without one it requests anonymously; a public repo needs none.
+// Sign-in   None: the releases of the public repo are read anonymously, so no token of the user leaves for them.
 //
 // No side effects on load; `createUpdater` does nothing until `check` or `setChannel` is called.
 
@@ -36,7 +35,7 @@ const SMALL = 64 * 1024; // manifest and signature are a few hundred bytes; more
 const PHASE = { DEV: 'dev', IDLE: 'idle', CHECKING: 'checking', CURRENT: 'current', DOWNLOADING: 'downloading', READY: 'ready', ERROR: 'error' };
 
 // An error the interface names in its own language (`code`); the message itself goes only to the log.
-//   private   GitHub doesn't hand out the releases (401/404; the repo is private and the sign-in is missing)
+//   denied    GitHub doesn't hand out the releases (401/404)
 //   network   GitHub is unreachable
 //   http      another answer with an error (`status`)
 //   unsigned  manifest or signature is missing, the signature doesn't hold or the manifest doesn't fit the release
@@ -83,13 +82,12 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 //   current                 the running version
 //   packaged                only an installed app updates itself; otherwise it just shows the version
 //   dataDir                 holds `update.json` and the downloaded installer (folder `update`)
-//   token()                 returns the token for GitHub or null
 //   keys                    the public keys a manifest must be signed with (see signature.js); controllable in tests
 //   timeouts                `request`: longest wait for an answer and a small file; `idle`: longest pause in the
 //                           installer's download (ms)
 //   fetch                   like Node's; controllable in tests
 //   log(text), now()
-function createUpdater({ repo, current, packaged, dataDir, token = async () => null, keys = signature.KEYS, timeouts = {}, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
+function createUpdater({ repo, current, packaged, dataDir, keys = signature.KEYS, timeouts = {}, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
   const file = path.join(dataDir, FILE);
   const folder = path.join(dataDir, 'update');
   const saved = readJson(file, {}).data ?? {};
@@ -105,23 +103,19 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   let held = false; // the update is being installed: no more checks that could remove it
   const skipped = new Set(); // releases already logged as refused, so each appears only once
 
-  // A request to GitHub. Redirects (downloads live elsewhere) are followed without the token: it is only for GitHub.
+  // A request to GitHub, anonymous. Redirects (downloads live elsewhere) are followed.
   // `signal` ends it (and reading its body) from outside.
-  async function request(url, { accept, auth, signal }) {
+  async function request(url, { accept, signal }) {
     let target = url;
-    let secret = auth ? await token().catch(() => null) : null;
     for (let hop = 0; hop <= REDIRECTS; hop += 1) {
       const headers = { accept, 'user-agent': 'RunClub', 'x-github-api-version': '2022-11-28' };
-      if (secret) headers.authorization = `Bearer ${secret}`;
       const response = await fetch(target, { headers, redirect: 'manual', signal }).catch((failure) => { throw new UpdateError('network', msg('m_updateUnreachable', String(failure?.cause?.code ?? failure?.message ?? failure))); });
       if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
-        const next = new URL(response.headers.get('location'), target);
-        if (next.origin !== new URL(target).origin) secret = null;
-        target = next.href;
+        target = new URL(response.headers.get('location'), target).href;
         continue;
       }
       const where = new URL(url).pathname;
-      if (response.status === 401 || response.status === 404) throw new UpdateError('private', msg('m_updatePrivate', where, String(response.status)), response.status);
+      if (response.status === 401 || response.status === 404) throw new UpdateError('denied', msg('m_updateDenied', where, String(response.status)), response.status);
       if (!response.ok) throw new UpdateError('http', msg('m_updateHttp', String(response.status), where), response.status);
       return response;
     }
@@ -129,8 +123,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   }
 
   const asset = (release, name) => (release.assets ?? []).find((item) => item.name === name);
-  // The token goes only to GitHub's API, even if the answer names another address.
-  const loadAsset = (item, signal) => request(item.url, { accept: 'application/octet-stream', auth: new URL(item.url).origin === API, signal });
+  const loadAsset = (item, signal) => request(item.url, { accept: 'application/octet-stream', signal });
 
   // A small file of the release (manifest, signature) as bytes; beyond `SMALL` it is not read further.
   async function loadSmall(item, version) {
@@ -223,7 +216,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
     phase = ready ? PHASE.READY : PHASE.CHECKING;
     error = null;
     try {
-      const response = await request(`${API}/repos/${repo}/releases?per_page=${PER_PAGE}`, { accept: 'application/vnd.github+json', auth: true, signal: AbortSignal.timeout(wait.request) });
+      const response = await request(`${API}/repos/${repo}/releases?per_page=${PER_PAGE}`, { accept: 'application/vnd.github+json', signal: AbortSignal.timeout(wait.request) });
       const found = candidates(await response.json(), { channel, current });
       checkedAt = now();
       lastLogged = null;
