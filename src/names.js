@@ -2,8 +2,8 @@
 //
 // The mark (`mark`) carries the data folder in it, so that a second instance (for trying things out, with its own
 // data folder) does not remove the first one's pairs when cleaning up. Caches, template and build service are named
-// after the repo; a second instance (other port) appends its id so that it takes nothing away from the first when both
-// serve a repo of the same name.
+// after the repo, the copy of the runner's tools after the runner image; a second instance (other port) appends its id
+// so that it takes nothing away from the first when both serve a repo of the same name or run the same image.
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -28,6 +28,8 @@ function createNames({ dataDir, port }) {
   return {
     mark: `runclub.runner=${instance}`, // pairs: their containers, volumes and networks
     serviceMark: `runclub.service=${instance}`, // build services and their networks (see caches.js)
+    toolsMark: `runclub.tools=${instance}`, // copies of the runner's tools; they stay across restarts (see externals.js)
+    toolsVolume: (id) => `rc-tools-${id}${suffix}`, // per runner image, by its short id
     cacheVolume: named('cache'),
     seedVolume: named('seed'),
     buildVolume: named('build'),

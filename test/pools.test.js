@@ -515,7 +515,7 @@ function wired() {
     }
     const removed = name.match(/^rm (.+)-runner$/);
     if (removed && args.length === 3) w.ends.get(removed[1])?.();
-    return { code: 0, stdout: '', stderr: '' };
+    return { code: 0, stdout: name === 'image inspect' ? 'sha256:runner' : '', stderr: '' }; // the runner image's id (see externals.js)
   };
   const github = {
     send: async (method, url) => {

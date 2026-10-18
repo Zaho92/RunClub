@@ -36,3 +36,11 @@ test('caches, template and build service are named after the repo; a second inst
   const second = createNames({ dataDir: 'C:/Trial', port: 8799 });
   assert.equal(second.cacheVolume('who/app'), `rc-cache-app-${second.mark.split('=')[1]}`);
 });
+
+test('the copy of the runner tools is named after the image; it carries a mark of its own, not the one of the pairs', () => {
+  const first = createNames({ dataDir: 'C:/Data', port: DEFAULT_PORT });
+  assert.equal(first.toolsVolume('0123456789ab'), 'rc-tools-0123456789ab');
+  assert.equal(first.toolsMark, first.mark.replace('runner', 'tools')); // the pairs' leftovers are removed on start; these stay
+  const second = createNames({ dataDir: 'C:/Trial', port: 8799 });
+  assert.equal(second.toolsVolume('0123456789ab'), `rc-tools-0123456789ab-${second.mark.split('=')[1]}`);
+});

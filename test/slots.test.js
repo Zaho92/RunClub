@@ -13,6 +13,7 @@ const REPO = 'owner/App';
 const BASE = 'rc-app-a1b2c3'; // `rc-<repo>-<id>`
 const RUNNER = 'PC-linux-a1b2c3';
 const MARK = 'runclub.runner=test';
+const TOOLS = { image: 'sha256:runner', volume: 'rc-tools-runner' }; // what externals.js prepares
 const LIMITS = { runnerCpus: 6, runnerMemory: '4g', dockerCpus: 4, dockerMemory: '8g' };
 
 // A Docker call in short form: for `run` only the container's name, for the network without the random subnet.
@@ -52,7 +53,7 @@ function world() {
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     timer: (work, ms) => w.timers.push({ work, ms }),
     newId: () => w.newId(),
-    host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234,
+    host: 'PC', mark: MARK, dind: 'dind:test', externals: async () => TOOLS, longTimeout: 1234,
     metrics: { meter: () => ({ finish: () => { w.metered += 1; return { peakMemory: 5 }; } }), recordJob: (repo, record) => w.recorded.push([repo, record]) },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
@@ -125,6 +126,7 @@ test('a job from start to end: build, registration, runner, teardown', async () 
     '--device', '/dev/net/tun', ...SECURITY_FLAGS,
     '--network', BASE, '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',
     '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`, '-v', `${BASE}-docker:/home/rootless/.local/share/docker`,
+    '-v', 'rc-tools-runner:/home/runner/externals:ro', // the runner mounts it into job containers (see externals.js)
     'dind:test', 'dockerd', '--host=unix:///sock/docker.sock']);
   const runner = call(`run ${BASE}-runner`);
   assert.deepEqual(runner.args.slice(0, -1), ['run', '--rm', '-i', '--label', MARK, '--name', `${BASE}-runner`, '--network', `container:${BASE}-dind`,
@@ -134,7 +136,7 @@ test('a job from start to end: build, registration, runner, teardown', async () 
     '-v', `${BASE}-work:/home/runner/_work`, '-v', `${BASE}-sock:/sock`,
     '-v', 'rc-cache-app:/opt/rc-cache', '-e', 'NUGET_PACKAGES=/opt/rc-cache/nuget', '-e', 'npm_config_cache=/opt/rc-cache/npm',
     '-v', 'rc-buildsock-app:/run/rc-buildkit:ro', '--group-add', '1000', '-e', 'RC_BUILDER=rc',
-    'runner:test', 'bash', '-c']);
+    'sha256:runner', 'bash', '-c']); // the image whose tools the daemon carries
   // The registration reaches the runner through the environment, not through the command line.
   assert.match(runner.args.at(-1), /read -r ACTIONS_RUNNER_INPUT_JITCONFIG; export ACTIONS_RUNNER_INPUT_JITCONFIG; exec \.\/run\.sh$/);
   assert.match(runner.args.at(-1), /--driver remote --driver-opt default-load=true unix:\/\/\/run\/rc-buildkit\/buildkitd\.sock /);
@@ -193,7 +195,7 @@ test('during the job the slot has its pair, name and registration; teardown happ
 
 test('a pair from the reserve is taken over, with the limits it was built with', async () => {
   const w = world();
-  const pair = { id: 'ffffff', base: 'rc-app-ffffff', copied: new Set(['node:22']), extras: ['-e', 'X=1'], limits: { ...LIMITS, runnerCpus: 2, runnerMemory: '2g' } };
+  const pair = { id: 'ffffff', base: 'rc-app-ffffff', image: 'sha256:older', copied: new Set(['node:22']), extras: ['-e', 'X=1'], limits: { ...LIMITS, runnerCpus: 2, runnerMemory: '2g' } };
   w.pool.reserve.push({ promise: Promise.resolve(pair) });
   w.answer = (name, args, { onLine }) => { if (name === 'run rc-app-ffffff-runner') onLine('Running job: Build'); };
   await w.slots.serveOneJob(w.pool, w.slot);
@@ -201,7 +203,7 @@ test('a pair from the reserve is taken over, with the limits it was built with',
   assert.deepEqual(w.calls, [REGISTER, 'run rc-app-ffffff-runner', ALIVE('rc-app-ffffff')]);
   const { args } = w.details[0];
   assert.deepEqual(args.slice(args.indexOf('--cpus'), args.indexOf('--cpus') + 4), ['--cpus', '2', '--memory', '2g']);
-  assert.ok(args.join(' ').includes('-e X=1 runner:test'));
+  assert.ok(args.join(' ').includes('-e X=1 sha256:older')); // the image it was built for, even if the name meanwhile carries a newer one
   assert.deepEqual(w.pool.reserve, []);
   assert.deepEqual(w.replenished, [REPO]);
   assert.equal(w.slot.name, 'PC-linux-ffffff');
@@ -607,7 +609,7 @@ test('if something throws during teardown, it goes in the log and the slot carri
   const slots = createSlots({
     docker: async () => ({ code: 0, stdout: '', stderr: '' }), github: { send: async () => null },
     log: (...entry) => w.logs.push(rendered(entry)), sleep: async (ms) => { w.slept.push(ms); await turn(); },
-    host: 'PC', mark: MARK, image: 'runner:test', dind: 'dind:test', longTimeout: 1234, metrics: {},
+    host: 'PC', mark: MARK, dind: 'dind:test', externals: async () => TOOLS, longTimeout: 1234, metrics: {},
     settingsOf: () => w.settings, limitsOf: () => LIMITS, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
     stopping: () => w.stopping, dockerReady: () => true, poolResting: () => true,
     withSeed: (repo, exclusive, work) => work(), learnImages: async () => {}, replenish: () => {}, discardReserve: discard,

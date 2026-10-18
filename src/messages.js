@@ -28,6 +28,7 @@ const EN = {
   m_netFailed: 'Could not create the network: {0}',
   m_volumesFailed: 'Could not prepare the volumes: {0}',
   m_daemonFailed: 'Docker daemon does not start: {0}',
+  m_toolsFailed: 'Could not copy the runner tools for container jobs: {0}',
   m_daemonNotReady: 'Docker daemon did not become ready{0}',
   m_whyNotReady: ' – {0}',
   m_whyNotReadySeccomp: ' – {0} (the seccomp profile linux/seccomp.json may block a call this Docker version needs)',

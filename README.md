@@ -169,6 +169,7 @@ serve the same repos: each unregisters the other's runners at GitHub. Build the 
 | `src/setup.js` | What the machine lacks for Docker while it does not answer: WSL, Docker Desktop installed, started, its engine; starting Docker Desktop |
 | `src/dockerwatch.js` | The Docker watch: prepare as soon as Docker answers, check regularly, build the two own images (runner and Docker daemon), clean up leftovers |
 | `src/dind.js` | The Docker daemon in a container (daemon of a pair, loader daemon of the template): image, user, socket, options for running without privileges, waiting until it answers; the same image as a tool for volumes |
+| `src/externals.js` | The runner's tools (`/home/runner/externals`) for container jobs: a read-only copy per runner image as a volume for the pairs' daemons, older copies removed |
 | `src/slots.js` | Life cycle of a slot: set up a pair, register the runner, serve a job, clean up, abort when idle |
 | `src/pools.js` | Create and prepare a pool, a pool's reserve (refill, renew, tear down), adjust the number of slots, bring a pool to rest |
 | `src/seed.js` | Template of a repo: learn a job's images, refresh the template, lock copying and refreshing against each other |

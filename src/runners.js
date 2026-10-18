@@ -1,4 +1,5 @@
-// Your own Linux runners, wired up: template (seed.js), slots (slots.js), caches and build service (caches.js) and
+// Your own Linux runners, wired up: template (seed.js), slots (slots.js), the runner's tools for container jobs
+// (externals.js), caches and build service (caches.js) and
 // the pools with their reserve (pools.js). Slots and reserve need each other; neither of the two files loads the
 // other, the connection is made here. The slots only learn on use what the pools contribute.
 //
@@ -9,6 +10,7 @@
 const crypto = require('node:crypto');
 const { createSeed } = require('./seed');
 const { createSlots, idleRegistrations } = require('./slots');
+const { createExternals } = require('./externals');
 const { createCaches } = require('./caches');
 const { createPools } = require('./pools');
 const { unregisterRunner } = require('./github');
@@ -42,10 +44,14 @@ function createRunners({
     state: settings.state, saveState: settings.saveState, stopping,
   });
 
+  const externals = createExternals({
+    docker, dockerList, image, mark: names.mark, toolsMark: names.toolsMark, toolsVolume: names.toolsVolume, longTimeout,
+  });
+
   let reserve = null; // the functions from pools.js; they are only created after the slots they need
   const slots = createSlots({
     docker, github, log, sleep, timer, newId,
-    host, mark: names.mark, image, dind, longTimeout, metrics,
+    host, mark: names.mark, dind, externals: externals.prepare, longTimeout, metrics,
     settingsOf, limitsOf, seedVolume: names.seedVolume, cacheVolume: names.cacheVolume, buildSocket: names.buildSocket,
     stopping, dockerReady, poolResting: (pool) => reserve.poolResting(pool),
     withSeed: seed.withSeed, learnImages: seed.learnImages,

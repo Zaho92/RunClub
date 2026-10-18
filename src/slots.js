@@ -26,6 +26,7 @@ const { SECOND, HOUR } = require('./units');
 const { waitForDaemon, whyNotReady, RUNNER_USER, PAIR_SOCKET, DATA_ROOT, DAEMON_FLAGS, DAEMON_COMMAND, asRoot } = require('./dind');
 const { unregisterRunner } = require('./github');
 const { runnerName } = require('./names');
+const { EXTERNALS } = require('./externals');
 const { SLOT, busy } = require('./states');
 
 const ROUND_PAUSE = 5 * SECOND; // after an unexpected error, before the slot tries again
@@ -52,7 +53,8 @@ const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT',
 //   docker(args, options)   like `run('docker', …)`: returns `{ code, stdout, stderr }` and never throws
 //   github                  access to GitHub (see github.js)
 //   log(text, repo, kind, about), sleep(ms), timer (like `setTimeout`), newId() (id of a new pair)
-//   host, mark, image, dind name of the machine, mark of our own containers, image of the runner and of the daemon
+//   host, mark, dind        name of the machine, mark of our own containers, image of the daemon
+//   externals()             the runner image's id and the volume with its tools (`prepare` in externals.js)
 //   longTimeout             time limit for copying the template
 //   metrics                 `{ meter(), recordJob(repo, record) }` (see metrics.js)
 //   settingsOf(repo), limitsOf(repo), seedVolume(repo), cacheVolume(repo), buildSocket(repo)
@@ -62,7 +64,7 @@ const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT',
 //   forgetStats(name)       discard the metrics of a container
 function createSlots({
   docker, github, log, sleep, timer = setTimeout, newId = () => crypto.randomBytes(3).toString('hex'),
-  host, mark, image, dind, longTimeout, metrics,
+  host, mark, dind, externals, longTimeout, metrics,
   settingsOf, limitsOf, seedVolume, cacheVolume, buildSocket,
   stopping, dockerReady, poolResting,
   withSeed, learnImages, replenish, discardReserve, refreshRepo, forgetStats,
@@ -98,10 +100,12 @@ function createSlots({
   // (`replenish` in pools.js); switching to the next job then only costs registration and starting the runner.
   async function provision(pool, cancelled) {
     const limits = limitsOf(pool.repo);
+    // The runner's tools for container jobs, before anything stands that would have to be removed again.
+    const tools = await externals();
     const id = newId();
     const base = `rc-${slug(pool.repo)}-${id}`;
     const label = ['--label', mark];
-    const pair = { id, base, copied: new Set(), extras: [], limits };
+    const pair = { id, base, image: tools.image, copied: new Set(), extras: [], limits };
     livePairs.set(base, pool.repo);
     const giveUp = async (error) => { await removePair(pool.repo, base, null); if (error) throw error; return null; };
 
@@ -123,10 +127,11 @@ function createSlots({
     if (prepared.code !== 0) return giveUp(new Fault('m_volumesFailed', lastLine(prepared.stderr) || msg('m_exitCode', prepared.code)));
 
     // The job's daemon, without privileges (see dind.js): own network, own storage, reachable only through the shared
-    // socket. The work folder sits at the same path in both containers, so `docker run -v "$PWD:..."` is right.
+    // socket. The work folder sits at the same path in both containers, so `docker run -v "$PWD:..."` is right; so do
+    // the runner's tools, which the runner mounts into a job container (see externals.js).
     const daemon = await docker(['run', '-d', ...label, '--name', `${base}-dind`, ...DAEMON_FLAGS, '--network', base,
       '--cpus', String(limits.dockerCpus), '--memory', limits.dockerMemory, '--pids-limit', String(PIDS_MAX), // also applies to the job's containers inside
-      '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:${DATA_ROOT}`,
+      '-v', `${base}-work:/home/runner/_work`, '-v', `${base}-sock:/sock`, '-v', `${base}-docker:${DATA_ROOT}`, '-v', `${tools.volume}:${EXTERNALS}:ro`,
       dind, ...DAEMON_COMMAND]);
     if (daemon.code !== 0) return giveUp(new Fault('m_daemonFailed', lastLine(daemon.stderr)));
     const ready = await waitForDaemon({ docker, sleep, container: `${base}-dind`, host: PAIR_SOCKET, cancelled });
@@ -220,7 +225,7 @@ function createSlots({
       // What a job prints ends up in the container's log in the Docker VM: limited, otherwise it would fill its disk.
       '--log-opt', `max-size=${RUNNER_LOG_MAX}`, '--log-opt', 'max-file=2',
       '-v', `${pair.base}-work:/home/runner/_work`, '-v', `${pair.base}-sock:/sock`, ...pair.extras,
-      image, 'bash', '-c', start], {
+      pair.image, 'bash', '-c', start], {
       timeout: RUNNER_MAX,
       input: `${jit.encoded_jit_config}\n`,
       onLine: follow,

@@ -12,7 +12,7 @@ const LIMITS = { runnerCpus: 2, runnerMemory: '2g', dockerCpus: 2, dockerMemory:
 function world() {
   const w = { calls: [], ready: true, githubFails: () => null, settings: { repo: REPO, parallel: 1, cache: false, paused: false } };
   w.runners = createRunners({
-    docker: async (args) => { w.calls.push(args.slice(0, 2).join(' ')); return { code: 0, stdout: '', stderr: '' }; },
+    docker: async (args) => { w.calls.push(args.slice(0, 2).join(' ')); return { code: 0, stdout: args[0] === 'image' ? 'sha256:runner' : '', stderr: '' }; },
     dockerList: async (args) => { w.calls.push(`list ${args.slice(0, 2).join(' ')}`); return []; },
     github: { send: async (method, url) => { w.calls.push(`send ${method} ${url}`); const fail = w.githubFails(url); if (fail) throw fail; return null; } },
     log: () => {}, sleep: turn, timer: () => {}, newId: () => 'a1',

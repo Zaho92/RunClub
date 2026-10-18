@@ -100,7 +100,7 @@ Steps, in this order:
    (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo. Open: release
    0.1.0 (stable tag only with the user's yes), then drop the “only beta releases” sentence under Installing.
    **Released, signed and installed as v0.1.0-beta.7 on 18.10.2026** (updated from beta.6 through the signed manifest).
-   **Order decided by the user on 18.10.2026:** (a) fix container jobs (“Still open from the reviews”, item 1), release
+   **Order decided by the user on 18.10.2026:** (a) fix container jobs (“Still open from the reviews”, item 1; fixed 18.10.2026), release
    it as beta.8; (b) 0.1.0 on the commit of the approved beta (the user's yes is given), then drop the “only beta
    releases” sentence; (c) repo page: topics, social preview (the user uploads it); (d) move from `TODO.md` to GitHub
    issues, modelled on the Jade flows (`idee-aufnehmen`, `tickets-pflegen`, `issue-umsetzen`); (e) only then promotion.
@@ -196,11 +196,13 @@ Decided on 15.10.2026: the jobs' Docker daemons run without privileges (implemen
 pinned and Dependabot reports new versions (implemented); the Windows localhost stays reachable for the jobs (see
 below). Still open:
 
-1. **Container jobs (`container:` in the workflow) fail** (found 16.10.2026 while testing the seccomp profile, likewise
-   with `seccomp=unconfined`, i.e. ever since the daemons run without privileges): the runner mounts
-   `/home/runner/externals` and other folders outside `_work` into the job container; they do not exist in the daemon
-   container, and the daemon without privileges may not create them (`mkdir /home/runner: permission denied`).
-   Solution still open (such as these folders as a volume in both containers, like `_work`).
+Nothing at the moment. Fixed last: **container jobs (`container:` in the workflow)** (found 16.10.2026, fixed
+18.10.2026, `src/externals.js`). Of the folders the runner mounts into a job container, only `/home/runner/externals`
+lies outside `_work` (runner 2.338.0). It now comes as a read-only volume with a copy from the runner image (once per
+image, about 8 s, stays across restarts) into the daemon container at the same path; a pair runs its runner from that
+very image (by id). Tried for real without GitHub: daemon and runner container as in a pair, job container with all of
+the runner's mounts, `node` from `/__e` runs, files in the workspace belong to the runner. Still to see for real: a
+workflow with `container:` on beta.8.
 
 Deliberately left as is:
 
