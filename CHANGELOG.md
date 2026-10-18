@@ -11,6 +11,13 @@ version (`0.2.0`), or with `Unreleased` as long as that does not exist yet.
 - `CHANGELOG.md`; releases take their notes from it.
 - Issue forms for bug reports, `CONTRIBUTING.md`.
 
+### Security
+
+- Caches and template of a removed pool that could not be deleted no longer reach a new pool for another repo with the
+  same name: they are deleted before it starts, or the pool is not created.
+- The updater accepts a public key only under its own id, and `npm run release` signs only while the keys the app
+  loads are the ones written in `src/signature.js`.
+
 ## [0.1.0] - 2026-10-18
 
 The first release. It sums up the betas `0.1.0-beta.1` to `0.1.0-beta.8`; `0.1.0` is the same commit as `0.1.0-beta.8`.
@@ -48,7 +55,7 @@ The first release. It sums up the betas `0.1.0-beta.1` to `0.1.0-beta.8`; `0.1.0
 - Pools only for private repos. A pool pauses when its repo becomes public, or when an organization repo allows
   workflows from fork pull requests (checked on creation, on start and every 10 minutes); details in `SECURITY.md`.
 - The jobs' Docker daemons run rootless with a seccomp profile of their own; runners drop capabilities, get their
-  registration through the environment instead of the command line, and have a deadline and a capped log. Images that
+  registration through standard input instead of the environment or the command line, and have a deadline and a capped log. Images that
   run with more rights are pinned by digest.
 - Updates are signed: every release carries an Ed25519-signed manifest, and the updater refuses anything unsigned,
   older or bigger than signed. Releases are built and signed only on the maintainer's machine, never in CI.

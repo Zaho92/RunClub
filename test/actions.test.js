@@ -34,7 +34,7 @@ function world({ pools: repos = [REPO] } = {}) {
     renewReserve: (pool) => w.calls.push(`renewReserve ${pool.repo}`),
     staleCount: () => w.stale,
     rebuildIdle: async (pool) => w.calls.push(`rebuildIdle ${pool.repo}`),
-    caches: { removeCaches: async (repo, parts) => { w.calls.push(`removeCaches ${repo} ${Object.keys(parts).filter((key) => parts[key]).join('+')}`); if (w.cachesFail) throw new Error(w.cachesFail); }, prepareCaches: call('prepareCaches'), measureSizes: async (pool) => w.calls.push(`measureSizes ${pool.repo}`) },
+    caches: { removeCaches: async (repo, parts) => { w.calls.push(`removeCaches ${repo} ${Object.keys(parts).filter((key) => parts[key]).join('+')}`); await w.cachesGate; if (w.cachesFail) throw new Error(w.cachesFail); }, prepareCaches: call('prepareCaches'), measureSizes: async (pool) => w.calls.push(`measureSizes ${pool.repo}`) },
     seed: { forget: call('forgetSeed'), refreshSeed: call('refreshSeed') },
   };
   const { actions, guard } = createActions({
@@ -79,8 +79,28 @@ test('pool/add creates the pool under the repo name as GitHub spells it, starts 
   await w.actions['pool/add']({ repo: 'owner/new', parallel: 99 });
   await until(() => w.calls.includes('routing.set Owner/New true'));
   assert.deepEqual(w.settings.config.pools, [{ repo: 'Owner/New', parallel: PARALLEL_MAX, cache: true, paused: false, preload: [] }]);
-  assert.deepEqual(w.calls.slice(0, 6), ['get repos/owner/new', 'waiting.forget Owner/New', 'markChecked Owner/New', 'startPool Owner/New', 'refreshAll', 'routing.check Owner/New']);
+  assert.deepEqual(w.calls.slice(0, 8), ['get repos/owner/new', 'removeCaches Owner/New packages+build', 'forgetSeed Owner/New', 'waiting.forget Owner/New', 'markChecked Owner/New', 'startPool Owner/New', 'refreshAll', 'routing.check Owner/New']);
   assert.deepEqual(w.logs.map(([text]) => text), ['Pool created', 'CI_RUNNER set – jobs run on your own runners']);
+});
+
+test('pool/add removes what a removed pool of the same name left behind; if that fails, there is no pool', async () => {
+  const w = world({ pools: [] });
+  w.info = { full_name: 'alice/app', permissions: { admin: true }, private: true };
+  w.cachesFail = 'volume is in use';
+  await assert.rejects(w.actions['pool/add']({ repo: 'alice/app', parallel: 1 }), /volume is in use/);
+  assert.deepEqual(w.settings.repos(), []);
+  assert.equal(w.calls.some((name) => name.startsWith('startPool')), false);
+  // The name is free again afterwards, and while the leftovers are being removed a second request finds it taken.
+  delete w.cachesFail;
+  let open;
+  w.cachesGate = new Promise((resolve) => { open = resolve; });
+  const first = w.actions['pool/add']({ repo: 'alice/app', parallel: 1 });
+  await until(() => w.calls.includes('removeCaches alice/app packages+build'));
+  w.info = { full_name: 'bob/app', permissions: { admin: true }, private: true };
+  await assert.rejects(w.actions['pool/add']({ repo: 'bob/app', parallel: 1 }), /same name/);
+  open();
+  await first;
+  assert.deepEqual(w.settings.repos(), ['alice/app']);
 });
 
 test('pool/set: slots capped, pausing ends idle pairs and the reserve, a changed cache is provided at rest', async () => {

@@ -27,10 +27,10 @@ const SPKI = Buffer.from('302a300506032b6570032100', 'hex');
 
 // The public keys of this app, written by scripts/keygen.js. Key id → raw public key (Base64).
 // KEYS-BEGIN
-const KEYS = {
+const KEYS = Object.freeze({
   '62cfc22c9dc3fffb': '4FybMdVUfnwfWQRgo7cK6X0btcCmOm40QTxR3HjNFpA=', // primary
   'f9010f22fefbca1f': 'asy7ws843K5MyYyzh8viI/ZOyPMAVGj4w/KiYkr9D9E=', // backup
-};
+});
 // KEYS-END
 
 // The raw 32 bytes of a public key; from a private key its public half.
@@ -57,8 +57,9 @@ function verify(bytes, signatureText, keys = KEYS) {
   let signature;
   try { signature = JSON.parse(String(signatureText)); } catch { throw new Fault('m_sigUnreadable'); }
   const raw = typeof signature?.key === 'string' && Object.hasOwn(keys, signature.key) ? Buffer.from(keys[signature.key], 'base64') : null;
+  // A key counts only under its own id: one swapped in under a trusted id is unknown.
   // The id comes from outside and goes into the log: only what a key id can consist of.
-  if (!raw) throw new Fault('m_sigUnknownKey', String(signature?.key ?? '').replace(/[^0-9a-f]/g, '').slice(0, 16) || '–');
+  if (!raw || keyId(raw) !== signature.key) throw new Fault('m_sigUnknownKey', String(signature?.key ?? '').replace(/[^0-9a-f]/g, '').slice(0, 16) || '–');
   const sig = typeof signature.sig === 'string' ? Buffer.from(signature.sig, 'base64') : Buffer.alloc(0);
   let valid = false;
   try { valid = sig.length === 64 && crypto.verify(null, Buffer.concat([PREFIX, bytes]), publicKey(raw), sig); } catch { valid = false; }

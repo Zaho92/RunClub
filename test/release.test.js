@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { chooseTag, keysOf, missingAssets, releaseNotes } = require('../scripts/release');
+const { chooseTag, keysOf, loadedKeysDiffer, missingAssets, releaseNotes } = require('../scripts/release');
+const { KEYS } = require('../src/signature');
 const { isInside } = require('../scripts/keygen');
 const { feed } = require('../scripts/passphrase');
 
@@ -21,6 +22,18 @@ test('the public keys are read from a version of src/signature.js', () => {
   assert.deepEqual(keysOf(source), ['77f6c0986c055679:paLybVUy9dRh7Ujbgjd3sRoyOfQzLD9hyrEZL3jowg0=', 'bb96cfd4c0157b4b:gtX1B9OLeP8YpAjpM9DUweqEEsqtwOjAsvr1Cz8++4E=']);
   assert.deepEqual(keysOf('// KEYS-BEGIN\nconst KEYS = {};\n// KEYS-END'), []);
   assert.deepEqual(keysOf(''), []);
+});
+
+test('the release signs only if the loaded keys are the written ones, each under its own id', () => {
+  const written = keysOf(require('node:fs').readFileSync(path.join(__dirname, '..', 'src', 'signature.js'), 'utf8'));
+  assert.equal(loadedKeysDiffer(KEYS, written), null);
+  const [[primary], [backup, backupKey]] = Object.entries(KEYS);
+  // Another key under the backup's id: the count stays two, the text block is unchanged.
+  assert.match(loadedKeysDiffer({ ...KEYS, [backup]: KEYS[primary] }, written), /other keys/);
+  const swapped = { [primary]: backupKey, [backup]: backupKey };
+  const block = `// KEYS-BEGIN\n${Object.entries(swapped).map(([id, key]) => `'${id}': '${key}'`).join('\n')}\n// KEYS-END`;
+  assert.match(loadedKeysDiffer(swapped, keysOf(block)), new RegExp(`do not belong to their key: ${primary}$`));
+  assert.ok(Object.isFrozen(KEYS));
 });
 
 test('a draft is only published with installer, manifest and signature in the right size', () => {

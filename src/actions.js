@@ -62,7 +62,7 @@ function createActions({ github, settings, runners, remote, routing, waiting, me
 
   // Tear down a pool after it has gone from the settings: delete caches and template, route the jobs back
   // to GitHub's runners, discard registrations at GitHub and what was learned. Even if a step fails, the
-  // name becomes free again at the end.
+  // name becomes free again at the end; what is left over goes when a pool takes the name again (see 'pool/add').
   async function retire(repo, pool) {
     try {
       // First the pool rests: whatever still works on caches and template finishes and creates nothing afterwards.
@@ -128,6 +128,7 @@ function createActions({ github, settings, runners, remote, routing, waiting, me
     if (pool && !pool.removed) rest(repo, pool);
   }
 
+  const adding = new Set(); // repos whose pool is being created (see 'pool/add')
   const actions = {
     async 'pool/add'({ repo, parallel }) {
       if (!REPO_NAME.test(String(repo))) throw new Fault('m_repoName');
@@ -138,12 +139,20 @@ function createActions({ github, settings, runners, remote, routing, waiting, me
       // An org repo in which workflows from forks may run gets no pool (see forks.js).
       const forks = await forkExposure(github, info.full_name, info);
       if (forks.exposed) throw new Fault('m_forksRefused', forks.reason, FORKS_HOW);
-      // Check only here, with the name as GitHub writes it, and without further waiting until the entry:
-      // otherwise a different spelling or two requests in quick succession would create a second pool.
-      const taken = [...settings.repos(), ...pools.keys()];
+      // Check only here, with the name as GitHub writes it, and count it as taken from then on: otherwise a
+      // different spelling or two requests in quick succession would create a second pool.
+      const taken = [...settings.repos(), ...pools.keys(), ...adding];
       if (taken.some((other) => sameRepo(other, info.full_name))) throw new Fault(pools.get(info.full_name)?.removed ? 'm_poolRemoving' : 'm_poolExists');
       const clash = clashes(info.full_name, taken);
       if (clash) throw new Fault('m_nameClash', clash);
+      // Caches and template under this name can only be left over from a removed pool whose volumes could not be
+      // deleted, perhaps of another repo with the same name (see `slug` in images.js). A job must not get them: they
+      // go first, and if they can't, there is no pool. Meanwhile the name counts as taken.
+      adding.add(info.full_name);
+      try {
+        await runners.caches.removeCaches(info.full_name, { packages: true, build: true });
+        await runners.seed.forget(info.full_name);
+      } finally { adding.delete(info.full_name); }
       settings.addPool(info.full_name, parallel);
       waiting.forget(info.full_name);
       log(msg('m_poolAdded'), info.full_name);

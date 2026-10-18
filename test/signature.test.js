@@ -105,6 +105,17 @@ test('the errors read as sentences', () => {
   assert.throws(() => verify(bytes, sign(bytes, pair().privateKey), primary.keys), (failure) => /unknown key/.test(render(failure.msg)));
 });
 
+test('a key under a foreign id is unknown', () => {
+  const signer = pair();
+  const other = pair();
+  const bytes = manifestBytes(fields());
+  const [id] = Object.keys(signer.keys);
+  // The trusted id names the other key's bytes: the signature by that other key must not pass.
+  const keys = { [id]: Object.values(other.keys)[0] };
+  const forged = JSON.stringify({ key: id, sig: JSON.parse(sign(bytes, other.privateKey)).sig });
+  assert.throws(() => verify(bytes, forged, keys), (failure) => failure.msg.key === 'm_sigUnknownKey');
+});
+
 // That there are two (primary and backup) is checked by scripts/release.js before it builds.
 test('every key the app carries is a valid Ed25519 public key under its id', () => {
   for (const id of Object.keys(KEYS)) {

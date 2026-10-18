@@ -44,6 +44,16 @@ function keysOf(source) {
   return [...block.matchAll(/'([0-9a-f]{16})':\s*'([A-Za-z0-9+/=]+)'/g)].map((m) => `${m[1]}:${m[2]}`).sort();
 }
 
+// Whether the keys the app loads (`signature.KEYS`) are exactly those written in the block (`keysOf`), each under its
+// own id: a change at runtime or a key under a foreign id would otherwise pass the comparison of the text. Returns an
+// error text or null.
+function loadedKeysDiffer(keys, written) {
+  const loaded = Object.entries(keys).map(([id, key]) => `${id}:${key}`).sort();
+  if (loaded.join() !== written.join()) return `src/signature.js loads other keys than its KEYS block names:\n  loaded:  ${loaded.join(', ')}\n  written: ${written.join(', ')}`;
+  const foreign = Object.entries(keys).filter(([id, key]) => signature.keyId(Buffer.from(key, 'base64')) !== id).map(([id]) => id);
+  return foreign.length ? `In src/signature.js these ids do not belong to their key: ${foreign.join(', ')}` : null;
+}
+
 // All releases of the repo, every page, one object per line from gh.
 function releaseList(gh, repo) {
   const lines = gh('api', '--paginate', `repos/${repo}/releases?per_page=100`, '--jq', '.[] | {id, tag_name, draft, assets: [.assets[] | {name, size}]}');
@@ -120,6 +130,8 @@ function main() {
   // Two keys, and the ones noted outside the repo unless the change is intended.
   if (Object.keys(signature.KEYS).length !== 2) fail('src/signature.js needs the primary and the backup public key (node scripts/keygen.js).');
   const now = keysOf(fs.readFileSync(path.join(root, 'src', 'signature.js'), 'utf8'));
+  const differ = loadedKeysDiffer(signature.KEYS, now);
+  if (differ) fail(differ);
   let trusted = null;
   try { trusted = JSON.parse(fs.readFileSync(TRUSTED, 'utf8')); } catch { trusted = null; }
   if (!Array.isArray(trusted) || trusted.slice().sort().join() !== now.join()) {
@@ -198,4 +210,4 @@ async function signAndPublish({ tag, version, repo, keyFile, bytes, exe, install
 
 if (require.main === module) Promise.resolve().then(main).then(signAndPublish).catch((failure) => { console.error(failure.message); process.exit(1); });
 
-module.exports = { chooseTag, keysOf, missingAssets, releaseNotes };
+module.exports = { chooseTag, keysOf, loadedKeysDiffer, missingAssets, releaseNotes };
