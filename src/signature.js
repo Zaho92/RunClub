@@ -27,7 +27,10 @@ const SPKI = Buffer.from('302a300506032b6570032100', 'hex');
 
 // The public keys of this app, written by scripts/keygen.js. Key id → raw public key (Base64).
 // KEYS-BEGIN
-const KEYS = {};
+const KEYS = {
+  '62cfc22c9dc3fffb': '4FybMdVUfnwfWQRgo7cK6X0btcCmOm40QTxR3HjNFpA=', // primary
+  'f9010f22fefbca1f': 'asy7ws843K5MyYyzh8viI/ZOyPMAVGj4w/KiYkr9D9E=', // backup
+};
 // KEYS-END
 
 // The raw 32 bytes of a public key; from a private key its public half.
