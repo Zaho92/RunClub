@@ -5,8 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { createUpdater, pickRelease, FILE } = require('../src/updater');
-const { releaseRepo } = require('../src/versions');
-const { compareVersions, channelOf } = require('../src/versions');
+const { compareVersions, channelOf, releaseRepo } = require('../src/versions');
 const { manifestBytes, sign, keyId, rawPublicKey } = require('../src/signature');
 const { render } = require('../src/messages');
 

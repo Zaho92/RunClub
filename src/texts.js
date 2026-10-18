@@ -14,10 +14,12 @@ function literal(html, name) {
   return found ? new Function(`return ${found[1]};`)() : null;
 }
 
-// `t(key, ...args)` in a language (`de` or `en`, otherwise English), with placeholders `{0}` as in ui.html. Without
-// the tables (their layout changed; test/states.test.js notices) the keys show instead of a broken tray.
+// `t(key, ...args)` in a language (`de` or `en`, otherwise English), with placeholders `{0}` as in ui.html. If the
+// tables can't be read (their layout changed; test/states.test.js notices), the keys show instead of a broken tray.
 function textsIn(lang, html = fs.readFileSync(UI, 'utf8')) {
-  const tables = literal(html, 'TEXT') ?? {};
+  let tables = null;
+  try { tables = literal(html, 'TEXT'); } catch { tables = null; }
+  tables ??= {};
   const table = tables[lang] ?? tables.en ?? {};
   return (key, ...args) => (table[key] ?? key).replace(/\{(\d)\}/g, (_, i) => args[i]);
 }

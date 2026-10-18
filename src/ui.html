@@ -939,6 +939,9 @@ function renderRail() {
 // hairline; if Docker fails later, it is a fault with a way out. The link leads to Docker's guide (main.js opens it in the browser).
 const DOCKER_INSTALL = 'https://docs.docker.com/desktop/setup/install/windows-install/';
 const setupMissing = () => data.machine.docker.setup?.missing ?? [];
+// A pool needs Docker (it first clears what a removed pool of the same name left behind): until then its buttons
+// stay hoverable and give the reason (DESIGN.md, “Disabled with a reason”). `tip` is the usual tooltip.
+const addGate = (tip = '') => (data.machine.docker.ready ? (tip ? ' data-tip="' + esc(tip) + '"' : '') : ' aria-disabled="true" data-tip="' + esc(t('m_poolNeedsDocker')) + '"');
 function setupRows(first) {
   const row = (key, hint, control) => '<div class="arow' + (first ? ' bare' : '') + '"><div><b' + (first ? '' : ' class="c-fail"') + '>' + esc(t('su_' + key)) + '</b>' + info(t('su_' + key), t('su_' + key + 'Info')) +
     '<div class="note' + (first ? '' : ' strong') + '">' + hint + '</div></div>' + control + '</div>';
@@ -1182,7 +1185,7 @@ function unservedRows() {
     const row = entry.reason === 'minutes' ? { state: 'fail', text: 'noMinutes', count: entry.runs, tip: t('noMinutesTip') } : { state: 'wait', text: 'unserved', count: entry.jobs.length, tip: entry.jobs.join(', ') };
     return '<div class="quiet"><a class="who s-' + row.state + '"' + githubHref(entry.url) + ' data-tip="' + esc(entry.repo) + '">' + icon(row.state) + esc(shortRepo(entry.repo)) + '</a>' +
       '<div class="what" data-tip="' + esc(row.tip) + '">' + esc(t(row.text + (row.count === 1 ? 'One' : 'Many'), row.count, span(secondsSince(entry.since)))) + '</div>' +
-      '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
+      '<button class="btn" data-pick="' + esc(entry.repo) + '"' + addGate() + '>' + glyph('plus') + t('addButton') + '</button></div>';
   }).join('');
 }
 
@@ -1481,8 +1484,8 @@ function renderSettings() {
   // Suggestions only where a pool is possible (see `free` in listRepos).
   const free = (repoList ?? []).filter((r) => r.free);
   const add = '<div class="addrow"><span>' + t('add') + '</span><form id="add"><input type="text" id="addRepo" class="grow" list="repoList" placeholder="' + t('addPlaceholder') + '" aria-label="' + t('add') + '" autocomplete="off" spellcheck="false">' +
-    '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit">' + glyph('plus') + t('addButton') + '</button></form>' +
-    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '" data-tip="' + esc(t('addQuickTip', r.repo)) + '">' + esc(shortRepo(r.repo)) + '</button>').join('') + (free.length ? '</span>' : '') + installNote() + '</div><div class="note">' + esc(t('addHint')) + '</div>';
+    '<datalist id="repoList">' + free.map((r) => '<option value="' + esc(r.repo) + '">').join('') + '</datalist><button class="btn" type="submit"' + addGate() + '>' + glyph('plus') + t('addButton') + '</button></form>' +
+    (free.length ? '<span class="quick"><span class="note">' + t('addQuick') + '</span>' : '') + free.slice(0, 3).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '"' + addGate(t('addQuickTip', r.repo)) + '>' + esc(shortRepo(r.repo)) + '</button>').join('') + (free.length ? '</span>' : '') + installNote() + '</div><div class="note">' + esc(t('addHint')) + '</div>';
 
   // --- Limits per job: what all slots together may use, measured against the Docker VM ---
   // With the cache switched on, each project runs a build service with the Docker limit, even while the pool is paused.
@@ -1590,7 +1593,7 @@ function renderEmpty() {
     return;
   }
   put(main, '<div class="stack empty">' + viewHead(t('firstTitle'), t('firstText'), '', info(t('firstTitle'), t('projectsInfo'))) + '<div class="row">' +
-    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '">' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div>' + installNote() + '<div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
+    (repoList ?? []).filter((r) => r.free).slice(0, 8).map((r) => '<button class="btn" data-pick="' + esc(r.repo) + '"' + addGate() + '>' + glyph('plus') + esc(r.repo) + '</button>').join('') + '</div>' + installNote() + '<div class="note">' + esc(t('addHint')) + '</div>' + setup + '</div>');
 }
 
 // --- Quit ---
@@ -1724,7 +1727,7 @@ document.addEventListener('click', async (event) => {
   const set = event.target.closest('[data-set]');
   if (set) { if (set.dataset.set === 'mode') mode = set.dataset.value; else lang = set.dataset.value; store.set(set.dataset.set, set.dataset.value); document.getElementById('main').dataset.shape = ''; render(); return; }
   const pick = event.target.closest('[data-pick]');
-  if (pick) { pick.disabled = true; if (!await addPool(pick.dataset.pick)) pick.disabled = false; return; }
+  if (pick) { if (pick.getAttribute('aria-disabled') === 'true') return; pick.disabled = true; if (!await addPool(pick.dataset.pick)) pick.disabled = false; return; }
   const opener = event.target.closest('[data-open-repo]');
   if (opener) { openRepo = openRepo === opener.dataset.openRepo ? '' : opener.dataset.openRepo; store.set('open', openRepo); render(); return; }
   const dot = event.target.closest('[data-stop]');
@@ -1753,7 +1756,7 @@ document.addEventListener('click', async (event) => {
   if (done && action.endsWith('/rerun')) { restarted.set(body.repo + '/' + body.id, Date.now()); toast(t('rerunDone')); render(); return; } // on GitHub the run only reappears after a moment
   el.removeAttribute('aria-disabled');
 });
-document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
+document.addEventListener('submit', async (event) => { if (event.target.id !== 'add') return; event.preventDefault(); if (event.target.querySelector('[aria-disabled="true"]')) return; const input = document.getElementById('addRepo'); if (await addPool(input.value.trim())) { input.value = ''; render(); } });
 document.addEventListener('change', async (event) => {
   if (event.target.id === 'autostart') { call('app/autostart', { on: event.target.checked }); return; }
   if (!event.target.dataset?.limit || !draft) return;

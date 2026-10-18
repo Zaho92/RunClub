@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { SLOT } = require('../src/states');
+const { SLOT, countRunners } = require('../src/states');
 const { EN } = require('../src/messages');
 const auth = require('../src/auth');
 const { literal: read, textsIn } = require('../src/texts');
@@ -17,6 +17,13 @@ function literal(name) {
 }
 const TEXT = literal('TEXT');
 const placeholders = (text) => [...new Set(text.match(/\{\d\}/g) ?? [])].sort();
+
+test('runners are counted per state across all projects', () => {
+  const status = { repos: [{ runners: [{ state: SLOT.WORKING }, { state: SLOT.READY }] }, { runners: [{ state: SLOT.WORKING }] }, { runners: [] }] };
+  assert.equal(countRunners(status, SLOT.WORKING), 2);
+  assert.equal(countRunners(status, SLOT.READY), 1);
+  assert.equal(countRunners({ repos: [] }, SLOT.WORKING), 0);
+});
 
 test('every slot state has a word in the interface in both languages', () => {
   for (const lang of ['de', 'en']) {
@@ -41,6 +48,7 @@ test('the tray icon has its texts in both languages, with the same placeholders'
   assert.equal(textsIn('de')('tray_count', 2, 3), 'RunClub – 2 arbeiten, 3 bereit');
   assert.equal(textsIn('fr')('tray_open'), 'Open RunClub');
   assert.equal(textsIn('de', '<script>const TEXT = changed;</script>')('tray_open'), 'tray_open');
+  assert.equal(textsIn('de', '<script>const TEXT = { de: { tray_open: } };</script>')('tray_open'), 'tray_open');
 });
 
 test('every backend message is in the interface in English as in the backend and in German with the same placeholders', () => {

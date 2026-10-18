@@ -15,10 +15,9 @@ concurrency:
 jobs:
   tests:
     name: Syntax and tests
-    # Our own runners if the repo variable CI_RUNNER is set (see README), otherwise GitHub's. Pull requests from forks
-    # are kept on GitHub's as a second line only: a fork's pull request brings its own copy of this file. The real
-    # guard is that RunClub never pools a public repo, so this one has no runners of ours.
-    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
+    # GitHub's runners: the repo is public, and RunClub never pools a public repo (so `CI_RUNNER`, see README, has
+    # nothing to switch to here). A fork's pull request brings its own copy of this file anyway.
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
