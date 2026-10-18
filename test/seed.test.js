@@ -133,10 +133,10 @@ test('refreshing pulls what is wanted, removes what is outdated and records what
     `stop ${LOADER}`, `rm -v ${LOADER}`,
   ]);
   const loader = w.details.find((call) => call.name === `run ${LOADER}`).args;
-  // Without privileges like the daemon of a pair; a template from the time with privileges is cleared once first.
+  // Without privileges like the daemon of a pair.
   assert.deepEqual(loader, ['run', '-d', '--label', MARK, '--name', LOADER, ...DAEMON_FLAGS, '-v', `${SEED}:${DATA_ROOT}`, 'dind:test', ...DAEMON_COMMAND]);
   assert.deepEqual(w.details.find((call) => call.name === 'run prepare').args, ['run', '--rm', '-v', `${SEED}:/d`, '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c',
-    '[ "$(stat -c %u /d)" = 1001 ] || { find /d -mindepth 1 -delete; chown 1001:1001 /d; }']);
+    'chown 1001:1001 /d']);
   assert.equal(loader.includes('--privileged'), false);
   assert.equal(w.details.find((call) => call.name === 'exec pull fixed:1').options.timeout, 1234);
   assert.deepEqual([...w.pool.seeded], ['fixed:1', 'new:1']);

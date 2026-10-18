@@ -67,9 +67,9 @@ test('preparing creates the package cache, network and unprivileged build servic
   assert.deepEqual(args('run cache'),
     ['run', '--rm', '-v', 'rc-cache-app:/c', '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c', 'mkdir -p /c/nuget /c/npm && chown 1001:1001 /c /c/nuget /c/npm']);
   assert.deepEqual(args('network create rc-buildnet-app').slice(-3), ['--label', 'runclub.service=test', 'rc-buildnet-app']);
-  // Build layers of the earlier privileged service belong to root: they are cleared, then both volumes belong to the service.
+  // Both volumes belong to the user of the service.
   assert.deepEqual(args('run volumes'), ['run', '--rm', '-v', 'rc-build-app:/b', '-v', 'rc-buildsock-app:/s', '--user', '0', '--entrypoint', 'sh', 'dind:test', '-c',
-    '[ "$(stat -c %u /b)" = 1000 ] || find /b -mindepth 1 -delete; chown 1000:1000 /b /s']);
+    'chown 1000:1000 /b /s']);
   assert.deepEqual(args('run rc-buildkit-app', 'inspect running rc-buildkit-app'),
     ['run', '-d', '--name', 'rc-buildkit-app', '--label', 'runclub.service=test', '--label', `runclub.limits=${KEY_OLD}`,
       '--restart', 'no', '--network', 'rc-buildnet-app', '--cpus', '4', '--memory', '8g', '--pids-limit', '8192',

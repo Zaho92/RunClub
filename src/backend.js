@@ -162,7 +162,7 @@ function start({
       { image: DAEMON_IMAGE, dir: path.join(__dirname, '..', 'linux', 'dind'), args: ['--build-arg', `BASE=${DIND}`], what: 'm_imageDaemon' },
     ],
     requiredImages: [BUILDKIT], longTimeout: DOCKER_LONG,
-    unreachable: engine.unreachable, exposure: engine.exposure, buildService: names.buildService, buildNetwork: names.buildNetwork,
+    unreachable: engine.unreachable, exposure: engine.exposure,
     livePairs: runners.slots.livePairs, repos: settings.repos, pools: () => runners.pools.values(), preparePool: runners.preparePool,
     stopping: isStopping, onReady: usage.onDockerReady, onAlive: usage.onDockerAlive,
   });

@@ -286,26 +286,11 @@ test('if a new state could not be moved into place, it applies at the next start
   assert.equal(await env.make().token(), 'ghu_token_number_2');
 });
 
-test('a newer draft left behind under the legacy name `.neu` still applies at the start', async () => {
-  const { file, make } = fake({ stored: STORED });
-  fs.writeFileSync(`${file}.neu`, secrets.encrypt(Buffer.from(JSON.stringify({ ...STORED, token: 'ghu_legacy_draft' }))));
-  fs.utimesSync(`${file}.neu`, new Date(), new Date(Date.now() + 1000));
-  assert.equal(await make().token(), 'ghu_legacy_draft');
-});
-
-test('an older draft left behind under the legacy name `.neu` does not displace the saved state', async () => {
-  const { file, make } = fake({ stored: STORED });
-  fs.writeFileSync(`${file}.neu`, secrets.encrypt(Buffer.from(JSON.stringify({ ...STORED, token: 'ghu_legacy_draft' }))));
-  fs.utimesSync(`${file}.neu`, new Date(0), new Date(0));
-  assert.equal(await make().token(), 'ghu_saved_one');
-});
-
-test('signing out also deletes a leftover draft, under the new and the legacy name', async () => {
+test('signing out also deletes a leftover draft', async () => {
   const { auth, file } = fake({ stored: STORED });
-  for (const name of [`${file}.new`, `${file}.neu`]) fs.writeFileSync(name, secrets.encrypt(Buffer.from(JSON.stringify(STORED))));
+  fs.writeFileSync(`${file}.new`, secrets.encrypt(Buffer.from(JSON.stringify(STORED))));
   await auth.logout();
   assert.equal(fs.existsSync(`${file}.new`), false);
-  assert.equal(fs.existsSync(`${file}.neu`), false);
   assert.equal(fs.existsSync(file), false);
 });
 

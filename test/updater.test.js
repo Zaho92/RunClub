@@ -66,8 +66,8 @@ function world(t, { current = '0.1.0', packaged = true, releases = [], files = {
   return w;
 }
 
-// A release with installer, latest.yml, signed manifest and signature. `manifest` overrides fields of the manifest,
-// `key` signs with another key, `without` leaves out files, `content` replaces the installer after signing.
+// A release with installer, latest.yml (older releases carry it; it is ignored), signed manifest and
+// signature. `manifest` overrides fields of the manifest, `key` signs with another key, `without` leaves out files, `content` replaces the installer after signing.
 function release(w, version, { prerelease = false, manifest = {}, key = signer.privateKey, without = [], content } = {}) {
   const exe = `RunClub-Setup-${version}.exe`;
   const signed = `Installer ${version}`;

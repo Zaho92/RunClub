@@ -69,10 +69,10 @@ function createSeed({
       if (!wanted.length) { await docker(['volume', 'rm', '-f', seed]); if (pool) pool.seeded = new Set(); return; }
       log(msg('m_seedRefresh', wanted.length), repo);
       await docker(['volume', 'create', seed]);
-      // The loader daemon runs without privileges like the daemon of a pair (see dind.js), otherwise the template would
-      // be no use to it. A template from the time when the daemons had privileges belongs to root: it is cleared once.
+      // The loader daemon runs without privileges like the daemon of a pair (see dind.js), so the template must belong
+      // to its user.
       await docker(['run', '--rm', '-v', `${seed}:/d`, ...asRoot(dind),
-        `[ "$(stat -c %u /d)" = ${RUNNER_USER} ] || { find /d -mindepth 1 -delete; chown ${RUNNER_USER}:${RUNNER_USER} /d; }`]);
+        `chown ${RUNNER_USER}:${RUNNER_USER} /d`]);
       await docker(['run', '-d', '--label', mark, '--name', loader, ...DAEMON_FLAGS, '-v', `${seed}:${DATA_ROOT}`, dind, ...DAEMON_COMMAND]);
       const ready = await waitForDaemon({ docker, sleep, container: loader, host: PAIR_SOCKET, cancelled: stopping });
       // If RunClub is ending, the waiting was only cancelled, no error. The loader container goes right away anyway:

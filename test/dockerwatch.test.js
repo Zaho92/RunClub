@@ -44,7 +44,6 @@ function world() {
     sleep: async (ms) => { w.slept.push(ms); await w.onSleep(ms); },
     host: 'PC', mark: MARK, serviceMark: SERVICE_MARK, builds: BUILDS, requiredImages: ['buildkit:test'], longTimeout: 1234,
     unreachable, exposure: async () => w.exposure ?? null,
-    buildService: (repo) => `rc-buildkit-${repo.split('/')[1].toLowerCase()}`, buildNetwork: (repo) => `rc-buildnet-${repo.split('/')[1].toLowerCase()}`,
     livePairs: w.livePairs, repos: () => w.repos, pools: () => w.pools,
     preparePool: async (pool) => { w.prepared.push(pool.repo); assert.equal(pool.prepared, false); },
     stopping: () => w.stopping,
@@ -63,9 +62,7 @@ async function loopFor(w, rounds, each = () => {}) {
 const PREPARE = [
   'info --format {{.NCPU}} {{.MemTotal}}', ...BUILT, 'pull -q buildkit:test',
 ];
-const NAMED = (repo) => [`rm -f rc-buildkit-${repo}`, `network inspect rc-buildnet-${repo} --format {{range .Containers}}{{println .Name}}{{end}}`, `network rm rc-buildnet-${repo}`];
 const LEFTOVERS = [
-  ...NAMED('app'),
   `ps -aq --filter label=${MARK}`, `ps -aq --filter label=${SERVICE_MARK}`, `volume ls -q --filter label=${MARK}`,
   `network ls -q --filter label=${MARK}`, `network ls -q --filter label=${SERVICE_MARK}`, 'get repos/owner/App/actions/runners?per_page=100',
 ];
@@ -199,7 +196,6 @@ test('leftovers of an earlier run: everything labelled including build services,
   await w.watch.removeLeftovers((name, count) => w.calls.push(`step ${name}${count === undefined ? '' : ` ${count}`}`));
   assert.deepEqual(w.calls, [
     'step cleanup',
-    ...NAMED('app'), ...NAMED('two'), // older versions created them without a label
     `ps -aq --filter label=${MARK}`, `ps -aq --filter label=${SERVICE_MARK}`, 'rm -f -v c1 c2 b1', `volume ls -q --filter label=${MARK}`, 'volume rm -f v1',
     `network ls -q --filter label=${MARK}`, 'network inspect n1 --format {{range .Containers}}{{println .Name}}{{end}}', 'network disconnect -f n1 rc-other', 'network rm n1',
     `network ls -q --filter label=${SERVICE_MARK}`, 'network inspect n2 --format {{range .Containers}}{{println .Name}}{{end}}', 'network rm n2',

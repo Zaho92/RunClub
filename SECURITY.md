@@ -100,8 +100,9 @@ RunClub updates itself from this repository's GitHub releases (`src/updater.js`,
   protects a stolen copy of the file, not a live attack, and only as well as it is strong: the file is encrypted with
   PBKDF2 at OpenSSL's default rounds, so `scripts/keygen.js` asks for at least 20 characters (several words). The
   key is only opened after the build, so it is not in memory while electron-builder runs. Hiding new releases (an
-  attacker who withholds updates, or floods the list with refused ones) is not detected. Versions up to 0.1.0-beta.5 do not check signatures; they still read `latest.yml`/`beta.yml`, which
-  releases keep carrying for them.
+  attacker who withholds updates, or floods the list with refused ones) is not detected. Versions up to
+  0.1.0-beta.5 did not check signatures; they read `latest.yml`/`beta.yml`. Releases after 0.1.0-beta.6 no longer
+  carry them, so those versions report the file as missing instead of updating.
 
 ## Access to GitHub
 

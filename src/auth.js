@@ -96,15 +96,13 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
   }
 
   const draft = () => `${file}.new`;
-  // Up to 0.1.0-beta.4 the draft was called `.neu`; one left behind still counts when loading and is deleted on sign-out.
-  const legacy = () => `${file}.neu`;
   function read(name) {
     try { return { entry: valid(JSON.parse(secrets.decrypt(fs.readFileSync(name)).toString('utf8'))), at: fs.statSync(name).mtimeMs }; } catch { return null; }
   }
   // If a new state could not be moved into place, it still lies next to it (see `keep`); then the newer one applies.
   function load() {
     if (!file || !secrets) return null;
-    const found = [read(file), read(draft()), read(legacy())].filter((item) => item?.entry).sort((a, b) => b.at - a.at);
+    const found = [read(file), read(draft())].filter((item) => item?.entry).sort((a, b) => b.at - a.at);
     return found[0]?.entry ?? null;
   }
 
@@ -123,7 +121,7 @@ function createAuth({ clientId = CLIENT_ID, file = null, secrets = null, fetch =
           settle(draft());
         } else {
           // Each on its own: if one stayed behind, the user would be signed in again after the next start.
-          for (const name of [draft(), legacy(), file]) {
+          for (const name of [draft(), file]) {
             try { fs.rmSync(name, { force: true }); } catch (error) { log(msg('m_tokenNotRemoved', path.basename(name), reason(error))); }
           }
         }

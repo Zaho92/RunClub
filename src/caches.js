@@ -74,10 +74,9 @@ function createCaches({
   // Create the build service anew. Returns what it failed on (a message), otherwise null.
   async function startService(repo) {
     await docker(['rm', '-f', buildService(repo)]);
-    // Its volumes must belong to the user of the service. Build layers of an earlier privileged service belong to
-    // root and are no use to it: they are cleared once.
+    // Its volumes must belong to the user of the service.
     await docker(['run', '--rm', '-v', `${buildVolume(repo)}:/b`, '-v', `${buildSocket(repo)}:/s`, ...asRoot(dind),
-      `[ "$(stat -c %u /b)" = ${SERVICE_USER} ] || find /b -mindepth 1 -delete; chown ${SERVICE_USER}:${SERVICE_USER} /b /s`]);
+      `chown ${SERVICE_USER}:${SERVICE_USER} /b /s`]);
     const service = await docker(['run', '-d', '--name', buildService(repo), '--label', serviceMark, '--label', `${LIMITS_LABEL}=${serviceKey(repo)}`,
       '--restart', 'no', '--network', buildNetwork(repo),
       '--cpus', String(limitsOf(repo).dockerCpus), '--memory', limitsOf(repo).dockerMemory, '--pids-limit', String(PIDS_MAX),

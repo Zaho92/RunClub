@@ -141,9 +141,9 @@ async function signAndPublish({ tag, version, repo, keyFile, bytes, exe, install
   fs.writeFileSync(path.join(dist, signature.MANIFEST), bytes);
   fs.writeFileSync(path.join(dist, signature.SIGNATURE), sig);
 
-  // Next to installer and manifest the file of electron-builder (latest.yml, beta.yml for betas): RunClub up to
-  // 0.1.0-beta.5 knows only that one. Not builder-debug.yml.
-  const files = fs.readdirSync(dist).filter((name) => /\.exe$|\.blockmap$|^(latest|beta|alpha)\.yml$/.test(name) || name === signature.MANIFEST || name === signature.SIGNATURE)
+  // Installer, blockmap, manifest and signature. Not electron-builder's latest.yml/beta.yml: unsigned, they would be an
+  // unchecked update path (RunClub up to 0.1.0-beta.5 read them; no such installation is left).
+  const files = fs.readdirSync(dist).filter((name) => /\.exe$|\.blockmap$/.test(name) || name === signature.MANIFEST || name === signature.SIGNATURE)
     .map((name) => path.join(dist, name));
   const flags = ['--title', `RunClub ${version}`, '--generate-notes', '--verify-tag', '--draft', ...(version.includes('-') ? ['--prerelease'] : [])];
   let draft = null;

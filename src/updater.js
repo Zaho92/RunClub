@@ -9,8 +9,7 @@
 //           nothing is downloaded; the signature must hold for one of the app's keys before the manifest is read;
 //           the manifest must name this repo and the release's version, which must be newer than the running one;
 //           the download stops beyond the signed size; an installer whose checksum doesn't match is discarded.
-//           `latest.yml`/`beta.yml` from electron-builder stay in the release for versions up to 0.1.0-beta.5, but
-//           this updater doesn't trust them.
+//           `latest.yml`/`beta.yml` from electron-builder, which older releases carry, are not trusted.
 // Sign-in   As long as the repo is private, even reading the releases needs a token (the RunClub sign-in's, see main.js).
 //           Without one it requests anonymously; a public repo needs none.
 //

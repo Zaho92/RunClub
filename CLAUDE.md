@@ -25,4 +25,3 @@ What is still pending: `TODO.md`. What the app is for: `PRODUCT.md`. What it loo
 - Design with the skill Impeccable (`.claude/skills/impeccable`, set up with `npx impeccable install --providers=claude --project`). Before every change to `src/ui.html`, read `reference/craft-floor.md` and follow `DESIGN.md`.
 - After larger changes, take screenshots and start the reviewer as a fresh subagent (`.claude/agents/impeccable-finish-reviewer.md`). The user explicitly wants this more often.
 - `src/ui.html` reloads itself in the window as soon as the file changes.
-- `gh workflow run demo.yml -R Zaho92/RunClub` starts a multi-stage run to look at (with `-f fail=true` one job fails).

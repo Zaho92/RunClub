@@ -80,7 +80,7 @@ Steps, in this order:
       Impeccable sidecars are English. `src/messages.js` has the table `EN` (the same sentences as `TEXT.en`, checked
       by `test/states.test.js`); `runclub.log`, console and `error.message` are English with en-GB numbers and times,
       older log entries carry keys and stay translated in the interface. File suffixes `.new`, `.broken-<time>` and
-      `.part`; `src/auth.js` still loads and removes a `github.token.neu` left by 0.1.0-beta.4. On the way, DESIGN.md
+      `.part`; `src/auth.js` loaded and removed a `github.token.neu` left by 0.1.0-beta.4 (until step 4). On the way, DESIGN.md
       and PRODUCT.md now describe the sign-in through the GitHub App instead of `gh`. Released and installed as
       v0.1.0-beta.5 on 18.10.2026; the log file is written in English since then.
    5. README with screenshots – done 18.10.2026: the README leads with what RunClub does, a screenshot of a run
@@ -89,7 +89,13 @@ Steps, in this order:
       “Add a project” names CI_RUNNER as well.
 4. **Open up:** remove transitional code and the demo pipeline, `LICENSE`, turn on “Private vulnerability reporting”
    in the repo settings (`SECURITY.md` refers to it), check the Git history for secrets and personal data (it goes
-   public too), make the repo public, release 0.1.0. Then also: in the README drop “As long as the repo is private …”
+   public too), make the repo public, release 0.1.0.
+   **History checked on 18.10.2026:** no tokens, keys or personal data in any commit; the names of three private
+   repos stay in old commits (the user decided against a rewrite) and are replaced by invented ones in the current
+   state. **Transitional code and demo pipeline removed on 18.10.2026:** the `.neu` draft in `src/auth.js`, the
+   clean-up by name of unlabelled build services, the clearing of root-owned build layers and templates, and
+   `.github/workflows/demo.yml`. Releases no longer carry `latest.yml`/`beta.yml` (decided by the user on 18.10.2026:
+   no installation below beta.6 is left). Then also: in the README drop “As long as the repo is private …”
    under Updating and “RunClub's releases” at Contents (likewise the comment in `src/updater.js`), and the sentence
    about only beta releases under Installing once a stable release exists.
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
@@ -105,7 +111,7 @@ Steps, in this order:
    signed size. `release.yml` is gone: releases are only built locally, also once public. Keys created on 18.10.2026
    (primary `62cfc22c9dc3fffb`, backup `f9010f22fefbca1f`). **Released, signed and installed as v0.1.0-beta.6 on 18.10.2026** (updated from beta.5 via `latest.yml`;
    from now on every update is checked against the signature). Was: the first signed beta (v0.1.0-beta.6) is released and installed **before** the repo
-   goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`).
+   goes public (versions up to 0.1.0-beta.5 check nothing; they read `latest.yml`/`beta.yml`).
    After the reviews the updater also tries up to five older releases when the newest is refused, gives up a stalled
    download, verifies the installer again right before starting it, and `release.js` checks the tag, origin/main, the
    keys against those `keygen.js` noted outside the repo, and the draft's files before publishing.
@@ -398,14 +404,6 @@ Deliberately left as is:
   put no effort into the narrow view; it just must not break.
 
 ## Smaller items
-
-- **Transitional code from the time before the daemons without privileges.** Can go as soon as every installation
-  has started once with the state of 15.10.2026 (today only this machine, i.e. after the next restart of the app):
-  `removeLeftovers` in `src/dockerwatch.js` also removes a repo's build service and network by name (older versions
-  created them without a label); `startService` in `src/caches.js` clears build layers owned by root;
-  `refreshSeed` in `src/seed.js` clears a template owned by root. Remove before publication, once there are no older
-  installations.
-- **Demo pipeline** (`.github/workflows/demo.yml`): remove once it is no longer needed for looking at the network map.
 
 ## Done (for context)
 

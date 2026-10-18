@@ -31,7 +31,6 @@ const MISS_PAUSE = 5 * SECOND; // after a missing answer
 //   longTimeout             time limit for building and pulling
 //   unreachable             the message when Docker doesn't answer (from engine.js)
 //   exposure()              warning if the daemon is reachable without protection, otherwise null (promise, from engine.js)
-//   buildService(repo), buildNetwork(repo)   names of the build service and its network (see names.js)
 //   livePairs               name of the pair -> repo (from slots.js)
 //   repos(), pools()        the repos with a pool per settings, the standing pools
 //   preparePool(pool)       provide a pool's caches and template
@@ -41,7 +40,6 @@ const MISS_PAUSE = 5 * SECOND; // after a missing answer
 function createDockerWatch({
   docker, dockerList, github, log, sleep,
   host, mark, serviceMark, builds, requiredImages, longTimeout, unreachable, exposure = async () => null,
-  buildService, buildNetwork,
   livePairs, repos, pools, preparePool, stopping,
   onReady = () => {}, onAlive = () => {},
 }) {
@@ -103,16 +101,11 @@ function createDockerWatch({
   }
 
   // Leftovers of an earlier run: pairs, their volumes and networks, build services (they end with the program; what is
-  // still standing belongs to a crash or to a pool that no longer exists), runners registered at GitHub. A repo's build
-  // service and network are also removed by name: older versions created them without a label.
+  // still standing belongs to a crash or to a pool that no longer exists), runners registered at GitHub.
   // `step(name, count)` reports during shutdown how far it got (see shutdown.js): `cleanup` before Docker, `signoff` with
   // the number of repos before GitHub, `signedOff` after each repo.
   async function removeLeftovers(step = () => {}) {
     step('cleanup');
-    for (const repo of repos()) {
-      await docker(['rm', '-f', buildService(repo)]);
-      await removeNetwork(buildNetwork(repo));
-    }
     const containers = [
       ...await dockerList(['ps', '-aq', '--filter', `label=${mark}`]),
       ...await dockerList(['ps', '-aq', '--filter', `label=${serviceMark}`]),
