@@ -97,14 +97,16 @@ Steps, in this order:
    `.github/workflows/demo.yml`. Releases no longer carry `latest.yml`/`beta.yml` (decided by the user on 18.10.2026:
    no installation below beta.6 is left). **`LICENSE` added on 18.10.2026:** MIT, holder “Zaho92” (the user's choice).
    **Public since 18.10.2026**, private vulnerability reporting on. The updater now reads the releases anonymously
-   (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo. Open: release
-   0.1.0 (stable tag only with the user's yes), then drop the “only beta releases” sentence under Installing.
+   (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo.
+   **Released, signed and installed as v0.1.0 on 18.10.2026** (the user's yes; same commit as beta.8, updated from
+   beta.8 through the signed manifest); the “only beta releases” sentence under Installing is gone. Open: its release
+   notes are only “Full Changelog”; set them from the 0.1.0 section of `CHANGELOG.md` once it exists (step (d)).
    **Released, signed and installed as v0.1.0-beta.7 on 18.10.2026** (updated from beta.6 through the signed manifest).
    **Released, signed and installed as v0.1.0-beta.8 on 18.10.2026** (updated from beta.7 through the signed manifest; daemons of the pairs now carry the runner tools). A workflow with `container:` and a service passed on it
    (18.10.2026).
    **Order decided by the user on 18.10.2026:** (a) fix container jobs (“Still open from the reviews”, item 1; fixed 18.10.2026), release
-   it as beta.8; (b) 0.1.0 on the commit of the approved beta (the user's yes is given), then drop the “only beta
-   releases” sentence; (c) repo page: topics, social preview (the user uploads it); (d) move from `TODO.md` to GitHub
+   it as beta.8; (b) 0.1.0 on the commit of the approved beta, then drop the “only beta releases” sentence (done
+   18.10.2026); (c) repo page: topics, social preview (the user uploads it); (d) move from `TODO.md` to GitHub
    issues, modelled on the Jade flows (`idee-aufnehmen`, `tickets-pflegen`, `issue-umsetzen`); (e) only then promotion.
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
    checksum from the same release; whoever can create a release there can push an update to everyone, in the public

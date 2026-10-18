@@ -31,7 +31,7 @@ in the notification area and shows in a window what your runs are doing right no
 ## Installing
 
 Download the installer `RunClub-Setup-X.Y.Z.exe` from the [releases](https://github.com/Zaho92/RunClub/releases) and
-run it. So far there are only beta releases: take the newest pre-release. The installer is not signed, so Windows
+run it. The installer is not signed, so Windows
 warns “Unknown publisher” (“More info” → “Run anyway”). RunClub ends up in `%LOCALAPPDATA%\Programs\runclub`, with a Start menu shortcut; the data lives in
 `%APPDATA%\RunClub` and is kept when updating and uninstalling.
 
