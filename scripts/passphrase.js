@@ -9,10 +9,11 @@ let pending = '';
 function feed(state, chunk) {
   for (let i = 0; i < chunk.length; i += 1) {
     const char = chunk[i];
-    if (state.escape) {
-      if (state.escape === 1 && (char === '[' || char === 'O')) state.escape = 2;
-      else if (state.escape === 1 || /[@-~]/.test(char)) state.escape = 0;
-      continue;
+    if (state.escape === 2) { if (/[@-~]/.test(char)) state.escape = 0; continue; }
+    if (state.escape === 1) {
+      state.escape = 0;
+      if (char === '[' || char === 'O') { state.escape = 2; continue; }
+      // A lone Esc: the character after it counts as typed.
     }
     if (char === '\u001b') state.escape = 1;
     else if (char === '\r' || char === '\n') return chunk.slice(i + (char === '\r' && chunk[i + 1] === '\n' ? 2 : 1));

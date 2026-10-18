@@ -12,6 +12,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { passphrase } = require('./passphrase');
 const { KEYS, manifestBytes, sign, verify, keyId, rawPublicKey } = require('../src/signature');
+const { keysOf } = require('./release');
 
 const root = path.join(__dirname, '..');
 const source = path.join(root, 'src', 'signature.js');
@@ -89,13 +90,15 @@ async function main() {
     throw failure;
   }
   for (const file of made) fs.renameSync(temp(file), file);
+  // The public keys noted outside the repo: release.js signs only while src/signature.js carries exactly these.
+  fs.writeFileSync(path.join(folder, 'public-keys.json'), `${JSON.stringify(keysOf(fs.readFileSync(source, 'utf8')), null, 2)}\n`);
 
   console.log(rotate ? `
 Done. src/signature.js now carries the new primary key and the backup key (commit them).
 
 Now, step by step:
-  1. Password manager: replace the file and the passphrase in the entry “RunClub signing key (primary)” with
-     ${files.primary} and the passphrase you just typed.
+  1. Password manager: replace the files and the passphrase in the entry “RunClub signing key (primary)” with
+     ${files.primary}, ${path.join(folder, 'public-keys.json')} and the passphrase you just typed.
   2. Commit, tag and push, then release this version with the backup key from the stick:
      npm run release -- --key <stick>\\backup.pem
   3. From the next release on, npm run release signs with the new primary again.
@@ -104,7 +107,8 @@ Done. The public keys are in src/signature.js (commit them).
 
 Now, step by step:
   1. Password manager: a new entry “RunClub signing key (primary)” with the passphrase you just typed and the
-     file ${files.primary} as an attachment. The file stays where it is: npm run release reads it from there.
+     files ${files.primary} and ${path.join(folder, 'public-keys.json')} as attachments. Both stay where they
+     are: npm run release reads them from there.
   2. USB stick: copy ${files.backup} onto it, and write the backup passphrase on paper. Keep both offline
      and in two different places (not in the password manager next to the primary).
   3. Check the stick holds the file, then delete ${files.backup} from this computer.

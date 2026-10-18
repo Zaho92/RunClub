@@ -214,8 +214,9 @@ There is no separate `qs` branch. QA is the Beta channel.
    origin v0.2.0`, then `npm run release -- v0.2.0` (HEAD now carries two tags, so it is named). It becomes an
    ordinary release, which the Stable channel also gets.
 
-If the public keys in `src/signature.js` changed since the last release (the first signed one, or after replacing a
-key), `npm run release` stops and shows old and new keys; check them, then `npm run release -- --keys-changed`.
+`npm run release` only signs while the public keys in `src/signature.js` are the ones `keygen.js` noted next to the
+key files (`public-keys.json`); otherwise it stops and shows both. If the change is yours (the note got lost), check
+the keys, then `npm run release -- --keys-changed`, which notes them anew.
 
 The version comes from the tag; `version` in `package.json` is not touched for it. `npm run release` only builds a
 clean state (HEAD on the pushed tag, working tree clean). There is deliberately no release workflow: the signing key
@@ -227,8 +228,8 @@ Once: `node scripts/keygen.js` in a terminal creates two key pairs in `%USERPROF
 private key encrypted with its own passphrase, writes both public keys into `src/signature.js` and says where to
 keep what:
 
-- `primary.pem` stays in that folder (`npm run release` reads it from there); a copy and its passphrase go into the
-  password manager. Lost from the disk: restore it from there.
+- `primary.pem` and `public-keys.json` stay in that folder (`npm run release` reads them from there); a copy of both
+  and the passphrase go into the password manager. Lost from the disk: restore them from there.
 - `backup.pem` goes onto a USB stick kept offline, its passphrase on paper kept in another place than the stick, and
   is deleted from the computer.
 

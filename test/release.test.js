@@ -8,7 +8,9 @@ const { feed } = require('../scripts/passphrase');
 test('the tag to release: the only one on HEAD, or the one named when there are several', () => {
   assert.deepEqual(chooseTag(['v0.2.0-beta.1'], undefined), { tag: 'v0.2.0-beta.1' });
   // Stable on the approved beta's commit: both tags on HEAD.
-  assert.match(chooseTag(['v0.2.0-beta.2', 'v0.2.0'], undefined).error, /npm run release -- v0\.2\.0/);
+  // git lists them by name, the stable one first; the suggestion is the newest.
+  assert.match(chooseTag(['v0.2.0', 'v0.2.0-beta.2'], undefined).error, /npm run release -- v0\.2\.0$/);
+  assert.match(chooseTag(['v0.2.0-beta.2', 'v0.2.0'], undefined).error, /npm run release -- v0\.2\.0$/);
   assert.deepEqual(chooseTag(['v0.2.0-beta.2', 'v0.2.0'], 'v0.2.0'), { tag: 'v0.2.0' });
   assert.ok(chooseTag(['v0.2.0-beta.2'], 'v0.3.0').error);
   assert.ok(chooseTag(['', 'other'], undefined).error);
@@ -47,4 +49,8 @@ test('the passphrase prompt drops escape sequences and keeps what follows an Ent
   assert.equal(feed(second, 'next\r'), '');
   assert.equal(second.text, 'next');
   assert.equal(feed({ text: '', escape: 0 }, 'a\u0003'), 'cancel');
+  // A lone Esc doesn't swallow the next character.
+  const lone = { text: '', escape: 0 };
+  feed(lone, 'a\u001bbc');
+  assert.equal(lone.text, 'abc');
 });

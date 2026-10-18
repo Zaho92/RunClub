@@ -104,11 +104,10 @@ Steps, in this order:
    valid signature (no fallback to `latest.yml`), binds version to tag, refuses downgrades, caps the download at the
    signed size. `release.yml` is gone: releases are only built locally, also once public. **Open:** the user runs
    `node scripts/keygen.js` (key ceremony), then the first signed beta is released and installed **before** the repo
-   goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`). That first
-   signed release needs `npm run release -- --keys-changed` (0.1.0-beta.5 carried no keys).
+   goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`).
    After the reviews the updater also tries up to five older releases when the newest is refused, gives up a stalled
    download, verifies the installer again right before starting it, and `release.js` checks the tag, origin/main, the
-   keys against the last release and the draft's files before publishing.
+   keys against those `keygen.js` noted outside the repo, and the draft's files before publishing.
 
 Open and independent of this: Docker Engine instead of Docker Desktop (item 2 below) and the MCP server (item 3 below).
 

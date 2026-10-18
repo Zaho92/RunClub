@@ -68,10 +68,11 @@ const secrets = () => (safeStorage.isEncryptionAvailable()
 // Installs the downloaded update: only if no runner is working, since quitting tears all of them down. The installer
 // starts only once teardown is done (hooks.onExit), and opens RunClub again afterwards.
 function installUpdate() {
-  const ready = updater.installer();
-  if (!ready) throw new Fault('m_noUpdate');
+  if (!updater.view().ready) throw new Fault('m_noUpdate');
   const working = backend.status().repos.flatMap((repo) => repo.runners).filter((runner) => runner.state === SLOT.WORKING).length;
   if (working) throw new Fault('m_updateBusy', working);
+  const ready = updater.installer();
+  if (!ready) throw new Fault('m_noUpdate');
   updater.hold(); // no check may remove the file during teardown
   installer = ready;
   backend.log(msg('m_updating', ready.version));
@@ -83,9 +84,11 @@ function exit() {
   // Verified once more right before starting; if the file changed or is gone, RunClub starts again instead of
   // leaving the machine without runners.
   if (installer) {
-    const verified = updater.installer();
-    if (verified) spawn(verified.file, verified.args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
-    else app.relaunch();
+    try {
+      const verified = updater.installer();
+      if (verified) spawn(verified.file, verified.args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+      else app.relaunch();
+    } catch { app.relaunch(); } // a virus scanner holding the file, for instance
   }
   app.exit(0);
 }

@@ -75,8 +75,9 @@ RunClub updates itself from this repository's GitHub releases (`src/updater.js`,
   key. The key is never in CI, in a GitHub secret or in the repository; no workflow publishes releases. So a stolen
   GitHub token, a rogue workflow with `contents: write` or a compromised account can create a release, but not one
   the app accepts. One way remains: a commit on `main` that swaps a public key in `src/signature.js`, which the
-  maintainer would then sign along. `npm run release` therefore stops when the keys differ from those of the last
-  release and shows both, unless `--keys-changed` says the change is intended.
+  maintainer would then sign along. `npm run release` therefore only signs while the keys in the repository equal
+  those noted outside it when they were created (`public-keys.json` next to the key files); otherwise it stops and
+  shows both, unless `--keys-changed` says the change is intended.
 - **What the app checks, in this order:** manifest and signature are present (otherwise nothing is downloaded, and
   there is no fallback to electron-builder's `latest.yml`); the signature holds for one of the two public keys built
   into the app, before the manifest is even parsed; the manifest names this repository and exactly the release's

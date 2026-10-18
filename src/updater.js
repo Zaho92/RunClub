@@ -233,6 +233,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
       // create releases could otherwise stop all updates, including the one that replaces a stolen key.
       let refused = null;
       for (const candidate of found.slice(0, TRIES)) {
+        if (held) return; // the update being installed stays as it is
         if (ready?.version === candidate.version && fs.existsSync(ready.file)) { available = candidate.version; phase = PHASE.READY; return; }
         let info;
         let installer;
@@ -246,6 +247,7 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
           skip(failure);
           continue;
         }
+        if (held) return;
         available = candidate.version;
         phase = PHASE.DOWNLOADING;
         fs.mkdirSync(folder, { recursive: true });
@@ -292,7 +294,8 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   // once more against the manifest right before; one that changed since the download is discarded.
   function installer() {
     if (!ready || !fs.existsSync(ready.file)) return null;
-    const onDisk = digest(ready.file);
+    let onDisk;
+    try { onDisk = digest(ready.file); } catch (failure) { log(msg('m_withReason', 'Update', reason(failure))); return null; }
     if (onDisk.size !== ready.size || onDisk.sha512 !== ready.sha512) {
       log(msg('m_withReason', 'Update', msg('m_updateBroken', ready.version)));
       ready = null;
