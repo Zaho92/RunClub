@@ -8,7 +8,8 @@
 // So every version of the runner image gets a volume with a copy of its folder, which the daemons mount read-only at
 // the same path. Copying takes a few seconds; it happens once per image and the volume stays across restarts. A pair
 // runs its runner from exactly the image whose copy its daemon carries (the image's id, not its name: the daily
-// rebuild may meanwhile have given the name to a newer one). Copies of older images go as soon as no daemon uses them.
+// rebuild may meanwhile have given the name to a newer one). Copies of older images go as soon as no daemon uses them
+// and no pair is about to mount them: a volume removed in between would come back empty when its daemon starts.
 
 const { asRoot } = require('./dind');
 const { lastLine } = require('./run');
@@ -29,9 +30,11 @@ const shortId = (id) => String(id).replace(/^sha256:/, '').slice(0, 12);
 //   toolsVolume(id)         name of the volume for an image's short id
 //   longTimeout             time limit for copying
 // `prepare()` returns `{ image, volume }`: the runner image's id and the volume with its tools; it throws a Fault if
-// that does not work.
+// that does not work. The volume stays claimed until `release(volume)`, once the pair's daemon holds it or the pair
+// gave up.
 function createExternals({ docker, dockerList, image, mark, toolsMark, toolsVolume, longTimeout }) {
   let current = null; // { id, promise }: the copy for the image that carries the name right now
+  const claims = new Map(); // volume → number of pairs that got it from `prepare` and have not released it yet
 
   async function fill(id) {
     const volume = toolsVolume(shortId(id));
@@ -40,7 +43,7 @@ function createExternals({ docker, dockerList, image, mark, toolsMark, toolsVolu
     const copy = await docker(['run', '--rm', '--label', mark, '-v', `${volume}:/x`, ...asRoot(id), FILL], { timeout: longTimeout });
     if (copy.code !== 0) throw new Fault('m_toolsFailed', lastLine(copy.stderr) || msg('m_exitCode', copy.code));
     // Docker refuses to remove a volume a container still uses: such a copy goes on a later round.
-    for (const old of await dockerList(['volume', 'ls', '-q', '--filter', `label=${toolsMark}`])) if (old !== volume) await docker(['volume', 'rm', old]);
+    for (const old of await dockerList(['volume', 'ls', '-q', '--filter', `label=${toolsMark}`])) if (old !== volume && !claims.has(old)) await docker(['volume', 'rm', old]);
     return { image: id, volume };
   }
 
@@ -50,13 +53,21 @@ function createExternals({ docker, dockerList, image, mark, toolsMark, toolsVolu
     if (found.code !== 0 || !id) throw new Fault('m_toolsFailed', lastLine(found.stderr) || msg('m_exitCode', found.code));
     if (current?.id !== id) current = { id, promise: fill(id) };
     const attempt = current;
-    try { return await attempt.promise; } catch (error) {
+    let ready;
+    try { ready = await attempt.promise; } catch (error) {
       if (current === attempt) current = null; // the next pair tries again
       throw error;
     }
+    claims.set(ready.volume, (claims.get(ready.volume) ?? 0) + 1);
+    return ready;
   }
 
-  return { prepare };
+  function release(volume) {
+    const left = (claims.get(volume) ?? 0) - 1;
+    if (left > 0) claims.set(volume, left); else claims.delete(volume);
+  }
+
+  return { prepare, release };
 }
 
 module.exports = { createExternals, shortId, EXTERNALS, COMPLETE, FILL };

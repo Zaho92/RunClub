@@ -54,7 +54,8 @@ const RUNNER_CAP_DROP = ['NET_RAW', 'MKNOD', 'SETFCAP', 'SETPCAP', 'SYS_CHROOT',
 //   github                  access to GitHub (see github.js)
 //   log(text, repo, kind, about), sleep(ms), timer (like `setTimeout`), newId() (id of a new pair)
 //   host, mark, dind        name of the machine, mark of our own containers, image of the daemon
-//   externals()             the runner image's id and the volume with its tools (`prepare` in externals.js)
+//   externals               `{ prepare(), release(volume) }`: the runner image's id and the volume with its tools (see
+//                           externals.js)
 //   longTimeout             time limit for copying the template
 //   metrics                 `{ meter(), recordJob(repo, record) }` (see metrics.js)
 //   settingsOf(repo), limitsOf(repo), seedVolume(repo), cacheVolume(repo), buildSocket(repo)
@@ -99,9 +100,14 @@ function createSlots({
   // That is the long part. It therefore happens ahead of time, as the pool's reserve
   // (`replenish` in pools.js); switching to the next job then only costs registration and starting the runner.
   async function provision(pool, cancelled) {
+    // The runner's tools for container jobs, before anything stands that would have to be removed again. Their volume
+    // must not go until the pair's daemon holds it.
+    const tools = await externals.prepare();
+    try { return await build(pool, cancelled, tools); } finally { externals.release(tools.volume); }
+  }
+
+  async function build(pool, cancelled, tools) {
     const limits = limitsOf(pool.repo);
-    // The runner's tools for container jobs, before anything stands that would have to be removed again.
-    const tools = await externals();
     const id = newId();
     const base = `rc-${slug(pool.repo)}-${id}`;
     const label = ['--label', mark];

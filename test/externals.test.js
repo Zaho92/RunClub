@@ -52,7 +52,7 @@ test('pairs asking at the same time share one copy', async () => {
 
 test('after a rebuild the new image gets its copy, and older copies go unless a daemon still uses them', async () => {
   const w = world();
-  await w.externals.prepare();
+  w.externals.release((await w.externals.prepare()).volume);
   w.image = 'sha256:fedcba9876543210';
   w.volumes = ['rc-tools-0123456789ab', 'rc-tools-fedcba987654', 'rc-tools-aaaaaaaaaaaa'];
   w.answer = (args) => (args[0] === 'volume' && args[1] === 'rm' && args[2] === 'rc-tools-aaaaaaaaaaaa' ? { code: 1, stderr: 'volume is in use' } : undefined);
@@ -61,6 +61,23 @@ test('after a rebuild the new image gets its copy, and older copies go unless a 
   assert.deepEqual(w.calls, ['image inspect', 'volume create --label', 'run sha256:fedcba9876543210', 'volume ls', 'volume rm rc-tools-0123456789ab', 'volume rm rc-tools-aaaaaaaaaaaa']);
   // Without `-f`: Docker refuses to remove a volume a container still uses.
   assert.ok(w.details.filter(({ args }) => args[1] === 'rm').every(({ args }) => args.length === 3));
+});
+
+test('a copy a pair is about to mount stays until the pair releases it', async () => {
+  const w = world();
+  const old = await w.externals.prepare(); // a pair still building, its daemon not yet started
+  w.image = 'sha256:fedcba9876543210';
+  w.volumes = ['rc-tools-0123456789ab', 'rc-tools-fedcba987654'];
+  w.calls.length = 0;
+  await w.externals.prepare();
+  assert.equal(w.calls.includes('volume rm rc-tools-0123456789ab'), false);
+  // Released, it goes with the next new image.
+  w.externals.release(old.volume);
+  w.image = 'sha256:aaaaaaaaaaaaaaaa';
+  w.volumes = ['rc-tools-0123456789ab', 'rc-tools-fedcba987654', 'rc-tools-aaaaaaaaaaaa'];
+  w.calls.length = 0;
+  await w.externals.prepare();
+  assert.deepEqual(w.calls.filter((call) => call.startsWith('volume rm')), ['volume rm rc-tools-0123456789ab']);
 });
 
 test('if copying fails, the pair fails with the reason, and the next one tries again', async () => {

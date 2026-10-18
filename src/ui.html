@@ -870,8 +870,10 @@ function authTrouble() {
 const authStart = () => data.auth?.state === 'out' && !data.repos.length;
 // A link to GitHub; only such links are opened by the app window in the browser (see main.js). No valid URL, nothing.
 const githubUrl = (url) => String(url ?? '').startsWith('https://github.com/');
-const githubLink = (url, text) => (githubUrl(url) ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(text) + '</a>' : '');
-const githubButton = (url, text) => (githubUrl(url) ? '<a class="btn" href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(text) + '</a>' : '');
+// Links lead only to GitHub: anything else from outside gets no address.
+const githubHref = (url) => (githubUrl(url) ? ' href="' + esc(url) + '" target="_blank" rel="noopener"' : '');
+const githubLink = (url, text) => (githubUrl(url) ? '<a' + githubHref(url) + '>' + esc(text) + '</a>' : '');
+const githubButton = (url, text) => (githubUrl(url) ? '<a class="btn"' + githubHref(url) + '>' + esc(text) + '</a>' : '');
 // Where the RunClub app is installed for another account or org; without a URL the whole sentence is dropped.
 const installNote = () => (githubUrl(data.auth?.install) ? '<div class="note">' + esc(t('addMissing')) + ' ' + githubLink(data.auth.install, t('addInstall')) + '</div>' : '');
 
@@ -987,7 +989,7 @@ function pill(j, again) {
   }
   const full = lines.filter(Boolean);
   const lined = Boolean(full.length) && (mode === 'detail' || state === 'fail');
-  const link = '<a class="pill s-' + state + (lined ? ' lined' : '') + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '" href="' + esc(j.url) + '" target="_blank" rel="noopener">' + icon(state) +
+  const link = '<a class="pill s-' + state + (lined ? ' lined' : '') + '" data-job="' + esc(j.name) + '" data-needs="' + esc(JSON.stringify(j.needs)) + '"' + githubHref(j.url) + '>' + icon(state) +
     '<span class="n">' + esc(j.name) + '</span>' + time + (lined ? '<span class="line">' + full[0] + '</span>' : '') + '<div class="more"><div>' + full.map((line) => '<p>' + line + '</p>').join('') + '</div></div>' +
     (state === 'run' ? '<i class="pg" data-progress="' + esc(j.startedAt) + '" data-est="' + (j.estimate ?? '') + '"></i>' : '') + '</a>';
   // The pill is a link; the button therefore sits next to it, not inside it.
@@ -1015,7 +1017,7 @@ function runBlock(pipeline, running, repo, named) {
   const rerun = (text, tip, only) => '<button class="btn" data-do="run/rerun" data-repo="' + esc(repo) + '" data-id="' + esc(pipeline.id) + '"' + (only ? ' data-failed-only="1"' : '') + held(repo, pipeline.id) + ' data-tip="' + esc(t(tip)) + '">' + (only ? '' : glyph('rerun')) + t(text) + '</button>';
   const acts = again ? '<div class="row">' + rerun('rerun', 'rerunTip') + (failed || ['failure', 'cancelled', 'timed_out'].includes(pipeline.conclusion) ? rerun('rerunFailed', 'rerunFailedTip', true) : '') + '</div>' : '';
   const meta = [named ? esc(repo) : '', esc(pipeline.workflow), esc(pipeline.branch || pipeline.event), running ? '<span data-running="' + esc(pipeline.startedAt) + '"></span>' : t('lastRun')].filter(Boolean).join(' · ');
-  return '<div class="stack" style="gap:14px"><div class="head"><div><h1>' + esc(pipeline.title || pipeline.workflow) + '</h1><div class="sub"><a href="' + esc(pipeline.url) + '" target="_blank" rel="noopener">' + meta + '</a></div></div><div class="eta">' + big + '<div class="sub">' + sub + '</div></div></div>' + acts +
+  return '<div class="stack" style="gap:14px"><div class="head"><div><h1>' + esc(pipeline.title || pipeline.workflow) + '</h1><div class="sub"><a' + githubHref(pipeline.url) + '>' + meta + '</a></div></div><div class="eta">' + big + '<div class="sub">' + sub + '</div></div></div>' + acts +
     '<div class="planwrap"><div class="plan' + (mode === 'detail' ? ' detail' : '') + '"><svg aria-hidden="true"></svg>' + columnsOf(pipeline).map((column) => '<div class="col">' + column.map((j) => pill(j, again)).join('') + '</div>').join('') + '</div></div>' +
     (pipeline.graph ? '' : '<div class="note">' + t('noGraph') + '</div>') + '</div>';
 }
@@ -1171,7 +1173,7 @@ function unservedRows() {
   return (data.unserved ?? []).map((entry) => {
     // Per reason: state symbol, stem of the text keys, how many there are, what the tooltip says.
     const row = entry.reason === 'minutes' ? { state: 'fail', text: 'noMinutes', count: entry.runs, tip: t('noMinutesTip') } : { state: 'wait', text: 'unserved', count: entry.jobs.length, tip: entry.jobs.join(', ') };
-    return '<div class="quiet"><a class="who s-' + row.state + '" href="' + esc(entry.url) + '" target="_blank" rel="noopener" data-tip="' + esc(entry.repo) + '">' + icon(row.state) + esc(shortRepo(entry.repo)) + '</a>' +
+    return '<div class="quiet"><a class="who s-' + row.state + '"' + githubHref(entry.url) + ' data-tip="' + esc(entry.repo) + '">' + icon(row.state) + esc(shortRepo(entry.repo)) + '</a>' +
       '<div class="what" data-tip="' + esc(row.tip) + '">' + esc(t(row.text + (row.count === 1 ? 'One' : 'Many'), row.count, span(secondsSince(entry.since)))) + '</div>' +
       '<button class="btn" data-pick="' + esc(entry.repo) + '">' + glyph('plus') + t('addButton') + '</button></div>';
   }).join('');
@@ -1185,7 +1187,7 @@ function quietRows(entries) {
     const jobs = last ? [...last.jobs].sort((a, b) => a.stage - b.stage) : [];
     const mini = jobs.length > 1 ? '<span class="mini">' + jobs.slice(0, 14).map((j) => '<span class="s-' + jobState(j) + '" title="' + esc(j.name) + '">' + icon(jobState(j)) + '</span>').join('<i></i>') + '</span>' : '';
     return '<div class="quiet"><button class="who s-' + state + '" data-view="' + esc(entry.repo) + '">' + icon(state) + esc(shortRepo(entry.repo)) + '</button>' +
-      '<div class="what">' + (last ? mini + '<a href="' + esc(last.url) + '" target="_blank" rel="noopener">' + esc(last.title || last.workflow) + '</a>' : '<span class="dim">' + t('nothing') + '</span>') + '</div>' +
+      '<div class="what">' + (last ? mini + '<a' + githubHref(last.url) + '>' + esc(last.title || last.workflow) + '</a>' : '<span class="dim">' + t('nothing') + '</span>') + '</div>' +
       '<div class="sub">' + (entry.pool?.blocked ? t('blockedTag') : entry.pool?.paused ? t('paused') : last ? t('s_' + state) + ' <span data-ago="' + esc(last.updatedAt) + '"></span>' : '') + '</div></div>';
   }).join('');
 }

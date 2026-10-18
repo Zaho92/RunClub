@@ -29,7 +29,7 @@ function brief(args) {
 // Time passes without waiting: `sleep` only yields once to everything else and notes the duration.
 function world() {
   const w = {
-    calls: [], details: [], logs: [], slept: [], timers: [], refreshed: [], recorded: [], forgotten: [], learned: [], replenished: [], discarded: 0, metered: 0,
+    calls: [], details: [], logs: [], slept: [], timers: [], refreshed: [], recorded: [], forgotten: [], learned: [], replenished: [], released: [], discarded: 0, metered: 0,
     limits: LIMITS, newId: () => 'a1b2c3', stopping: false, ready: true, resting: false, settings: { repo: REPO, parallel: 1, cache: true, paused: false },
     answer: () => undefined, onSleep: () => {}, jit: { runner: { id: 77 }, encoded_jit_config: 'secret' },
   };
@@ -53,7 +53,7 @@ function world() {
     sleep: async (ms) => { w.slept.push(ms); w.onSleep(ms); await turn(); },
     timer: (work, ms) => w.timers.push({ work, ms }),
     newId: () => w.newId(),
-    host: 'PC', mark: MARK, dind: 'dind:test', externals: async () => TOOLS, longTimeout: 1234,
+    host: 'PC', mark: MARK, dind: 'dind:test', externals: { prepare: async () => TOOLS, release: (volume) => w.released.push(volume) }, longTimeout: 1234,
     metrics: { meter: () => ({ finish: () => { w.metered += 1; return { peakMemory: 5 }; } }), recordJob: (repo, record) => w.recorded.push([repo, record]) },
     settingsOf: (repo) => (repo === REPO ? w.settings : undefined),
     limitsOf: () => w.limits,
@@ -161,6 +161,7 @@ test('a job from start to end: build, registration, runner, teardown', async () 
   assert.deepEqual(w.learned, ['Build']);
   assert.deepEqual(w.replenished, [REPO]);
   assert.deepEqual(w.forgotten, [`${BASE}-runner`, `${BASE}-dind`]);
+  assert.deepEqual(w.released, [TOOLS.volume]); // the daemon holds the tools volume now (see externals.js)
   assert.equal(w.slots.livePairs.size, 0);
   assert.deepEqual(w.slept, []);
   assert.deepEqual({ state: w.slot.state, base: w.slot.base, runnerId: w.slot.runnerId, jobs: w.slot.jobs, lastResult: w.slot.lastResult, meter: w.slot.meter, error: w.slot.error },
@@ -609,7 +610,7 @@ test('if something throws during teardown, it goes in the log and the slot carri
   const slots = createSlots({
     docker: async () => ({ code: 0, stdout: '', stderr: '' }), github: { send: async () => null },
     log: (...entry) => w.logs.push(rendered(entry)), sleep: async (ms) => { w.slept.push(ms); await turn(); },
-    host: 'PC', mark: MARK, dind: 'dind:test', externals: async () => TOOLS, longTimeout: 1234, metrics: {},
+    host: 'PC', mark: MARK, dind: 'dind:test', externals: { prepare: async () => TOOLS, release: () => {} }, longTimeout: 1234, metrics: {},
     settingsOf: () => w.settings, limitsOf: () => LIMITS, seedVolume: () => 'rc-seed-app', cacheVolume: () => 'rc-cache-app', buildSocket: () => 'rc-buildsock-app',
     stopping: () => w.stopping, dockerReady: () => true, poolResting: () => true,
     withSeed: (repo, exclusive, work) => work(), learnImages: async () => {}, replenish: () => {}, discardReserve: discard,

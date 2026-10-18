@@ -51,7 +51,7 @@ function createRunners({
   let reserve = null; // the functions from pools.js; they are only created after the slots they need
   const slots = createSlots({
     docker, github, log, sleep, timer, newId,
-    host, mark: names.mark, dind, externals: externals.prepare, longTimeout, metrics,
+    host, mark: names.mark, dind, externals, longTimeout, metrics,
     settingsOf, limitsOf, seedVolume: names.seedVolume, cacheVolume: names.cacheVolume, buildSocket: names.buildSocket,
     stopping, dockerReady, poolResting: (pool) => reserve.poolResting(pool),
     withSeed: seed.withSeed, learnImages: seed.learnImages,
