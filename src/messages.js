@@ -191,8 +191,16 @@ const EN = {
   m_updateHttp: 'GitHub answers {0} for {1}.',
   m_updateRedirects: 'Too many redirects while downloading the update.',
   m_updateBroken: 'The installer for {0} is damaged (checksum does not match).',
-  m_updateNoYml: 'The installer details (latest.yml) are missing for {0}.',
-  m_updateYmlIncomplete: 'The installer details for {0} are incomplete.',
+  m_updateUnsigned: 'The update {0} is not signed (runclub-update.json or its signature is missing).',
+  m_updateNotTrusted: 'The update {0} is not trusted: {1}',
+  m_updateTooLarge: 'The file {1} for {0} is larger than expected.',
+
+  // Signature of an update (see signature.js)
+  m_sigUnreadable: 'the signature cannot be read',
+  m_sigUnknownKey: 'signed with an unknown key ({0})',
+  m_sigInvalid: 'the signature does not match',
+  m_sigManifestBroken: 'the manifest cannot be read',
+  m_sigManifestWrong: 'the manifest does not fit the release ({0})',
   m_updateNoInstaller: 'The installer {1} is missing for {0}.',
   m_unknownChannel: 'Unknown channel: {0}',
 };

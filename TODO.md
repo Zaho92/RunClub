@@ -27,9 +27,8 @@ Steps, in this order:
 1. **Installer and updater** – built 16.10.2026: `electron-builder` with NSIS (buildable locally, without the feared
    `winCodeSign` hurdle), own updater with channel Stable/Beta, shown in Settings → App, Start menu and autostart on
    the installed app, QA → live process in `README.md`. v0.1.0-beta.2 is installed, the update on click tested.
-   Releases are built by `npm run release` on this machine while the repo is private (GitHub's Windows runners cost
-   minutes then, and those were used up on 16.10.); once public, `release.yml` takes over, which is skipped until
-   then. **Open:** run on Beta for weeks.
+   Releases are built by `npm run release` on this machine (since 18.10.2026 always, because it signs them; the
+   former `release.yml` is gone). **Open:** run on Beta for weeks.
 2. **Safe for strangers:** fork PRs in org repos and seccomp profile (see “Still open from the reviews”), `SECURITY.md`
    with a threat model. The user's decisions of 16.10.2026: a pool of an org repo **always** pauses when workflows from
    fork PRs may run there, even with approval required (“require approval”). If a daemon does not start with the
@@ -98,6 +97,14 @@ Steps, in this order:
    repo also any workflow with `contents: write` (`release.yml` creates releases as `github-actions[bot]`, so checking
    the author does not help). Signing uses a key that only the user holds, not in CI; the app checks the signature
    before it accepts an installer. Then adjust `SECURITY.md` (“Updates”).
+   **Built on 18.10.2026** (what is checked and why: `SECURITY.md`, “Updates”):
+   Ed25519 via `node:crypto`, a signed manifest `runclub-update.json` + `.sig` per release (`src/signature.js`), primary
+   and offline backup key built into the app, `scripts/keygen.js` (once; `--new-primary` after a loss),
+   `scripts/release.js` signs, checks like the app and publishes draft-first. The updater refuses releases without a
+   valid signature (no fallback to `latest.yml`), binds version to tag, refuses downgrades, caps the download at the
+   signed size. `release.yml` is gone: releases are only built locally, also once public. **Open:** the user runs
+   `node scripts/keygen.js` (key ceremony), then the first signed beta is released and installed **before** the repo
+   goes public (versions up to 0.1.0-beta.5 check nothing; they still read `latest.yml`/`beta.yml`).
 
 Open and independent of this: Docker Engine instead of Docker Desktop (item 2 below) and the MCP server (item 3 below).
 

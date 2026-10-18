@@ -62,9 +62,37 @@ Docker daemon.
   which no job can reach. Requests that change something also need a token from the page. A job can reach `127.0.0.1`
   of Windows through `host.docker.internal`, but without the key it only learns that RunClub is running (`/api/ping`
   and the fonts answer without it). Pages carry a strict Content Security Policy.
-- **Updates** are downloaded from this repository's GitHub releases and are discarded unless their SHA-512 matches the
-  release metadata. That protects against a damaged download, not against a forged release: whoever can create a
-  release in this repository can ship an update. Installers are not code-signed yet.
+- **Updates** are signed; see “Updates” below. Installers are not code-signed (Authenticode) yet.
+
+## Updates
+
+RunClub updates itself from this repository's GitHub releases (`src/updater.js`, `src/signature.js`).
+
+- **What is signed.** Every release carries a small manifest, `runclub-update.json` (repository, version, channel,
+  installer name, size, SHA-512, commit, time), and its Ed25519 signature, `runclub-update.json.sig`. The signature
+  covers a fixed prefix plus the manifest's exact bytes.
+- **Who signs.** Only the maintainer, on their own computer (`npm run release`), with a passphrase-encrypted private
+  key. The key is never in CI, in a GitHub secret or in the repository; no workflow publishes releases. So a stolen
+  GitHub token, a rogue workflow with `contents: write` or a compromised account can create a release, but not one
+  the app accepts.
+- **What the app checks, in this order:** manifest and signature are present (otherwise nothing is downloaded, and
+  there is no fallback to electron-builder's `latest.yml`); the signature holds for one of the two public keys built
+  into the app, before the manifest is even parsed; the manifest names this repository and exactly the release's
+  version, that version is newer than the running one (no downgrade, no replay of an old signed release under a new
+  tag), and a beta never reaches the Stable channel; the download stops beyond the signed size; the installer's
+  SHA-512 matches the manifest. Manifest and signature are read up to 64 KB.
+- **Two keys.** The app carries the public keys of a primary key (signs every release) and of a backup key (kept
+  offline). Either one is accepted.
+  - *Primary key lost:* the backup key signs the next release; that release carries a new primary public key next to
+    the backup. Installations notice nothing.
+  - *Primary key stolen:* the same, and the stolen key is removed in that release. Limit: until an installation has
+    updated to it, the thief can still ship an update to it and may be faster. Every scheme with built-in keys has
+    this window.
+  - *Both lost:* installations can no longer update themselves; users have to install the new version by hand.
+- **Limits.** If the maintainer's computer is compromised while the key is unlocked, the key is gone; the passphrase
+  protects a stolen copy of the file, not a live attack. Hiding new releases (an attacker who withholds updates) is
+  not detected. Versions up to 0.1.0-beta.5 do not check signatures; they still read `latest.yml`/`beta.yml`, which
+  releases keep carrying for them.
 
 ## Access to GitHub
 

@@ -4,9 +4,13 @@
 //
 // Channel   “stable” sees only stable versions (tag vX.Y.Z), “beta” also pre-releases (vX.Y.Z-beta.N). The channel
 //           is stored in `update.json` in the data folder; without an entry, the one the running version belongs to applies.
-// Verify    Next to the installer, every release carries the file electron-builder writes (`latest.yml`, for betas
-//           `beta.yml`): the installer's name and its SHA-512. An installer whose checksum doesn't match is
-//           discarded.
+// Verify    Next to the installer, every release carries a manifest signed by the maintainer (see signature.js):
+//           version, channel, the installer's name, size and SHA-512. In this order: without manifest and signature
+//           nothing is downloaded; the signature must hold for one of the app's keys before the manifest is read;
+//           the manifest must name this repo and the release's version, which must be newer than the running one;
+//           the download stops beyond the signed size; an installer whose checksum doesn't match is discarded.
+//           `latest.yml`/`beta.yml` from electron-builder stay in the release for versions up to 0.1.0-beta.5, but
+//           this updater doesn't trust them.
 // Sign-in   As long as the repo is private, even reading the releases needs a token (the RunClub sign-in's, see main.js).
 //           Without one it requests anonymously; a public repo needs none.
 //
@@ -17,64 +21,28 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { readJson, writeJson } = require('./store');
 const { msg, render, Fault, reason } = require('./messages');
+const { compareVersions, parseVersion, isPrerelease, channelOf } = require('./versions');
+const signature = require('./signature');
 
 const FILE = 'update.json';
 const CHANNELS = ['stable', 'beta'];
 const API = 'https://api.github.com';
 const PER_PAGE = 30; // this many releases are read; older ones aren't newer anyway
 const REDIRECTS = 5;
-const CHANNEL_FILE = /^(?:latest|beta|alpha)\.yml$/; // how electron-builder names the file for the updater
+const SMALL = 64 * 1024; // manifest and signature are a few hundred bytes; more is not ours
 const PHASE = { DEV: 'dev', IDLE: 'idle', CHECKING: 'checking', CURRENT: 'current', DOWNLOADING: 'downloading', READY: 'ready', ERROR: 'error' };
 
 // An error the interface names in its own language (`code`); the message itself goes only to the log.
 //   private   GitHub doesn't hand out the releases (401/404; the repo is private and the sign-in is missing)
 //   network   GitHub is unreachable
 //   http      another answer with an error (`status`)
-//   broken    the installer is damaged (checksum)
-//   missing   the release lacks the installer or its entry
+//   unsigned  manifest or signature is missing, the signature doesn't hold or the manifest doesn't fit the release
+//   broken    the installer is damaged (size or checksum)
+//   missing   the release lacks the installer the manifest names
 //   other     everything else (disk full, aborted mid-download); details in the log
 // `message` is a message (see messages.js).
 class UpdateError extends Error {
   constructor(code, message, status = null) { super(render(message)); this.msg = message; this.code = code; this.status = status; }
-}
-
-// Splits “1.2.3-beta.4” (also with a leading “v”); null if it isn't a version.
-function parseVersion(text) {
-  const match = String(text ?? '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/);
-  if (!match) return null;
-  return { core: match.slice(1, 4).map(Number), pre: match[4] ? match[4].split('.') : [] };
-}
-
-// Like semver: a pre-release comes before the version without suffix, numbers are compared as numbers.
-// Returns < 0, 0 or > 0; a value that isn't a version comes before any other.
-function compareVersions(a, b) {
-  const x = parseVersion(a);
-  const y = parseVersion(b);
-  if (!x || !y) return (x ? 1 : 0) - (y ? 1 : 0);
-  for (let i = 0; i < 3; i += 1) if (x.core[i] !== y.core[i]) return x.core[i] - y.core[i];
-  if (!x.pre.length || !y.pre.length) return (x.pre.length ? -1 : 0) - (y.pre.length ? -1 : 0);
-  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i += 1) {
-    const p = x.pre[i];
-    const q = y.pre[i];
-    if (p === undefined || q === undefined) return p === undefined ? -1 : 1;
-    if (p === q) continue;
-    const numeric = /^\d+$/;
-    if (numeric.test(p) && numeric.test(q)) return Number(p) - Number(q);
-    if (numeric.test(p) !== numeric.test(q)) return numeric.test(p) ? -1 : 1;
-    return p < q ? -1 : 1;
-  }
-  return 0;
-}
-
-const isPrerelease = (version) => Boolean(parseVersion(version)?.pre.length);
-const channelOf = (version) => (isPrerelease(version) ? 'beta' : 'stable');
-
-// The entries from `latest.yml`: version, the installer's name and its checksum (SHA-512, Base64). Only the top-level
-// fields; the list `files` below repeats them.
-function parseUpdateInfo(text) {
-  const field = (name) => String(text ?? '').match(new RegExp(`^${name}:\\s*['"]?([^'"\\r\\n]+?)['"]?\\s*$`, 'm'))?.[1] ?? null;
-  const info = { version: field('version'), path: field('path'), sha512: field('sha512') };
-  return info.version && info.path && info.sha512 ? info : null;
 }
 
 // The newest release that applies to the channel and is newer than the running version; otherwise null. Drafts never
@@ -96,9 +64,10 @@ function pickRelease(releases, { channel, current }) {
 //   packaged                only an installed app updates itself; otherwise it just shows the version
 //   dataDir                 holds `update.json` and the downloaded installer (folder `update`)
 //   token()                 returns the token for GitHub or null
+//   keys                    the public keys a manifest must be signed with (see signature.js); controllable in tests
 //   fetch                   like Node's; controllable in tests
 //   log(text), now()
-function createUpdater({ repo, current, packaged, dataDir, token = async () => null, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
+function createUpdater({ repo, current, packaged, dataDir, token = async () => null, keys = signature.KEYS, fetch = globalThis.fetch, log = () => {}, now = Date.now }) {
   const file = path.join(dataDir, FILE);
   const folder = path.join(dataDir, 'update');
   const saved = readJson(file, {}).data ?? {};
@@ -137,17 +106,57 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   // The token goes only to GitHub's API, even if the answer names another address.
   const loadAsset = (item) => request(item.url, { accept: 'application/octet-stream', auth: new URL(item.url).origin === API });
 
-  // Downloads the installer next to the target file, verifies it and only then renames it.
+  // A small file of the release (manifest, signature) as bytes; beyond `SMALL` it is not read further.
+  async function loadSmall(item, version) {
+    const response = await loadAsset(item);
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of response.body ?? []) {
+      size += chunk.length;
+      if (size > SMALL) throw new UpdateError('unsigned', msg('m_updateTooLarge', version, item.name));
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  // The verified manifest of the release; throws `unsigned` if it is missing or doesn't hold.
+  async function manifestOf(found) {
+    const manifest = asset(found.release, signature.MANIFEST);
+    const sig = asset(found.release, signature.SIGNATURE);
+    if (!manifest || !sig) throw new UpdateError('unsigned', msg('m_updateUnsigned', found.version));
+    const bytes = await loadSmall(manifest, found.version);
+    const sigText = (await loadSmall(sig, found.version)).toString('utf8');
+    try {
+      return signature.checkManifest(signature.verify(bytes, sigText, keys), { repo, version: found.version, current, channel });
+    } catch (failure) {
+      if (failure instanceof Fault) throw new UpdateError('unsigned', msg('m_updateNotTrusted', found.version, failure.msg));
+      throw failure;
+    }
+  }
+
+  // Downloads the installer next to the target file, verifies size and checksum from the manifest and only then
+  // renames it. Beyond the signed size the download stops.
   async function download(item, info, target) {
     const response = await loadAsset(item);
     const draft = `${target}.part`;
     const hash = crypto.createHash('sha512');
     const out = fs.createWriteStream(draft);
+    let size = 0;
     try {
-      for await (const chunk of response.body) { hash.update(chunk); if (!out.write(chunk)) await new Promise((resolve) => out.once('drain', resolve)); }
+      for await (const chunk of response.body) {
+        size += chunk.length;
+        if (size > info.size) throw new UpdateError('broken', msg('m_updateTooLarge', info.version, info.file));
+        hash.update(chunk);
+        if (!out.write(chunk)) await new Promise((resolve) => out.once('drain', resolve));
+      }
       await new Promise((resolve, reject) => out.end((failure) => (failure ? reject(failure) : resolve())));
-    } catch (failure) { out.destroy(); fs.rmSync(draft, { force: true }); throw failure; }
-    if (hash.digest('base64') !== info.sha512) {
+    } catch (failure) {
+      // The file opens in the background; only once it is closed can it be removed for good.
+      if (!out.closed) await new Promise((resolve) => { out.once('close', resolve); out.destroy(); });
+      fs.rmSync(draft, { force: true });
+      throw failure;
+    }
+    if (size !== info.size || hash.digest('base64') !== info.sha512) {
       fs.rmSync(draft, { force: true });
       throw new UpdateError('broken', msg('m_updateBroken', info.version));
     }
@@ -171,15 +180,12 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
       if (!found) { available = null; ready = null; prune(null); phase = PHASE.CURRENT; return; }
       available = found.version;
       if (ready?.version === found.version && fs.existsSync(ready.file)) { phase = PHASE.READY; return; }
-      const yml = (found.release.assets ?? []).find((item) => CHANNEL_FILE.test(item.name));
-      if (!yml) throw new UpdateError('missing', msg('m_updateNoYml', found.version));
-      const info = parseUpdateInfo(await (await loadAsset(yml)).text());
-      if (!info) throw new UpdateError('missing', msg('m_updateYmlIncomplete', found.version));
-      const installer = asset(found.release, info.path);
-      if (!installer || !/\.exe$/i.test(info.path)) throw new UpdateError('missing', msg('m_updateNoInstaller', found.version, info.path));
+      const info = await manifestOf(found);
+      const installer = asset(found.release, info.file);
+      if (!installer) throw new UpdateError('missing', msg('m_updateNoInstaller', found.version, info.file));
       phase = PHASE.DOWNLOADING;
       fs.mkdirSync(folder, { recursive: true });
-      const target = path.join(folder, path.basename(info.path));
+      const target = path.join(folder, path.basename(info.file));
       ready = null; // an older downloaded update gives way to the newer one
       prune(null);
       await download(installer, info, target);
@@ -227,4 +233,4 @@ function createUpdater({ repo, current, packaged, dataDir, token = async () => n
   return { check, setChannel, installer, view };
 }
 
-module.exports = { createUpdater, compareVersions, parseVersion, parseUpdateInfo, pickRelease, channelOf, FILE, PHASE, CHANNELS };
+module.exports = { createUpdater, pickRelease, FILE, PHASE, CHANNELS };

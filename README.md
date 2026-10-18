@@ -78,7 +78,8 @@ GitHub under [Authorized GitHub Apps](https://github.com/settings/apps/authoriza
 ## Updating
 
 RunClub checks the releases shortly after starting and then every six hours, downloads a newer version in the
-background and verifies it against the checksum in the release. It is only installed on click (Settings → App →
+background and verifies it: every release carries a manifest signed by the maintainer, and RunClub only accepts an
+installer whose size and SHA-512 match it (details in `SECURITY.md`, “Updates”). It is only installed on click (Settings → App →
 “Update now”), and only when no runner is working: RunClub then tears down all runners as on quitting, starts
 the installer and opens again afterwards.
 
@@ -188,28 +189,50 @@ serve the same repos: each unregisters the other's runners at GitHub. Build the 
 | `src/subnets.js` | Networks of the pairs and build services: a random /28 each from a separate range instead of from Docker's scarce pool |
 | `src/waiting.js` | Runs without a pool that make no progress: repos of the account in which jobs wait for a self-hosted runner or runs failed on GitHub's used-up quota |
 | `src/shutdown.js` | The state while RunClub shuts down: runners dismantled per project, job being cancelled, the stages cleanup and sign-off; stored durations for estimating the next shutdown |
-| `src/updater.js` | Updating from the GitHub releases: channel Stable/Beta, download in the background, check against the SHA-512 in `latest.yml`/`beta.yml`, report a ready update; installed only on click (`src/main.js`) |
+| `src/updater.js` | Updating from the GitHub releases: channel Stable/Beta, download in the background, check against the signed manifest (size, SHA-512), report a ready update; installed only on click (`src/main.js`) |
+| `src/signature.js`, `src/versions.js` | Signed updates: manifest, Ed25519 signature, the app's public keys (primary and backup), the checks a manifest must pass; version numbers and their channel |
 | `src/run.js`, `src/store.js`, `src/images.js`, `src/pairs.js`, `src/states.js`, `src/units.js`, `src/numbers.js` | Program calls with a time limit and abort from outside (on Windows the program is only looked up in PATH), files in the data folder, rules for learned images, names of the runner pairs, states of a slot, units for time and memory, median |
 | `src/ui.html` | Interface: project rail, network map per run, load, usage, settings (German and English) |
 | `src/fonts/` | Font Overpass (OFL), shipped with the app so that it works without internet |
 | `linux/` | Image of the runners (`Dockerfile`, with `docker-shim.sh`), image of the Docker daemon without privileges (`dind/Dockerfile`) and the pinned images of daemon and build service (`pins.Dockerfile`, only read, not built), the seccomp profile of the daemons (`seccomp.json`, generated) |
-| `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds and publishes a release on this machine (`npm run release`), `seccomp.js` writes `linux/seccomp.json` |
+| `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds, signs and publishes a release on this machine (`npm run release`), `keygen.js` creates the signing keys once, `seccomp.js` writes `linux/seccomp.json` |
 
 ### Release: QA → Live (maintainers)
 
 There is no separate `qs` branch. QA is the Beta channel.
 
 1. Development happens on feature branches; when done, it goes to `main`.
-2. A beta is created with a tag on `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`. The workflow
-   `.github/workflows/release.yml` builds the installer on Windows and publishes it as a pre-release; every RunClub on
-   the Beta channel then offers it.
+2. A beta is created with a tag on `main`: `git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1`, then
+   `npm run release` in a terminal on the maintainer's computer: it asks for the passphrase of the signing key, builds
+   the installer, signs the manifest, checks it the way the app does and publishes a pre-release (as a draft first,
+   then published once all files are up); every RunClub on the Beta channel then offers it.
 3. The beta is tried out in your own operation. Whatever comes up goes into the next beta (`-beta.2`).
 4. Once a beta is approved, **the same commit** gets the stable tag: `git tag v0.2.0 v0.2.0-beta.2 && git push
-   origin v0.2.0`. The workflow publishes it as an ordinary release, which the Stable channel also gets.
+   origin v0.2.0`, then `npm run release` again. It becomes an ordinary release, which the Stable channel also gets.
 
-The version comes from the tag; `version` in `package.json` is not touched for it. As long as the repo is private,
-GitHub's Windows runners cost minutes; then `npm run release` builds the same release on this machine (HEAD on
-the pushed tag, working tree clean).
+The version comes from the tag; `version` in `package.json` is not touched for it. `npm run release` only builds a
+clean state (HEAD on the pushed tag, working tree clean). There is deliberately no release workflow: the signing key
+never goes to CI.
+
+### Signing key (maintainers)
+
+Once: `node scripts/keygen.js` in a terminal creates two key pairs in `%USERPROFILE%\.runclub-signing`, each
+private key encrypted with its own passphrase, writes both public keys into `src/signature.js` and says where to
+keep what:
+
+- `primary.pem` stays in that folder (`npm run release` reads it from there); a copy and its passphrase go into the
+  password manager. Lost from the disk: restore it from there.
+- `backup.pem` goes onto a USB stick kept offline, its passphrase on paper next to it, and is deleted from the
+  computer.
+
+Primary key lost or stolen:
+
+1. `node scripts/keygen.js --new-primary` creates a new `primary.pem` and replaces the primary public key in
+   `src/signature.js` (the backup's stays, the old primary's is gone). Commit, tag, push.
+2. Plug in the stick and release this version with the backup key: `npm run release -- --key E:\backup.pem`.
+3. From the next release on, `npm run release` signs with the new primary again.
+
+Background in `SECURITY.md`, “Updates”.
 
 The same two steps run as CI on every push and pull request (`.github/workflows/ci.yml`).
 Notes for working with Claude Code are in `CLAUDE.md`, the product description for the design in `PRODUCT.md`.

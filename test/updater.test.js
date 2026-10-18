@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { createUpdater, compareVersions, parseUpdateInfo, pickRelease, channelOf, FILE } = require('../src/updater');
+const { createUpdater, pickRelease, FILE } = require('../src/updater');
+const { compareVersions, channelOf } = require('../src/versions');
+const { manifestBytes, sign, keyId, rawPublicKey } = require('../src/signature');
 const { render } = require('../src/messages');
 
 test('versions are compared as in semver', () => {
@@ -22,12 +24,6 @@ test('without an entry the channel follows the running version', () => {
   assert.equal(channelOf('0.2.0-beta.3'), 'beta');
 });
 
-test('latest.yml gives version, installer and checksum', () => {
-  const text = "version: 0.2.0-beta.1\nfiles:\n  - url: RunClub-Setup-0.2.0-beta.1.exe\n    sha512: abc\n    size: 12\npath: RunClub-Setup-0.2.0-beta.1.exe\nsha512: 'xyz=='\nreleaseDate: '2026-10-16T10:00:00.000Z'\n";
-  assert.deepEqual(parseUpdateInfo(text), { version: '0.2.0-beta.1', path: 'RunClub-Setup-0.2.0-beta.1.exe', sha512: 'xyz==' });
-  assert.equal(parseUpdateInfo('version: 1.0.0\n'), null);
-});
-
 test('stable sees no pre-releases, beta also the stable ones, drafts never count', () => {
   const releases = [
     { tag_name: 'v0.3.0-beta.1', prerelease: true },
@@ -41,6 +37,11 @@ test('stable sees no pre-releases, beta also the stable ones, drafts never count
   // A stable version after the beta also applies in channel beta.
   assert.equal(pickRelease([...releases, { tag_name: 'v0.3.0', prerelease: false }], { channel: 'beta', current: '0.3.0-beta.1' }).version, '0.3.0');
 });
+
+// The maintainer's key pair in the tests; the updater trusts its public key.
+const signer = crypto.generateKeyPairSync('ed25519');
+const signerRaw = rawPublicKey(signer.publicKey);
+const KEYS = { [keyId(signerRaw)]: signerRaw.toString('base64') };
 
 // GitHub to touch: releases under /releases, each file behind a redirect to another host.
 function world(t, { current = '0.1.0', packaged = true, releases = [], files = {}, saved } = {}) {
@@ -60,23 +61,38 @@ function world(t, { current = '0.1.0', packaged = true, releases = [], files = {
     }
     return new Response('?', { status: 404 });
   };
-  w.updater = createUpdater({ repo: 'owner/RunClub', current, packaged, dataDir: dir, token: async () => 'secret', fetch: w.fetch });
+  w.updater = createUpdater({ repo: 'owner/RunClub', current, packaged, dataDir: dir, token: async () => 'secret', keys: KEYS, fetch: w.fetch });
   return w;
 }
 
-// A release with installer and latest.yml; `sha512` overrides the checksum.
-function release(w, version, { prerelease = false, sha512 } = {}) {
+// A release with installer, latest.yml, signed manifest and signature. `manifest` overrides fields of the manifest,
+// `key` signs with another key, `without` leaves out files, `content` replaces the installer after signing.
+function release(w, version, { prerelease = false, manifest = {}, key = signer.privateKey, without = [], content } = {}) {
   const exe = `RunClub-Setup-${version}.exe`;
-  const content = `Installer ${version}`;
-  const sum = sha512 ?? crypto.createHash('sha512').update(content).digest('base64');
+  const signed = `Installer ${version}`;
   const yml = prerelease ? 'beta.yml' : 'latest.yml';
-  w.files[exe] = content;
-  w.files[`${version}-${yml}`] = `version: ${version}\npath: ${exe}\nsha512: ${sum}\n`;
-  const assetUrl = (name) => `https://api.github.com/repos/owner/RunClub/releases/assets/${name}`;
-  w.releases.push({
-    tag_name: `v${version}`, prerelease, draft: false,
-    assets: [{ name: exe, url: assetUrl(exe) }, { name: yml, url: assetUrl(`${version}-${yml}`) }, { name: `${exe}.blockmap`, url: assetUrl('x') }],
+  const bytes = manifestBytes({
+    repo: 'owner/RunClub', version, file: exe, size: Buffer.byteLength(signed),
+    sha512: crypto.createHash('sha512').update(signed).digest('base64'), commit: 'c'.repeat(40), signedAt: '2026-10-18T12:00:00.000Z', ...manifest,
   });
+  const files = {
+    [exe]: content ?? signed,
+    [yml]: `version: ${version}
+path: ${exe}
+sha512: x
+`,
+    'runclub-update.json': bytes,
+    'runclub-update.json.sig': sign(bytes, key),
+    [`${exe}.blockmap`]: 'map',
+  };
+  const assetUrl = (name) => `https://api.github.com/repos/owner/RunClub/releases/assets/${version}/${name}`;
+  const assets = [];
+  for (const [name, data] of Object.entries(files)) {
+    if (without.includes(name)) continue;
+    w.files[`${version}/${name}`] = data;
+    assets.push({ name, url: assetUrl(name) });
+  }
+  w.releases.push({ tag_name: `v${version}`, prerelease, draft: false, assets });
 }
 
 test('downloads the newer version, verifies it and reports it ready', async (t) => {
@@ -96,7 +112,7 @@ test('downloads the newer version, verifies it and reports it ready', async (t) 
 
 test('an installer with a wrong checksum is discarded', async (t) => {
   const w = world(t);
-  release(w, '0.2.0', { sha512: 'wrong' });
+  release(w, '0.2.0', { content: 'Installer 0.2.X' });
   await w.updater.check();
   const view = w.updater.view();
   assert.equal(view.phase, 'error');
@@ -173,4 +189,57 @@ test('if the release names another address than GitHub\'s for a file, the token 
   await w.updater.check();
   assert.equal(w.updater.view().phase, 'ready');
   assert.ok(w.calls.filter((call) => call.url.startsWith('https://objects.example/')).every((call) => call.authorization === null));
+});
+
+// Whether the installer itself was requested.
+const installerLoaded = (w) => w.calls.some((call) => /\.exe$/.test(call.url));
+
+test('a release without manifest or signature is refused and nothing is downloaded', async (t) => {
+  for (const missing of ['runclub-update.json', 'runclub-update.json.sig']) {
+    const w = world(t);
+    release(w, '0.2.0', { without: [missing] });
+    await w.updater.check();
+    assert.deepEqual(w.updater.view().error, { code: 'unsigned', status: null }, missing);
+    assert.equal(installerLoaded(w), false, missing);
+  }
+});
+
+test('a release signed with a key the app doesn\'t carry is refused', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0', { key: crypto.generateKeyPairSync('ed25519').privateKey });
+  await w.updater.check();
+  assert.deepEqual(w.updater.view().error, { code: 'unsigned', status: null });
+  assert.equal(installerLoaded(w), false);
+});
+
+test('an old signed manifest under a new tag is refused', async (t) => {
+  const w = world(t, { current: '0.2.0' });
+  release(w, '0.3.0', { manifest: { version: '0.1.0' } });
+  await w.updater.check();
+  assert.deepEqual(w.updater.view().error, { code: 'unsigned', status: null });
+  assert.equal(installerLoaded(w), false);
+});
+
+test('the download stops beyond the signed size', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0', { content: 'Installer 0.2.0 with a lot more in it' });
+  await w.updater.check();
+  assert.deepEqual(w.updater.view().error, { code: 'broken', status: null });
+  assert.deepEqual(fs.readdirSync(path.join(w.dir, 'update')), []);
+});
+
+test('an oversized manifest is not read to the end', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0');
+  w.files['0.2.0/runclub-update.json'] = 'x'.repeat(70 * 1024);
+  await w.updater.check();
+  assert.deepEqual(w.updater.view().error, { code: 'unsigned', status: null });
+});
+
+test('without keys in the app no update is accepted', async (t) => {
+  const w = world(t);
+  release(w, '0.2.0');
+  const updater = createUpdater({ repo: 'owner/RunClub', current: '0.1.0', packaged: true, dataDir: w.dir, keys: {}, fetch: w.fetch });
+  await updater.check();
+  assert.deepEqual(updater.view().error, { code: 'unsigned', status: null });
 });
