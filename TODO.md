@@ -99,6 +99,7 @@ Steps, in this order:
    **Public since 18.10.2026**, private vulnerability reporting on. The updater now reads the releases anonymously
    (no token of the user leaves for them); README and SECURITY.md no longer mention the private repo. Open: release
    0.1.0 (stable tag only with the user's yes), then drop the “only beta releases” sentence under Installing.
+   **Released, signed and installed as v0.1.0-beta.7 on 18.10.2026** (updated from beta.6 through the signed manifest).
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
    checksum from the same release; whoever can create a release there can push an update to everyone, in the public
    repo also any workflow with `contents: write` (the former `release.yml` created releases as `github-actions[bot]`, so checking
