@@ -9,8 +9,10 @@ infers the repo from `git remote -v`. Labels, priorities and epics: `docs/agents
   parallel agent) are merged back into `main` and deleted before anything is pushed.
 - A commit that finishes an issue closes it with `Fixes #<n>` in the message (one line per issue). A commit that only
   contributes names it with `#<n>`.
-- Commits stay local until the owner has accepted the work; pushing `main` closes the issues. CI (`.github/workflows/ci.yml`)
+- Commits stay local until the review is done; pushing `main` closes the issues. CI (`.github/workflows/ci.yml`)
   runs on every push to `main`.
+- The owner accepts the work in the next beta. Each run leaves a comment "How to verify in the next beta" on its
+  original issue; the release collects them. What fails there reopens the issue or becomes a new one.
 - Releases are separate (Jade flow `runclub-release`, process in `README.md` under "Release: QA → Live"). What changed
   goes into `CHANGELOG.md` under "Unreleased".
 
