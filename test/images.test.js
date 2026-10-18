@@ -27,7 +27,7 @@ test('old entries drop out', () => {
 });
 
 test('two repos with the same name share no cache', () => {
-  assert.equal(slug('Zaho92/What.To_Wear'), 'what-to-wear');
+  assert.equal(slug('northwind/Mobile.App_Web'), 'mobile-app-web');
   assert.equal(sameRepo('zaho92/runclub', 'Zaho92/RunClub'), true);
   assert.equal(clashes('company/api', ['alice/api', 'alice/web']), 'alice/api');
   assert.equal(clashes('alice/my.repo', ['alice/my-repo']), 'alice/my-repo');

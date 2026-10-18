@@ -82,8 +82,8 @@ test('the environment variable replaces the default, an invalid value does not',
 
 test('creates the network with a subnet and leaves the other arguments as they are', async () => {
   const { docker, calls } = fakeDocker([ok]);
-  const result = await createNetwork(docker, ['--label', 'runclub.runner=abc', 'rc-jade-71dcf1'], { range: parseRange(DEFAULT_RANGE), random: () => 0 });
-  assert.deepEqual(calls, [['network', 'create', '--subnet', '10.213.0.0/28', '--label', 'runclub.runner=abc', 'rc-jade-71dcf1']]);
+  const result = await createNetwork(docker, ['--label', 'runclub.runner=abc', 'rc-storefront-71dcf1'], { range: parseRange(DEFAULT_RANGE), random: () => 0 });
+  assert.deepEqual(calls, [['network', 'create', '--subnet', '10.213.0.0/28', '--label', 'runclub.runner=abc', 'rc-storefront-71dcf1']]);
   assert.deepEqual(result, { ...ok, subnet: '10.213.0.0/28', tries: 1 });
 });
 
@@ -135,7 +135,7 @@ test('without options the range from the environment applies', async () => {
 });
 
 test('recognizes that a network of this name already exists', () => {
-  assert.equal(alreadyExists('Error response from daemon: network with name rc-buildnet-jade already exists'), true);
+  assert.equal(alreadyExists('Error response from daemon: network with name rc-buildnet-storefront already exists'), true);
   assert.equal(alreadyExists(OVERLAP), false);
   assert.equal(alreadyExists(undefined), false);
 });

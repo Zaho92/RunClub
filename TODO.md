@@ -344,9 +344,9 @@ Deliberately left as is:
   the own runners, quitting without leftovers.
 
 - **Daemons without privileges** (since `9686428`, app restarted on 15.10.2026 at 12:43). Seen in operation: the pairs
-  run with `runclub-dind`; jobs of RunClub and what-to-wear ran through on them, including the job “docker” of
-  what-to-wear (Docker in the job via the socket); the runners' registration via standard input holds with it; the
-  template's loader daemon refreshed what-to-wear's template at 12:43, without errors in the log. Open:
+  run with `runclub-dind`; jobs of RunClub and another project ran through on them, including a job using
+  Docker in the job via the socket; the runners' registration via standard input holds with it; the
+  template's loader daemon refreshed that project's template at 12:43, without errors in the log. Open:
   whether an image from the template equals a freshly pulled one (suspicion from the sixth pass, unproven: `cp -a`
   from busybox may not carry over extended attributes such as `user.overlay.opaque`, so that in copied images deleted
   folders of lower layers reappear. How to check: compare an image that replaces a folder of a lower layer once from
