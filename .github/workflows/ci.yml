@@ -15,8 +15,9 @@ concurrency:
 jobs:
   tests:
     name: Syntax and tests
-    # Our own runners if the repo variable CI_RUNNER is set (see README), otherwise GitHub's.
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    # Our own runners if the repo variable CI_RUNNER is set (see README), otherwise GitHub's. Pull requests from forks
+    # always run on GitHub's: the repo is public, and their code must not reach a machine of ours.
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
