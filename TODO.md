@@ -84,10 +84,15 @@ Steps, in this order:
       `.part`; `src/auth.js` still loads and removes a `github.token.neu` left by 0.1.0-beta.4. On the way, DESIGN.md
       and PRODUCT.md now describe the sign-in through the GitHub App instead of `gh`. Released and installed as
       v0.1.0-beta.5 on 18.10.2026; the log file is written in English since then.
-   5. README with screenshots.
+   5. README with screenshots – done 18.10.2026: the README leads with what RunClub does, a screenshot of a run
+      (overview, settings, usage in `docs/screenshots/`, rendered from a real state with invented names: northwind/…),
+      requirements, installing and getting started; security, configuration and development follow. The hint under
+      “Add a project” names CI_RUNNER as well.
 4. **Open up:** remove transitional code and the demo pipeline, `LICENSE`, turn on “Private vulnerability reporting”
    in the repo settings (`SECURITY.md` refers to it), check the Git history for secrets and personal data (it goes
-   public too), make the repo public, release 0.1.0.
+   public too), make the repo public, release 0.1.0. Then also: in the README drop “As long as the repo is private …”
+   under Updating and “RunClub's releases” at Contents (likewise the comment in `src/updater.js`), and the sentence
+   about only beta releases under Installing once a stable release exists.
    **Before going public: sign updates** (decided by the user on 16.10.2026). So far the updater only checks the
    checksum from the same release; whoever can create a release there can push an update to everyone, in the public
    repo also any workflow with `contents: write` (`release.yml` creates releases as `github-actions[bot]`, so checking

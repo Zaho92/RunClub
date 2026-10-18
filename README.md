@@ -1,44 +1,79 @@
 # RunClub
 
-Self-hosted GitHub Actions runners on your own Windows machine: for each job a fresh Linux container with its own
-Docker daemon, plus a reserve of prepared runners and caches per repo. RunClub sits in the notification area and
-shows its interface in a window.
+Self-hosted GitHub Actions runners on your own Windows machine. Every job gets a fresh Linux container with its own
+Docker daemon, and is still quick to start: RunClub keeps a reserve of prepared runners and caches per repo. It sits
+in the notification area and shows in a window what your runs are doing right now.
+
+![Overview: a run as a network of its jobs, with the load of the machine above it](docs/screenshots/overview.png)
+
+## What it does
+
+- **Runners without typing.** Pick a repo, and RunClub registers runners for it, switches its jobs to them and back.
+- **A clean machine per job.** Each job runs in a new container with its own Docker; nothing of a job's containers is
+  left for the next one. Only the caches carry over: packages, build layers and the images your jobs use, per repo,
+  so the setup costs little.
+- **Runs you can follow.** Each run is drawn as a network of its jobs (`needs`), with times and an estimate of when
+  the run is done, learned from earlier runs.
+- **Load in view.** Memory and CPU of the Docker VM, memory of Windows, the peak of each job against its limit, and a
+  suggestion for the limits from what was measured.
+- **GitHub's quotas.** The request budget of the hour and the Actions minutes of your account this month (Free and
+  Pro plans), with a warning before GitHub stops running jobs of private repos on its own runners.
 
 ## Requirements
 
-- Docker Desktop with WSL, started (if one of them is missing, the app says what to do and starts Docker Desktop on click)
+- Windows with Docker Desktop on WSL (if one of them is missing, RunClub says what to do and starts Docker Desktop on click)
 - a GitHub account with admin rights on the repos
+- private repos only: a public repo gets no pool, and one that turns public pauses (see [Security](#security)); in an
+  organization, “Run workflows from fork pull requests” must be off
+- Linux x64 jobs: jobs for Windows or macOS stay with GitHub's runners
 - Node.js only for development (see below); the installer brings everything along
 
-RunClub talks to GitHub through its own GitHub App “RunClub”. Sign in once (Settings → GitHub:
-one-time code, confirmation in the browser), then RunClub acts on your behalf, but only in the repos the app is
-installed on: [install RunClub](https://github.com/apps/runclub-runners/installations/new) for your own
-account and every organization whose repos should get runners. Per repo the app may register and unregister runners
-(Administration), read and re-run runs (Actions), set `CI_RUNNER` (Variables), read check results
-(Checks) and read code (Contents, for the workflow files and RunClub's releases), plus the account's billing
-for the minutes quota (Plan). It cannot change code directly; Administration, however, also allows changing
-a repo's settings, collaborators and visibility (RunClub uses it only for the runners).
+## Installing
+
+Download the installer `RunClub-Setup-X.Y.Z.exe` from the [releases](https://github.com/Zaho92/RunClub/releases) and
+run it. So far there are only beta releases: take the newest pre-release. The installer is not signed, so Windows
+warns “Unknown publisher” (“More info” → “Run anyway”). RunClub ends up in `%LOCALAPPDATA%\Programs\runclub`, with a Start menu shortcut; the data lives in
+`%APPDATA%\RunClub` and is kept when updating and uninstalling.
+
+## Getting started
+
+1. **Sign in.** RunClub asks for it on first start: it shows a one-time code, you confirm it in the browser.
+2. **Install the GitHub App** [RunClub](https://github.com/apps/runclub-runners/installations/new) for your own
+   account and every organization whose repos should get runners. RunClub links there as well when a repo is out
+   of its reach.
+3. **Let the workflows read the repo variable `CI_RUNNER`**, in every job that should run on your machine:
+
+   ```yaml
+   runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+   ```
+
+   With `CI_RUNNER` set to `["self-hosted","Linux"]`, the jobs come to RunClub; without it, they go to GitHub's
+   runners, so you can switch at any time without touching the workflows. Jobs that ask for
+   `runs-on: [self-hosted, Linux]` directly run on RunClub without the variable.
+4. **Add a project:** on first start RunClub offers your repos right away, later under Settings → Projects (search
+   the repo, “Create pool”). RunClub registers its runners and, if the workflows read `CI_RUNNER`, sets it. If you
+   change the workflows later, “Switch to my runners” in the project's settings sets it; “Back to GitHub's runners”
+   removes it again.
+
+![Settings: a project with its slots, limits and caches](docs/screenshots/settings.png)
+
+Per project you set the slots (how many jobs run at the same time), the limits per job (shared or its own) and
+see the caches. Usage shows the last 24 hours, GitHub's quotas and, per project, what each job needed:
+
+![Usage: load of the last 24 hours, GitHub's request budget and minutes, peaks per job](docs/screenshots/usage.png)
+
+### What RunClub may do on GitHub
+
+RunClub talks to GitHub through its own GitHub App and acts only in the repos the app is installed on. Per repo
+the app may register and unregister runners (Administration), read and re-run runs (Actions), set `CI_RUNNER`
+(Variables), read check results (Checks) and read code (Contents, for the workflow files and RunClub's releases),
+plus the account's billing for the minutes quota (Plan). It cannot change code directly; Administration, however,
+also allows changing a repo's settings, collaborators and visibility (RunClub uses it only for the runners).
 
 The token is valid for eight hours and renews itself; it is stored encrypted with the key of the Windows user
 in `%APPDATA%\RunClub\data\github.token`. Signing out forgets it on this machine; you revoke the grant at
 GitHub under [Authorized GitHub Apps](https://github.com/settings/apps/authorizations). The backend alone
 (`npm run backend`) keeps the token in memory only.
-
-A repo's jobs must point to self-hosted runners: `runs-on: [self-hosted, Linux]`. To stay switchable,
-read the target from a repo variable:
-
-```yaml
-runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
-```
-
-and set `CI_RUNNER` in the repo to `["self-hosted","Linux"]`.
-
-## Installing
-
-Download the installer `RunClub-Setup-X.Y.Z.exe` from the [releases](https://github.com/Zaho92/RunClub/releases) and
-run it. It is not signed, so Windows warns “Unknown publisher” (“More info” → “Run
-anyway”). RunClub ends up in `%LOCALAPPDATA%\Programs\runclub`, with a Start menu shortcut; the data lives in
-`%APPDATA%\RunClub` and is kept when updating and uninstalling.
 
 ## Updating
 
@@ -51,10 +86,71 @@ The channel is set in the same settings: **Stable** gets only approved versions,
 As long as the repo is private, RunClub reads the releases with the token of the sign-in in the app (the app needs
 Contents on this repo for that).
 
+## Quitting
+
 Closing the window ends nothing. Quit via the icon in the notification area (right-click → “Quit (stop runners)”)
 or “Quit RunClub” in the settings; the runners end as well.
 
-## Structure
+## What jobs should know
+
+A job's Docker daemon runs without privileges in a container of its own and has its own network there. Ports that a job
+publishes (`docker run -p`, `services:` in the workflow) are reached by the runner on `localhost`; `--network host`,
+on the other hand, means the daemon's network, not the runner's. So a container with `--network host` sees no services
+that a step starts in the runner on `localhost`, and vice versa.
+
+## Security
+
+The trust model in detail, and how to report a vulnerability: [`SECURITY.md`](SECURITY.md).
+
+No runner container runs with `--privileged`: each job's Docker daemon and the build service run as
+ordinary users (rootless). Whoever breaks out of a container that a job starts lands in the daemon container
+of its job, not in the Docker VM. The job's steps themselves have root in the runner container via `sudo`, with
+Docker's usual capabilities minus `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` and `NET_BIND_SERVICE`; whoever
+breaks out of the runner container is root in the Docker VM. This does not protect against every attack; only code
+you trust should run on the runners. That is why pools exist only for private repos, and if a repo becomes public,
+its pool pauses.
+Dependabot proposes new versions of the pinned images (`linux/Dockerfile`, `linux/pins.Dockerfile`).
+
+Only the app's own window gets the interface and its data: under Docker Desktop the service is also reachable from the
+jobs' containers, so it requires a key that is created anew at every start
+(`access.key` in the data folder, see `src/access.js`). This is meant for the app's own window. Anyone who opens the entry address
+in an ordinary browser instead should know: the cookie there applies to all ports on `127.0.0.1`,
+so also to other local services, and the address with the key stays in the history.
+
+## Configuration
+
+Settings, learned data and the log live under `%APPDATA%\RunClub\data`.
+
+Environment variables: `RUNCLUB_DATA` (data folder), `RUNCLUB_PORT` (port of the service, otherwise 8770) and
+`RUNCLUB_SUBNETS` (range from which the runners' networks get their subnet, otherwise `10.213.0.0/16`; from /8 to /24.
+Only needed if the range is already taken, for example by a VPN). For a Docker engine other than Docker Desktop:
+`RUNCLUB_DOCKER_HOST` (endpoint of the daemon, passed to the CLI as `DOCKER_HOST`; preferably a named pipe or `ssh://`,
+a `tcp://` only with TLS via `RUNCLUB_DOCKER_CERTS`, the folder with `ca.pem`, `cert.pem` and `key.pem`, because otherwise
+anyone who reaches the port, including a job, controls the daemon) and `RUNCLUB_DOCKER_DISTRO` (WSL distro of the daemon for
+measuring the VM; if unset `docker-desktop`, with a custom endpoint none; empty: no measurement). Without
+`RUNCLUB_DOCKER_HOST`, whatever the Docker CLI uses anyway applies (including a `DOCKER_HOST` or context of the user).
+
+## Development
+
+```sh
+npm run check   # syntax of all scripts, including the script in the interface
+npm test        # tests of all modules except backend.js and main.js
+```
+
+Start without the installer:
+
+```sh
+npm install
+npm start
+```
+
+Next to the installed app, a development instance runs only with its own data folder and port and only as a service
+(`RUNCLUB_DATA` to an empty folder, `RUNCLUB_PORT` to another port, `npm run backend`). Two instances must never
+serve the same repos: each unregisters the other's runners at GitHub. Build the installer locally: `npm run dist` (ends up in `dist/`).
+
+`npm run backend` starts only the service, without a window (data then under `%APPDATA%\RunClub\backend`, separate from the app's); the address to open is then printed in the console.
+
+### Structure
 
 | Path | Contents |
 | --- | --- |
@@ -99,57 +195,7 @@ or “Quit RunClub” in the settings; the runners end as well.
 | `linux/` | Image of the runners (`Dockerfile`, with `docker-shim.sh`), image of the Docker daemon without privileges (`dind/Dockerfile`) and the pinned images of daemon and build service (`pins.Dockerfile`, only read, not built), the seccomp profile of the daemons (`seccomp.json`, generated) |
 | `scripts/` | `make-icon.js` draws the icon into `build/` (`npm run icon`), `check.js` checks the syntax (`npm run check`), `release.js` builds and publishes a release on this machine (`npm run release`), `seccomp.js` writes `linux/seccomp.json` |
 
-Settings, learned data and the log live under `%APPDATA%\RunClub\data`.
-`npm run backend` starts only the service, without a window (data then under `%APPDATA%\RunClub\backend`, separate from the app's); the address to open is then printed in the console.
-
-Environment variables: `RUNCLUB_DATA` (data folder), `RUNCLUB_PORT` (port of the service, otherwise 8770) and
-`RUNCLUB_SUBNETS` (range from which the runners' networks get their subnet, otherwise `10.213.0.0/16`; from /8 to /24.
-Only needed if the range is already taken, for example by a VPN). For a Docker engine other than Docker Desktop:
-`RUNCLUB_DOCKER_HOST` (endpoint of the daemon, passed to the CLI as `DOCKER_HOST`; preferably a named pipe or `ssh://`,
-a `tcp://` only with TLS via `RUNCLUB_DOCKER_CERTS`, the folder with `ca.pem`, `cert.pem` and `key.pem`, because otherwise
-anyone who reaches the port, including a job, controls the daemon) and `RUNCLUB_DOCKER_DISTRO` (WSL distro of the daemon for
-measuring the VM; if unset `docker-desktop`, with a custom endpoint none; empty: no measurement). Without
-`RUNCLUB_DOCKER_HOST`, whatever the Docker CLI uses anyway applies (including a `DOCKER_HOST` or context of the user).
-
-Only the app's own window gets the interface and its data: under Docker Desktop the service is also reachable from the
-jobs' containers, so it requires a key that is created anew at every start
-(`access.key` in the data folder, see `src/access.js`). This is meant for the app's own window. Anyone who opens the entry address
-in an ordinary browser instead should know: the cookie there applies to all ports on `127.0.0.1`,
-so also to other local services, and the address with the key stays in the history.
-
-No runner container runs with `--privileged`: each job's Docker daemon and the build service run as
-ordinary users (rootless). Whoever breaks out of a container that a job starts lands in the daemon container
-of its job, not in the Docker VM. The job's steps themselves have root in the runner container via `sudo`, with
-Docker's usual capabilities minus `NET_RAW`, `MKNOD`, `SETFCAP`, `SETPCAP`, `SYS_CHROOT` and `NET_BIND_SERVICE`; whoever
-breaks out of the runner container is root in the Docker VM. This does not protect against every attack; only code
-you trust should run on the runners. That is why pools exist only for private repos, and if a repo becomes public,
-its pool pauses.
-Dependabot proposes new versions of the pinned images (`linux/Dockerfile`, `linux/pins.Dockerfile`).
-
-What the daemon without privileges changes for jobs: it has its own network in the daemon container. Ports that a job
-publishes (`docker run -p`, `services:` in the workflow) are reached by the runner on `localhost`; `--network host`,
-on the other hand, means the daemon's network, not the runner's. So a container with `--network host` sees no services
-that a step starts in the runner on `localhost`, and vice versa.
-
-## Development
-
-```sh
-npm run check   # syntax of all scripts, including the script in the interface
-npm test        # tests of all modules except backend.js and main.js
-```
-
-Start without the installer:
-
-```sh
-npm install
-npm start
-```
-
-Next to the installed app, a development instance runs only with its own data folder and port and only as a service
-(`RUNCLUB_DATA` to an empty folder, `RUNCLUB_PORT` to another port, `npm run backend`); see `CLAUDE.md`
-for why two instances must never serve the same repos. Build the installer locally: `npm run dist` (ends up in `dist/`).
-
-### Release: QA → Live
+### Release: QA → Live (maintainers)
 
 There is no separate `qs` branch. QA is the Beta channel.
 
