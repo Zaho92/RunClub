@@ -5,7 +5,7 @@
 # Node and the .NET SDK are pinned by digest: the image holds the Docker daemon's socket inside the job, so a
 # substituted image would be as powerful as that daemon. Dependabot proposes new versions (.github/dependabot.yml).
 # The runner itself deliberately tracks the latest version: GitHub rejects runners that are too old.
-FROM node:24-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS node
+FROM node:26-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS node
 FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS dotnet
 
 FROM ghcr.io/actions/actions-runner:latest
