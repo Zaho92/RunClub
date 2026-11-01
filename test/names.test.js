@@ -19,6 +19,13 @@ test('Node and .NET SDK in the runner image are pinned by digest; only the runne
   for (const image of froms.filter((from) => !from.startsWith('ghcr.io/actions/actions-runner:'))) assert.match(image, /@sha256:[0-9a-f]{64}$/, image);
 });
 
+test('the runner image puts Node with npm into the tool cache, where actions/setup-node finds it without a download', () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'linux', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, /AGENT_TOOLSDIRECTORY=\/opt\/hostedtoolcache/);
+  assert.match(dockerfile, /RUNNER_TOOL_CACHE=\/opt\/hostedtoolcache/);
+  assert.match(dockerfile, /\/opt\/hostedtoolcache\/node\/\$\w+\/x64\.complete/);
+});
+
 test('the mark depends on the data folder, regardless of upper and lower case', () => {
   const a = createNames({ dataDir: 'C:/Data/RunClub', port: DEFAULT_PORT });
   const b = createNames({ dataDir: 'c:/data/runclub', port: DEFAULT_PORT });

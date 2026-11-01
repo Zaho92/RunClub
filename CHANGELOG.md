@@ -15,6 +15,8 @@ version (`0.2.0`), or with `Unreleased` as long as that does not exist yet.
 
 - When signing in fails, the window gives the reason in the same words as the log.
 - A pool can only be created while Docker is ready.
+- The runner image carries Node with npm in the tool cache: `actions/setup-node` finds it there instead of
+  downloading it for every job.
 
 ### Fixed
 

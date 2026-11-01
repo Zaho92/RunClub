@@ -21,6 +21,18 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o 
 # Node: scripts of the workflows (`node .github/scripts/...`).
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 
+# Node with npm in the tool cache, laid out as on GitHub's machines: `actions/setup-node` finds the version in place
+# and only downloads when another one is required (otherwise each job fetched it anew, minutes each). For that the
+# folder belongs to the runner's user.
+ENV AGENT_TOOLSDIRECTORY=/opt/hostedtoolcache \
+    RUNNER_TOOL_CACHE=/opt/hostedtoolcache
+COPY --from=node /usr/local /tmp/node
+RUN version=$(node -p process.versions.node) \
+ && mkdir -p /opt/hostedtoolcache/node/$version \
+ && mv /tmp/node /opt/hostedtoolcache/node/$version/x64 \
+ && touch /opt/hostedtoolcache/node/$version/x64.complete \
+ && chown -R runner:runner /opt/hostedtoolcache
+
 # .NET SDK: `actions/setup-dotnet` finds the version in place and only downloads when a newer one is required –
 # for that the folder belongs to the runner's user.
 COPY --from=dotnet --chown=runner:runner /usr/share/dotnet /usr/share/dotnet
