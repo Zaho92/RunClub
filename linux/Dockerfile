@@ -6,7 +6,7 @@
 # substituted image would be as powerful as that daemon. Dependabot proposes new versions (.github/dependabot.yml).
 # The runner itself deliberately tracks the latest version: GitHub rejects runners that are too old.
 FROM node:24-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS node
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS dotnet
+FROM mcr.microsoft.com/dotnet/sdk:11.0@sha256:65f3c7c6a25a239ab3e6719f2896147e7b68242ff2d8818dd70498bde6ef8bea AS dotnet
 
 FROM ghcr.io/actions/actions-runner:latest
 
